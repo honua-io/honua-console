@@ -83,7 +83,7 @@ jobs:
         working-directory: e2e/playwright
         env:
           CI: "true"
-          HONUA_CONSOLE_LEGACY_DLL: ${{ github.workspace }}/tests/Honua.Console.LegacyHost/bin/Release/net10.0/Honua.Console.LegacyHost.dll
+          HONUA_CONSOLE_LEGACY_DLL: ${{ github.workspace }}/tests/Honua.Console.LegacyHost/bin/Release/net11.0/Honua.Console.LegacyHost.dll
           HONUA_CONSOLE_AWS_SERVER_URL: https://demo.honua.io
           HONUA_CONSOLE_AWS_OPERATOR_USERNAME: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_USERNAME }}
           HONUA_CONSOLE_AWS_OPERATOR_PASSWORD: ${{ secrets.HONUA_CONSOLE_AWS_OPERATOR_PASSWORD }}

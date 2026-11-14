@@ -4,7 +4,7 @@ import http from 'node:http';
 // An instrumented upstream proves Console transport behavior. This is deliberately not
 // evidence of honua-server authorization: its real policy matrix is a separate release criterion.
 let upstream: http.Server;
-let requests: Array<{ url: string; method: string; bearer?: string; key?: string }> = [];
+let requests: Array<{ url: string; method: string; bearer?: string; key?: string; capability?: string }> = [];
 const tileBytes = Buffer.from([0x1a, 0x03, 0x0a, 0x01, 0x41]);
 const edge = (actor: string, token?: string) => ({
   'X-Honua-Edge-Auth': 'operator-test-edge-secret',
@@ -14,7 +14,8 @@ const edge = (actor: string, token?: string) => ({
 
 test.beforeAll(async () => {
   upstream = http.createServer((req, res) => {
-    requests.push({ url: req.url!, method: req.method!, bearer: req.headers.authorization, key: req.headers['x-api-key'] as string | undefined });
+    requests.push({ url: req.url!, method: req.method!, bearer: req.headers.authorization, key: req.headers['x-api-key'] as string | undefined,
+      capability: req.headers['x-honua-approval-capability'] as string | undefined });
     res.setHeader('Content-Type', 'application/json');
     if (req.headers.authorization !== 'Bearer alice-valid') {
       res.writeHead(req.headers.authorization === 'Bearer expired' ? 401 : 403);
@@ -25,7 +26,10 @@ test.beforeAll(async () => {
         requestedBy: 'hydration-operator', summary: 'Hydration fixture', riskLevel: 'Low',
         createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', blockingReasons: []};
       if (req.method === 'POST') {
-        res.writeHead(403); res.end(JSON.stringify({message: 'The requester cannot approve this proposal.'}));
+        res.writeHead(403); res.end(JSON.stringify({message: 'The approve grant is missing for this proposal.'}));
+      } else if (req.url!.endsWith('/approval-review')) {
+        res.end(JSON.stringify({proposal, review: {tenantId: null, proposalId: 'hydration-probe', proposalVersion: 0,
+          planHash: 'plan-hydration', expiresAt: '2026-01-01T00:10:00Z', capability: 'cap-hydration'}}));
       } else res.end(JSON.stringify(req.url!.includes('/hydration-probe') ? proposal : {proposals: [proposal]}));
     } else if (req.url!.startsWith('/tiles/')) {
       res.setHeader('Content-Type', 'application/vnd.mapbox-vector-tile');
@@ -128,5 +132,8 @@ test('approval controls wait for hydration before dispatching a decision and ret
   await expect(approve).toBeEnabled(); await approve.click();
   await expect(page.locator('[data-proposal-rbac-denied]')).toBeVisible();
   await expect(approve).toBeDisabled();
-  expect(requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'))).toHaveLength(1);
+  const approvals = requests.filter(request => request.method === 'POST' && request.url.endsWith('/approve'));
+  expect(approvals).toHaveLength(1);
+  expect(approvals[0].capability).toBe('cap-hydration');
+  expect(requests.filter(request => request.url.endsWith('/hydration-probe/approval-review'))).toHaveLength(1);
 });

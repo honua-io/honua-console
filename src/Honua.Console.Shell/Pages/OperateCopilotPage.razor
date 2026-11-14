@@ -17,23 +17,34 @@
    autonomy API (#289/#2557), this same seat renders server-confirmed policy, kill-switch,
    graduation and audit state. Older servers hide those controls and keep this propose-only flow. *@
 
-<section class="console-page console-operate-page">
-    <div class="console-page-heading operate-heading">
-        <p class="console-kicker">Graduated operations</p>
-        <h1>Copilot Findings</h1>
-        <p>
-            Deterministic operational findings computed from live server signals — no model
-            reasoning. Findings stay propose-only unless a server-confirmed per-rule policy allows
-            a bounded, auto-safe remediation through the same governed operation gateway.
-        </p>
-    </div>
+<section class="console-page console-operate-page @(V4Enabled ? "console-copilot-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/operate-copilot-v4.css" />
+        <ConsolePageHeading Title="Copilot findings">
+            <ChildContent>
+                <p>
+                    Deterministic findings from live server signals. Fixes stay propose-only unless a
+                    server-confirmed policy allows a bounded, auto-safe remediation.
+                </p>
+            </ChildContent>
+            <Actions>@RefreshControls</Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading operate-heading">
+            <p class="console-kicker">Graduated operations</p>
+            <h1>Copilot Findings</h1>
+            <p>
+                Deterministic operational findings computed from live server signals — no model
+                reasoning. Findings stay propose-only unless a server-confirmed per-rule policy allows
+                a bounded, auto-safe remediation through the same governed operation gateway.
+            </p>
+        </div>
 
-    <div class="approval-inbox-toolbar" role="group" aria-label="Findings controls">
-        <button type="button" class="console-button console-button-secondary"
-                disabled="@_busy" data-refresh-findings @onclick="RefreshAsync">
-            Refresh
-        </button>
-    </div>
+        @RefreshControls
+    }
 
     @if (_notice is { Length: > 0 })
     {
@@ -432,6 +443,15 @@
 </section>
 
 @code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment RefreshControls => @<div class="approval-inbox-toolbar" role="group" aria-label="Findings controls">
+        <button type="button" class="console-button console-button-secondary"
+                disabled="@_busy" data-refresh-findings @onclick="RefreshAsync">
+            Refresh
+        </button>
+    </div>;
+
     private bool _loaded;
     private bool _busy;
     private IReadOnlyList<OpsFindingView>? _findings;

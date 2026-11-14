@@ -9,20 +9,39 @@
 
 <UnsavedChangesGuard IsDirty="_dirty" Message="You have unsaved shared-style edits. Leave this page and discard them?" />
 
-<section class="console-page studio-style-editor" data-style-editor data-shared-style-editor
+<section class="@(V4Enabled ? "console-page studio-style-editor studio-style-editor-v4" : "console-page studio-style-editor")" data-style-editor data-shared-style-editor
          data-style-task-id="@(_fresh ? _impact?.StyleId : null)" data-style-task-revision="@(_fresh ? _impact?.StyleVersion : null)"
          data-style-content-hash="@(_impact?.ContentHash)" data-style-impact-hash="@(_impact?.ImpactHash)"
          data-style-authority-binding="@_authorityBinding" data-style-observation-epoch="@_observationEpoch" data-style-dirty="@(_dirty ? "true" : "false")" data-style-pending="@(_loading || _saving ? "true" : "false")">
-    <div class="console-page-heading">
-        <p class="console-kicker">Studio / Styles</p>
-        <h1>Shared catalog style editor</h1>
-        <p>Author a style in either MapLibre (canonical) or GeoServices renderer mode over one canonical style. Switching modes re-fetches the style in the target encoding — the server converts (ADR-0002), so the two views never diverge.</p>
-    </div>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Styles">
+            <p>Edit a shared catalog style as MapLibre JSON or as a GeoServices renderer. The server converts between them (ADR-0002), so both views stay one style.</p>
+        </ConsolePageHeading>
+        <p class="console-state console-state-info" role="note" data-shared-style-scope>Shared catalog scope: saving updates this catalog style everywhere it is used. Use the map draft editor for a change that applies only to one map.</p>
+        <ConsolePanel Title="Style" HeadingId="style-editor-heading">@EditorBody</ConsolePanel>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Studio / Styles</p>
+            <h1>Shared catalog style editor</h1>
+            <p>Author a style in either MapLibre (canonical) or GeoServices renderer mode over one canonical style. Switching modes re-fetches the style in the target encoding — the server converts (ADR-0002), so the two views never diverge.</p>
+        </div>
 
-    <article class="console-panel" role="note" data-shared-style-scope>
-        <h2>Shared catalog scope</h2><p>Saving changes this catalog style for its associated resources. Use the map draft editor for a change that applies only to one map.</p>
-    </article>
-    <article class="console-panel">
+        <article class="console-panel" role="note" data-shared-style-scope>
+            <h2>Shared catalog scope</h2><p>Saving changes this catalog style for its associated resources. Use the map draft editor for a change that applies only to one map.</p>
+        </article>
+        <article class="console-panel">
+            @EditorBody
+        </article>
+    }
+</section>
+
+@code {
+    private RenderFragment SubHeading(string text) => V4Enabled ? @<h3>@text</h3> : @<h2>@text</h2>;
+
+    private RenderFragment EditorBody => @<text>
         @{ var renderedReview = CurrentReview; }
         <div class="studio-field-grid">
             <label>
@@ -45,12 +64,7 @@
         }
         else if (_loadIssue is { } issue && !_dirty && !_writeAcceptedAwaitingReadback && !_unknownWriteOutcome)
         {
-            <div class="console-panel console-state-warning" role="status" data-style-load-issue>
-                <p class="console-kicker">@issue.State</p>
-                <p>@issue.Detail</p>
-                <button class="console-button-link" type="button" disabled="@(_loading || _saving)" @onclick="ReloadAsync" data-style-reload>Try again</button>
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/environments")">Review connection</a>
-            </div>
+            @LoadIssueCallout(issue)
         }
         else
         {
@@ -70,25 +84,7 @@
             }
             @if (_impact is { } impact)
             {
-                <section data-style-impact><h2>Visible data-layer and service associations</h2>
-                    @if (impact.Associations.Count == 0) { <p>No associations are visible to your account.</p> }
-                    else { <ul>@foreach (var association in impact.Associations) { <li>@(association.Title ?? association.Name) <code>@association.ResourceId</code></li> }</ul> }
-                    <h2>Visible dependent maps and apps</h2>
-                    @if (!impact.ImpactComplete)
-                    {
-                        <p role="status" data-style-impact-incomplete>The deployment has not provided a complete authorized impact review. Shared editing is unavailable.</p>
-                    }
-                    else if (impact.Consumers.Count == 0) { <p>No dependent maps or apps are visible to your account.</p> }
-                    else
-                    {
-                        <ul data-style-consumers>@foreach (var consumer in impact.Consumers)
-                        {
-                            <li>@consumer.PackageKey — @consumer.Kind, @consumer.PublicationState, @(consumer.IsCurrent ? "current" : "retained version")</li>
-                        }</ul>
-                    }
-                    @if (!impact.CanEdit) { <p role="status">This shared style cannot be edited with your current access.</p> }
-                    <p>Only resources your account can inspect are shown. The server checks current authority and the reviewed associations again when you save.</p>
-                </section>
+                @ImpactReview(impact)
             }
             else if (_impactIssue is not null) { <p role="status" data-style-impact-unavailable>@_impactIssue</p> }
             <div class="console-toolbar">
@@ -105,33 +101,63 @@
 
             @if (_saveResult is { } result)
             {
-                <div class="console-panel @(_writeAcceptedAwaitingReadback ? "console-state-warning" : result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-style-result>
-                    <p class="console-kicker">@result.State</p>
-                    @if (!string.IsNullOrWhiteSpace(result.Detail))
-                    {
-                        <p>@result.Detail</p>
-                    }
-                    else if (result.Succeeded)
-                    {
-                        <p>Saved. The canonical MapLibre style was stored@(_mode == HonuaOgcStyleEncoding.Esri ? " (converted from the GeoServices renderer)" : "").</p>
-                    }
-                    @if (result.UnsupportedSymbolizers.Count > 0)
-                    {
-                        <p class="console-kicker">Lossy conversion — surfaced, not dropped:</p>
-                        <ul data-style-warnings>
-                            @foreach (var warning in result.UnsupportedSymbolizers)
-                            {
-                                <li>@warning</li>
-                            }
-                        </ul>
-                    }
-                </div>
+                @SaveResultCallout(result)
             }
         }
-    </article>
-</section>
+    </text>;
+    private RenderFragment LoadIssueCallout(HonuaAdminEndpointIssue issue) => @<text>
+        <div class="@CalloutClass console-state-warning" role="status" data-style-load-issue>
+            <p class="console-kicker">@issue.State</p>
+            <p>@issue.Detail</p>
+            <button class="console-button-link" type="button" disabled="@(_loading || _saving)" @onclick="ReloadAsync" data-style-reload>Try again</button>
+            <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/environments")">Review connection</a>
+        </div>
+    </text>;
+    private RenderFragment ImpactReview(HonuaSharedStyleImpact impact) => @<text>
+        <section data-style-impact>@SubHeading("Visible data-layer and service associations")
+            @if (impact.Associations.Count == 0) { <p>No associations are visible to your account.</p> }
+            else { <ul>@foreach (var association in impact.Associations) { <li>@(association.Title ?? association.Name) <code>@association.ResourceId</code></li> }</ul> }
+            @SubHeading("Visible dependent maps and apps")
+            @if (!impact.ImpactComplete)
+            {
+                <p role="status" data-style-impact-incomplete>The deployment has not provided a complete authorized impact review. Shared editing is unavailable.</p>
+            }
+            else if (impact.Consumers.Count == 0) { <p>No dependent maps or apps are visible to your account.</p> }
+            else
+            {
+                <ul data-style-consumers>@foreach (var consumer in impact.Consumers)
+                {
+                    <li>@consumer.PackageKey — @consumer.Kind, @consumer.PublicationState, @(consumer.IsCurrent ? "current" : "retained version")</li>
+                }</ul>
+            }
+            @if (!impact.CanEdit) { <p role="status">This shared style cannot be edited with your current access.</p> }
+            <p>Only resources your account can inspect are shown. The server checks current authority and the reviewed associations again when you save.</p>
+        </section>
+    </text>;
+    private RenderFragment SaveResultCallout(HonuaOgcStyleSaveResult result) => @<text>
+        <div class="@CalloutClass @(_writeAcceptedAwaitingReadback ? "console-state-warning" : result.Succeeded ? "console-state-success" : "console-state-danger")" role="status" data-style-result>
+            <p class="console-kicker">@result.State</p>
+            @if (!string.IsNullOrWhiteSpace(result.Detail))
+            {
+                <p>@result.Detail</p>
+            }
+            else if (result.Succeeded)
+            {
+                <p>Saved. The canonical MapLibre style was stored@(_mode == HonuaOgcStyleEncoding.Esri ? " (converted from the GeoServices renderer)" : "").</p>
+            }
+            @if (result.UnsupportedSymbolizers.Count > 0)
+            {
+                <p class="console-kicker">Lossy conversion — surfaced, not dropped:</p>
+                <ul data-style-warnings>
+                    @foreach (var warning in result.UnsupportedSymbolizers)
+                    {
+                        <li>@warning</li>
+                    }
+                </ul>
+            }
+        </div>
+    </text>;
 
-@code {
     [Parameter]
     public string? StyleId { get; set; }
 
@@ -161,9 +187,6 @@
             : HonuaOgcStyleSaveResult.Fail("Unsaved edits", "Save your edits or explicitly discard and reload before changing style or encoding.");
         return true;
     }
-    private sealed record Review(string StyleId, HonuaOgcStyleEncoding Mode, string EntityTag, string ContentHash, string ImpactHash, string Authority, long ObservationEpoch);
-    private Review? CurrentReview => CanEditShared && _impact is { } impact && _entityTag is { } etag && _authorityBinding is { } authority
-        ? new(_loadedStyleId, _loadedMode, etag, impact.ContentHash, impact.ImpactHash, authority, _observationEpoch) : null;
     private long _editEpoch;
     private bool _fresh;
     private bool _unknownWriteOutcome;

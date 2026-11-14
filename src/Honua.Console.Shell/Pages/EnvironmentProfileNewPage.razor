@@ -3,15 +3,26 @@
 @using Honua.Console.Shell.Validation
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject NavigationManager Nav
+@inject IServiceProvider Services
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved environment profile. Leave this page and discard it?" />
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Environments</p>
-        <h1>Add environment</h1>
-        <p>Name your environment and enter its server's HTTPS address. You will sign in before accessing its data.</p>
-    </div>
+<section class="console-page @(V4Enabled ? "console-environments-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/environments-v4.css" />
+        <ConsolePageHeading Title="Add environment">
+            <p>Name your environment and enter its server's HTTPS address. You will sign in before accessing its data.</p>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Environments</p>
+            <h1>Add environment</h1>
+            <p>Name your environment and enter its server's HTTPS address. You will sign in before accessing its data.</p>
+        </div>
+    }
 
     <article class="console-panel">
         <div class="studio-field-grid">
@@ -74,6 +85,7 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private string _displayName = string.Empty;
     private string _serverBaseUri = "https://";
     private string _environmentKind = "production";

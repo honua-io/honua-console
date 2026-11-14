@@ -70,6 +70,10 @@ public sealed class DualConsoleProposalsClient(
     public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(string proposalId, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.ApproveAsync(id, cancellationToken), cancellationToken);
 
+    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+        string proposalId, ConsoleProposalReviewedPlan? reviewed, CancellationToken cancellationToken = default) =>
+        Route(proposalId, (client, id) => client.ApproveAsync(id, reviewed, cancellationToken), cancellationToken);
+
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(string proposalId, string reason, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.RejectAsync(id, reason, cancellationToken), cancellationToken);
 

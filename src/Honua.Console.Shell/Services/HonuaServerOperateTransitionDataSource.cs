@@ -50,7 +50,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
 
         if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], [], [], [], [ConsoleEnvironmentRead.Unavailable]);
         var resources = BuildResourceEdits(layerRows);
-        var services = new ServiceProjection(serviceSettings, layerRows, new OperatePublicationProjection(environment.ServerBaseUri)).Map(summaries);
+        var services = new ServiceProjection(serviceSettings, layerRows, new OperateServiceEndpointResolver(environment.ServerBaseUri)).Map(summaries);
 
         return new OperateTransitionWorkspace(
             connections,
@@ -98,7 +98,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     // Services and layers share the same service/layer projection. The services surface needs the
-    // per-service settings reads (runtime settings, publication slots); the layers surface does not,
+    // per-service settings reads (runtime settings, protocol endpoints); the layers surface does not,
     // so it skips those calls.
     private async Task<OperateServicesView> BuildServicesViewAsync(
         bool includeRuntimeSettings,
@@ -138,7 +138,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         }
 
         if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], [ConsoleEnvironmentRead.Unavailable]);
-        var services = new ServiceProjection(serviceSettings, layerRows, new OperatePublicationProjection(environment.ServerBaseUri)).Map(summaries);
+        var services = new ServiceProjection(serviceSettings, layerRows, new OperateServiceEndpointResolver(environment.ServerBaseUri)).Map(summaries);
 
         return new OperateServicesView(services, states);
     }
@@ -292,7 +292,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                     connection,
                     normalizedLayer,
                     resource,
-                    new OperateServiceLayerProjection(
+                    new OperateServiceLayer(
                         normalizedLayer.LayerId,
                         Coalesce(normalizedLayer.LayerName, $"Layer {normalizedLayer.LayerId}"),
                         Coalesce(normalizedLayer.GeometryType, "Unknown"),
@@ -668,5 +668,5 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         OperateConnectionSummary Connection,
         HonuaAdminPublishedLayerSummary Source,
         OperateResourceEditPreview Resource,
-        OperateServiceLayerProjection Projection);
+        OperateServiceLayer Projection);
 }

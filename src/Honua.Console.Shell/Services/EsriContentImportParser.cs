@@ -414,7 +414,7 @@ public sealed class EsriContentImportParser
             case "map":
             case "webmap":
             case "expressmap":
-                return new EsriMappingRow(name, "map", "embedded map", ImportFidelity.Clean, "→ map package");
+                return new EsriMappingRow(name, "map", "embedded map", ImportFidelity.Clean, "→ map");
             case "sidecar":
             case "immersive":
                 return new EsriMappingRow(name, "sidecar", "scroll section", ImportFidelity.Degrade, "scroll-driven → stepped sections");
@@ -494,7 +494,7 @@ public sealed class EsriContentImportParser
             {
                 rows.Add(new EsriMappingRow(
                     "Web Map", "webmap", "app primary map", ImportFidelity.Manual,
-                    string.IsNullOrWhiteSpace(webmap) ? "no webmap set · bind a map package" : "import via Web Map, then bind",
+                    string.IsNullOrWhiteSpace(webmap) ? "no webmap set · bind a map" : "import via Web Map, then bind",
                     BoundResource: webmap));
             }
 

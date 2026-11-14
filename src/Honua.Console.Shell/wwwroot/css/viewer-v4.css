@@ -1,0 +1,62 @@
+/* v4 map viewer, draft map, metadata preview and conversation entry. Page presentation only;
+   heading wrapping and action rows come from v4-shell.css. */
+
+/* The Layers panel sits inside the map surface: one quiet divider, no second card frame.
+   Theme tokens replace the legacy hard-coded light backgrounds so dark mode stays readable. */
+.console-viewer-v4 .console-map-surface {
+    border-color: var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    overflow: hidden;
+}
+
+.console-viewer-v4 .console-map-panel.console-panel {
+    border: 0;
+    border-left: 1px solid var(--c-border);
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--c-surface-2);
+    color: var(--c-text);
+}
+
+.console-viewer-v4 .console-map-panel li {
+    border-color: var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text);
+}
+
+.console-viewer-v4 .console-map-panel h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+/* Same 42px grid as the legacy canvas, drawn with theme tokens instead of a fixed light fill. */
+.console-viewer-v4 .console-map-canvas {
+    background:
+        linear-gradient(90deg, var(--c-border) 1px, transparent 1px),
+        linear-gradient(0deg, var(--c-border) 1px, transparent 1px),
+        var(--c-surface-2);
+    background-size: 42px 42px;
+}
+
+.console-viewer-v4 .console-map-canvas :is(span, small) {
+    border-color: var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text);
+}
+
+.console-viewer-v4 .console-map-canvas small {
+    color: var(--c-text-2);
+}
+
+.console-viewer-v4 .console-chip-row {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+    .console-viewer-v4 .console-map-panel.console-panel {
+        border-left: 0;
+        border-top: 1px solid var(--c-border);
+    }
+}

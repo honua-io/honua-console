@@ -54,7 +54,7 @@ test('primary conversation retains one installed workspace and independently ver
   await expect(app.locator('.app-nav')).toBeHidden();
   await expect(page.locator('[data-workspace-prompt]')).toHaveCount(1);
   const packageKey=`workspace-browser-${Date.now().toString(36)}`;
-  await page.getByRole('textbox',{name:'New map package key'}).fill(packageKey);
+  await page.getByRole('textbox',{name:'New map key'}).fill(packageKey);
   await page.getByRole('button',{name:'New map',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=> (window as WorkspaceWindow).honuaAgentWorkspace.context.task?.packageKey)).toBe(packageKey);
   const task=await page.evaluate(()=>structuredClone((window as WorkspaceWindow).honuaAgentWorkspace.context.task));

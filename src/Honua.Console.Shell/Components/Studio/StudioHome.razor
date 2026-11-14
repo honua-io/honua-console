@@ -65,14 +65,14 @@
             <ConsoleStateView Kind="loading"
                               Kicker="Studio"
                               Title="Loading recent projects"
-                              Message="Reading your workspace content from honua-server." />
+                              Message="Reading your Studio content from honua-server." />
         }
         else if (_requiresAuthentication)
         {
             <ConsoleStateView Kind="unauthenticated"
                               Kicker="Sign in required"
                               Title="Sign in to see recent projects"
-                              Message="Recent projects come from your signed-in workspace session."
+                              Message="Recent projects come from your signed-in session."
                               ActionHref="@SignInHref()"
                               ActionLabel="Sign In" />
         }
@@ -147,7 +147,7 @@
     private const string MissingBindingKicker = "Missing binding";
 
     internal const string MissingBindingMessage =
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Studio can list your recent workspace "
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Studio can list your recent "
         + "content from the honua-server content/metadata projection (honua-server#1162).";
 
     private string _prompt = string.Empty;

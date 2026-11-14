@@ -48,9 +48,13 @@ const VECTOR_PROTOCOLS: ProtocolCase[] = [
   { protocol: 'Stac', path: () => '/stac/collections?f=json', exposes: (b, l) => listsLayer(JSON.parse(b).collections, l) },
 ];
 
-async function openServiceSettings(page: Page, serviceName: string): Promise<void> {
+async function openServiceSettings(page: Page, serviceName: string, tab: 'Protocols' | 'Access' = 'Protocols'): Promise<void> {
   await page.goto(`/operate/services/${serviceName}/settings`);
-  await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-service-detail]')).toBeVisible({ timeout: 30_000 });
+  const control = page.locator(tab === 'Access' ? '[data-allow-anonymous]' : '[data-save-protocols]');
+  await expect(control).toBeEnabled();
+  await page.getByRole('tab', { name: tab, exact: true }).click();
+  await expect(control).toBeVisible();
 }
 
 // Read from the server rather than from the page: the checkboxes appear while the page is still rendering,
@@ -147,7 +151,7 @@ test.describe('Operate · Service settings (live)', () => {
     // An UNauthenticated caller (no X-API-Key) — its access is governed purely by the service access policy.
     const anon = () => anonymousGeoServicesQuery(page.request, `${base}${query}`);
 
-    await openServiceSettings(page, target.serviceName);
+    await openServiceSettings(page, target.serviceName, 'Access');
     const allowAnon = page.locator('[data-allow-anonymous]');
 
     // 1) Make the service PRIVATE (anonymous read off) and save → the anonymous query is refused.

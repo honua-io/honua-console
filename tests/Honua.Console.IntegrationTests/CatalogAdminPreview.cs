@@ -4,6 +4,9 @@ namespace Honua.Console.IntegrationTests;
 
 internal static class CatalogAdminPreview
 {
+    public static void CaptureV4(string name, string markup) =>
+        Capture(name, $"<div class=\"console-shell\" data-console-v4=\"true\">{markup}</div>");
+
     public static void Capture(string name, string markup)
     {
         var directory = Environment.GetEnvironmentVariable("HONUA_CATALOG_PREVIEW_DIR");

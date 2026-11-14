@@ -87,8 +87,8 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
             draft.ContentItemId = string.Empty;
             draft.CurrentVersionId = string.Empty;
             draft.VersionNumber = 0;
-            draft.Title = "Untitled workflow package";
-            draft.Summary = "Draft workflow package for GP and ETL authoring.";
+            draft.Title = "Untitled workflow";
+            draft.Summary = "Draft workflow for GP and ETL authoring.";
             draft.CreatedAt = DateTimeOffset.UtcNow;
             draft.UpdatedAt = draft.CreatedAt;
             draft.LastSavedAt = null;
@@ -282,7 +282,7 @@ public sealed class InMemoryStudioWorkflowPackageClient : IStudioWorkflowPackage
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        // A never-saved draft has no content item id yet; report an empty (bound) history rather than a
+        // A never-saved draft has no saved ID yet; report an empty (bound) history rather than a
         // blocked surface so the editor's run-history panel renders its "no runs yet" prompt.
         if (string.IsNullOrWhiteSpace(contentItemId))
         {

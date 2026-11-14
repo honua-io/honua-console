@@ -5,12 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="11.0.0" PrivateAssets="all" />
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <Version>0.1.0</Version>
     <!-- The release revision is embedded in the assembly at publish time. It is deliberately not
          read from the process environment, which an older or modified image could change at runtime. -->
@@ -34,7 +34,7 @@
   <Target Name="PinConsoleWebAssemblySdkPack" BeforeTargets="ProcessFrameworkReferences">
     <ItemGroup>
       <KnownWebAssemblySdkPack Update="@(KnownWebAssemblySdkPack)"
-                               WebAssemblySdkPackVersion="10.0.13" />
+                               WebAssemblySdkPackVersion="11.0.0" />
     </ItemGroup>
   </Target>
 

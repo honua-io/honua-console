@@ -178,7 +178,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
         var handler = new RecordingHandler(_ => Envelope(Item("svc-1", "service-item", "service", "public", actions: ["view"])));
         var catalog = CreateCatalog(handler);
 
-        var map = await catalog.GetMapPackageAsync("svc-1", CatalogReadContext.Authenticated);
+        var map = await catalog.GetMapAsync("svc-1", CatalogReadContext.Authenticated);
 
         Assert.Equal(CatalogReadStatus.Missing, map.Status);
     }
@@ -189,10 +189,10 @@ public sealed class HonuaServerConsoleCatalogClientTests
         var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "saved-map", "public", actions: ["view", "edit"])));
         var catalog = CreateCatalog(handler);
 
-        var map = await catalog.GetMapPackageAsync("map-1", CatalogReadContext.Authenticated);
+        var map = await catalog.GetMapAsync("map-1", CatalogReadContext.Authenticated);
 
         Assert.Equal(CatalogReadStatus.Allowed, map.Status);
-        Assert.Equal("map", map.MapPackage!.Summary.Type);
+        Assert.Equal("map", map.Map!.Summary.Type);
     }
 
     [Fact]
@@ -216,9 +216,9 @@ public sealed class HonuaServerConsoleCatalogClientTests
         var draft = await catalog.GetDraftMapAsync("svc-1", CatalogReadContext.Authenticated);
 
         Assert.Equal(CatalogReadStatus.Allowed, draft.Status);
-        Assert.Equal("draft-svc-1", draft.MapPackage!.Summary.Id);
-        Assert.Equal("map", draft.MapPackage.Summary.Type);
-        Assert.False(draft.MapPackage.Summary.Access.Embeddable);
+        Assert.Equal("draft-svc-1", draft.Map!.Summary.Id);
+        Assert.Equal("map", draft.Map.Summary.Type);
+        Assert.False(draft.Map.Summary.Access.Embeddable);
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
             "map-1",
             EmbedRouteOptions.FromUri("https://console.honua.test/embed/maps/map-1#embedToken=abc"));
 
-        Assert.Equal(CatalogReadStatus.UnsupportedPackageBinding, embed.Status);
+        Assert.Equal(CatalogReadStatus.UnsupportedContentBinding, embed.Status);
         Assert.Contains("Share facet", embed.Message, StringComparison.OrdinalIgnoreCase);
     }
 

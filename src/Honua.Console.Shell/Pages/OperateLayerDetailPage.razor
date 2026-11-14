@@ -1,4 +1,3 @@
-@inject NavigationManager ConsoleNavigation
 @page "/operate/layers/{ResourceId}"
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Components.Operate
@@ -8,6 +7,9 @@
 @inject IConsoleLayerFieldsOperation LayerFields
 @inject IConsoleNotificationService Notifications
 @inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-layer-resource-id="@ResourceId" data-layer-loaded="@(_exposures.Count > 0)">
     @if (_ambiguousResourceIds.Count > 1)
@@ -19,7 +21,7 @@
             <ul>
                 @foreach (var canonicalResourceId in _ambiguousResourceIds)
                 {
-                    <li><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{canonicalResourceId}")">@canonicalResourceId</a></li>
+                    <li><a href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(canonicalResourceId)}")">@canonicalResourceId</a></li>
                 }
             </ul>
         </div>
@@ -30,71 +32,99 @@
     }
     else
     {
-        <div class="console-page-heading">
-            <p class="console-kicker">Operate / Layers</p>
-            <h1>@_exposures[0].Layer.Name</h1>
-            <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
-            <div class="console-detail-actions">
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/style")" data-layer-style-link>Resource presentation / style</a>
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/relationships")" data-layer-relationships-link>Relationships</a>
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/filter")" data-layer-filter-link>Permanent filter</a>
-                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/layers/{CanonicalResourceId}/metadata")" data-layer-metadata-link>Editing policy →</a>
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@_exposures[0].Layer.Name">
+                <ChildContent><p><code>@CanonicalResourceId</code> · @_exposures[0].Layer.Geometry · @_serviceSummary</p></ChildContent>
+                <Actions>@LayerActions</Actions>
+            </ConsolePageHeading>
+            <ConsolePanel Title="Layer preview" HeadingId="layer-preview-heading">
+                <div data-layer-preview><p class="console-muted">Live map rendered by honua-server through the Console map proxy.</p>
+                        <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" /></div>
+            </ConsolePanel>
+            @LayerOverview
+            <ConsolePanel Title="Fields and domains" HeadingId="layer-fields-heading">
+                @Fields
+            </ConsolePanel>
+        }
+        else
+        {
+            <div class="console-page-heading">
+                <p class="console-kicker">Operate / Layers</p>
+                <h1>@_exposures[0].Layer.Name</h1>
+                <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
+                @LayerActions
             </div>
-        </div>
+            <div class="console-panel-grid">
+                @foreach (var exposure in _exposures)
+                {
+                    <article class="console-panel">
+                        <p class="console-kicker">Exposure</p>
+                        <h2>@exposure.Service.DisplayName</h2>
+                        <dl class="console-definition-list">
+                            <dt>Service</dt>
+                            <dd><a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(exposure.Service.Name)))">@exposure.Service.DisplayName</a></dd>
+                            <dt>Geometry</dt>
+                            <dd>@exposure.Layer.Geometry</dd>
+                            <dt>Runtime</dt>
+                            <dd>@exposure.Service.RuntimeStatus</dd>
+                        </dl>
+                    </article>
+                }
 
-        <div class="console-panel-grid">
-            @foreach (var exposure in _exposures)
-            {
                 <article class="console-panel">
-                    <p class="console-kicker">Exposure</p>
-                    <h2>@exposure.Service.DisplayName</h2>
+                    <p class="console-kicker">Canonical Metadata</p>
+                    <h2>Resource Owner</h2>
                     <dl class="console-definition-list">
-                        <dt>Service</dt>
-                        <dd><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/services/{exposure.Service.Name}/settings")">@exposure.Service.DisplayName</a></dd>
-                        <dt>Geometry</dt>
-                        <dd>@exposure.Layer.Geometry</dd>
-                        <dt>Runtime</dt>
-                        <dd>@exposure.Service.RuntimeStatus</dd>
+                        <dt>Resource</dt>
+                        <dd><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(CanonicalResourceId)}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
+                        <dt>Console layer reference</dt>
+                        <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
+                        <dt>Ownership</dt>
+                        <dd>@_exposures[0].Service.MetadataOwnership</dd>
                     </dl>
                 </article>
-            }
-
-            <article class="console-panel">
-                <p class="console-kicker">Canonical Metadata</p>
-                <h2>Resource Owner</h2>
-                <dl class="console-definition-list">
-                    <dt>Resource</dt>
-                    <dd><a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{_exposures[0].Layer.CanonicalResourceId}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
-                    <dt>Console layer reference</dt>
-                    <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
-                    <dt>Ownership</dt>
-                    <dd>@_exposures[0].Service.MetadataOwnership</dd>
-                </dl>
-            </article>
-        </div>
-
-        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForLayer(_exposures[0].Layer.LayerId)" />
-
-        <article class="console-panel" data-layer-preview>
-            <p class="console-kicker">Preview</p>
-            <h2>Rendered map</h2>
-            <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
-            <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" />
-        </article>
-
-        <section class="console-section" data-fields-panel>
-            <div class="console-page-heading">
-                <p class="console-kicker">Fields &amp; domains</p>
-                <h2>Attribute fields</h2>
-                <p>Author a coded-value domain on a field (code → label). honua-server emits it in the layer's field metadata across FeatureServer, OGC API, and OData.</p>
             </div>
+
+            <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForLayer(_exposures[0].Layer.LayerId)" />
+            <article class="console-panel" data-layer-preview>
+                <p class="console-kicker">Preview</p>
+                <h2>Rendered map</h2>
+                <p class="console-muted">Live render of this layer using honua-server's own MapLibre style and vector tiles, proxied through the console so the server credentials stay server-side.</p>
+                <LayerMapPreview Layer="_exposures[0].Layer" EnvironmentId="@_environmentId" />
+            </article>
+            @Fields
+        }
+
+    }
+
+    <OperateCapabilityStateList States="@_states" />
+</section>
+
+@code {
+
+    private RenderFragment LayerActions => @<text>            <div class="console-detail-actions">
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/style")" data-layer-style-link>Resource presentation / style</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/relationships")" data-layer-relationships-link>Relationships</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/filter")" data-layer-filter-link>Permanent filter</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/metadata")" data-layer-metadata-link>Editing policy →</a>
+            </div></text>;
+    private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-data-controls" : null)" data-fields-panel>
+            @if (!V4Enabled)
+            {
+                <div class="console-page-heading">
+                    <p class="console-kicker">Fields &amp; domains</p>
+                    <h2>Attribute fields</h2>
+                    <p>Author a coded-value domain on a field (code → label). honua-server emits it in the layer's field metadata across FeatureServer, OGC API, and OData.</p>
+                </div>
+            }
 
             @if (!_fields.Bound)
             {
-                <article class="console-panel console-state-warning" role="status">
+                <div class="console-panel @(V4Enabled ? "console-state-neutral" : "console-state-warning")" role="status">
                     <p class="console-kicker">Unavailable</p>
                     <p>@_fields.Detail</p>
-                </article>
+                </div>
             }
             else
             {
@@ -102,44 +132,44 @@
                 <ConsoleTableRegion Class="console-table-wrap" Label="Layer fields">
                     <table class="console-table">
                         <thead>
-                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th></th></tr>
+                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var field in _fields.Fields)
+                            @foreach (var layerField in _fields.Fields)
                             {
-                                var edit = EditFor(field.Name);
-                                <tr data-field-row data-field-name="@field.Name">
-                                    <td class="console-mono">@field.Name</td>
-                                    <td>@(field.Type ?? "—")</td>
+                                var edit = EditFor(layerField.Name);
+                                <tr data-field-row data-field-name="@layerField.Name">
+                                    <td class="console-mono">@layerField.Name</td>
+                                    <td>@(layerField.Type ?? "—")</td>
                                     <td>
                                         <input class="console-input" @bind="edit.Alias" data-field-alias
-                                               aria-label="@($"Alias for {field.Name}")" placeholder="@field.Name" />
+                                               aria-label="@($"Alias for {layerField.Name}")" placeholder="@layerField.Name" />
                                     </td>
                                     <td>
                                         <input type="checkbox" @bind="edit.Hidden" data-field-hidden
-                                               aria-label="@($"Hidden for {field.Name}")" />
+                                               aria-label="@($"Hidden for {layerField.Name}")" />
                                     </td>
                                     <td data-field-domain>
-                                        @if (field.DomainKind == ConsoleDomainKind.CodedValue)
+                                        @if (layerField.DomainKind == ConsoleDomainKind.CodedValue)
                                         {
-                                            <span>@(field.DomainName ?? "domain") <small class="console-muted">(@field.CodedValues.Count value(s))</small></span>
+                                            <span>@(layerField.DomainName ?? "domain") <small class="console-muted">(@layerField.CodedValues.Count value(s))</small></span>
                                         }
-                                        else if (field.DomainKind == ConsoleDomainKind.Range)
+                                        else if (layerField.DomainKind == ConsoleDomainKind.Range)
                                         {
-                                            <span>@(field.DomainName ?? "domain") <small class="console-muted">(range @field.RangeMin – @field.RangeMax)</small></span>
+                                            <span>@(layerField.DomainName ?? "domain") <small class="console-muted">(range @layerField.RangeMin – @layerField.RangeMax)</small></span>
                                         }
                                         else
                                         {
                                             <span class="console-muted">—</span>
                                         }
-                                        @if (field.DefaultValueText is { } dv)
+                                        @if (layerField.DefaultValueText is { } dv)
                                         {
                                             <br /><small class="console-muted" data-field-default>default: @dv</small>
                                         }
                                     </td>
                                     <td>
                                         <button class="console-button" type="button" disabled="@_savingField"
-                                                @onclick="() => SaveFieldAsync(field.Name)" data-field-save>
+                                                @onclick="() => SaveFieldAsync(layerField.Name)" data-field-save>
                                             Save
                                         </button>
                                     </td>
@@ -161,9 +191,9 @@
                         <label>
                             <span>Field</span>
                             <select class="console-input" aria-label="Domain field" @bind="_domainField" data-domain-field>
-                                @foreach (var field in _fields.Fields)
+                                @foreach (var layerField in _fields.Fields)
                                 {
-                                    <option value="@field.Name">@field.Name</option>
+                                    <option value="@layerField.Name">@layerField.Name</option>
                                 }
                             </select>
                         </label>
@@ -244,13 +274,58 @@
                     }
                 </article>
             }
-        </section>
-    }
+        </section></text>;
 
-    <OperateCapabilityStateList States="@_states" />
-</section>
+    private RenderFragment LayerOverview => @<text>
+        <div class="console-panel-grid">
+            @for (var i = 0; i < _exposures.Count; i++)
+            {
+                var exposure = _exposures[i];
+                <ConsolePanel Title="@exposure.Service.DisplayName" HeadingId="@($"layer-exposure-{i}-heading")">
+                    <dl class="console-definition-list">
+                        <dt>Service</dt>
+                        <dd><ConsoleNameIdentifier Name="@exposure.Service.DisplayName" Identifier="@exposure.Service.Name"
+                            Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(exposure.Service.Name))" /></dd>
+                        <dt>Geometry</dt><dd>@exposure.Layer.Geometry</dd>
+                        <dt>Runtime</dt><dd>@exposure.Service.RuntimeStatus</dd>
+                    </dl>
+                </ConsolePanel>
+            }
+            <ConsolePanel Title="Resource owner" HeadingId="layer-resource-heading">
+                <dl class="console-definition-list">
+                    <dt>Resource</dt><dd><ConsoleNameIdentifier Name="@_exposures[0].Layer.CanonicalResourceName" Identifier="@CanonicalResourceId"
+                        Href="@($"/operate/resources/{Uri.EscapeDataString(CanonicalResourceId)}")" /></dd>
+                    <dt>Ownership</dt><dd>@_exposures[0].Service.MetadataOwnership</dd>
+                </dl>
+            </ConsolePanel>
+        </div>
+        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForLayer(_exposures[0].Layer.LayerId)"
+            UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
+    </text>;
 
-@code {
+
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentUnsavedSummary _metadataUnsaved = new();
+    private bool _loading = true;
+    private object?[]? _savedDomainDraft;
+    private object?[] DomainDraft => [_domainField, _domainKind, _domainName, _domainCodes, _domainRangeMin, _domainRangeMax,
+        _domainMergePolicy, _domainSplitPolicy, _defaultValueText, _clearDefaultValue];
+    private ConsoleAgentEntity? SelectedLayer => _exposures.Count == 0 ? null : ConsoleAgentEntity.ForLayer(_exposures[0].Layer);
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = SelectedLayer is { } layer ? ConsoleAgentRoutes.ForEntity(layer) : ConsoleAgentRoutes.ForRequestedLayer(ResourceId),
+        Entities = SelectedLayer is { } entity ? [entity] : [],
+        Selection = SelectedLayer is { } selected ? [selected] : [],
+        Unsaved = new()
+        {
+            ChangedFieldCount = _exposures.Count == 0 ? 0 : _metadataUnsaved.ChangedFieldCount +
+                _fields.Fields.Sum(layerField => _fieldEdits.TryGetValue(layerField.Name, out var edit)
+                    ? (edit.Alias != layerField.Alias ? 1 : 0) + (edit.Hidden != layerField.Hidden ? 1 : 0) : 0) +
+                (_savedDomainDraft is null ? 0 : DomainDraft.Zip(_savedDomainDraft).Count(pair => !Equals(pair.First, pair.Second))),
+            PendingOperationCount = _metadataUnsaved.PendingOperationCount + (_loading ? 1 : 0) + (_savingField ? 1 : 0) + (_savingDomain ? 1 : 0)
+        }
+    };
+
     [CascadingParameter] public ConsolePublicationLayerContext? PublicationContext { get; set; }
 
     [Parameter]
@@ -296,6 +371,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        _loading = true;
         var attempt = PublicationContext?.BeginRead(ResourceId);
         // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
         _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
@@ -310,7 +386,9 @@
         if (_exposures.Count > 0)
         {
             await LoadFieldsAsync();
+            _savedDomainDraft = DomainDraft;
         }
+        _loading = false;
     }
 
     private async Task LoadFieldsAsync()
@@ -324,9 +402,9 @@
         // Reseed the editable alias/hidden state from the server read so the inputs (and any re-read after a
         // save) reflect what is actually persisted.
         _fieldEdits.Clear();
-        foreach (var field in _fields.Fields)
+        foreach (var layerField in _fields.Fields)
         {
-            _fieldEdits[field.Name] = new FieldEdit { Alias = field.Alias, Hidden = field.Hidden };
+            _fieldEdits[layerField.Name] = new FieldEdit { Alias = layerField.Alias, Hidden = layerField.Hidden };
         }
     }
 
@@ -384,6 +462,8 @@
             DefaultValueText = _defaultValueText,
         };
 
+        // Edits made while the save is pending stay counted as unsaved.
+        var submittedDraft = DomainDraft;
         _domainResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
@@ -392,6 +472,7 @@
                 if (_domainResult.Succeeded)
                 {
                     await LoadFieldsAsync();
+                    _savedDomainDraft = submittedDraft;
                 }
             },
             setBusy: busy => { _savingDomain = busy; StateHasChanged(); },

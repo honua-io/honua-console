@@ -17,7 +17,7 @@ concurrency:
 jobs:
   okf-bundle:
     name: OKF documentation bundle
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -38,7 +38,7 @@ jobs:
 
   studio-release-attestation:
     name: Verify Studio release attestation
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       attestations: read
@@ -69,7 +69,7 @@ jobs:
   validate:
     name: Validate Console
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -271,6 +271,17 @@ jobs:
             artifacts/catalog-preview/settings-legacy*
           if-no-files-found: error
 
+      - name: Verify environment and sign-in presentation
+        run: node e2e/playwright/system-preview.mjs
+
+      - name: Upload environment and sign-in evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: system-presentation
+          path: artifacts/catalog-preview/system-*.png
+          if-no-files-found: error
+
       - name: Verify public item presentation
         run: node e2e/playwright/share-public-preview.mjs
 
@@ -293,6 +304,252 @@ jobs:
         with:
           name: data-services-presentation
           path: artifacts/catalog-preview/data-services-*
+          if-no-files-found: error
+
+      - name: Verify rendered connection presentation
+        run: node e2e/playwright/data-connection-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload connection presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-connection-presentation
+          path: artifacts/catalog-preview/data-connection*.png
+          if-no-files-found: error
+
+      - name: Verify shared quiet section presentation
+        run: node e2e/playwright/quiet-sections-preview.mjs
+
+      - name: Upload shared quiet section presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quiet-sections-presentation
+          path: artifacts/catalog-preview/quiet-sections-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered shared style editor presentation
+        run: node e2e/playwright/studio-styles-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload shared style editor presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: studio-styles-presentation
+          path: |
+            artifacts/catalog-preview/studio-styles-v4-*.png
+            artifacts/catalog-preview/studio-styles-conflict-v4-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered map viewer, metadata and conversation presentation
+        run: node e2e/playwright/viewer-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload map viewer, metadata and conversation presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: viewer-presentation
+          path: |
+            artifacts/catalog-preview/map-viewer-v4-*.png
+            artifacts/catalog-preview/map-draft-v4-*.png
+            artifacts/catalog-preview/metadata-dataset-v4-*.png
+            artifacts/catalog-preview/conversation-entry-v4-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered import presentation
+        run: node e2e/playwright/data-import-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload import presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-import-presentation
+          path: artifacts/catalog-preview/data-import*.png
+          if-no-files-found: error
+
+      - name: Verify rendered publishing presentation
+        run: node e2e/playwright/data-publishing-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload publishing presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-publishing-presentation
+          path: |
+            artifacts/catalog-preview/data-publishing*.png
+            artifacts/catalog-preview/data-quick-publish*.png
+          if-no-files-found: error
+
+      - name: Verify rendered history presentation
+        run: node e2e/playwright/data-history-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload history presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-history-presentation
+          path: artifacts/catalog-preview/sync-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered runtime presentation
+        run: node e2e/playwright/data-runtime-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload runtime presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-runtime-presentation
+          path: |
+            artifacts/catalog-preview/scenes-*.png
+            artifacts/catalog-preview/sensors-*.png
+            artifacts/catalog-preview/versions-*.png
+
+      - name: Verify rendered datasets presentation
+        run: node e2e/playwright/data-datasets-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Verify rendered add data flow presentation
+        run: node e2e/playwright/data-flow-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Verify rendered dataset import task presentation
+        run: node e2e/playwright/data-import-task-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload datasets presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-datasets-presentation
+          path: |
+            artifacts/catalog-preview/data-datasets*.png
+            artifacts/catalog-preview/data-dataset-*.png
+            artifacts/catalog-preview/data-conflicts-*.png
+            artifacts/catalog-preview/data-flow-*.png
+            artifacts/catalog-preview/data-import-task*.png
+          if-no-files-found: error
+
+      - name: Verify rendered source content import presentation
+        run: node e2e/playwright/data-esri-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload source content import presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-esri-presentation
+          path: artifacts/catalog-preview/data-esri-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered releases presentation
+        run: node e2e/playwright/data-releases-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload releases presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-releases-presentation
+          path: artifacts/catalog-preview/releases-*.png
+          if-no-files-found: error
+
+      - name: Verify rendered temporal presentation
+        run: node e2e/playwright/data-temporal-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload temporal presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-temporal-presentation
+          path: artifacts/catalog-preview/temporal-*.png
+
+      - name: Verify rendered service detail presentation
+        run: node e2e/playwright/data-service-detail-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload service detail presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-service-detail-presentation
+          path: artifacts/catalog-preview/data-service-detail*.png
+          if-no-files-found: error
+
+      - name: Verify rendered layers presentation
+        run: node e2e/playwright/data-layers-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload layers presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-layers-presentation
+          path: artifacts/catalog-preview/data-layers*.png
+          if-no-files-found: error
+
+      - name: Verify rendered layer detail presentation
+        run: node e2e/playwright/data-layer-detail-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload layer detail presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-layer-detail-presentation
+          path: artifacts/catalog-preview/data-layer-detail*.png
+          if-no-files-found: error
+
+      - name: Verify rendered layer style presentation
+        run: node e2e/playwright/data-layer-style-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload layer style presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-layer-style-presentation
+          path: artifacts/catalog-preview/data-layer-style*.png
+          if-no-files-found: error
+
+      - name: Verify rendered layer tools presentation
+        run: node e2e/playwright/data-layer-tools-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload layer tools presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: data-layer-tools-presentation
+          path: |
+            artifacts/catalog-preview/data-layer-editing*.png
+            artifacts/catalog-preview/data-layer-filter*.png
+            artifacts/catalog-preview/data-layer-relationships*.png
           if-no-files-found: error
 
       - name: Verify rendered Operate overview presentation
@@ -321,6 +578,35 @@ jobs:
         with:
           name: workflow-events-presentation
           path: artifacts/catalog-preview/events-*
+          if-no-files-found: error
+
+      - name: Verify rendered alert rules presentation
+        run: node e2e/playwright/alert-rules-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload alert rules presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: alert-rules-presentation
+          path: artifacts/catalog-preview/alert-rules-*
+          if-no-files-found: error
+
+      - name: Verify rendered operate monitoring presentation
+        run: node e2e/playwright/monitoring-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload operate monitoring presentation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: operate-monitoring-presentation
+          path: |
+            artifacts/catalog-preview/health-snapshot*
+            artifacts/catalog-preview/metrics-live*
+            artifacts/catalog-preview/deploy-overview*
           if-no-files-found: error
 
       - name: Verify rendered approvals presentation
@@ -354,6 +640,18 @@ jobs:
 
       - name: Verify rendered Home presentation
         run: node e2e/playwright/home-preview.mjs
+      - name: Verify rendered theme presentation
+        run: node e2e/playwright/theme-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+      - name: Upload theme presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: theme-presentation
+          path: artifacts/catalog-preview/theme-*.png
+          if-no-files-found: error
+
       - name: Verify rendered jobs presentation
         run: node e2e/playwright/jobs-preview.mjs
         env:
@@ -422,6 +720,35 @@ jobs:
         with:
           name: activity-presentation
           path: artifacts/catalog-preview/activity-*
+          if-no-files-found: error
+
+      - name: Verify Environments presentation
+        run: node e2e/playwright/environments-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Environments presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: environments-presentation
+          path: |
+            artifacts/catalog-preview/environments-v4*
+            artifacts/catalog-preview/environment-new-v4*
+            artifacts/catalog-preview/environment-detail-v4*
+          if-no-files-found: error
+
+      - name: Verify Copilot findings presentation
+        run: node e2e/playwright/copilot-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
+      - name: Upload Copilot findings presentation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: copilot-presentation
+          path: artifacts/catalog-preview/copilot-*
           if-no-files-found: error
 
       - name: Upload catalog presentation evidence

@@ -1,0 +1,79 @@
+/* Page presentation only for health, metrics and deploy; status colours come from the shared console styles. */
+.console-monitoring-v4 {
+    color: var(--c-text);
+    font-family: var(--font-sans);
+}
+
+.console-monitoring-v4 .console-page-heading-v4 p {
+    max-width: 72ch;
+    color: var(--c-text-2);
+    font-size: var(--text-sm);
+}
+
+.console-monitoring-v4 .operate-section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-block: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.console-monitoring-v4 .operate-section {
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+    min-width: 0;
+}
+
+.console-monitoring-v4 .operate-section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.console-monitoring-v4 .operate-section-heading h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.console-monitoring-v4 .operate-section-heading .console-kicker {
+    color: var(--c-text-2);
+    font-size: var(--text-xs);
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.console-monitoring-v4 .console-panel {
+    min-width: 0;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+    overflow-wrap: anywhere;
+}
+
+.console-monitoring-v4 .console-panel h3 {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+}
+
+.console-monitoring-v4 .console-panel-grid {
+    gap: var(--space-4);
+}
+
+.console-monitoring-v4 .console-definition-list dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .console-monitoring-v4 .console-panel-grid,
+    .console-monitoring-v4 .console-definition-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .console-monitoring-v4 .console-panel-heading,
+    .console-monitoring-v4 .approval-inbox-toolbar {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+}

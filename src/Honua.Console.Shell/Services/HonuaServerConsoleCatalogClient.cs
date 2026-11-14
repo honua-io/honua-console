@@ -90,7 +90,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         return CatalogItemReadResult.Allowed(ConsoleContentMapper.ToDetail(result.Data), anonymousRead: true);
     }
 
-    public async Task<MapPackageReadResult> GetMapPackageAsync(
+    public async Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default)
@@ -106,22 +106,22 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 
         if (!ConsoleContentMapper.IsSavedMap(result.Data))
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.Missing,
                 "The requested map was not found.");
         }
 
         if (!ConsoleContentMapper.IsVisibleToContext(result.Data, context))
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "This map link is unavailable or no longer grants access.");
         }
 
-        return MapPackageReadResult.Allowed(ConsoleContentMapper.ToMapPackage(result.Data), context.Anonymous);
+        return MapReadResult.Allowed(ConsoleContentMapper.ToMap(result.Data), context.Anonymous);
     }
 
-    public async Task<MapPackageReadResult> GetDraftMapAsync(
+    public async Task<MapReadResult> GetDraftMapAsync(
         string sourceItemId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default)
@@ -131,7 +131,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 
         if (context.Anonymous)
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "Sign in to hydrate a draft map from catalog content.");
         }
@@ -144,15 +144,15 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 
         if (!ConsoleContentMapper.IsDraftMapSource(result.Data))
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.UnsupportedServiceMetadata,
                 "Draft maps can only be hydrated from supported catalog services or layers.");
         }
 
-        return MapPackageReadResult.Allowed(ConsoleContentMapper.ToDraftMapPackage(result.Data));
+        return MapReadResult.Allowed(ConsoleContentMapper.ToDraftMap(result.Data));
     }
 
-    public async Task<MapPackageReadResult> AuthorizeEmbedAsync(
+    public async Task<MapReadResult> AuthorizeEmbedAsync(
         string mapId,
         EmbedRouteOptions options,
         CancellationToken cancellationToken = default)
@@ -162,7 +162,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 
         if (options.QueryStringCarriedToken)
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "Embed bearer tokens must be supplied in the URL fragment.");
         }
@@ -175,7 +175,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 
         if (!ConsoleContentMapper.IsSavedMap(result.Data))
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.Missing,
                 "The embedded map was not found.");
         }
@@ -186,20 +186,20 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         // maps rather than fabricating a token check.
         if (!ConsoleContentMapper.HasEmbedAction(result.Data))
         {
-            return MapPackageReadResult.Denied(
+            return MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "This map is not embeddable.");
         }
 
         if (!ConsoleContentMapper.IsPublic(result.Data))
         {
-            return MapPackageReadResult.Denied(
-                CatalogReadStatus.UnsupportedPackageBinding,
+            return MapReadResult.Denied(
+                CatalogReadStatus.UnsupportedContentBinding,
                 "Anonymous embed-token resolution is served by the Console Share facet, which is not yet "
                 + "bound for anonymous viewer reads in Console.");
         }
 
-        return MapPackageReadResult.Allowed(ConsoleContentMapper.ToMapPackage(result.Data), anonymousRead: true);
+        return MapReadResult.Allowed(ConsoleContentMapper.ToMap(result.Data), anonymousRead: true);
     }
 
     private static CatalogSearchResult ToSearchFailure(HonuaAdminEndpointIssue? issue, CatalogListRequest request)
@@ -218,12 +218,12 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         return CatalogItemReadResult.Denied(status, message);
     }
 
-    private static MapPackageReadResult ToMapFailure(HonuaAdminEndpointIssue? issue, string notFoundMessage)
+    private static MapReadResult ToMapFailure(HonuaAdminEndpointIssue? issue, string notFoundMessage)
     {
         var status = ConsoleContentMapper.ToReadStatus(issue);
         var message = status == CatalogReadStatus.Missing
             ? notFoundMessage
             : issue?.Detail ?? UnsupportedConsoleCatalogClient.MissingBindingMessage;
-        return MapPackageReadResult.Denied(status, message);
+        return MapReadResult.Denied(status, message);
     }
 }

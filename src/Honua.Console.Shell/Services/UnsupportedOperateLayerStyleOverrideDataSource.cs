@@ -24,7 +24,7 @@ public sealed class UnsupportedOperateLayerStyleOverrideDataSource : IOperateLay
         Task.FromResult(new OperateLayerStyleOverrideView(resourceId, [], MissingBinding));
 
     public Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(
-        OperateLayerSlotStyleOverrideEdit edit,
+        OperateLayerStyleOverrideEdit edit,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edit);

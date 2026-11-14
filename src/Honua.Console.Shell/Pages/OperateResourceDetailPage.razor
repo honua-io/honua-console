@@ -1,27 +1,52 @@
-@inject NavigationManager ConsoleNavigation
 @page "/operate/resources/{ResourceId}"
 @inject IOperateTransitionDataSource OperateData
+@inject IServiceProvider ServiceProvider
+@inject NavigationManager Navigation
 
-<section class="console-page">
-    @if (_resource is null)
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page" data-resource-detail>
+    @if (_loading)
+    {
+        <p role="status">Reading dataset…</p>
+    }
+    else if (_resource is null)
     {
         <MissingItemView Kind="dataset" AreaLabel="Operate / Datasets" />
     }
     else
     {
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@_resource.Name"><p>@_resource.DraftChange</p></ConsolePageHeading>
+        }
+        else
+        {
         <div class="console-page-heading">
             <p class="console-kicker">Operate / Datasets</p>
             <h1>@_resource.Name</h1>
             <p>@_resource.DraftChange</p>
         </div>
 
+        }
+
         <nav class="console-tab-row" aria-label="Dataset edit tabs">
             @foreach (var tab in _resource.EditTabs)
             {
-                <a href="@ConsoleNavigation.ToConsoleLinkHref($"/operate/resources/{_resource.ResourceId}#{tab.ToLowerInvariant()}")">@tab</a>
+                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(_resource.ResourceId)}#{Uri.EscapeDataString(tab.ToLowerInvariant())}")">@tab</a>
             }
         </nav>
 
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Validation" HeadingId="resource-validation-heading">
+                <p class="console-status console-status-warning">@_resource.ValidationState · Review required</p>
+                @ValidationIssues
+            </ConsolePanel>
+            <ConsolePanel Title="Dependent objects" HeadingId="resource-dependencies-heading" Class="console-section">@Dependencies</ConsolePanel>
+        }
+        else
+        {
         <div class="console-panel-grid">
             <article class="console-panel">
                 <div class="console-panel-heading">
@@ -31,6 +56,37 @@
                     </div>
                     <span class="console-status console-status-warning">Review required</span>
                 </div>
+                @ValidationIssues
+            </article>
+
+            <article class="console-panel">
+                <p class="console-kicker">Blast Radius</p>
+                <h2>Dependent Objects</h2>
+                @Dependencies
+            </article>
+        </div>
+        }
+
+    }
+
+    <OperateCapabilityStateList States="@_states" />
+</section>
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/resources/{Uri.EscapeDataString(ResourceId)}",
+        Entities = ResourceSelection,
+        Selection = ResourceSelection,
+        Unsaved = new() { PendingOperationCount = _loading ? 1 : 0 }
+    };
+    private IReadOnlyList<ConsoleAgentEntity> ResourceSelection => _resource is null ? [] :
+        [new() { Kind = ConsoleAgentEntityKind.Item, Id = _resource.ResourceId, ResourceId = _resource.ResourceId }];
+
+    private RenderFragment ValidationIssues => @<div>
+        @if (_resource is { })
+        {
                 <ConsoleTableRegion Class="console-table-wrap" Label="Dataset validation issues">
                     <table class="console-table">
                         <thead>
@@ -54,11 +110,12 @@
                         </tbody>
                     </table>
                 </ConsoleTableRegion>
-            </article>
+        }
+    </div>;
 
-            <article class="console-panel">
-                <p class="console-kicker">Blast Radius</p>
-                <h2>Dependent Objects</h2>
+    private RenderFragment Dependencies => @<div>
+        @if (_resource is { })
+        {
                 <dl class="console-definition-list">
                     <dt>Catalog items</dt>
                     <dd>@FormatItems(_resource.BlastRadius.CatalogItems)</dd>
@@ -73,26 +130,40 @@
                     <dt>Generated apps</dt>
                     <dd>@FormatItems(_resource.BlastRadius.GeneratedApps)</dd>
                 </dl>
-            </article>
-        </div>
-    }
+        }
+    </div>;
 
-    <OperateCapabilityStateList States="@_states" />
-</section>
-
-@code {
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
     private OperateResourceEditPreview? _resource;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
+    private bool _loading;
+    private string? _loadedResourceId;
+    private int _generation;
+
     protected override async Task OnParametersSetAsync()
     {
-        var view = await OperateData.GetResourcesViewAsync();
-        _resource = view.ResourceEdits.FirstOrDefault(
-            resource => string.Equals(resource.ResourceId, ResourceId, StringComparison.OrdinalIgnoreCase));
-        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
+        if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal)) return;
+        _loadedResourceId = ResourceId;
+        var resourceId = ResourceId;
+        var generation = ++_generation;
+        _resource = null;
+        _states = [];
+        _loading = true;
+        try
+        {
+            var view = await OperateData.GetResourcesViewAsync();
+            if (generation != _generation) return;
+            _resource = view.ResourceEdits.FirstOrDefault(
+                resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
+            _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
+        }
+        finally
+        {
+            if (generation == _generation) _loading = false;
+        }
     }
 
     private static string FormatItems(IReadOnlyList<string> items) =>

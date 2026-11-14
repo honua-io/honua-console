@@ -7,10 +7,10 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+# No concurrency group: this is a required check, and a cancelled run left as the
+# newest check run of that name blocks merging even when another run passed (a rerun
+# of an older run cancels the newer one). Runs take seconds, so every run completes.
 
 jobs:
   repo-hygiene:
-    uses: honua-io/.github/.github/workflows/repo-hygiene.yml@f4bdc749161f1a037a0a9c55b6995aa5295ba2c7
+    uses: honua-io/.github/.github/workflows/repo-hygiene.yml@7e93a67a13dc498cc4e5032f00cd9e93171afb95

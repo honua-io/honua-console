@@ -49,7 +49,7 @@ public sealed class TemporalCapabilityRoundTripTests
         // The console maps supportsHistory/supportsAsOf into a temporal mode; assert that reflection agrees
         // with the SERVER-owned capability for this layer (rule #2). A layer published through the live admin
         // path has no temporal column, so the server reports unsupported and the console mode is None.
-        if (serverCapability!.SupportsHistory)
+        if (serverCapability!.SupportsHistory || serverCapability.SupportsAsOf)
         {
             Assert.NotEqual(TemporalMode.None, consoleSource.Mode);
 

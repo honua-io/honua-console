@@ -107,12 +107,12 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162; shared v4 flag changes presentation only)
 /operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162; v4 title Users, same scoped membership and invitation actions)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
-/operate/releases/:id          Release detail: proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
+/operate/releases/:id          Release detail (v4 agent context uses the server release package id in route and releaseId filter): proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
 /operate/deploy                Deploy (#201): one governed flow for two capabilities, both hiding the gitops plumbing behind an approval + outcome surface — (1) server version upgrade with current-version detection (capability manifest /api/v1/capabilities/manifest) + version-mismatch gating (only a behind target may proceed; no-op/downgrade/unknown gated), and (2) cross-environment metadata promotion (dev→staging→prod). Submit/approve/rollback route through the deploy-control admin endpoints (GET/POST /api/v1/admin/deploy/operations/{id}{,/submit,/rollback}); the server has no list-all endpoint, so the queue is projected from release-derived + operator-tracked operation ids. Gitops/PR details live behind a Details toggle. Bound to honua-server #1738 + honua-devops#97/#57, else the missing-binding state.
 /operate/environments          Environment and fleet overview
 /operate/environments/:id      Environment detail (drift, fleet tasks)
 /operate/temporal              Temporal data viewer (capability-gated)
-/operate/sync                  Disconnected sync conflict review (capability-gated)
+/operate/sync                  Disconnected sync conflict review (capability-gated); v4 ?source=:sourceId&replica=:replicaId opens the source queue and replica review using server-owned identities
 /operate/versions              Branch-version manager (#177): list/create/alter/delete branch versions + reconcile with an auto-resolution policy (none/last-write-wins/version-wins/default-wins) + abort-if-conflicts; surfaces auto-resolved/remaining counts. Bound to honua-server GeoServices VersionManagementServer (#371 / PR #1551), else the missing-binding state.
 /operate/versions/:service/:guid/conflicts  Conflict resolution (#177): per-feature 3-way diff (base vs DEFAULT vs version) for attributes + geometry (WKT) with per-field highlighting; take-version/take-default/take-base per feature → resolveConflicts; Post to DEFAULT disabled while conflicts remain.
 /operate/import/esri           Source-content import wizard (#102): Source → Select content → Map → Run → Scorecard (?step=0..4). REUSES PublishWizard. Map step shows deterministic per-item conversion fidelity; Run + Scorecard bind the honua-devops migration-run API, else the missing-binding state (Console Patterns Charter §11). Content imports — DISTINCT from the data-layer→PostGIS importer.
@@ -787,10 +787,10 @@ draft hydration remains authenticated-only.
 `/maps/:mapId` is anonymous-capable for `ShareAccess.sharing = public`
 and for `sharing = public-link` when the URL carries the matching
 `?token=<value>` query that `honua-portal:src/share/snippet.ts:27` emits
-(see §2.5). Authenticated reads use the server-owned saved-map/package
+(see §2.5). Authenticated reads use the server-owned saved-map
 read path described in §4.2 and §4.6; `item-role` gates only post-load
 actions. The `forbidden` surface renders for authenticated denials; the
-`unsupported-package` surface renders when the saved-map package is newer
+`unsupported-package` surface renders when the saved map is newer
 than the Console runtime; the `unavailable` surface (§7) renders for
 anonymous denials so upgrade copy is not leaked to anonymous users
 (§13 Q5).
@@ -987,16 +987,16 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported package binding | `ConsoleStateView Kind="unsupported-package"` | generated-app, generated Studio package, or saved-map package newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/map`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/app`, `/studio/form`, `/studio/query`, `/studio/analysis`, `/studio/dashboard`, and `/studio/report` are server-bound and render their own missing-binding / capability-state surface instead) |
+| Unsupported content binding | `ConsoleStateView Kind="unsupported-package"` | generated app, generated Studio content, or saved map newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/map`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/app`, `/studio/form`, `/studio/query`, `/studio/analysis`, `/studio/dashboard`, and `/studio/report` are server-bound and render their own missing-binding / capability-state surface instead) |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
 | Unavailable (anonymous) | `ConsoleStateView Kind="unavailable"` | anonymous read or authorization denial on `/share/*`, `/public*`, `/catalog/:idOrSlug`, `/maps/:mapId`, or `/embed/maps/:mapId`, including private/org/group content, protected content, missing or invalid public-link tokens, failed embed authorization, and entitlement/license denials before authentication | does not reveal protected titles, token validity, or upgrade copy to anonymous users (§13 Q5) |
 
 The catalog/share route-slice client returns `CatalogItemReadResult` or
-`MapPackageReadResult` with `Status` values `Allowed`, `Missing`,
+`MapReadResult` with `Status` values `Allowed`, `Missing`,
 `Forbidden`, `Unavailable`, `UnsupportedServiceMetadata`, and
-`UnsupportedPackageBinding`. `AnonymousRead` controls whether Studio,
+`UnsupportedContentBinding`. `AnonymousRead` controls whether Studio,
 Share, and permission details are hidden after an otherwise allowed
 public or public-link read.
 

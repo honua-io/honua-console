@@ -205,11 +205,15 @@ public sealed class ConsoleFolderContentsTests
         public string RequireOperatorKey() => CurrentOperatorKey;
     }
 
+    // Test provider publishes its own current state; it does not consume cached state.
+#pragma warning disable BL0013
     private sealed class AuthenticationSignals : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
         public void Publish() => NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
+
+#pragma warning restore BL0013
 
     private sealed class NavigationSource : IConsolePublicationNavigationSource
     {

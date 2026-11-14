@@ -1,4 +1,3 @@
-using AngleSharp.Html.Parser;
 using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -9,12 +8,6 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed partial class OperateGeoprocessingPageTests
 {
-    public enum PresentationMode
-    {
-        Legacy,
-        V4
-    }
-
     [Fact]
     public void AgentContextTracksDetailSelectionAndReturnToList()
     {
@@ -67,14 +60,14 @@ public sealed partial class OperateGeoprocessingPageTests
     }
 
     [Theory]
-    [InlineData(PresentationMode.Legacy)]
-    [InlineData(PresentationMode.V4)]
-    public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(PresentationMode mode)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(ConsolePresentationMode mode)
     {
         using var context = new BunitContext();
         var registry = new ConsoleAgentContextRegistry();
         context.Services.AddSingleton(registry);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == PresentationMode.V4 });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
         {
             Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
@@ -82,7 +75,7 @@ public sealed partial class OperateGeoprocessingPageTests
         });
         var page = context.Render<OperateGeoprocessingPage>();
         page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
-        if (mode == PresentationMode.Legacy)
+        if (mode == ConsolePresentationMode.Legacy)
         {
             Assert.Equal(0, registry.Current.Generation);
             return;
@@ -122,25 +115,12 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.Equal(2, page.FindAll("tbody tr").Count);
         if (v4Enabled)
         {
-            CapturePreview("jobs-list", page.Markup);
+            V4PagePreview.Capture("jobs-list", page.Markup);
         }
         page.FindAll("button").Single(button => button.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal)).Click();
         Assert.Contains("gp-running", Assert.Single(page.FindAll("tbody tr")).TextContent);
         Assert.DoesNotContain("gp-done", page.Markup);
         page.FindAll("button").Single(button => button.TextContent.Trim() == "All").Click();
         Assert.Equal(2, page.FindAll("tbody tr").Count);
-    }
-
-    private static void CapturePreview(string name, string markup)
-    {
-        var directory = Environment.GetEnvironmentVariable("HONUA_CATALOG_PREVIEW_DIR");
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, $"{name}.html"),
-            $"<div class=\"console-shell\" data-console-v4=\"true\">{new HtmlParser().ParseDocument(markup).Body!.InnerHtml}</div>");
     }
 }

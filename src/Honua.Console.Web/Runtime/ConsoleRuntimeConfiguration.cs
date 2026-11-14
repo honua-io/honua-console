@@ -8,7 +8,7 @@ public sealed record ConsoleRuntimeConfiguration
 {
     public string ApiBaseUrl { get; init; } = "/";
     public ConsoleBrowserAuthConfiguration Auth { get; init; } = new();
-    public bool V4Enabled { get; init; }
+    public bool V4Enabled { get; init; } = true;
 
     public Uri ResolveApiBaseUri(Uri applicationBaseUri)
     {

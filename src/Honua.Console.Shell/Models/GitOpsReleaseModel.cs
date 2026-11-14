@@ -31,7 +31,7 @@ public enum GitOpsChangeClass
     ServiceConfig,
     Rbac,
     Workflow,
-    AppPackage
+    App
 }
 
 public sealed record GitOpsChangedResource(
@@ -181,7 +181,7 @@ public static class GitOpsReleasePresentation
         GitOpsChangeClass.ServiceConfig => "service config",
         GitOpsChangeClass.Rbac => "RBAC",
         GitOpsChangeClass.Workflow => "workflow",
-        GitOpsChangeClass.AppPackage => "app package",
+        GitOpsChangeClass.App => "app",
         _ => "change"
     };
 

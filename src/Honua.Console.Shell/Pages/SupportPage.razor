@@ -113,7 +113,6 @@
             {
                 <dl class="support-context-list">
                     <ContextRow Label="User" Value="@(string.IsNullOrWhiteSpace(_context.UserDisplayName) ? _context.UserId : _context.UserDisplayName)" />
-                    <ContextRow Label="Tenant" Value="@_context.TenantId" />
                     <ContextRow Label="Roles" Value="@(_context.Roles.Count == 0 ? null : string.Join(", ", _context.Roles))" />
                     <ContextRow Label="Environment" Value="@(string.IsNullOrWhiteSpace(_context.EnvironmentName) ? _context.EnvironmentKind : $"{_context.EnvironmentName} ({_context.EnvironmentKind})")" />
                     <ContextRow Label="Server" Value="@_context.ServerUri" />

@@ -123,6 +123,11 @@ public sealed record ConsoleProposalDetail(
 {
     public ConsoleProposalSource Source { get; init; } = ConsoleProposalSource.Server;
 
+    // Server proposal version and plan hash; zero/null when the server does not report them.
+    public long Version { get; init; }
+
+    public string? PlanHash { get; init; }
+
     public string? FindingId { get; init; }
 
     public string? AutonomyRule { get; init; }

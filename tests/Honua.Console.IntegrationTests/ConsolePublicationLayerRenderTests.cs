@@ -26,8 +26,8 @@ public sealed class ConsolePublicationLayerRenderTests
             { ServiceName = "parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 2 }]
         };
         using var context = PublicationLayoutContext(source);
-        var first = new OperateServiceLayerProjection(7, "Bridges", "LineString", "first-layer", "bridges");
-        var second = new OperateServiceLayerProjection(8, "Roads", "LineString", "second-layer", "roads");
+        var first = new OperateServiceLayer(7, "Bridges", "LineString", "first-layer", "bridges");
+        var second = new OperateServiceLayer(8, "Roads", "LineString", "second-layer", "roads");
         context.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(
             new OperateServiceDetail("parcels", "Parcels", "FeatureServer", "Running", "server", [first, second], [], [])));
         var navigation = context.Services.GetRequiredService<NavigationManager>();
@@ -59,7 +59,7 @@ public sealed class ConsolePublicationLayerRenderTests
             { ServiceName = "z-parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }]
         };
         using var context = PublicationLayoutContext(source);
-        var layer = new OperateServiceLayerProjection(7, "Bridges", "LineString", "connection-one-layer-7", "bridges");
+        var layer = new OperateServiceLayer(7, "Bridges", "LineString", "connection-one-layer-7", "bridges");
         var service = new OperateServiceDetail("z-parcels", "Parcels", "FeatureServer", "Running", "honua-server", [layer], [], []);
         context.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource([service]));
         context.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());

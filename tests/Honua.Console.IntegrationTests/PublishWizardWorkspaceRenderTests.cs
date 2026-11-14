@@ -455,7 +455,7 @@ public sealed class PublishWizardWorkspaceRenderTests
         {
             Services = _workspace.Services.Select(service => service with
             {
-                PublicationSlots = [new("FeatureServer", url, "Exposed")]
+                Endpoints = [new("FeatureServer", url, "Exposed")]
             }).ToArray()
         });
         public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)
@@ -478,7 +478,7 @@ public sealed class PublishWizardWorkspaceRenderTests
                     status,
                     "server",
                     Enumerable.Range(0, layers)
-                        .Select(index => new OperateServiceLayerProjection(
+                        .Select(index => new OperateServiceLayer(
                             index,
                             $"layer-{index}",
                             "LineString",

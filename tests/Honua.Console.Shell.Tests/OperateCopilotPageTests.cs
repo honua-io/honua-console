@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class OperateCopilotPageTests
+public sealed partial class OperateCopilotPageTests
 {
     [Fact]
     public async Task RendersFindingsWithSeverityExplanationAndAction()

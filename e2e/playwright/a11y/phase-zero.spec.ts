@@ -42,9 +42,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
   });
 }
 
-test('rendered Add data links retain readable text inside action rows', async ({ page }, info) => {
+test('rendered Add data links retain readable text and visible focus', async ({ page }, info) => {
   await openInteractiveRoute(page, '/operate/data');
-  const action = page.locator('.console-action-row a[href$="new"]').first();
+  const action = page.getByRole('link', { name: /^(?:\+ )?Add data$/ });
   await expect(action).toBeVisible();
   const observations = [];
   for (const state of ['normal', 'hover'] as const) {
@@ -94,7 +94,7 @@ test('semantic text, status and control pairs meet computed contrast', async ({ 
 test('forced colors retain an outline and reduced motion stops shell animation', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
   await openInteractiveRoute(page, '/operate/data');
-  const action = page.locator('.console-action-row a[href$="new"]').first();
+  const action = page.getByRole('link', { name: /^(?:\+ )?Add data$/ });
   await page.keyboard.press('Tab');
   await action.focus();
   await expect(action).toBeFocused();

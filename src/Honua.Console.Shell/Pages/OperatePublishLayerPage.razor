@@ -10,12 +10,21 @@
 @inject IServiceProvider Services
 @using Honua.Console.Contracts
 
+<ConsoleAgentContext Context="@AgentContext" />
+
 <section class="console-page" data-workspace-publish-form>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Publish a layer"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+    }
+    else
+    {
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Publishing</p>
         <h1>Publish a layer</h1>
-        <p>Publish an existing table from a data connection as a queryable Service Layer. Choose its Service identity and Folder separately; public paths use the Folder and public Service name.</p>
+        <p>@Intro</p>
     </div>
+    }
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_connectionStates" OnRetry="LoadConnectionsAsync" />
     @if (_connections.Count == 0 && _connectionStates.Count == 0)
@@ -29,8 +38,37 @@
     }
     else if (_connections.Count > 0)
     {
-        <article class="console-panel">
-            <div class="studio-field-grid">
+        @if (V4Enabled)
+        {
+            <ConsolePanel Title="Source and service" HeadingId="quick-publish-source">@PublishForm</ConsolePanel>
+        }
+        else
+        {
+            <article class="console-panel">@PublishForm</article>
+        }
+    }
+</section>
+
+@if (_unverifiedCommand is { } pendingPublish)
+{
+    <PublishOutcomeVerification @key="_publishAttempt" AuthorityBinding="@pendingPublish.AuthorityBinding" ServiceName="@pendingPublish.ServiceName" LayerName="@pendingPublish.LayerName" OnVerified="@(() => { _requiresCatalogRead = false; _result = null; })" />
+}
+
+@code {
+    private const string Intro = "Publish an existing table from a data connection as a queryable Service Layer. Choose its Service identity and Folder separately; public paths use the Folder and public Service name.";
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private bool _loadingConnections = true;
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/publishing/quick",
+        Unsaved = new()
+        {
+            ChangedFieldCount = _result?.Succeeded == true ? 0 : new[] { _connectionId, _tableKey, _serviceName, _layerName, _geometryTypeOverride, _publicName }.Count(value => !string.IsNullOrWhiteSpace(value)) + (_folderId.IsSpecified ? 1 : 0),
+            PendingOperationCount = (_loadingConnections ? 1 : 0) + (_loadingTables ? 1 : 0) + (_busy ? 1 : 0)
+        }
+    };
+    private RenderFragment PublishForm => @<text>
+            <div class="studio-field-grid @(V4Enabled ? "console-data-controls" : null)">
                 <label>
                     <span>Connection</span>
                     <select class="console-input" aria-label="Connection" data-workspace-field="connectionId" @bind="_connectionId" @bind:after="OnConnectionChanged" disabled="@(!_interactive)">
@@ -109,9 +147,9 @@
 
             @if (_result is { } r)
             {
-                <article class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
+                <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                     <p class="console-kicker">@r.State</p>
-                    <h2>@(r.Succeeded ? "Layer published" : r.State == ConsoleWriteOutcome.UnverifiedState ? "Publication outcome unverified" : "Layer not published")</h2>
+                    <OperateSectionHeading Text="@(r.Succeeded ? "Layer published" : r.State == ConsoleWriteOutcome.UnverifiedState ? "Publication outcome unverified" : "Layer not published")" />
                     <p>@r.Detail</p>
                     @if (r.Succeeded)
                     {
@@ -135,7 +173,7 @@
                             }
                         </ul>
                     }
-                </article>
+                </div>
             }
 
             <section class="console-panel console-state-warning" data-workspace-publication-review hidden>
@@ -151,16 +189,8 @@
                 </button>
                 <a href="@Nav.ToConsoleHref("/operate/services")">View services</a>
             </div>
-        </article>
-    }
-</section>
+    </text>;
 
-@if (_unverifiedCommand is { } pendingPublish)
-{
-    <PublishOutcomeVerification @key="_publishAttempt" AuthorityBinding="@pendingPublish.AuthorityBinding" ServiceName="@pendingPublish.ServiceName" LayerName="@pendingPublish.LayerName" OnVerified="@(() => { _requiresCatalogRead = false; _result = null; })" />
-}
-
-@code {
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
     private IReadOnlyList<ServiceLayerPublishTable> _tables = Array.Empty<ServiceLayerPublishTable>();
     private ServiceLayerPublishTable? _selectedTable;
@@ -200,9 +230,17 @@
 
     private async Task LoadConnectionsAsync()
     {
-        var view = await OperateData.GetConnectionsViewAsync();
-        _connections = view.Connections;
-        _connectionStates = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
+        _loadingConnections = true;
+        try
+        {
+            var view = await OperateData.GetConnectionsViewAsync();
+            _connections = view.Connections;
+            _connectionStates = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
+        }
+        finally
+        {
+            _loadingConnections = false;
+        }
     }
 
     private async Task OnConnectionChanged()

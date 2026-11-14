@@ -180,7 +180,7 @@ public sealed class BrowserAuthenticationStateProvider(
             await sessions.SaveSessionAsync(new ConsoleAccountSession
             {
                 ProfileId = "configured-api",
-                AccountId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? principal.FindFirst("sub")?.Value ?? string.Empty,
+                AccountId = principal.AccountId() ?? string.Empty,
                 DisplayName = principal.Identity?.Name ?? string.Empty,
                 RoleIds = principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray(),
                 ServerBaseUri = api.BaseUri

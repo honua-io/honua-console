@@ -31,7 +31,7 @@ internal static class ConsolePublicationRenderFixture
             source.LayerPageReads++;
             var read = await (source.PendingLayers?.Task ?? Task.FromResult(source.LayerResult));
             var name = source.ServiceSummaries?.LastOrDefault(service => service.LayerCount > 0)?.ServiceName ?? "service-000";
-            var layers = read.IsAllowed ? read.Value!.Select(layer => new OperateServiceLayerProjection(
+            var layers = read.IsAllowed ? read.Value!.Select(layer => new OperateServiceLayer(
                 7, layer.Name, layer.GeometryType, layer.ResourceId, layer.Name)).ToArray() : [];
             return new([], [], [new(name!, name!, "FeatureServer", "Running", "server", layers, [], [])], [], []);
         }

@@ -1,0 +1,15 @@
+@inject IServiceProvider Services
+
+@* v4 result and section headings sit under a panel's h2; legacy pages keep h2. *@
+@if (Services.GetService<ConsoleV4Options>()?.Enabled == true)
+{
+    <h3>@Text</h3>
+}
+else
+{
+    <h2>@Text</h2>
+}
+
+@code {
+    [Parameter, EditorRequired] public string? Text { get; set; }
+}

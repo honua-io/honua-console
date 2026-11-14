@@ -99,6 +99,14 @@ public sealed class ConsoleNavigationRenderTests
             .Add(component => component.HeadingId, "services-heading"));
         var conversation = navigation.Find("[data-conversation-toggle]");
         var help = navigation.Find(".console-help-link");
+        Assert.Equal(enabled ? 1 : 0, navigation.FindAll("[data-console-theme-toggle]").Count);
+        if (enabled)
+        {
+            var theme = navigation.Find("[data-console-theme-toggle]");
+            Assert.Equal("button", theme.GetAttribute("type"));
+            Assert.Equal("false", theme.GetAttribute("aria-pressed"));
+            Assert.Equal("Switch to dark mode", theme.GetAttribute("aria-label"));
+        }
         Assert.Equal(enabled ? "Conversation" : null, conversation.GetAttribute("aria-label"));
         Assert.Equal(enabled ? "Help" : null, help.GetAttribute("aria-label"));
         if (!enabled)

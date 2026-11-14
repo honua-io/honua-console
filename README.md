@@ -46,7 +46,7 @@ lands here. Honest signal on maturity:
 
 Prerequisites:
 
-- **.NET 10 SDK**
+- **.NET 11 SDK**
 - **Node.js >= 20** (only for the smoke/e2e harnesses and build-metadata stamping)
 - Anonymous access to nuget.org. Every package, including `Honua.Sdk.Studio`
   and `Honua.Sdk.Abstractions`, restores from the single public source declared
@@ -82,7 +82,9 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
 Read-only and explicitly headless paths may send the key as `X-API-Key`;
 interactive mutations (proposal decisions, deploy submit/rollback) require a
 forwardable operator bearer via the built-in per-operator BFF and fail closed
-without one. See [Console authentication](docs/console-authentication.md) and
+without one. The published Console's Content-Security-Policy admits a separate-origin
+API only over HTTPS (`connect-src` has no `http:`); serve a plain-HTTP API from the
+Console's own origin instead. See [Console authentication](docs/console-authentication.md) and
 [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md).
 
 ### Or run it from honua-server's compose stack
@@ -159,8 +161,8 @@ the committed MapLibre and Vega assets. Cesium's runtime remains build-time outp
 For committed bundles, the script re-fetches from npm, checks the tarball against npm's own
 `dist.integrity`, and records a sha384 digest of every byte it writes; `npm test`
 fails if a committed asset ever stops matching its digest, if a wwwroot interop
-script reaches an origin nobody declared, or if the CSP and those scripts disagree
-about which external origins are still needed.
+script reaches an origin nobody declared, or if the Console CSP
+(`config/console-csp.json`) blocks one of those origins or admits an external script origin.
 
 The embedded Studio editor is not committed either. `scripts/studio-release.lock.json`
 pins an attested honua-studio release archive by tag and SHA-256, and
@@ -177,8 +179,9 @@ the build host. The build still checks the release digest and asset provenance.
 `HONUA_STUDIO_RELEASE_CACHE` overrides the default cache under
 `${XDG_CACHE_HOME:-$HOME/.cache}/honua-console/studio`.
 
-The v4 presentation rollout uses one default-off switch: `Honua:Console:V4:Enabled`
-(or `HONUA_CONSOLE_V4_ENABLED=true`). Pages and shared components can consume the
+The v4 presentation is on by default. The shipped static Console reads `v4Enabled` from
+`config.json`; set it to `false` to roll back. The test host uses `Honua:Console:V4:Enabled`
+(or `HONUA_CONSOLE_V4_ENABLED`), also on unless set to `false`. Pages and shared components can consume the
 registered `ConsoleV4Options.Enabled`; capability and catalog access gates still apply.
 
 The parity smoke ([docs/smoke/parity.md](docs/smoke/parity.md)) drives the

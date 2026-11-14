@@ -1,4 +1,4 @@
-.console-service-controls {
+.console-data-controls {
     border: 0;
     padding: 0;
     margin: 0;
@@ -51,12 +51,12 @@ dl.console-protocols {
     text-overflow: ellipsis;
 }
 
-.console-service-controls input[type="checkbox"] {
+.console-data-controls input[type="checkbox"] {
     width: var(--space-6);
     height: var(--space-6);
     accent-color: var(--c-accent);
 }
 
-.console-service-controls .console-field input {
+.console-data-controls .console-field input {
     min-height: 44px;
 }

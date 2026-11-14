@@ -1,0 +1,61 @@
+@using System.Security.Cryptography
+@using System.Text
+@using Microsoft.AspNetCore.Components.Authorization
+@using Honua.Console.Shell.Models
+@using Honua.Console.Web.Runtime
+@implements IDisposable
+@inject AuthenticationStateProvider Authentication
+@inject ConsoleV4Options V4
+@inject ConsoleApiClient Api
+@inject IJSRuntime JavaScript
+@inject NavigationManager Navigation
+
+@code {
+    private long _generation;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        Authentication.AuthenticationStateChanged += AuthenticationChanged;
+        Navigation.LocationChanged += LocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var generation = _generation;
+        var state = await Authentication.GetAuthenticationStateAsync();
+        if (_disposed || generation != _generation)
+        {
+            return;
+        }
+        if (!V4.Enabled || ConsoleEmbedRoutes.IsEmbed(Navigation))
+        {
+            await JavaScript.InvokeVoidAsync("honuaConsoleTheme.disable");
+            return;
+        }
+        var user = state.User;
+        var id = user.Identity?.IsAuthenticated == true
+            ? user.AccountId()
+            : null;
+        var key = !string.IsNullOrEmpty(id)
+            ? "honua-theme:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Api.BaseUri.AbsoluteUri + "\n" + id)))
+            : null;
+        await JavaScript.InvokeVoidAsync("honuaConsoleTheme.enable", key);
+    }
+
+    private void AuthenticationChanged(Task<AuthenticationState> state) => Refresh();
+    private void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args) => Refresh();
+
+    private void Refresh()
+    {
+        _generation++;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Authentication.AuthenticationStateChanged -= AuthenticationChanged;
+        Navigation.LocationChanged -= LocationChanged;
+    }
+}

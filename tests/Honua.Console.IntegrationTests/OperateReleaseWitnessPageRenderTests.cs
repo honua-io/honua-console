@@ -43,7 +43,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Equal("operation-one", witness.GetAttribute("data-audit-operation-id"));
         Assert.Equal("true", witness.GetAttribute("data-audit-verified"));
         Assert.Equal(Evidence.PublicUrl, page.Find("[data-release-public-link]").GetAttribute("href"));
-        if (enabled) Capture("release-witness-verified", page.Markup);
+        if (enabled) CatalogAdminPreview.CaptureV4("release-witness-verified", page.Markup);
         Assert.Equal(enabled ? "/operate/release-witness" : "/", registry.Current.Route);
         Assert.Empty(registry.Current.Filters);
         Assert.Empty(registry.Current.Selection);
@@ -86,7 +86,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Empty(page.FindAll("[data-release-witness], [data-release-public-link]"));
         Assert.Contains("Evidence access is denied.", page.Markup, StringComparison.Ordinal);
         Assert.Contains("request-denied-one", page.Markup, StringComparison.Ordinal);
-        if (enabled) Capture("release-witness-denied", page.Markup);
+        if (enabled) CatalogAdminPreview.CaptureV4("release-witness-denied", page.Markup);
     }
 
     [Theory]
@@ -157,9 +157,6 @@ public sealed class OperateReleaseWitnessPageRenderTests
         context.Services.AddSingleton(options);
         return context;
     }
-
-    private static void Capture(string name, string markup) =>
-        CatalogAdminPreview.Capture(name, $"<div class=\"console-shell\" data-console-v4=\"true\">{markup}</div>");
 
     private static void AssertPresentation(IRenderedComponent<OperateReleaseWitnessPage> page, string heading, int expectedV4Elements)
     {

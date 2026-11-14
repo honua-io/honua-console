@@ -11,6 +11,12 @@ public static class ProposalAdminRoutes
     [OpsParityRoute("POST")]
     public const string ApproveTemplate = DetailTemplate + "/approve";
 
+    [OpsParityRoute("GET")]
+    public const string ApprovalReviewTemplate = DetailTemplate + "/approval-review";
+
+    // Carries the short-lived capability returned by approval-review on the approve request.
+    public const string ApprovalCapabilityHeader = "X-Honua-Approval-Capability";
+
     [OpsParityRoute("POST")]
     public const string RejectTemplate = DetailTemplate + "/reject";
 
@@ -19,6 +25,9 @@ public static class ProposalAdminRoutes
 
     public static string Approve(string proposalId) =>
         ApproveTemplate.Replace("{id}", Uri.EscapeDataString(proposalId), StringComparison.Ordinal);
+
+    public static string ApprovalReview(string proposalId) =>
+        ApprovalReviewTemplate.Replace("{id}", Uri.EscapeDataString(proposalId), StringComparison.Ordinal);
 
     public static string Reject(string proposalId) =>
         RejectTemplate.Replace("{id}", Uri.EscapeDataString(proposalId), StringComparison.Ordinal);

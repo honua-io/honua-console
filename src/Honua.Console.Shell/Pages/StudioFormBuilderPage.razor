@@ -20,7 +20,7 @@
         <div class="console-page-heading">
             <p class="console-kicker">Builder workflow</p>
             <h1>Form builder</h1>
-            <p>Author a server-owned form package — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before publishing to honua-server.</p>
+            <p>Author a server-owned form — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before publishing to honua-server.</p>
         </div>
     }
 
@@ -29,15 +29,15 @@
         <ConsoleStateView Kind="loading"
                           HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Form builder"
-                          Title="Loading form packages"
-                          Message="Reading the form package lifecycle from honua-server." />
+                          Title="Loading forms"
+                          Message="Reading form drafts and versions from honua-server." />
     }
     else if (_bindingState is not null)
     {
         <ConsoleStateView Kind="error"
                           HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="@_bindingState.State"
-                          Title="Form package lifecycle is not bound"
+                          Title="Form lifecycle is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else
@@ -78,7 +78,7 @@
 
             @if (_workspace.Packages.Count == 0)
             {
-                <EmptyState Area="studio" Subject="form packages" />
+                <EmptyState Area="studio" Subject="forms" />
             }
             else
             {

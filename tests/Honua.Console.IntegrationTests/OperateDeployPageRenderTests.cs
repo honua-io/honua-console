@@ -12,9 +12,11 @@ public sealed class OperateDeployPageRenderTests
         IConsoleDeployApprovalClient approvalClient,
         IConsoleServerVersionClient? versionClient = null,
         IConsoleGitOpsReleaseClient? releaseClient = null,
-        IConsoleDeployOperationsClient? deployOperationsClient = null)
+        IConsoleDeployOperationsClient? deployOperationsClient = null,
+        ConsolePresentationMode presentation = ConsolePresentationMode.Legacy)
     {
         var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton(approvalClient);
         ctx.Services.AddSingleton(versionClient
             ?? new InMemoryConsoleServerVersionClient(
@@ -29,6 +31,31 @@ public sealed class OperateDeployPageRenderTests
         // wired up honua-server#2554 yet.
         ctx.Services.AddSingleton(deployOperationsClient ?? new InMemoryConsoleDeployOperationsClient());
         return ctx;
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void PresentationKeepsEveryDeploySection(ConsolePresentationMode presentation)
+    {
+        using var ctx = NewContext(new InMemoryConsoleDeployApprovalClient(), presentation: presentation);
+
+        var page = ctx.Render<OperateDeployPage>();
+
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("#deploy-approvals")), TimeSpan.FromSeconds(5));
+        var v4 = presentation == ConsolePresentationMode.V4;
+        Assert.Equal("Deploy", Assert.Single(page.FindAll("h1")).TextContent);
+        Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        Assert.Equal(v4 ? 1 : 0, page.FindAll(".console-monitoring-v4.console-deploy-v4").Count);
+        Assert.Equal(v4, page.Markup.Contains("operate-monitoring-v4.css", StringComparison.Ordinal));
+        foreach (var section in new[] { "#all-operations", "#server-upgrade", "#cross-env-promote", "#platform-release", "#deploy-approvals" })
+        {
+            Assert.NotNull(page.Find(section));
+        }
+
+        Assert.Equal(5, page.FindAll(".operate-section-nav a").Count);
+        Assert.Equal("/operate/releases", page.Find("[data-open-releases]").GetAttribute("href"));
+        if (v4) CatalogAdminPreview.CaptureV4("deploy-overview", page.Markup);
     }
 
     [Fact]

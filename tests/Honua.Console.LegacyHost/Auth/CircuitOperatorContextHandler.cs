@@ -24,9 +24,12 @@ public sealed class CircuitOperatorContextHandler : CircuitHandler
             // The circuit's AuthenticationStateProvider is the authoritative operator identity for
             // interactive rendering (fed by CascadingAuthenticationState from the persisted auth state).
             // Resolve it fresh per activity so a revalidated / signed-out circuit re-keys correctly.
+            // Each activity reads fresh state; there is no cached state to invalidate.
+#pragma warning disable BL0013
             var authenticationState = await _authenticationStateProvider
                 .GetAuthenticationStateAsync()
                 .ConfigureAwait(false);
+#pragma warning restore BL0013
             var operatorKey = ConsoleOperatorContext.ResolveKey(authenticationState.User);
 
             ConsoleOperatorContext.SetCircuitOperatorKey(operatorKey);

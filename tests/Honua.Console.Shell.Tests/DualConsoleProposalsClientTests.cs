@@ -25,6 +25,21 @@ public sealed class DualConsoleProposalsClientTests
     }
 
     [Fact]
+    public async Task ReviewedPlanTravelsWithTheRoutedDecision()
+    {
+        var serving = new FakeProposals("serving-proposal");
+        var manager = new FakeProposals("manager-proposal");
+        var profiles = new InMemoryConsoleEnvironmentProfileStore(
+            [new ConsoleEnvironmentProfile { Id = "local", ServerBaseUri = new Uri("https://serving.example/") }], activeProfileId: "local");
+        var client = new DualConsoleProposalsClient(serving, manager, profiles, new ManagerEndpoint());
+        var reviewed = new ConsoleProposalReviewedPlan(7, "plan-7");
+        await client.ApproveAsync("manager:manager-proposal", reviewed);
+        Assert.Equal("manager-proposal", manager.Approved);
+        Assert.Same(reviewed, manager.Reviewed);
+        Assert.Null(serving.Approved);
+    }
+
+    [Fact]
     public async Task ManagerProposalsRemainVisibleWhenServingIsUnavailable()
     {
         var serving = new FakeProposals("serving-proposal") { Unavailable = true };
@@ -76,6 +91,13 @@ public sealed class DualConsoleProposalsClientTests
         {
             Approved = proposalId;
             return GetAsync(proposalId, cancellationToken);
+        }
+        public ConsoleProposalReviewedPlan? Reviewed { get; private set; }
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+            string proposalId, ConsoleProposalReviewedPlan? reviewed, CancellationToken cancellationToken = default)
+        {
+            Reviewed = reviewed;
+            return ApproveAsync(proposalId, cancellationToken);
         }
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(string proposalId, string reason, CancellationToken cancellationToken = default) =>
             GetAsync(proposalId, cancellationToken);

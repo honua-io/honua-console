@@ -47,7 +47,7 @@ public sealed class StudioWorkflowEditorPageTests
 
         // The draft (with a prior valid version) has loaded once the package-metadata form renders.
         page.WaitForAssertion(
-            () => Assert.NotEmpty(page.FindAll("section[aria-label='Package metadata'] input.console-input")),
+            () => Assert.NotEmpty(page.FindAll("section[aria-label='Workflow metadata'] input.console-input")),
             TimeSpan.FromSeconds(5));
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
@@ -123,7 +123,7 @@ public sealed class StudioWorkflowEditorPageTests
         var historyMarkup = page.Find("section[aria-label='Workflow run history']").InnerHtml;
         Assert.Contains("succeeded", historyMarkup, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Rejected rows", historyMarkup, StringComparison.Ordinal);
-        Assert.Contains("Content item history", historyMarkup, StringComparison.Ordinal);
+        Assert.Contains("Workflow history", historyMarkup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class StudioWorkflowEditorPageTests
         // Section tabs mirror the mockup IA and anchor the canvas/schedule/secrets/history/raw regions.
         var tabRow = page.Find("nav.workflow-tab-row");
         var tabLabels = tabRow.QuerySelectorAll("a").Select(a => a.TextContent.Trim()).ToArray();
-        Assert.Equal(["Graph", "Schedule", "Secrets", "Run history", "Package · raw"], tabLabels);
+        Assert.Equal(["Graph", "Schedule", "Secrets", "Run history", "Contract · raw"], tabLabels);
         foreach (var anchor in new[] { "workflow-graph", "workflow-schedule", "workflow-secrets", "workflow-history", "workflow-package" })
         {
             Assert.NotEmpty(page.FindAll($"#{anchor}"));
@@ -187,7 +187,7 @@ public sealed class StudioWorkflowEditorPageTests
     }
 
     private static IElement TitleInput(IRenderedComponent<StudioWorkflowEditorPage> page) =>
-        page.Find("section[aria-label='Package metadata'] input.console-input");
+        page.Find("section[aria-label='Workflow metadata'] input.console-input");
 
     private static IElement FindButton(IRenderedComponent<StudioWorkflowEditorPage> page, string label) =>
         page.FindAll("button").Single(button => button.TextContent.Contains(label, StringComparison.Ordinal));

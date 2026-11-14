@@ -45,12 +45,7 @@
         Unsaved = _folderUnsaved
     };
 
-    private static ConsoleAgentEntity ServiceEntity(OperateServiceDetail service) => new()
-    {
-        Kind = ConsoleAgentEntityKind.Service,
-        Id = service.Name,
-        ServiceName = service.Name
-    };
+    private static ConsoleAgentEntity ServiceEntity(OperateServiceDetail service) => ConsoleAgentEntity.ForService(service.Name);
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 

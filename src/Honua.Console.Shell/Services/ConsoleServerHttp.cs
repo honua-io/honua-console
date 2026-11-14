@@ -60,6 +60,11 @@ internal static class ConsoleServerHttp
         request.Headers.Remove("X-API-Key");
 
         var resolution = await bearerProvider.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
+        if (resolution.UsesBrowserTransport)
+        {
+            return new AuthenticationResult(true, string.Empty);
+        }
+
         if (resolution.IsAvailable)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", resolution.AccessToken);

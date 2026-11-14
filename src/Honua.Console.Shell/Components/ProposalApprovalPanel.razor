@@ -6,10 +6,11 @@
 @* Human-in-the-loop approval panel for a single operation proposal (#193, honua-server
    #1694). It renders the server-owned plan/diff/dry-run/risk/blockers/warnings — the same
    artifacts the direct-execute path would have produced — and the governed actions:
-     Approve -> POST /api/v1/admin/proposals/{id}/approve
+     Approve -> GET  /api/v1/admin/proposals/{id}/approval-review, then
+                POST /api/v1/admin/proposals/{id}/approve with that review's capability
      Reject  -> POST /api/v1/admin/proposals/{id}/reject  (reason REQUIRED)
-   Approve/reject are gated server-side by the RBAC 'approve' grant and the
-   proposer-cannot-approve separation-of-duties rule; a denied decision returns 403 and is
+   Approve/reject are gated server-side by the RBAC 'approve' grant, and approval also by a
+   live human browser session; a denied decision returns 403 and is
    surfaced here, disabling the actions (the server is the only safety gate; never bypassed).
    Each first-class kind gets its own card treatment: the Data import proposal (honua-server
    #1630) leads with an import treatment, and each deliverable request (map / analysis /
@@ -188,8 +189,8 @@ else
                     <p class="console-status console-state-warning proposal-approval-rbac" role="note"
                        data-proposal-rbac-denied>
                         Approving or rejecting requires the <span class="console-mono">approve</span> grant on the
-                        connected server (and a proposal's requester cannot approve their own). Ask an operator with
-                        that grant to decide this one.
+                        connected server, and approving also requires a live signed-in browser session. Sign in again,
+                        or ask an operator with that grant to decide this one.
                     </p>
                 }
             </div>
@@ -302,7 +303,7 @@ else
     }
 
     private Task ApproveAsync() => RunActionAsync(
-        () => Proposals.ApproveAsync(ProposalId),
+        () => Proposals.ApproveAsync(ProposalId, ConsoleProposalReviewedPlan.From(_detail)),
         successMessage: "Approved — proposal submitted for execution.");
 
     private Task RejectAsync()
@@ -346,7 +347,7 @@ else
             }
             else
             {
-                // A Forbidden result means the RBAC approve grant / separation-of-duties gate
+                // A Forbidden result means the approve grant or human-session gate
                 // denied the decision — disable the actions and surface the reason.
                 if (result.Status == OperateSectionStatus.Forbidden)
                 {

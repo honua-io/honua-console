@@ -120,17 +120,4 @@ public sealed class EnvironmentProfilesPageRenderTests
         ctx.Services.AddSingleton<IConsoleCapabilityManifest>(manifest ?? new ConsoleCapabilityManifest());
         return ctx;
     }
-
-    private sealed class RecordingCapabilityManifest : IConsoleCapabilityManifest
-    {
-        public int RefreshCount { get; private set; }
-
-        public Task RefreshAsync(CancellationToken cancellationToken = default)
-        {
-            RefreshCount++;
-            return Task.CompletedTask;
-        }
-
-        public bool IsAdvertised(string capabilityKey) => false;
-    }
 }

@@ -6,11 +6,21 @@
 @implements IDisposable
 @inject CatalogAdminOptions Options
 @inject IMetadataPreviewSource Metadata
+@inject IServiceProvider ServiceProvider
 
-<section class="console-page metadata-preview">
-    <header class="console-detail-heading">
-        <div><a href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a><h1>@Heading</h1></div>
-    </header>
+<section class="@(V4Enabled ? "console-page metadata-preview console-viewer-v4" : "console-page metadata-preview")">
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="@Heading">
+            <Actions><a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a></Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <header class="console-detail-heading">
+            <div><a href="@ConsoleNavigation.ToConsoleHref("/catalogs")">Catalogs</a><h1>@Heading</h1></div>
+        </header>
+    }
     @if (!Options.Enabled)
     {
         <ConsoleStateView HeadingLevel="2" Kind="disabled" Title="Metadata preview is disabled" Message="Enable the catalog preview to inspect metadata presentation." />
@@ -60,6 +70,7 @@
     private MetadataPreviewRead? _read;
     private CancellationTokenSource? _load;
     private bool _loading;
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
     private string Heading => Section switch { "fields" => "Metadata fields", "import" => "Import metadata", _ => "Dataset metadata" };
     private string DatasetHref => $"/metadata/datasets/{Uri.EscapeDataString(DatasetId ?? string.Empty)}";
     private string ContextQuery => ServiceId is null ? string.Empty : $"?service={Uri.EscapeDataString(ServiceId)}";

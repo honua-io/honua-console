@@ -1,0 +1,43 @@
+@namespace Honua.Console.Shell.Components
+@inject IServiceProvider ServiceProvider
+
+@* Source-content import page heading: the v4 page heading, or the legacy breadcrumb heading when v4 is off. *@
+@if (V4Enabled)
+{
+    <ConsolePageHeading Title="@Title">
+        <ChildContent><p>@Description</p></ChildContent>
+        <Actions>@Actions</Actions>
+    </ConsolePageHeading>
+}
+else
+{
+    <div class="console-detail-heading">
+        <div>
+            <p class="console-kicker">
+                Operate <span class="console-crumb-sep">/</span> Import source content
+                @if (Crumb is not null)
+                {
+                    <span class="console-crumb-sep">/</span>@($" {Crumb}")
+                }
+            </p>
+            <h1>@Title</h1>
+            <p class="console-muted">
+                @Description
+            </p>
+        </div>
+        @Actions
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    // The legacy breadcrumb's last segment; the wizard is the section root and has none.
+    [Parameter] public string? Crumb { get; set; }
+
+    [Parameter] public RenderFragment? Description { get; set; }
+
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    private bool V4Enabled => ServiceProvider.GetService<Models.ConsoleV4Options>()?.Enabled == true;
+}

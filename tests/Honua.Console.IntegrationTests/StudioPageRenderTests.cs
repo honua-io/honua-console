@@ -53,7 +53,7 @@ public sealed class StudioPageRenderTests
         Assert.DoesNotContain("studio-builders", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/environments", page.Markup, StringComparison.Ordinal);
         AssertPresentation(page, v4Enabled ? 1 : 0);
-        if (v4Enabled) Capture("studio-unavailable", page.Markup);
+        if (v4Enabled) CatalogAdminPreview.CaptureV4("studio-unavailable", page.Markup);
     }
 
     [Theory]
@@ -71,7 +71,7 @@ public sealed class StudioPageRenderTests
         Assert.Single(page.FindAll("[data-studio-embed] > [data-studio-status]"));
         Assert.Empty(page.FindAll("[data-authoring-contract], textarea"));
         AssertPresentation(page, v4Enabled ? 1 : 0);
-        if (v4Enabled) Capture("studio-connected", page.Markup);
+        if (v4Enabled) CatalogAdminPreview.CaptureV4("studio-connected", page.Markup);
     }
 
     [Theory]
@@ -134,7 +134,7 @@ public sealed class StudioPageRenderTests
         Assert.Single(page.FindAll("a[href='/studio/processes']"));
         Assert.Empty(page.FindAll("textarea, button"));
         AssertPresentation(page, v4Enabled ? 1 : 0);
-        if (v4Enabled) Capture("studio-retired", page.Markup);
+        if (v4Enabled) CatalogAdminPreview.CaptureV4("studio-retired", page.Markup);
     }
 
     [Theory]
@@ -166,7 +166,7 @@ public sealed class StudioPageRenderTests
             Assert.Empty(page.FindAll("[data-processes-builtin], [data-processes-custom]"));
             Assert.Single(page.FindAll("h1"));
         }
-        if (v4Enabled) Capture(embedEnabled ? "processes-connected" : "processes-disabled", page.Markup);
+        if (v4Enabled) CatalogAdminPreview.CaptureV4(embedEnabled ? "processes-connected" : "processes-disabled", page.Markup);
     }
 
     [Theory]
@@ -201,7 +201,4 @@ public sealed class StudioPageRenderTests
         Assert.Single(page.FindAll("h1"));
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
     }
-
-    private static void Capture(string name, string markup) =>
-        CatalogAdminPreview.Capture(name, $"<div class=\"console-shell\" data-console-v4=\"true\">{markup}</div>");
 }

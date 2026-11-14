@@ -1,3 +1,4 @@
+@inject IServiceProvider Services
 @page "/operate/catalogs/{Key}/items/{ItemId}"
 @using Honua.Console.Shell.Models
 @using Microsoft.JSInterop
@@ -17,20 +18,49 @@
 <section class="console-page catalogs-item" data-catalogs-item data-catalog-endpoint="@Key" data-catalog-item="@ItemId">
     @if (_loading)
     {
-        <ConsoleStateView Kind="loading"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="loading"
                           Kicker="Catalogs"
                           Title="Loading item"
                           Message="Reading the catalog item from honua-server." />
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="missing"
                           Kicker="@_bindingState.State"
                           Title="Catalog discovery endpoints are not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else if (_item is { } item)
     {
+        @* Copy item URL copies THIS item-editor page's absolute URL to the clipboard — a real,
+           self-contained target. The former "Preview ↗" and "↗ Open Data Resource" controls were
+           removed: the catalog discovery-endpoints item projection (honua-server#1279) carries no
+           public-link slug / public item URL and no backing data-resource URL, so there is no honest
+           target to navigate to. They were dead buttons (no @@onclick) and shipping them would
+           fabricate a capability the contract does not yet expose; restore them when #1279 lands
+           those fields. *@
+        RenderFragment HeaderActions = @<text>
+
+
+                <button class="console-button console-button-secondary" type="button"
+                        data-catalog-copy-url @onclick="CopyItemUrlAsync">
+                    @(_copied ? "✓ Copied" : "⧉ Copy item URL")
+                </button>
+        </text>;
+        @if (V4Enabled)
+        {
+            <ConsolePageHeading Title="@item.Title">
+                <ChildContent>
+                <p><a href="@Navigation.ToConsoleLinkHref(CatalogsListHref)">Catalogs</a> / <a href="@Navigation.ToConsoleLinkHref(EndpointHref)">Endpoint</a></p>
+                <p>Item @item.Id · @item.BackingServiceCount backing services</p>
+                @if (item.AutoMirror) { <span class="console-status console-state-info" data-catalog-auto-mirror>auto-mirror</span> }
+                @if (item.Live) { <span class="console-status console-state-success">live</span> }
+                </ChildContent>
+                <Actions>@HeaderActions</Actions>
+            </ConsolePageHeading>
+        }
+        else
+        {
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">
@@ -50,20 +80,10 @@
                 </h1>
                 <p class="console-muted">item @item.Id · @item.BackingServiceCount backing services</p>
             </div>
-            <div class="console-detail-actions">
-                @* Copy item URL copies THIS item-editor page's absolute URL to the clipboard — a real,
-                   self-contained target. The former "Preview ↗" and "↗ Open Data Resource" controls were
-                   removed: the catalog discovery-endpoints item projection (honua-server#1279) carries no
-                   public-link slug / public item URL and no backing data-resource URL, so there is no honest
-                   target to navigate to. They were dead buttons (no @@onclick) and shipping them would
-                   fabricate a capability the contract does not yet expose; restore them when #1279 lands
-                   those fields. *@
-                <button class="console-button console-button-secondary" type="button"
-                        data-catalog-copy-url @onclick="CopyItemUrlAsync">
-                    @(_copied ? "✓ Copied" : "⧉ Copy item URL")
-                </button>
-            </div>
+            <div class="console-detail-actions">@HeaderActions</div>
         </div>
+        }
+
 
         <div class="catalogs-field-legend" data-catalog-field-legend>
             <span class="catalogs-field-legend__item" data-catalog-field-state="system"><span class="console-status console-state-neutral">system</span> server-assigned</span>
@@ -73,22 +93,15 @@
 
         <div class="console-detail-overview catalogs-item__layout">
             <div class="console-detail-overview-main">
-                <p class="console-status console-state-info catalogs-card__callout" data-catalog-auto-mirror-note>
+                <p class="@(V4Enabled ? "console-muted" : "console-status console-state-info catalogs-card__callout")" data-catalog-auto-mirror-note>
                     <strong>Auto-mirror.</strong> Most fields below come straight from the underlying Data Resource. The
                     catalog adds a thin layer of presentation — tags, thumbnail, featured flag, related items. Edit the
                     canonical fields in the resource and they propagate here.
                 </p>
 
-                @foreach (var group in item.Groups)
+                @foreach (var (group, groupIndex) in item.Groups.Select((group, index) => (group, index)))
                 {
-                    <div class="console-field-group catalogs-field-group" data-catalog-field-group="@group.Title">
-                        <header>
-                            <h3>@group.Title</h3>
-                            @if (!string.IsNullOrWhiteSpace(group.Subtitle))
-                            {
-                                <small class="console-muted">@group.Subtitle</small>
-                            }
-                        </header>
+                    RenderFragment Fields = @<text>
                         <dl class="catalogs-fields">
                             @foreach (var field in group.Fields)
                             {
@@ -107,21 +120,61 @@
                                 </div>
                             }
                         </dl>
+                    </text>;
+                    @if (V4Enabled)
+                    {
+                        <div data-catalog-field-group="@group.Title">
+                        <ConsolePanel Title="@group.Title" HeadingId="@($"catalog-fields-{groupIndex}")" Surface="ConsolePanelSurface.Quiet">
+                            @if (!string.IsNullOrWhiteSpace(group.Subtitle)) { <p class="console-muted">@group.Subtitle</p> }
+                            @Fields
+                        </ConsolePanel>
+                        </div>
+                    }
+                    else
+                    {
+                    <div class="console-field-group catalogs-field-group" data-catalog-field-group="@group.Title">
+                        <header>
+                            <h3>@group.Title</h3>
+                            @if (!string.IsNullOrWhiteSpace(group.Subtitle))
+                            {
+                                <small class="console-muted">@group.Subtitle</small>
+                            }
+                        </header>
+                        @Fields
                     </div>
+                    }
+
                 }
             </div>
 
             <aside class="console-detail-overview-side">
-                <div class="console-overview-card" data-catalog-quick-facts>
-                    <header><h3>Quick facts</h3></header>
-                    <div class="console-overview-card-body">
+                @{ RenderFragment QuickFacts = @<text>
                         <dl class="catalogs-fields">
                             <div class="catalogs-field"><dt>Item ID</dt><dd><code>@item.Id</code></dd></div>
-                            <div class="catalogs-field"><dt>Services</dt><dd>@item.BackingServiceCount</dd></div>
+                            @if (!V4Enabled)
+                            {
+                                <div class="catalogs-field"><dt>Services</dt><dd>@item.BackingServiceCount</dd></div>
+                            }
                             <div class="catalogs-field"><dt>Tags</dt><dd>@item.TagCount</dd></div>
                         </dl>
+                </text>; }
+                @if (V4Enabled)
+                {
+                    <section data-catalog-quick-facts>
+                        <ConsolePanel Title="Quick facts" HeadingId="catalog-item-facts-heading" Surface="ConsolePanelSurface.Quiet" Class="console-summary">
+                            <ConsoleMetricTile Label="Backing services" Value="@item.BackingServiceCount" />
+                            @QuickFacts
+                        </ConsolePanel>
+                    </section>
+                }
+                else
+                {
+                    <div class="console-overview-card" data-catalog-quick-facts>
+                        <header><h3>Quick facts</h3></header>
+                        <div class="console-overview-card-body">@QuickFacts</div>
                     </div>
-                </div>
+                }
+
 
                 @if (item.HasIssues)
                 {
@@ -139,7 +192,7 @@
     }
     else
     {
-        <ConsoleStateView Kind="empty"
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="empty"
                           Kicker="Catalogs"
                           Title="Item not found"
                           Message="The catalog discovery-endpoints registry returned no item for this id." />
@@ -147,6 +200,8 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
     [Parameter]
     public string Key { get; set; } = string.Empty;
 

@@ -18,8 +18,8 @@ public static class ConsoleAnonymousReadLabels
         ArgumentNullException.ThrowIfNull(item);
 
         return IsPublicLinkRead(item)
-            ? "Anonymous public-link reads do not expose workspace permission details."
-            : "Anonymous public reads do not expose workspace permission details.";
+            ? "Anonymous public-link reads do not expose permission details."
+            : "Anonymous public reads do not expose permission details.";
     }
 
     private static bool IsPublicLinkRead(ConsoleContentSummary item) =>

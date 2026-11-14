@@ -1,4 +1,4 @@
-// Workflow package IDs are opaque UTF-16 store keys, matching the server task validator.
+// Workflow IDs are opaque UTF-16 store keys, matching the server task validator.
 const invalidPackageId = /\p{Cc}|^[\p{Zs}\u2028\u2029]|[\p{Zs}\u2028\u2029]$/u;
 export function processTask(value) {
     if (!value || typeof value.packageId !== 'string' || value.packageId.length < 1 || value.packageId.length > 256

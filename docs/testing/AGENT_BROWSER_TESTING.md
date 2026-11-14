@@ -37,7 +37,7 @@ do **not** need to expose 8088/5432 to Windows.
 
 **In WSL** (where the stack runs):
 - Docker (for PostGIS + honua-server). `docker version` should work.
-- .NET 10 SDK and Node.js 20+ (`dotnet --version`, `node --version`).
+- .NET 11 SDK and Node.js 20+ (`dotnet --version`, `node --version`).
 - This repo checked out (you are reading its docs).
 
 **On Windows** (where Claude drives the browser):

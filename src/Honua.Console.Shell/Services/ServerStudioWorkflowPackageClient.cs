@@ -9,7 +9,7 @@ namespace Honua.Console.Shell.Services;
 // The mutable graph is saved separately from immutable versions; execution always uses a validated version.
 public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
-    internal const string Surface = "Studio workflow.package";
+    internal const string Surface = "Studio workflow";
     internal const string EditorStateKey = "console.editorState";
     internal const string AuthoringStateKey = "console.authoringState";
     internal const string NodeLabelKey = "console.label";
@@ -104,7 +104,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             : [];
     }
 
-    // A new workflow package is a local draft until the first save creates it on the server; this never
+    // A new workflow is a local draft until the first save creates it on the server; this never
     // fabricates server-owned data (no package id, no version) and mirrors the editor "new" route.
     public Task<StudioWorkflowPackageDraft> CreateDraftAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(CreateLocalDraft());
@@ -326,7 +326,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         string contentItemId,
         CancellationToken cancellationToken = default)
     {
-        // A never-saved draft has no server content item; report an empty (bound) history so the panel shows
+        // A never-saved draft has no saved server item; report an empty (bound) history so the panel shows
         // its "no runs yet" prompt instead of issuing a server call for an id that does not exist.
         if (string.IsNullOrWhiteSpace(contentItemId))
         {
@@ -447,8 +447,8 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             CurrentVersionId = string.Empty,
             VersionNumber = 0,
             PackageType = StudioWorkflowContractValues.PackageType,
-            Title = "Untitled workflow package",
-            Summary = "Author a GP/ETL workflow package and save a version to create it on the server.",
+            Title = "Untitled workflow",
+            Summary = "Author a GP/ETL workflow and save a version to create it on the server.",
             Nodes = [],
             Edges = [],
             Parameters = [],
@@ -605,7 +605,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
         return new SaveWorkflowPackageRequest
         {
             PackageId = string.IsNullOrWhiteSpace(draft.ContentItemId) ? null : draft.ContentItemId,
-            Name = string.IsNullOrWhiteSpace(draft.Title) ? "Untitled workflow package" : draft.Title,
+            Name = string.IsNullOrWhiteSpace(draft.Title) ? "Untitled workflow" : draft.Title,
             Description = string.IsNullOrWhiteSpace(draft.Summary) ? null : draft.Summary,
             Namespace = "studio.workflow",
             Graph = new WorkflowGraph
@@ -894,7 +894,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
                 Surface,
                 "Unavailable",
                 "honua-server workflow API",
-                "The Honua server did not return workflow package data.")
+                "The Honua server did not return workflow data.")
             : new StudioWorkflowBindingState(Surface, issue.State, issue.Contract, issue.Detail);
 
     private static int? ReadInt(IReadOnlyDictionary<string, string> metadata, string key) =>

@@ -8,7 +8,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// A 403 from the server approve grant or separation of duties is Forbidden and is not bypassed.
+// A 403 from the server approve grant or human-session gate is Forbidden and is not bypassed.
 public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 {
     private const string NoProfileMessage =
@@ -86,16 +86,75 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             .ConfigureAwait(false);
     }
 
+    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+        string proposalId,
+        CancellationToken cancellationToken = default) =>
+        ApproveAsync(proposalId, reviewed: null, cancellationToken);
+
+    // The server requires a live human browser session (no bearer or API key) and a review capability
+    // bound to the current plan, so the capability is opened immediately before the decision and never cached.
     public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
         string proposalId,
+        ConsoleProposalReviewedPlan? reviewed,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
-        return await SendDetailAsync(
-            HttpMethod.Post,
-            ProposalAdminRoutes.Approve(proposalId.Trim()),
-            content: null,
-            cancellationToken).ConfigureAwait(false);
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (profile is null)
+        {
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
+        }
+
+        var id = proposalId.Trim();
+        var review = await SendHumanApprovalAsync(
+            profile, HttpMethod.Get, ProposalAdminRoutes.ApprovalReview(id),
+            ProposalJsonContext.Default.ProposalHumanReviewWire, capability: null, cancellationToken).ConfigureAwait(false);
+        if (review.Status == OperateSectionStatus.Missing)
+        {
+            // Servers without the approval-review route answer it with 404. They take the plain
+            // approve and apply their own approve-grant and separation-of-duties rules; a server with the
+            // route never 404s a live proposal, and rejects a capability-less approve.
+            return await SendDetailAsync(HttpMethod.Post, ProposalAdminRoutes.Approve(id), content: null, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (!review.IsAllowed)
+        {
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(review.Status, review.Message, review.Detail);
+        }
+
+        var grant = review.Value?.Review;
+        var refusal = CheckGrant(grant, id, reviewed);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+
+        var result = await SendHumanApprovalAsync(
+            profile, HttpMethod.Post, ProposalAdminRoutes.Approve(id),
+            ProposalJsonContext.Default.ProposalDetailWire, grant!.Capability, cancellationToken).ConfigureAwait(false);
+        return ToDetailResult(result);
+    }
+
+    private static OperateSectionResult<ConsoleProposalDetail>? CheckGrant(
+        ProposalHumanReviewGrantWire? grant, string proposalId, ConsoleProposalReviewedPlan? reviewed)
+    {
+        if (grant is null || string.IsNullOrWhiteSpace(grant.Capability)
+            || !string.Equals(grant.ProposalId, proposalId, StringComparison.Ordinal))
+        {
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Unavailable,
+                "The server did not open a human approval review for this proposal.");
+        }
+
+        var changed = reviewed is not null
+            && (grant.ProposalVersion != reviewed.Version
+                || (reviewed.PlanHash is not null && !string.Equals(grant.PlanHash, reviewed.PlanHash, StringComparison.Ordinal)));
+        return changed
+            ? OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Unavailable,
+                "The proposal changed after you opened it. Review the current plan before approving.")
+            : null;
     }
 
     public async Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
@@ -144,7 +203,11 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             ProposalJsonContext.Default.ProposalDetailWire,
             cancellationToken).ConfigureAwait(false);
 
-        return result.IsAllowed && result.Value is not null
+        return ToDetailResult(result);
+    }
+
+    private static OperateSectionResult<ConsoleProposalDetail> ToDetailResult(OperateSectionResult<ProposalDetailWire> result) =>
+        result.IsAllowed && result.Value is not null
             ? OperateSectionResult<ConsoleProposalDetail>.Allowed(MapDetail(result.Value))
             : OperateSectionResult<ConsoleProposalDetail>.Denied(
                 result.Status,
@@ -152,7 +215,6 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
                     ? "The honua-server proposals API returned an empty response."
                     : result.Message,
                 result.Detail);
-    }
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(
         ConsoleEnvironmentProfile profile,
@@ -194,6 +256,40 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             request.Content = new StringContent(content, Encoding.UTF8, "application/json");
         }
 
+        return await ExchangeAsync(request, typeInfo, code => MapErrorMessage(code, method, relativePath), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    // The server refuses any explicit credential on human approval; only the ambient browser session may decide.
+    private async Task<OperateSectionResult<T>> SendHumanApprovalAsync<T>(
+        ConsoleEnvironmentProfile profile,
+        HttpMethod method,
+        string relativePath,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        string? capability,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
+        if (capability is not null)
+        {
+            request.Headers.TryAddWithoutValidation(ProposalAdminRoutes.ApprovalCapabilityHeader, capability);
+        }
+
+        return await ExchangeAsync(
+            request,
+            typeInfo,
+            code => code is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
+                ? HumanApprovalRefusedMessage
+                : MapErrorMessage(code, method, relativePath),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<OperateSectionResult<T>> ExchangeAsync<T>(
+        HttpRequestMessage request,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        Func<HttpStatusCode, string> fallbackMessage,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using var response = await _http
@@ -204,7 +300,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             {
                 var problem = await ConsoleServerHttp.ReadProblemAsync(
                     response,
-                    MapErrorMessage(response.StatusCode, method, relativePath),
+                    fallbackMessage(response.StatusCode),
                     cancellationToken).ConfigureAwait(false);
                 return OperateSectionResult<T>.Denied(
                     MapStatus(response.StatusCode),
@@ -293,13 +389,15 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         FindingId = wire.FindingId,
         AutonomyRule = wire.AutonomyRule,
         ActionDiscriminator = wire.ActionDiscriminator,
+        Version = wire.Version,
+        PlanHash = wire.PlanHash,
     };
 
     private static string MapErrorMessage(HttpStatusCode code, HttpMethod method, string relativePath) => code switch
     {
         HttpStatusCode.Forbidden =>
             "The server's approval gate denied this action. Approving or rejecting a proposal requires the "
-            + "'approve' permission, and a proposal's requester cannot approve their own proposal.",
+            + "'approve' permission.",
         HttpStatusCode.Conflict =>
             "The proposal is not in a state that allows this action (it may already be approved, rejected, or terminal).",
         HttpStatusCode.BadRequest =>
@@ -310,6 +408,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             "The connected server does not expose the proposals approval endpoints.",
         _ => $"The honua-server proposals API returned {(int)code} for {method.Method} {relativePath}.",
     };
+
+    private const string HumanApprovalRefusedMessage =
+        "The server refused this approval. Approving requires the 'approve' grant and a live signed-in browser "
+        + "session on the Honua API's own origin; API keys, MCP tokens and cross-origin bearer access cannot approve.";
 
     private static Uri BuildUri(Uri baseUri, string relativePath) =>
         ConsoleServerHttp.BuildUri(baseUri, relativePath);
@@ -342,6 +444,8 @@ public sealed record ProposalSummaryWire
 public sealed record ProposalDetailWire
 {
     public string? ProposalId { get; init; }
+    public long Version { get; init; }
+    public string? PlanHash { get; init; }
     public string? Kind { get; init; }
     public string? Status { get; init; }
     public string? RequestedBy { get; init; }
@@ -364,6 +468,22 @@ public sealed record ProposalDetailWire
     public string? ActionDiscriminator { get; init; }
 }
 
+public sealed record ProposalHumanReviewWire
+{
+    public ProposalDetailWire? Proposal { get; init; }
+    public ProposalHumanReviewGrantWire? Review { get; init; }
+}
+
+// The capability is opaque to Console and lives only for the approve request that follows.
+public sealed record ProposalHumanReviewGrantWire
+{
+    public string? ProposalId { get; init; }
+    public long ProposalVersion { get; init; }
+    public string? PlanHash { get; init; }
+    public DateTimeOffset ExpiresAt { get; init; }
+    public string? Capability { get; init; }
+}
+
 public sealed record ProposalListWire
 {
     public IReadOnlyList<ProposalSummaryWire>? Proposals { get; init; }
@@ -382,5 +502,6 @@ public sealed record RejectProposalWire
 [JsonSerializable(typeof(ProposalSummaryWire))]
 [JsonSerializable(typeof(ProposalDetailWire))]
 [JsonSerializable(typeof(ProposalListWire))]
+[JsonSerializable(typeof(ProposalHumanReviewWire))]
 [JsonSerializable(typeof(RejectProposalWire))]
 internal sealed partial class ProposalJsonContext : JsonSerializerContext;

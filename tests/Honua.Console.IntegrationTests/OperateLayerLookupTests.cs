@@ -8,11 +8,11 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateLayerLookupTests
 {
-    private static readonly OperateServiceLayerProjection ParcelsOnConnA =
+    private static readonly OperateServiceLayer ParcelsOnConnA =
         new(1, "Parcels", "Polygon", "conn-a-layer-1", "parcels");
-    private static readonly OperateServiceLayerProjection ShelterOnConnA =
+    private static readonly OperateServiceLayer ShelterOnConnA =
         new(2, "Shelters", "Point", "conn-a-layer-2", "shelters");
-    private static readonly OperateServiceLayerProjection RoadsOnConnB =
+    private static readonly OperateServiceLayer RoadsOnConnB =
         new(1, "Roads", "LineString", "conn-b-layer-1", "roads");
 
     [Theory]
@@ -90,8 +90,22 @@ public sealed class OperateLayerLookupTests
         return ctx;
     }
 
+    [Fact]
+    public void GeometryByCanonicalResourceId_MatchesFindLayerForEveryServedResource()
+    {
+        var parcelsAsLines = ParcelsOnConnA with { Geometry = "LineString" };
+        var view = ViewOf(Service("zoning", parcelsAsLines), Service("cadastre", ParcelsOnConnA, ShelterOnConnA));
+
+        var geometry = view.GeometryByCanonicalResourceId();
+
+        Assert.Equal(view.FindLayer("conn-a-layer-1")!.Geometry, geometry["conn-a-layer-1"]);
+        Assert.Equal("Polygon", geometry["CONN-A-LAYER-1"]);
+        Assert.Equal("Point", geometry["conn-a-layer-2"]);
+        Assert.False(geometry.ContainsKey("conn-b-layer-1"));
+    }
+
     private static OperateServicesView ViewOf(params OperateServiceDetail[] services) => new(services, []);
 
-    private static OperateServiceDetail Service(string name, params OperateServiceLayerProjection[] layers) =>
+    private static OperateServiceDetail Service(string name, params OperateServiceLayer[] layers) =>
         new(name, name, "FeatureServer", "Running", "honua-server", layers, [], []);
 }

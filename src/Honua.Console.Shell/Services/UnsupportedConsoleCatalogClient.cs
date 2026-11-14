@@ -47,7 +47,7 @@ public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
         return Task.FromResult(MissingItem());
     }
 
-    public Task<MapPackageReadResult> GetMapPackageAsync(
+    public Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default)
@@ -56,10 +56,10 @@ public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        return Task.FromResult(MissingMapPackage());
+        return Task.FromResult(MissingMap());
     }
 
-    public Task<MapPackageReadResult> GetDraftMapAsync(
+    public Task<MapReadResult> GetDraftMapAsync(
         string sourceItemId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default)
@@ -68,10 +68,10 @@ public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        return Task.FromResult(MissingMapPackage());
+        return Task.FromResult(MissingMap());
     }
 
-    public Task<MapPackageReadResult> AuthorizeEmbedAsync(
+    public Task<MapReadResult> AuthorizeEmbedAsync(
         string mapId,
         EmbedRouteOptions options,
         CancellationToken cancellationToken = default)
@@ -80,12 +80,12 @@ public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
         ArgumentNullException.ThrowIfNull(options);
         cancellationToken.ThrowIfCancellationRequested();
 
-        return Task.FromResult(MissingMapPackage());
+        return Task.FromResult(MissingMap());
     }
 
     private static CatalogItemReadResult MissingItem() =>
         CatalogItemReadResult.Denied(CatalogReadStatus.Unavailable, MissingBindingMessage);
 
-    private static MapPackageReadResult MissingMapPackage() =>
-        MapPackageReadResult.Denied(CatalogReadStatus.Unavailable, MissingBindingMessage);
+    private static MapReadResult MissingMap() =>
+        MapReadResult.Denied(CatalogReadStatus.Unavailable, MissingBindingMessage);
 }

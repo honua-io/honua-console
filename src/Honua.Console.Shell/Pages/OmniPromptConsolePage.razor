@@ -1,13 +1,24 @@
 @inject NavigationManager ConsoleNavigation
 @page "/operate/ai"
+@inject IServiceProvider ServiceProvider
 
-<section class="console-page" data-shared-conversation-entry>
-    <div class="console-page-heading">
-        <p class="console-kicker">Honua</p>
-        <h1>Continue your conversation</h1>
-        <p>Use the conversation alongside Console, Studio and Processes. Review the selected environment and resource before sending.</p>
-    </div>
-    <button type="button" class="console-button" data-workspace-open>Open conversation</button>
+<section class="@(V4Enabled ? "console-page console-viewer-v4" : "console-page")" data-shared-conversation-entry>
+    @if (V4Enabled)
+    {
+        <ConsolePageHeading Title="Continue your conversation">
+            <ChildContent><p>Use the conversation alongside Console, Studio and Processes. Review the selected environment and resource before sending.</p></ChildContent>
+            <Actions><button type="button" class="console-button" data-workspace-open>Open conversation</button></Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Honua</p>
+            <h1>Continue your conversation</h1>
+            <p>Use the conversation alongside Console, Studio and Processes. Review the selected environment and resource before sending.</p>
+        </div>
+        <button type="button" class="console-button" data-workspace-open>Open conversation</button>
+    }
     <div class="console-action-row">
         <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">Add data</a>
         <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/studio")">Open Studio</a>
@@ -15,3 +26,7 @@
         <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/inbox")">Review approvals</a>
     </div>
 </section>
+
+@code {
+    private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+}

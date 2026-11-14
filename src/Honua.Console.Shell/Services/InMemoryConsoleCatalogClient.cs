@@ -100,10 +100,10 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
                 item.Summary.ViewerSupport.UnsupportedReason));
         }
 
-        if (supportStatus == ConsoleContentSupportState.UnsupportedPackageBinding)
+        if (supportStatus == ConsoleContentSupportState.UnsupportedContentBinding)
         {
             return Task.FromResult(CatalogItemReadResult.Denied(
-                CatalogReadStatus.UnsupportedPackageBinding,
+                CatalogReadStatus.UnsupportedContentBinding,
                 item.Summary.ViewerSupport.UnsupportedReason));
         }
 
@@ -128,7 +128,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         return Task.FromResult(CatalogItemReadResult.Allowed(item, anonymousRead: true));
     }
 
-    public Task<MapPackageReadResult> GetMapPackageAsync(
+    public Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default)
@@ -140,7 +140,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         var item = FindItem(mapId);
         if (item is null || !string.Equals(item.Summary.Type, "map", StringComparison.Ordinal))
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Missing,
                 "The requested map was not found."));
         }
@@ -148,22 +148,22 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         var authorization = AuthorizeItem(item.Summary, context);
         if (authorization != CatalogReadStatus.Allowed)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 authorization,
                 "This map link is unavailable or no longer grants access."));
         }
 
-        if (item.Summary.ViewerSupport.SupportState == ConsoleContentSupportState.UnsupportedPackageBinding)
+        if (item.Summary.ViewerSupport.SupportState == ConsoleContentSupportState.UnsupportedContentBinding)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
-                CatalogReadStatus.UnsupportedPackageBinding,
+            return Task.FromResult(MapReadResult.Denied(
+                CatalogReadStatus.UnsupportedContentBinding,
                 item.Summary.ViewerSupport.UnsupportedReason));
         }
 
-        return Task.FromResult(MapPackageReadResult.Allowed(ToMapPackage(item), context.Anonymous));
+        return Task.FromResult(MapReadResult.Allowed(ToMap(item), context.Anonymous));
     }
 
-    public Task<MapPackageReadResult> GetDraftMapAsync(
+    public Task<MapReadResult> GetDraftMapAsync(
         string sourceItemId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default)
@@ -174,7 +174,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 
         if (context.Anonymous)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "Sign in to hydrate a draft map from catalog content."));
         }
@@ -182,14 +182,14 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         var item = FindItem(sourceItemId);
         if (item is null)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Missing,
                 "The source item for this draft map was not found."));
         }
 
         if (!IsDraftMapSourceType(item.Summary.Type))
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.UnsupportedServiceMetadata,
                 "Draft maps can only be hydrated from supported catalog services or layers."));
         }
@@ -197,12 +197,12 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         if (!item.Summary.ViewerSupport.CanOpenInViewer
             || item.Summary.ViewerSupport.SupportState != ConsoleContentSupportState.Supported)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.UnsupportedServiceMetadata,
                 "The selected item cannot hydrate a map draft."));
         }
 
-        var draft = new ConsoleMapPackage
+        var draft = new ConsoleMap
         {
             Summary = item.Summary with
             {
@@ -218,10 +218,10 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             Layers = [item.Summary.Title]
         };
 
-        return Task.FromResult(MapPackageReadResult.Allowed(draft));
+        return Task.FromResult(MapReadResult.Allowed(draft));
     }
 
-    public Task<MapPackageReadResult> AuthorizeEmbedAsync(
+    public Task<MapReadResult> AuthorizeEmbedAsync(
         string mapId,
         EmbedRouteOptions options,
         CancellationToken cancellationToken = default)
@@ -232,7 +232,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 
         if (options.QueryStringCarriedToken)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "Embed bearer tokens must be supplied in the URL fragment."));
         }
@@ -240,21 +240,21 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         var item = FindItem(mapId);
         if (item is null || !string.Equals(item.Summary.Type, "map", StringComparison.Ordinal))
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Missing,
                 "The embedded map was not found."));
         }
 
-        if (item.Summary.ViewerSupport.SupportState == ConsoleContentSupportState.UnsupportedPackageBinding)
+        if (item.Summary.ViewerSupport.SupportState == ConsoleContentSupportState.UnsupportedContentBinding)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
-                CatalogReadStatus.UnsupportedPackageBinding,
+            return Task.FromResult(MapReadResult.Denied(
+                CatalogReadStatus.UnsupportedContentBinding,
                 item.Summary.ViewerSupport.UnsupportedReason));
         }
 
         if (!item.Summary.Access.Embeddable)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "This map is not embeddable."));
         }
@@ -265,12 +265,12 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
 
         if (!publicMap && !tokenMatches)
         {
-            return Task.FromResult(MapPackageReadResult.Denied(
+            return Task.FromResult(MapReadResult.Denied(
                 CatalogReadStatus.Unavailable,
                 "The embed token is missing or invalid."));
         }
 
-        return Task.FromResult(MapPackageReadResult.Allowed(ToMapPackage(item), anonymousRead: true));
+        return Task.FromResult(MapReadResult.Allowed(ToMap(item), anonymousRead: true));
     }
 
     private ConsoleContentDetail? FindItem(string idOrSlug) =>
@@ -316,7 +316,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
     private static bool Contains(string value, string query) =>
         value.Contains(query, StringComparison.OrdinalIgnoreCase);
 
-    private static ConsoleMapPackage ToMapPackage(ConsoleContentDetail item) =>
+    private static ConsoleMap ToMap(ConsoleContentDetail item) =>
         new()
         {
             Summary = item.Summary,
@@ -390,7 +390,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             slug: "storm-response-map",
             type: "map",
             title: "Storm Response Map",
-            summary: "Saved map package for public-link operations and iframe embeds.",
+            summary: "Saved map for public-link operations and iframe embeds.",
             owner: "resilience-team",
             tags: ["storm", "operations", "map"],
             formats: ["honua-webmap/v1"],
@@ -426,7 +426,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             slug: "public-field-map",
             type: "map",
             title: "Public Field Map",
-            summary: "Public saved map package for tokenless viewer-read parity.",
+            summary: "Public saved map for tokenless viewer-read parity.",
             owner: "field-team",
             tags: ["public", "field", "map"],
             formats: ["honua-webmap/v1"],
@@ -501,7 +501,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             slug: "future-response-map",
             type: "map",
             title: "Future Response Map",
-            summary: "Map package saved by a newer runtime than this Console build understands.",
+            summary: "Map saved by a newer runtime than this Console build understands.",
             owner: "resilience-team",
             tags: ["storm", "future"],
             formats: ["honua-webmap/vNext"],
@@ -516,12 +516,12 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             viewerSupport: new ConsoleViewerSupport
             {
                 CanOpenInViewer = true,
-                SupportState = ConsoleContentSupportState.UnsupportedPackageBinding,
-                UnsupportedReason = "This saved-map package targets a newer package binding than this Console runtime."
+                SupportState = ConsoleContentSupportState.UnsupportedContentBinding,
+                UnsupportedReason = "This saved map targets a newer content binding than this Console runtime."
             },
             capabilities: ["webmap-doc/vNext"],
             bindings: [],
-            publications: [new("/maps/future-response-map", "public", true, "unsupported package")],
+            publications: [new("/maps/future-response-map", "public", true, "unsupported version")],
             usage: []);
 
         return [coastalService, utilitiesLayer, stormMap, publicFieldMap, dashboard, legacyService, futureMap];
@@ -584,7 +584,7 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
             ],
             Permissions =
             [
-                new(owner, role, "workspace policy"),
+                new(owner, role, "server policy"),
                 new("Emergency Response", "viewer", "group share")
             ],
             Activity =

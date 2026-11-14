@@ -122,7 +122,7 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<ILogger<SignalRConsoleOpsHealthRealtimeClient>>(),
                 adminApiKey,
                 serviceProvider.GetService<IConsoleManagerEndpoint>()));
-        services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
+        services.TryAddSingleton<HttpConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
                 ShellHttpClients.ManagerBound(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
@@ -130,6 +130,10 @@ internal static class OperateObservabilityRegistrations
                 adminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
                 credentialMode));
+        services.TryAddSingleton<IConsoleOpsFindingsClient>(serviceProvider =>
+            serviceProvider.GetRequiredService<HttpConsoleOpsFindingsClient>());
+        services.TryAddSingleton<IConsoleAlertInboxClient>(serviceProvider =>
+            serviceProvider.GetRequiredService<HttpConsoleOpsFindingsClient>());
         services.TryAddSingleton<IConsoleOpsAutonomyClient>(serviceProvider =>
             new HttpConsoleOpsAutonomyClient(
                 ShellHttpClients.ManagerBound(serviceProvider),

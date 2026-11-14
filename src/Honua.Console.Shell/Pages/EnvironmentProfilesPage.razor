@@ -2,24 +2,38 @@
 @page "/environments"
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleCapabilityManifest Capabilities
+@inject IServiceProvider Services
 
-<section class="console-page">
-    <div class="console-page-heading">
-        <p class="console-kicker">Console settings</p>
-        <h1>Environments</h1>
-        <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
-    </div>
+<section class="console-page @(V4Enabled ? "console-environments-v4" : null)">
+    @if (V4Enabled)
+    {
+        <link rel="stylesheet" href="_content/Honua.Console.Shell/css/environments-v4.css" />
+        <ConsolePageHeading Title="Environments">
+            <ChildContent>
+                <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
+            </ChildContent>
+            <Actions>@AddEnvironmentLink</Actions>
+        </ConsolePageHeading>
+    }
+    else
+    {
+        <div class="console-page-heading">
+            <p class="console-kicker">Console settings</p>
+            <h1>Environments</h1>
+            <p>Choose the Honua server to manage. Each environment keeps its own sign-in and saved session.</p>
+        </div>
 
-    <div class="console-toolbar">
-        <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
-    </div>
+        <div class="console-toolbar">
+            @AddEnvironmentLink
+        </div>
+    }
 
     @if (_profiles.Count == 0)
     {
         <article class="console-panel">
             <h2>Add your first environment</h2>
             <p class="console-muted">Add your server address, then sign in to access your data and maps.</p>
-            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>
+            @AddEnvironmentLink
         </article>
     }
     else
@@ -93,6 +107,10 @@
 </section>
 
 @code {
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    private RenderFragment AddEnvironmentLink => @<a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/environments/new")">Add environment</a>;
+
     private IReadOnlyList<ConsoleEnvironmentProfile> _profiles = Array.Empty<ConsoleEnvironmentProfile>();
     private ConsoleEnvironmentProfile? _activeProfile;
     private readonly Dictionary<string, ConsoleEnvironmentState?> _states = new(StringComparer.Ordinal);

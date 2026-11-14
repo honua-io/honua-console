@@ -30,7 +30,7 @@ argument to `composeArgs()` in `e2e/run-live-llm.mjs`.
 
 - Docker (with Compose v2 — `docker compose` as a sub-command)
 - Node.js >= 20 with `npx` on `PATH`
-- .NET 10 SDK (the Console host starts via `dotnet run`)
+- .NET 11 SDK (the Console host starts via `dotnet run`)
 - `openssl` and `bash` (the runner generates a throwaway TLS cert for the test IdP)
 - Outbound HTTPS (service-import specs contact public source GIS platform sample servers)
 

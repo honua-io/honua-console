@@ -86,6 +86,17 @@ public sealed class BrowserApiTransportTests
         Assert.Equal(new Uri("https://honua.example/"), new ConsoleRuntimeConfiguration().ResolveApiBaseUri(App));
     }
 
+    [Theory]
+    [InlineData("{}", true)]
+    [InlineData("{\"apiBaseUrl\":\"/\"}", true)]
+    [InlineData("{\"v4Enabled\":true}", true)]
+    [InlineData("{\"v4Enabled\":false}", false)]
+    public void RuntimeConfigEnablesV4UnlessExplicitlyRolledBack(string json, bool expected)
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        Assert.Equal(expected, JsonSerializer.Deserialize<ConsoleRuntimeConfiguration>(json, options)!.V4Enabled);
+    }
+
     [Fact]
     public void SessionChangePublishesTheCurrentSnapshot()
     {

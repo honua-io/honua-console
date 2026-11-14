@@ -112,6 +112,7 @@ public sealed partial class ApprovalInboxPageRenderTests
 
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
         Assert.Equal(heading, Assert.Single(page.FindAll("h1")).TextContent);
+        Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll("[data-operations-alerts]").Count == 1);
         Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".console-page-heading-v4").Count == 1);
         Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll("section > link[rel='stylesheet'][href$='approval-inbox-v4.css']").Count == 1);
         Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".approval-inbox-table").Count == 1);

@@ -74,6 +74,9 @@ public sealed record ConsoleOperatorBearerResolution
 
     public string Message { get; init; } = string.Empty;
 
+    // The host transport (the static Console's browser fetch) attaches the signed-in operator's cookie or bearer itself.
+    public bool UsesBrowserTransport { get; init; }
+
     public bool IsAvailable => !string.IsNullOrWhiteSpace(AccessToken);
 }
 

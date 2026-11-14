@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { headerPolicy } from "../console-csp.mjs";
 import { verify } from "../vendor-assets.mjs";
 
 // honua-console#333, #334 — the Console must not fetch executable code from a CDN at page load.
@@ -17,10 +18,8 @@ import { verify } from "../vendor-assets.mjs";
 //
 //   1. The committed vendored assets are the bytes the lock says they are.
 //   2. MapLibre (#333) and Vega (#334) are loaded from this origin, not unpkg/jsdelivr.
-//   3. The external origins the wwwroot interop scripts reach for and the external origins the CSP
-//      admits are the SAME SET. This is the drift-killer: it is what makes vendoring a library
-//      *force* the matching CSP entry away, and what makes adding a new CDN to a script fail CI
-//      until someone widens the policy deliberately.
+//   3. Every external origin a wwwroot interop script reaches for is admitted by the Console CSP
+//      (config/console-csp.json), and that policy admits no external script or worker origin.
 //
 // Invariant 3 is a structural check, not proof of runtime behaviour — that is asserted separately
 // and behaviourally by e2e/playwright/specs/no-external-requests.spec.ts, which records every
@@ -29,7 +28,6 @@ import { verify } from "../vendor-assets.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
 const wwwroot = resolve(repoRoot, "src/Honua.Console.Shell/wwwroot");
-const programPath = resolve(repoRoot, "tests/Honua.Console.LegacyHost/Program.cs");
 const cesiumFetchPath = resolve(repoRoot, "scripts/fetch-cesium.mjs");
 const cesiumTreeContractPath = resolve(repoRoot, "scripts/lib/cesium-extracted-tree.mjs");
 const cesiumTreeLockPath = resolve(repoRoot, "scripts/cesium-extracted-tree.lock.json");
@@ -37,7 +35,7 @@ const cesiumTreeLockPath = resolve(repoRoot, "scripts/cesium-extracted-tree.lock
 /**
  * External origins the Console is currently permitted to reach at runtime, each with the reason it
  * is still here. Shrinking this list is the goal; an entry may only be added alongside the code that
- * needs it and the CSP directive that admits it.
+ * needs it.
  */
 const DECLARED_EXTERNAL_ORIGINS = new Map([
   [
@@ -149,28 +147,30 @@ test("no wwwroot interop script reaches an undeclared external origin", () => {
   }
 });
 
-test("the CSP admits exactly the external origins the interop scripts still use", () => {
-  const program = readFileSync(programPath, "utf8");
-  const csp = program.slice(program.indexOf("var contentSecurityPolicy"), program.indexOf("app.Use(async"));
-  assert.ok(csp.includes("script-src"), "could not locate the CSP definition in Program.cs");
-
-  const policyOrigins = externalOrigins(csp);
+test("the Console CSP admits the external origins the interop scripts use, and no script origin", () => {
+  const policy = new Map(
+    headerPolicy().split("; ").map((entry) => {
+      const [name, ...sources] = entry.split(" ");
+      return [name, sources];
+    }),
+  );
+  const admits = (name, origin) => {
+    const sources = policy.get(name) ?? policy.get("default-src");
+    return sources.includes(origin) || sources.includes(`${new URL(origin).protocol}`);
+  };
   const scriptOrigins = new Set(interopScripts.flatMap(({ source }) => [...fetchedOrigins(source)]));
 
   // Nothing a script fetches may be blocked by the policy...
   for (const origin of scriptOrigins) {
-    assert.ok(policyOrigins.has(origin), `${origin} is used by an interop script but not admitted by the CSP`);
+    for (const name of ["connect-src", "img-src"]) {
+      assert.ok(admits(name, origin), `${origin} is used by an interop script but not admitted by ${name}`);
+    }
   }
-  // ...and the policy may not admit an origin nothing uses. Vendoring a library must shrink the CSP.
-  for (const origin of policyOrigins) {
-    assert.ok(
-      scriptOrigins.has(origin),
-      `the CSP admits ${origin} but no wwwroot interop script loads from it — remove the directive entry`,
-    );
+  // ...and executable code may only come from this origin.
+  for (const name of ["script-src", "worker-src"]) {
+    const external = policy.get(name).filter((source) => !source.startsWith("'") && source !== "blob:");
+    assert.deepEqual(external, [], `${name} must admit no external origin or scheme`);
   }
-
-  // The specific regression #333 is about.
-  assert.doesNotMatch(csp, /unpkg\.com/, "the CSP must no longer admit unpkg.com");
 });
 
 // As of #334 no interop script reaches a CDN for executable code at all: MapLibre and Vega are

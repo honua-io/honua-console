@@ -73,7 +73,7 @@
                 <p>Service identity: <code>@ServiceName</code>. Moving preserves this identity.</p>
                 <label class="console-field">
                     <span>Destination Folder</span>
-                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" data-service-folder>
+                    <select class="console-input" aria-label="Destination Folder" @bind="_folderId" @bind:after="ReportContextAsync" data-service-folder>
                         <option value="">Root</option>
                         @foreach (var folder in catalog.ActiveFolders)
                         {
@@ -112,7 +112,7 @@
             ? (_name != (SelectedFolder?.Metadata.Name ?? "") ? 1 : 0)
                 + (_title != (SelectedFolder?.Metadata.Title ?? "") ? 1 : 0)
                 + (_confirmDelete ? 1 : 0)
-            : 0;
+            : (_folderId != _savedFolderId ? 1 : 0);
         await UnsavedChanged.InvokeAsync(new() { ChangedFieldCount = changed, PendingOperationCount = (_loading ? 1 : 0) + (_busy ? 1 : 0) });
         await SelectionChanged.InvokeAsync(SelectedFolder is { } folder
             ? new ConsoleAgentEntity { Kind = ConsoleAgentEntityKind.Folder, Id = folder.Metadata.Id }
@@ -124,6 +124,7 @@
     private ConsoleFolderMutationResult? _result;
     private string? _loadedService;
     private string _folderId = "";
+    private string _savedFolderId = "";
     private string _name = "";
     private string _title = "";
     private bool _confirmDelete;
@@ -144,7 +145,7 @@
         _initialized = true;
         _loadedService = ServiceName;
         _catalog = null;
-        _folderId = CurrentFolderId ?? "";
+        _folderId = _savedFolderId = CurrentFolderId ?? "";
         _name = _title = "";
         _result = null;
         await RefreshAsync();
@@ -225,6 +226,7 @@
             if (result.State == Honua.Console.Contracts.ConsoleWriteOutcome.UnverifiedState)
                 _unverifiedAuthority = catalog.AuthorityBinding;
             if (!result.Succeeded) return;
+            if (ServiceName is not null) _savedFolderId = _folderId;
             await OnSaved.InvokeAsync();
             if (ServiceName is null) _folderId = _name = _title = "";
             await RefreshAsync();

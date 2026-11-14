@@ -8,7 +8,7 @@ public sealed class UnsupportedStudioFormPackageDataSource : IStudioFormPackageD
         "Form builder",
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the form builder can bind the server-owned form package lifecycle from honua-server.");
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the form builder can bind the server-owned form lifecycle from honua-server.");
 
     public Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new StudioFormWorkspace([], [MissingBinding]));

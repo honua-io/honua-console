@@ -18,17 +18,17 @@ public interface IConsoleCatalogClient
         string idOrSlug,
         CancellationToken cancellationToken = default);
 
-    Task<MapPackageReadResult> GetMapPackageAsync(
+    Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default);
 
-    Task<MapPackageReadResult> GetDraftMapAsync(
+    Task<MapReadResult> GetDraftMapAsync(
         string sourceItemId,
         CatalogReadContext context,
         CancellationToken cancellationToken = default);
 
-    Task<MapPackageReadResult> AuthorizeEmbedAsync(
+    Task<MapReadResult> AuthorizeEmbedAsync(
         string mapId,
         EmbedRouteOptions options,
         CancellationToken cancellationToken = default);
@@ -96,25 +96,25 @@ public sealed record CatalogItemReadResult
         };
 }
 
-public sealed record MapPackageReadResult
+public sealed record MapReadResult
 {
     public CatalogReadStatus Status { get; init; }
 
-    public ConsoleMapPackage? MapPackage { get; init; }
+    public ConsoleMap? Map { get; init; }
 
     public string Message { get; init; } = string.Empty;
 
     public bool AnonymousRead { get; init; }
 
-    public static MapPackageReadResult Allowed(ConsoleMapPackage mapPackage, bool anonymousRead = false) =>
+    public static MapReadResult Allowed(ConsoleMap map, bool anonymousRead = false) =>
         new()
         {
             Status = CatalogReadStatus.Allowed,
-            MapPackage = mapPackage,
+            Map = map,
             AnonymousRead = anonymousRead
         };
 
-    public static MapPackageReadResult Denied(CatalogReadStatus status, string message) =>
+    public static MapReadResult Denied(CatalogReadStatus status, string message) =>
         new()
         {
             Status = status,
@@ -129,5 +129,5 @@ public enum CatalogReadStatus
     Forbidden,
     Unavailable,
     UnsupportedServiceMetadata,
-    UnsupportedPackageBinding
+    UnsupportedContentBinding
 }
