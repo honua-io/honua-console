@@ -133,10 +133,6 @@
                     {
                         ReconcileLifecycleCommands(refreshed.Authority, item);
                     }
-                    foreach (var confirmed in refreshed.Page.Items.Where(item => item.AcknowledgedAt is not null))
-                    {
-                        _requestIds.Remove((refreshed.Authority, confirmed.EventId));
-                    }
                 }
             }
             if (generation == _generation) { _loaded = true; }
@@ -152,7 +148,7 @@
             _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
         }
         return await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
-    }, authority => _requestIds.Remove((authority, eventId)),
+    }, authority => RetireLifecycleCommands(authority, eventId),
         "Honua recorded that you have seen this alert. The underlying problem may still need attention."));
 
     private Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action) => RunMutationAsync(eventId, new(async (client, snapshot) =>
@@ -178,7 +174,8 @@
     {
         var key = (authority, item.EventId, ConsoleAlertLifecycleAction.Snooze);
         _lifecycleCommands.TryGetValue(key, out var pending);
-        if (item.ResolvedAt is not null || (pending is not null && item.SuppressedUntil == pending.SuppressUntil))
+        if (item.AcknowledgedAt is not null || item.ResolvedAt is not null
+            || (pending is not null && item.SuppressedUntil == pending.SuppressUntil))
         {
             RetireLifecycleCommands(authority, item.EventId);
         }

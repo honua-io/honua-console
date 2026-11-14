@@ -222,6 +222,36 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.NotEqual(client.Commands[0].RequestId, client.Commands[1].RequestId);
     }
 
+    [Theory]
+    [InlineData(ConsoleAlertLifecycleAction.Snooze, false)]
+    [InlineData(ConsoleAlertLifecycleAction.Snooze, true)]
+    [InlineData(ConsoleAlertLifecycleAction.Resolve, false)]
+    [InlineData(ConsoleAlertLifecycleAction.Resolve, true)]
+    public void ConfirmedAcknowledgementRetiresUncertainLifecycleIdentities(
+        ConsoleAlertLifecycleAction action, bool loseAcknowledgementResponse)
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        var selector = action == ConsoleAlertLifecycleAction.Snooze ? "[data-snooze-alert]" : "[data-resolve-alert]";
+        panel.Find(selector).Click();
+        panel.WaitForAssertion(() => Assert.Single(client.LifecycleCommands));
+        client.Confirm = !loseAcknowledgementResponse;
+        panel.Find("[data-acknowledge-alert]").Click();
+        if (loseAcknowledgementResponse)
+        {
+            panel.WaitForAssertion(() => Assert.Single(client.Commands));
+            client.Page = client.Page with { Items = [client.Page.Items[0] with { AcknowledgedAt = DateTimeOffset.UtcNow }] };
+            panel.Find("[data-refresh-alerts]").Click();
+        }
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-acknowledged]")));
+        client.Confirm = true;
+        panel.Find(selector).Click();
+        panel.WaitForAssertion(() => Assert.Equal(2, client.LifecycleCommands.Count));
+        Assert.NotEqual(client.LifecycleCommands[0].RequestId, client.LifecycleCommands[1].RequestId);
+    }
+
     [Fact]
     public void RefreshConfirmationRetiresAnUncertainSnoozeBeforeAnotherOccurrence()
     {
