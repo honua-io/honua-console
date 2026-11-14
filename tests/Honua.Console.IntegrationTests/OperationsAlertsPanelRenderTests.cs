@@ -128,6 +128,62 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.Empty(panel.FindAll("[data-alert-action-message]"));
     }
 
+    [Fact]
+    public void SnoozeRetriesTheSameCommandAndResolveRequiresServerConfirmation()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Contains("not confirmed", panel.Find("[data-alert-action-message]").TextContent));
+        Assert.Empty(panel.FindAll("[data-snoozed]"));
+        client.Confirm = true;
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
+        Assert.Equal(client.LifecycleCommands[0], client.LifecycleCommands[1]);
+        panel.Find("[data-resolve-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-resolve-alert]")));
+        Assert.Contains("does not confirm", panel.Find("[data-alert-action-message]").TextContent);
+        Assert.NotEqual(client.LifecycleCommands[1].RequestId, client.LifecycleCommands[2].RequestId);
+    }
+
+    [Fact]
+    public void RefreshConfirmationRetiresAnUncertainSnoozeBeforeAnotherOccurrence()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(client.LifecycleCommands));
+        var original = client.Page;
+        client.Page = original with { Items = [original.Items[0] with { SuppressedUntil = client.LifecycleCommands[0].SuppressUntil }] };
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
+        client.Page = original;
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snooze-alert]")));
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Equal(2, client.LifecycleCommands.Count));
+        Assert.NotEqual(client.LifecycleCommands[0].RequestId, client.LifecycleCommands[1].RequestId);
+    }
+
+    [Theory]
+    [InlineData("critical")]
+    [InlineData("CRITICAL")]
+    [InlineData("")]
+    public void CriticalAndUnknownSeverityAlertsCannotBeSnoozed(string severity)
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        client.Page = client.Page with { Items = [client.Page.Items[0] with { Severity = severity }] };
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        Assert.Empty(panel.FindAll("[data-snooze-alert]"));
+        Assert.Single(panel.FindAll("[data-resolve-alert]"));
+    }
+
     private sealed class ChangingAuthentication : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
@@ -144,7 +200,7 @@ public sealed class OperationsAlertsPanelRenderTests
         public List<ConsoleAlertAcknowledgement> Commands { get; } = [];
         public ObservabilityAlertEventPageResponse Page { get; set; } = new()
         {
-            Items = [new() { EventId = 42, RuleName = "A map needs attention", ServiceId = "Public maps" }]
+            Items = [new() { EventId = 42, RuleName = "A map needs attention", ServiceId = "Public maps", Severity = "warning" }]
         };
 
         public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(CancellationToken cancellationToken = default, string? cursor = null, ConsoleAlertAuthority? expectedAuthority = null)
@@ -153,6 +209,21 @@ public sealed class OperationsAlertsPanelRenderTests
             if (cursor is not null) { Assert.Equal("profile-1", expectedAuthority?.ProfileId); }
             if (PendingRead is { } pending) { return pending; }
             return Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(ConsoleAlertAuthority.Capture(new ConsoleEnvironmentProfile { Id = "profile-1" }, null), Page)));
+        }
+
+        public List<ConsoleAlertLifecycleCommand> LifecycleCommands { get; } = [];
+
+        public Task<OperateSectionResult<ObservabilityAlertEventResponse>> ChangeAlertLifecycleAsync(
+            ConsoleAlertLifecycleCommand command, CancellationToken cancellationToken = default)
+        {
+            LifecycleCommands.Add(command);
+            return Task.FromResult(Confirm
+                ? OperateSectionResult<ObservabilityAlertEventResponse>.Allowed(Page.Items[0] with
+                {
+                    SuppressedUntil = command.SuppressUntil,
+                    ResolvedAt = command.Action == ConsoleAlertLifecycleAction.Resolve ? DateTimeOffset.UtcNow : null
+                })
+                : OperateSectionResult<ObservabilityAlertEventResponse>.Denied(OperateSectionStatus.Unavailable, "Change not confirmed."));
         }
 
         public Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(

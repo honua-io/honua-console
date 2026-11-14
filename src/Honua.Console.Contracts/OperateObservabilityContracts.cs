@@ -347,6 +347,20 @@ public sealed record ObservabilityAuditRecordResponse
     public string Details { get; init; } = string.Empty;
 }
 
+// SHIM(honua-sdk-dotnet#231): alert lifecycle requests pending a consumable SDK projection.
+public sealed record ObservabilityAlertSuppressRequest
+{
+    public required DateTimeOffset SuppressUntil { get; init; }
+
+    public string? Note { get; init; }
+}
+
+// SHIM(honua-sdk-dotnet#231): alert lifecycle requests pending a consumable SDK projection.
+public sealed record ObservabilityAlertResolveRequest
+{
+    public string? Note { get; init; }
+}
+
 public sealed record ObservabilityAlertAcknowledgeRequest
 {
     public string? Note { get; init; }
@@ -1007,5 +1021,7 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(InvestigationPageResponse))]
 [JsonSerializable(typeof(InvestigationResponse))]
 [JsonSerializable(typeof(ObservabilityAlertEventResponse))]
+[JsonSerializable(typeof(ObservabilityAlertSuppressRequest))]
+[JsonSerializable(typeof(ObservabilityAlertResolveRequest))]
 [JsonSerializable(typeof(ObservabilityAlertAcknowledgeRequest))]
 public sealed partial class OperateObservabilityJsonContext : JsonSerializerContext;
