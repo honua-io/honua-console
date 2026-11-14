@@ -38,8 +38,9 @@ The host needs free quickstart ports (including 18083) and its default Docker
 subnet. The stack and generated password are removed on exit. Honua lanes run
 this through `remote-run` on the build host.
 
-A green diagnostic run against source-built images is not a release-candidate
-pass. Record a candidate pass only with the certified release's immutable image
-and bundle identities. This password-session journey does not cover OIDC,
+A green diagnostic run against source-built images is not independent verification.
+For ticket verification, use a verification cohort with immutable image and bundle
+identities and record the cohort and evidence; a cohort needs no release certification.
+Release gate acceptance still requires its recorded live pass. This password-session journey does not cover OIDC,
 publication approval or the other release journeys; approval requires an
 interactive OIDC session.
