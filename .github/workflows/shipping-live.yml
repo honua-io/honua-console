@@ -1,0 +1,98 @@
+name: Shipping Console live replay
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_image:
+        description: Serving image with immutable sha256 digest
+        required: true
+        type: string
+      executor_image:
+        description: Matching executor image with immutable sha256 digest
+        required: true
+        type: string
+      server_source_sha:
+        description: Full server commit containing the packaged Console quickstart
+        required: true
+        type: string
+      console_run_id:
+        description: Successful Console static bundle workflow run ID
+        required: true
+        type: string
+      console_bundle_sha256:
+        description: Independently selected static release zip SHA-256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SERVER_IMAGE: ${{ inputs.server_image }}
+      EXECUTOR_IMAGE: ${{ inputs.executor_image }}
+      SERVER_SOURCE_SHA: ${{ inputs.server_source_sha }}
+      CONSOLE_RUN_ID: ${{ inputs.console_run_id }}
+      CONSOLE_BUNDLE_SHA256: ${{ inputs.console_bundle_sha256 }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate immutable inputs and bundle source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$SERVER_SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$CONSOLE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$CONSOLE_BUNDLE_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          for image in "$SERVER_IMAGE" "$EXECUTOR_IMAGE"; do
+            [[ "$image" =~ @sha256:[a-f0-9]{64}$ ]]
+          done
+          mkdir -p artifacts/shipping-live
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CONSOLE_RUN_ID" > artifacts/shipping-live/bundle-run.json </dev/null
+          jq -e '.conclusion == "success" and .path == ".github/workflows/static-bundle.yml"' artifacts/shipping-live/bundle-run.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          keys = ('SERVER_IMAGE', 'EXECUTOR_IMAGE', 'SERVER_SOURCE_SHA', 'CONSOLE_RUN_ID', 'CONSOLE_BUNDLE_SHA256', 'GITHUB_SHA')
+          Path('artifacts/shipping-live/identities.json').write_text(json.dumps({key: os.environ[key] for key in keys}, indent=2) + '\n')
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: honua-io/honua-server
+          ref: ${{ inputs.server_source_sha }}
+          path: server-source
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: console-static-release
+          path: static-release
+          run-id: ${{ inputs.console_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20.x
+      - name: Install browser dependencies
+        working-directory: e2e/playwright
+        run: |
+          npm ci
+          npx --no-install playwright install --with-deps chromium
+      - name: Replay packaged HTTPS quickstart at 1280 and 390 widths
+        run: |
+          mapfile -t bundles < <(find "$PWD/static-release" -maxdepth 1 -name '*.zip' -type f)
+          [[ ${#bundles[@]} == 1 ]]
+          export CONSOLE_BUNDLE="${bundles[0]}" SERVER_SOURCE="$PWD/server-source"
+          bash e2e/run-shipping-live.sh
+      - name: Upload identities, logs and browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: console-shipping-live
+          path: |
+            artifacts/shipping-live/
+            e2e/playwright/playwright-report/
+            e2e/playwright/test-results/
+          if-no-files-found: warn
