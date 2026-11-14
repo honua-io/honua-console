@@ -94,15 +94,17 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("data-catalog-disabled", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Detail_WhenBindingMissing_RendersMissingBindingSurface()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Detail_WhenBindingMissing_RendersMissingBindingSurface(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             EndpointLoad = new CatalogEndpointDetailLoad(null, [MissingBinding])
         };
 
-        var page = RenderDetail(data, "esri");
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("Catalog discovery endpoints are not bound", page.Markup, StringComparison.Ordinal),
@@ -110,24 +112,29 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.DoesNotContain("data-catalog-items-table", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Detail_Loaded_RendersTabsAndMirroredItemsTable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Detail_Loaded_RendersTabsAndMirroredItemsTable(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
         };
 
-        var page = RenderDetail(data, "esri");
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-items-table", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        // Tab strip with the Items / Validation counts.
-        Assert.Contains("data-catalog-tabs", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-catalog-tab=\"items\"", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("data-catalog-tab=\"validation\"", page.Markup, StringComparison.Ordinal);
+        // Legacy endpoint tabs remain available with v4 disabled.
+        if (!enabled)
+        {
+            Assert.Contains("data-catalog-tabs", page.Markup, StringComparison.Ordinal);
+            Assert.Contains("data-catalog-tab=\"items\"", page.Markup, StringComparison.Ordinal);
+            Assert.Contains("data-catalog-tab=\"validation\"", page.Markup, StringComparison.Ordinal);
+        }
 
         // Endpoint header URL bar.
         Assert.Contains("data-catalog-endpoint-url", page.Markup, StringComparison.Ordinal);
@@ -142,12 +149,22 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("data-catalog-thumb=\"ok\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-catalog-thumb=\"missing\"", page.Markup, StringComparison.Ordinal);
 
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            Assert.Single(page.FindAll(".console-panel-heading h2"));
+            Assert.Empty(page.FindAll("[data-catalog-tabs]"));
+            CatalogAdminPreview.CaptureV4("catalog-endpoint-v4", page.Markup);
+        }
+
         // Auto-mirror footnote.
         Assert.Contains("data-catalog-auto-mirror", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Detail_HeaderActions_CopyAndOpenAreWired_RebuildIsHonestlyDisabled()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Detail_HeaderActions_CopyAndOpenAreWired_RebuildIsHonestlyDisabled(bool enabled)
     {
         // The endpoint detail header actions were previously dead buttons (no @onclick). Copy now copies the
         // real endpoint URL via the shared clipboard interop; Open links out to that URL; Rebuild index has
@@ -158,6 +175,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         };
 
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
         module.Setup<bool>("copyText", _ => true).SetResult(true);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
@@ -187,15 +205,17 @@ public sealed class CatalogsDiscoveryPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
-    public void Item_WhenBindingMissing_RendersMissingBindingSurface()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Item_WhenBindingMissing_RendersMissingBindingSurface(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             ItemLoad = new CatalogItemLoad(null, [MissingBinding])
         };
 
-        var page = RenderItem(data, "esri", "a3bf-0214");
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("Catalog discovery endpoints are not bound", page.Markup, StringComparison.Ordinal),
@@ -203,19 +223,31 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.DoesNotContain("data-catalog-field-group", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Item_Loaded_RendersFieldGroupsWithStateLegendAndAutoMirror()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Item_Loaded_RendersFieldGroupsWithStateLegendAndAutoMirror(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             ItemLoad = new CatalogItemLoad(SampleItem(), [])
         };
 
-        var page = RenderItem(data, "esri", "a3bf-0214");
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-field-legend", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
+
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            Assert.Empty(page.FindAll(".console-overview-card"));
+            Assert.Empty(page.FindAll(".console-panel:not(.console-panel-quiet)"));
+            Assert.NotEmpty(page.FindAll(".console-panel-quiet"));
+            Assert.Equal(page.FindAll("[data-catalog-field-group]").Count + 1, page.FindAll(".console-panel-heading h2").Count);
+            CatalogAdminPreview.CaptureV4("catalog-entry-v4", page.Markup);
+        }
 
         // Auto-mirror + live badges.
         Assert.Contains("data-catalog-auto-mirror", page.Markup, StringComparison.Ordinal);
@@ -238,8 +270,10 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("data-catalog-quick-facts", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Item_CopyItemUrlButton_IsWiredToClipboardInterop()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Item_CopyItemUrlButton_IsWiredToClipboardInterop(bool enabled)
     {
         // The "Copy item URL" control is a real action (no longer a dead button): clicking it imports the
         // catalog-item-editor.js module and calls copyText with the page URL, then flips the label to
@@ -252,6 +286,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         };
 
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         // Set up the catalog-item-editor.js module so copyText reports a successful copy; the component
         // should then flip the label to "Copied". This also lets us assert the page URL is the copied text.
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
@@ -322,15 +357,17 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Equal("/operate/catalogs/esri", browse.GetAttribute("href"));
     }
 
-    [Fact]
-    public void Detail_WithWorkspaceQuery_PreservesWorkspaceOnItemAndBreadcrumbLinks()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Detail_WithWorkspaceQuery_PreservesWorkspaceOnItemAndBreadcrumbLinks(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
         };
 
-        var page = RenderDetail(data, "esri", workspace: "tenant-a");
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Workspace = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-items-table", page.Markup, StringComparison.Ordinal),
@@ -344,15 +381,17 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Item_WithWorkspaceQuery_PreservesWorkspaceOnBreadcrumbLinks()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Item_WithWorkspaceQuery_PreservesWorkspaceOnBreadcrumbLinks(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             ItemLoad = new CatalogItemLoad(SampleItem(), [])
         };
 
-        var page = RenderItem(data, "esri", "a3bf-0214", workspace: "tenant-a");
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Workspace = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-field-legend", page.Markup, StringComparison.Ordinal),
@@ -371,23 +410,33 @@ public sealed class CatalogsDiscoveryPageRenderTests
         return ctx.Render<CatalogsListPage>();
     }
 
-    private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, string key, string? workspace = null)
+    private static IRenderedComponent<CatalogsEndpointDetailPage> RenderDetail(FakeCatalogDiscoveryDataSource data, CatalogRoute route)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(route.Presentation);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, $"operate/catalogs/{key}", workspace);
+        NavigateToWorkspace(ctx, $"operate/catalogs/{route.Key}", route.Workspace);
         return ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters
-            .Add(p => p.Key, key));
+            .Add(p => p.Key, route.Key));
     }
 
-    private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, string key, string itemId, string? workspace = null)
+    private static IRenderedComponent<CatalogItemEditorPage> RenderItem(FakeCatalogDiscoveryDataSource data, CatalogRoute route)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(route.Presentation);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, $"operate/catalogs/{key}/items/{itemId}", workspace);
+        NavigateToWorkspace(ctx, $"operate/catalogs/{route.Key}/items/{route.ItemId}", route.Workspace);
         return ctx.Render<CatalogItemEditorPage>(parameters => parameters
-            .Add(p => p.Key, key)
-            .Add(p => p.ItemId, itemId));
+            .Add(p => p.Key, route.Key)
+            .Add(p => p.ItemId, route.ItemId));
+    }
+
+    private sealed record CatalogRoute
+    {
+        public required string Key { get; init; }
+        public string? ItemId { get; init; }
+        public string? Workspace { get; init; }
+        public ConsoleV4Options Presentation { get; init; } = new();
     }
 
     // Drives the page's [SupplyParameterFromQuery] workspace via the navigation URI, since the parameter is
