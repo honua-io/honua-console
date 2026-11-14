@@ -69,7 +69,7 @@ public sealed class OperateServicesPageTests
     {
         using var context = CreateContext(enabled);
         var layers = Enumerable.Range(0, visibleLayers)
-            .Select(index => new OperateServiceLayerProjection(index, "Roads", "LineString", "roads", "Roads")).ToArray();
+            .Select(index => new OperateServiceLayer(index, "Roads", "LineString", "roads", "Roads")).ToArray();
         OperateServiceDetail service = new("roads", "Roads", "WFS", "Ready", "", layers, [], []);
         var states = new[] { new OperateCapabilityState(surface, "Forbidden", "admin", "Layer enumeration is incomplete.") };
         context.Services.AddSingleton<IOperateTransitionDataSource>(new ServicesDataSource(() =>

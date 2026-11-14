@@ -134,18 +134,18 @@ internal static class ConsoleContentMapper
         };
     }
 
-    public static ConsoleMapPackage ToMapPackage(HonuaConsoleContentItem item)
+    public static ConsoleMap ToMap(HonuaConsoleContentItem item)
     {
-        return new ConsoleMapPackage
+        return new ConsoleMap
         {
             Summary = ToSummary(item)
         };
     }
 
-    public static ConsoleMapPackage ToDraftMapPackage(HonuaConsoleContentItem item)
+    public static ConsoleMap ToDraftMap(HonuaConsoleContentItem item)
     {
         var sourceSummary = ToSummary(item);
-        return new ConsoleMapPackage
+        return new ConsoleMap
         {
             Summary = sourceSummary with
             {
@@ -181,7 +181,7 @@ internal static class ConsoleContentMapper
         var permissions = new List<ConsoleContentPermission>();
         if (!string.IsNullOrWhiteSpace(item.OwnerId))
         {
-            permissions.Add(new ConsoleContentPermission(item.OwnerId, ResolveRole(item.Actions ?? []), "workspace policy"));
+            permissions.Add(new ConsoleContentPermission(item.OwnerId, ResolveRole(item.Actions ?? []), "server policy"));
         }
 
         if (!string.IsNullOrWhiteSpace(item.TeamScopeId))
@@ -202,7 +202,7 @@ internal static class ConsoleContentMapper
 
         if (item.CreatedAt is { } created && created != item.UpdatedAt)
         {
-            activity.Add(new ConsoleContentActivity(created, item.CreatedById ?? item.OwnerId ?? string.Empty, "Created content item"));
+            activity.Add(new ConsoleContentActivity(created, item.CreatedById ?? item.OwnerId ?? string.Empty, "Created"));
         }
 
         return [.. activity];

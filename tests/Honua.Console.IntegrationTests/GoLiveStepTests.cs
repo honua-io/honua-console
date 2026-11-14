@@ -180,7 +180,7 @@ public sealed class GoLiveStepTests
     private static DataToPublishFlowState Flow(PublishVisibility visibility) => new()
     {
         Resource = new ResourceStaging { ResourceId = "conn-1-layer-7", Name = "Parcels" },
-        ServiceSlot = ServiceName,
+        ServiceName = ServiceName,
         EnabledProtocols = ["FeatureServer", "OgcFeatures"],
         Visibility = visibility,
         Step = FlowStep.GoLive,

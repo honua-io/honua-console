@@ -136,7 +136,7 @@
 
     private RenderFragment SelectStep => @<div class="esri-wizard__step" data-wizard-step="select">
         <h2>Select content</h2>
-        <p class="console-muted">Pick the items to convert. Each becomes a Console content package; per-item fidelity is shown on the next step.</p>
+        <p class="console-muted">Pick the items to convert. Each becomes Honua content of the matching kind; per-item fidelity is shown on the next step.</p>
         @if (PlanView is { } plan)
         {
             <ul class="esri-wizard__select-list">
@@ -167,7 +167,7 @@
             <div>
                 <SourceTargetMappingTable Rows="MapRows"
                                           Heading="Map selected content"
-                                          Subhead="Each item is converted to a Console content package; items needing a data binding are flagged."
+                                          Subhead="Each item is converted to Honua content of the matching kind; items needing a data binding are flagged."
                                           SourceHeader="Source item"
                                           TargetHeader="→ Console"
                                           BoundHeader="Blockers" />

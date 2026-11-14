@@ -13,7 +13,7 @@ public sealed class InMemoryCollectAutomationClient : ICollectAutomationClient
     private readonly object _gate = new();
     private readonly Dictionary<string, CollectAutomationDraft> _drafts = new(StringComparer.Ordinal);
 
-    // Append-only version history per content item, oldest first.
+    // Append-only version history per automation, oldest first.
     private readonly Dictionary<string, List<StoredVersion>> _versions = new(StringComparer.Ordinal);
     private int _draftSequence = 1;
 
@@ -201,7 +201,7 @@ public sealed class InMemoryCollectAutomationClient : ICollectAutomationClient
         {
             if (!_versions.TryGetValue(contentItemId, out var stored))
             {
-                throw new InvalidOperationException($"No version history for content item '{contentItemId}'.");
+                throw new InvalidOperationException($"No version history for automation '{contentItemId}'.");
             }
 
             var source = stored.FirstOrDefault(v => string.Equals(v.VersionId, versionId, StringComparison.Ordinal))
@@ -209,7 +209,7 @@ public sealed class InMemoryCollectAutomationClient : ICollectAutomationClient
 
             var draft = _drafts.Values.FirstOrDefault(d =>
                 string.Equals(d.ContentItemId, contentItemId, StringComparison.Ordinal))
-                ?? throw new InvalidOperationException($"No draft bound to content item '{contentItemId}'.");
+                ?? throw new InvalidOperationException($"No draft bound to automation '{contentItemId}'.");
 
             // Append-only restore: re-instate the prior body as the live draft body, then commit it as a NEW
             // version. The original version is never mutated.

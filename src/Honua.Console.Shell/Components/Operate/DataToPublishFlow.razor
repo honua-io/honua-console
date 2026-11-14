@@ -88,7 +88,7 @@
             @StepShell(FlowStep.Publish, new($"③ Publish \"{_flow.Resource.Name}\"", "Choose how to expose this dataset", $"Publish {_flow.Resource.Name}"), @<text>
                 <PublishProtocolPicker Enabled="_flow.EnabledProtocols"
                                        EnabledChanged="OnProtocolsChanged"
-                                       ServiceSlot="@_flow.ServiceSlot" />
+                                       ServiceName="@_flow.ServiceName" />
                 <p class="console-muted" data-service-fixed>
                     honua-server serves a source table through one layer in one service, so this flow configures the
                     service the dataset is already in. To serve the data from a new service,
@@ -243,7 +243,7 @@
             Name = current.Layer.CanonicalResourceName,
             LayerEnabled = current.Layer.Enabled,
         };
-        _flow.ServiceSlot = current.Service.Name;
+        _flow.ServiceName = current.Service.Name;
         _flow.EnabledProtocols = ProtocolsServedBy(current.Service);
         _flow.Step = FlowStep.Publish;
     }

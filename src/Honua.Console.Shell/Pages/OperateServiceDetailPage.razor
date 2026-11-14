@@ -148,7 +148,7 @@
 
     private RenderFragment EndpointsContent => @<text>
         <dl class="console-definition-list console-protocols">
-            @foreach (var slot in _service!.PublicationSlots)
+            @foreach (var slot in _service!.Endpoints)
             {
                 <div class="console-protocol-pill">
                     <dt title="@slot.Name">@slot.Name</dt>

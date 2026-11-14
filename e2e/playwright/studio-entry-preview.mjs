@@ -5,7 +5,7 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 const headings = {
   "studio-unavailable": "Studio is unavailable on this deployment",
   "studio-connected": "Studio",
-  "studio-retired": "This view has moved to the Studio workspace",
+  "studio-retired": "This view has moved to Studio",
   "processes-connected": "Processes",
   "processes-disabled": "Realtime Studio is not enabled",
 };

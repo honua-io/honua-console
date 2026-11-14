@@ -181,7 +181,7 @@
                     {
                         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="@(V4Enabled ? 3 : 1)" Kind="missing" Kicker="Missing binding" Title="Dependency usage is not bound"
                                           Message="This server version can't report which maps, apps, or workflows depend on this item. Console won't guess downstream consumers — review impact from Lineage instead." />
-                        <ConsoleDiagnostics Detail="The connected honua-server exposes no dependency/usage (blast-radius) endpoint for content items; metadata v2 has no usage projection."
+                        <ConsoleDiagnostics Detail="The connected honua-server exposes no dependency/usage (blast-radius) endpoint for catalog items; metadata v2 reports no usage."
                                             IssueRef="honua-server#1162" />
                     }
                     else if (item.Usage.Length == 0)
@@ -383,7 +383,7 @@
             CatalogReadStatus.Missing => ("missing", "Missing item", "Catalog item not found", "The requested item does not exist or is not eligible for this route."),
             CatalogReadStatus.Forbidden => ("forbidden", "Forbidden", "You do not have access", "The authenticated read was denied by item policy."),
             CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported service", "Unsupported service metadata", message),
-            CatalogReadStatus.UnsupportedPackageBinding => ("unsupported-package", "Unsupported package", "Unsupported package binding", message),
+            CatalogReadStatus.UnsupportedContentBinding => ("unsupported-package", "Unsupported", "Unsupported content binding", message),
             _ => ("unavailable", "Unavailable", "This link is unavailable", "This anonymous link is missing, expired, or not allowed to reveal protected content.")
         };
 

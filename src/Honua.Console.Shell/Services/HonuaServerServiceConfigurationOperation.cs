@@ -71,8 +71,8 @@ public sealed class HonuaServerServiceConfigurationOperation : IServiceConfigura
                 Succeeded = true,
                 State = enabled ? "Enabled" : "Disabled",
                 Detail = enabled
-                    ? "The layer is enabled and queryable through its FeatureServer slot."
-                    : "The layer is disabled and no longer exposed through its FeatureServer slot.",
+                    ? "The layer is enabled and queryable through its FeatureServer endpoint."
+                    : "The layer is disabled and no longer exposed through its FeatureServer endpoint.",
                 LayerId = layer.LayerId,
                 ServiceName = layer.ServiceName ?? command.ServiceName,
                 Enabled = enabled

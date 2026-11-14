@@ -377,7 +377,7 @@ public sealed record WorkflowEndpointIssue(
 
 public sealed record WorkflowPackageClientOptions(Uri BaseUri, string? ApiKey = null);
 
-// Thin typed client over the admin-authorized honua-server workflow package API (/api/v1/console). Every
+// Thin typed client over the admin-authorized honua-server workflow API (/api/v1/console). Every
 // call returns a WorkflowEndpointResult so callers render shared blocked, missing-binding or forbidden
 // surfaces instead of throwing or fabricating data.
 public interface IWorkflowPackageApiClient
@@ -696,7 +696,7 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
     }
 
     // Surfaces the server's own validation/problem message on a non-success status so the editor's blocked
-    // surface explains *why* (e.g. "Workflow package validation failed" + the failing graph rules) rather
+    // surface explains *why* (e.g. "Workflow validation failed" + the failing graph rules) rather
     // than only an HTTP code. Best-effort: a missing or unparseable body simply yields the generic detail.
     private static async Task<string?> TryReadErrorDetailAsync(
         HttpResponseMessage response,
@@ -769,10 +769,10 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
         {
             HttpStatusCode.Unauthorized => "The Honua server rejected the workflow request because admin authentication is missing.",
             HttpStatusCode.Forbidden => "The Honua server rejected the workflow request because the current principal lacks admin permission.",
-            HttpStatusCode.NotFound => "The Honua server does not expose this workflow contract, or the package/version was not found.",
+            HttpStatusCode.NotFound => "The Honua server does not expose this workflow contract, or the workflow or version was not found.",
             HttpStatusCode.MethodNotAllowed => "The Honua server exposes the route but not the required workflow API verb.",
             HttpStatusCode.NotImplemented => "The Honua server reports this workflow capability is not implemented.",
-            HttpStatusCode.BadRequest => "The Honua server rejected the workflow package as invalid.",
+            HttpStatusCode.BadRequest => "The Honua server rejected the workflow as invalid.",
             HttpStatusCode.Conflict => "The workflow publication already exists or conflicts with server state; reload before retrying.",
             _ => string.Format(
                 CultureInfo.InvariantCulture,

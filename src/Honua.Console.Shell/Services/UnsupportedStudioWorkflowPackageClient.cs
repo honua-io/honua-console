@@ -7,14 +7,14 @@ namespace Honua.Console.Shell.Services;
 // 5 and 11) instead of seeded workflow data.
 public sealed class UnsupportedStudioWorkflowPackageClient : IStudioWorkflowPackageClient
 {
-    private const string Surface = "Studio workflow.package";
+    private const string Surface = "Studio workflow";
 
     private static readonly StudioWorkflowBindingState MissingBinding = new(
         Surface,
         "Missing binding",
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Studio can bind the server-owned GP/ETL "
-            + "workflow package, node registry, dry-run, and publication contract from honua-server (#1185).");
+            + "workflow, node registry, dry-run, and publication contract from honua-server (#1185).");
 
     public Task<StudioWorkflowEditorContext> OpenEditorAsync(
         string? draftId,
@@ -32,7 +32,7 @@ public sealed class UnsupportedStudioWorkflowPackageClient : IStudioWorkflowPack
         // The editor never reaches a create path when unbound (OpenEditorAsync returns the blocked surface
         // first), but the contract must not fabricate a server draft.
         throw new InvalidOperationException(
-            "Studio workflow package data is not bound to a honua-server; cannot create a draft.");
+            "Studio workflow data is not bound to a honua-server; cannot create a draft.");
 
     public Task<StudioWorkflowPackageDraft?> GetDraftAsync(
         string draftId,

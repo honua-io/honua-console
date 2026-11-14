@@ -129,7 +129,7 @@
     private bool _saving;
     private ConsoleSetLayerMetadataResult? _result;
 
-    private OperateServiceLayerProjection Layer => _exposures[0].Layer;
+    private OperateServiceLayer Layer => _exposures[0].Layer;
 
     protected override async Task OnParametersSetAsync()
     {

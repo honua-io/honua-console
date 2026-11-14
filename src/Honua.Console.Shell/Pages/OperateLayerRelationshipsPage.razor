@@ -145,7 +145,7 @@
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
-    private OperateServiceLayerProjection? _layer;
+    private OperateServiceLayer? _layer;
     private ConsoleLayerRelationships _relationships = ConsoleLayerRelationships.Unbound("Loading…");
     private readonly List<RelationshipRow> _rows = new();
     private bool _saving;

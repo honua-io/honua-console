@@ -60,7 +60,7 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
             {
                 Succeeded = true,
                 State = layer.Enabled == false ? "Disabled" : "Published",
-                Detail = "The layer is live on honua-server and queryable through its FeatureServer slot.",
+                Detail = "The layer is live on honua-server and queryable through its FeatureServer endpoint.",
                 LayerId = layer.LayerId,
                 LayerName = layer.LayerName,
                 ServiceName = layer.ServiceName ?? command.ServiceName,

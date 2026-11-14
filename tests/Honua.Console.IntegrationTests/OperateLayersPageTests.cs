@@ -19,7 +19,7 @@ public sealed class OperateLayersPageTests
         context.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager(mount));
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
-        var layer = new OperateServiceLayerProjection(42, "Parcels", "Polygon", "connection-1-layer-42", "Parcels dataset");
+        var layer = new OperateServiceLayer(42, "Parcels", "Polygon", "connection-1-layer-42", "Parcels dataset");
         var service = new OperateServiceDetail("cadastre", "Cadastre", "FeatureServer", "Ready", "honua-server", [layer], [], []);
         context.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(service));
         var page = context.Render<OperateLayersPage>();

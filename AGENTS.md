@@ -57,6 +57,7 @@ dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http:
 ## Vocabulary review
 
 Review new labels, accessibility names, help text, and errors against the [canonical Honua vocabulary](https://github.com/honua-io/honua-server/blob/115011ce760443e93ec70e4bd5123d7b9fa08414/docs/concepts/domain/README.md) and its [shared retired-terms policy](https://github.com/honua-io/honua-server/blob/115011ce760443e93ec70e4bd5123d7b9fa08414/scripts/ci/retired-terms.v1.json). Block retired object names in new UI. Review contextual exceptions using that same policy; preserve protocol wire names and actual agent collaboration workspace identifiers. Model and SDK contract renames follow the coordinated server migration.
+`scripts/__tests__/retired-vocabulary.test.mjs` (run by `npm test`) fails on retired Console wording and type names in `src/`; add an exception there only for a source-format reader or a wire literal, with its reason.
 
 ## Read before you act
 - Workspace composition and credential boundaries: `docs/agent-workspace.md`.
