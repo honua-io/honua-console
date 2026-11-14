@@ -16,6 +16,13 @@ reads, CSRF rejection, successful sign-out and session revocation. The artifact
 contains source-run metadata, input identities, logs and page screenshots.
 Browser traces are disabled because they can retain credentials and cookies.
 
+The disposable database also receives a one-feature service fixture compiled
+with the selected server source's metadata snapshot helper. The browser opens
+its Protocols tab, checks that displayed endpoints use the public HTTPS origin,
+and queries the displayed FeatureServer URL for the seeded count. This setup
+does not exercise service publication or approval. Its data and metadata are
+removed with the temporary stack.
+
 For local replay, install the locked dependencies in `e2e/playwright` and Chromium,
 then run from the repository root on a Docker host:
 

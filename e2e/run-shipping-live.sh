@@ -21,7 +21,7 @@ cleanup() {
     (cd "$work/package" && docker compose logs --no-color > "$out/compose.log" 2>&1 || true)
     (cd "$work/package" && docker compose down -v --remove-orphans > /dev/null 2>&1 || true)
   fi
-  rm -rf "$work"
+  rm -rf "${work:?}"
 }
 trap cleanup EXIT
 # Package validation verifies the checksum and rejects unsafe archive entries.
@@ -33,6 +33,20 @@ python3 "$SERVER_SOURCE/scripts/docker/package_quickstart.py" \
   cd "$work/package"
   python3 quickstart.py --profile console > "$out/quickstart.log" 2>&1
 )
+# The stack is disposable: compile a real service fixture without exercising publication approval.
+python3 "$root/e2e/seed-shipping-service.py" "$SERVER_SOURCE" > "$work/seed.sql"
+(
+  cd "$work/package"
+  docker compose exec -T postgres psql -U honua_user -d honua_dev -v ON_ERROR_STOP=1 \
+    < "$work/seed.sql" > "$out/seed.log"
+  docker compose exec -T redis redis-cli FLUSHDB
+  docker compose restart server
+) > "$out/restart.log" 2>&1
+for attempt in {1..60}; do
+  if curl -kfsS https://localhost:18083/healthz/ready > /dev/null 2>&1; then break; fi
+  sleep 2
+done
+curl -kfsS https://localhost:18083/healthz/ready > /dev/null
 export HONUA_SHIPPING_PASSWORD_FILE="$work/package/secrets/honua_admin_password"
 cd "$root/e2e/playwright"
 npx --no-install playwright test --config playwright.shipping.config.ts
