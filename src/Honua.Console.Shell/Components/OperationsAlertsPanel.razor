@@ -77,6 +77,7 @@
     private OperateSectionResult<ConsoleAlertInboxSnapshot> _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
         OperateSectionStatus.Unavailable, "The alert connection is unavailable.");
     private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId, ConsoleAlertLifecycleAction Action), ConsoleAlertLifecycleCommand> _lifecycleCommands = [];
+    private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId), AlertLifecycleState> _observedStates = [];
     private ConsoleEnvironmentSubscription? _subscription;
     private int _generation;
     private bool _loaded;
@@ -101,6 +102,7 @@
                 OperateSectionStatus.Unavailable, "The connected environment changed. Refresh alerts before continuing.");
             _requestIds.Clear();
             _lifecycleCommands.Clear();
+            _observedStates.Clear();
             _loaded = false;
             _busy = false;
             _lastRefreshed = null;
@@ -170,12 +172,17 @@
         Func<IConsoleAlertInboxClient, ConsoleAlertInboxSnapshot, Task<OperateSectionResult<ObservabilityAlertEventResponse>>> Send,
         Action<ConsoleAlertAuthority> Confirm, string Message);
 
+    private sealed record AlertLifecycleState(DateTimeOffset? AcknowledgedAt, DateTimeOffset? SuppressedUntil, DateTimeOffset? ResolvedAt);
+
     private void ReconcileLifecycleCommands(ConsoleAlertAuthority authority, ObservabilityAlertEventResponse item)
     {
         var key = (authority, item.EventId, ConsoleAlertLifecycleAction.Snooze);
         _lifecycleCommands.TryGetValue(key, out var pending);
-        if (item.AcknowledgedAt is not null || item.ResolvedAt is not null
-            || (pending is not null && item.SuppressedUntil == pending.SuppressUntil))
+        var eventKey = (authority, item.EventId);
+        var state = new AlertLifecycleState(item.AcknowledgedAt, item.SuppressedUntil, item.ResolvedAt);
+        var changed = _observedStates.TryGetValue(eventKey, out var previous) && previous != state;
+        _observedStates[eventKey] = state;
+        if (changed || (pending is not null && item.SuppressedUntil == pending.SuppressUntil))
         {
             RetireLifecycleCommands(authority, item.EventId);
         }
@@ -208,7 +215,7 @@
             if (result.IsAllowed && result.Value is { } updated)
             {
                 mutation.Confirm(snapshot.Authority);
-                if (updated.AcknowledgedAt is not null) { _requestIds.Remove((snapshot.Authority, eventId)); }
+                _observedStates[(snapshot.Authority, eventId)] = new(updated.AcknowledgedAt, updated.SuppressedUntil, updated.ResolvedAt);
                 var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
                 _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
                 _actionMessage = mutation.Message;

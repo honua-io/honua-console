@@ -252,6 +252,62 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.NotEqual(client.LifecycleCommands[0].RequestId, client.LifecycleCommands[1].RequestId);
     }
 
+    [Theory]
+    [InlineData("acknowledged", "resolve")]
+    [InlineData("snoozed", "resolve")]
+    [InlineData("snoozed", "acknowledge")]
+    public void UnchangedRefreshRetainsUncertainIdentity(string initialState, string action)
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        client.Page = client.Page with { Items = [client.Page.Items[0] with
+        {
+            AcknowledgedAt = initialState == "acknowledged" ? DateTimeOffset.UtcNow : null,
+            SuppressedUntil = initialState == "snoozed" ? DateTimeOffset.UtcNow.AddMinutes(10) : null
+        }] };
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        var selector = $"[data-{action}-alert]";
+        panel.Find(selector).Click();
+        panel.WaitForAssertion(() => Assert.Contains("not confirmed", panel.Markup));
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-alert-action-message]")));
+        panel.Find(selector).Click();
+        panel.WaitForAssertion(() => Assert.Equal(2, action == "acknowledge" ? client.Commands.Count : client.LifecycleCommands.Count));
+        if (action == "acknowledge") { Assert.Equal(client.Commands[0], client.Commands[1]); }
+        else { Assert.Equal(client.LifecycleCommands[0], client.LifecycleCommands[1]); }
+    }
+
+    [Theory]
+    [InlineData("acknowledge")]
+    [InlineData("resolve")]
+    [InlineData("snooze")]
+    public void ExternalSnoozeRetiresUncertainIdentities(string action)
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        var selector = $"[data-{action}-alert]";
+        panel.Find(selector).Click();
+        panel.WaitForAssertion(() => Assert.Contains("not confirmed", panel.Markup));
+        var originalId = action == "acknowledge" ? client.Commands[0].RequestId : client.LifecycleCommands[0].RequestId;
+        client.Page = client.Page with { Items = [client.Page.Items[0] with { SuppressedUntil = DateTimeOffset.UtcNow.AddMinutes(10) }] };
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
+        if (action == "snooze")
+        {
+            client.Page = client.Page with { Items = [client.Page.Items[0] with { SuppressedUntil = DateTimeOffset.UtcNow.AddMinutes(-1) }] };
+            panel.Find("[data-refresh-alerts]").Click();
+            panel.WaitForAssertion(() => Assert.Single(panel.FindAll(selector)));
+        }
+        client.Confirm = true;
+        panel.Find(selector).Click();
+        panel.WaitForAssertion(() => Assert.Equal(2, action == "acknowledge" ? client.Commands.Count : client.LifecycleCommands.Count));
+        var retryId = action == "acknowledge" ? client.Commands[1].RequestId : client.LifecycleCommands[1].RequestId;
+        Assert.NotEqual(originalId, retryId);
+    }
+
     [Fact]
     public void RefreshConfirmationRetiresAnUncertainSnoozeBeforeAnotherOccurrence()
     {
