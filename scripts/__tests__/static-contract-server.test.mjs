@@ -10,6 +10,23 @@ async function start(t, options) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
+for (const crossOrigin of [false, true]) {
+  test(`folder navigation uses the ${crossOrigin ? "bearer" : "cookie"} contract without opening unknown routes`, async t => {
+    const allowedOrigin = "http://console.test";
+    const origin = await start(t, { allowedOrigin, crossOrigin });
+    const headers = crossOrigin
+      ? { Origin: allowedOrigin, Authorization: `Bearer ${fixtureBearer}` }
+      : { Cookie: fixtureCookie };
+    const path = `${origin}/api/v1/admin/folders`;
+    assert.equal((await fetch(path)).status, 401);
+    const response = await fetch(path, { headers });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { success: true, data: [] });
+    assert.equal((await fetch(path, { method: "POST", headers })).status, 405);
+    assert.equal((await fetch(`${origin}/api/v1/admin/folders/unknown`, { headers })).status, 404);
+  });
+}
+
 test("contract fixture requires the same-origin session cookie and keeps unknown APIs missing", async t => {
   const origin = await start(t, { allowedOrigin: "http://console.test" });
   const path = "/api/v1/admin/connections";

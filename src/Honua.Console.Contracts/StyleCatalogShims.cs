@@ -16,11 +16,6 @@ public interface IConsoleAuthorityBindingValidator
     Task<string?> CaptureAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
 }
 
-public interface IConsoleAuthorityChangeSource
-{
-    event Action? Changed;
-}
-
 public static class ConsoleAuthorityRequestOptions
 {
     // Host-only canonical route. Never read from an HTTP header.
