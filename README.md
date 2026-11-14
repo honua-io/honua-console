@@ -46,7 +46,7 @@ lands here. Honest signal on maturity:
 
 Prerequisites:
 
-- **.NET 10 SDK**
+- **.NET 11 SDK**
 - **Node.js >= 20** (only for the smoke/e2e harnesses and build-metadata stamping)
 - Anonymous access to nuget.org. Every package, including `Honua.Sdk.Studio`
   and `Honua.Sdk.Abstractions`, restores from the single public source declared
