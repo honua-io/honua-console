@@ -60,7 +60,7 @@
 
 @code {
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly Dictionary<long, string> _requestIds = [];
+    private readonly Dictionary<(ConsoleAlertAuthority Authority, long EventId), string> _requestIds = [];
     private OperateSectionResult<ConsoleAlertInboxSnapshot> _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
         OperateSectionStatus.Unavailable, "The alert connection is unavailable.");
     private bool _loaded;
@@ -82,7 +82,14 @@
             {
                 _result = await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor), ConsoleReadBudget.Default,
                     "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
-                if (_result.IsAllowed) { _lastRefreshed = DateTimeOffset.UtcNow; }
+                if (_result.IsAllowed && _result.Value is { } refreshed)
+                {
+                    _lastRefreshed = DateTimeOffset.UtcNow;
+                    foreach (var confirmed in refreshed.Page.Items.Where(item => item.AcknowledgedAt is not null))
+                    {
+                        _requestIds.Remove((refreshed.Authority, confirmed.EventId));
+                    }
+                }
             }
             _loaded = true;
         }
@@ -96,14 +103,15 @@
         _actionMessage = null;
         try
         {
-            if (!_requestIds.TryGetValue(eventId, out var requestId))
+            var key = (snapshot.Authority, eventId);
+            if (!_requestIds.TryGetValue(key, out var requestId))
             {
-                _requestIds[eventId] = requestId = Guid.NewGuid().ToString("N");
+                _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
             }
-            var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.ProfileId, requestId), _lifetime.Token);
+            var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
             if (result.IsAllowed && result.Value is { } updated)
             {
-                _requestIds.Remove(eventId);
+                _requestIds.Remove(key);
                 var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
                 _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
                 _actionMessage = "Honua recorded that you have seen this alert. The underlying problem may still need attention.";

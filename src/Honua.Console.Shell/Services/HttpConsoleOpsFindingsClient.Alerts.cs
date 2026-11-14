@@ -17,6 +17,8 @@ public sealed partial class HttpConsoleOpsFindingsClient
                 OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
+        var authority = ConsoleAlertAuthority.Capture(profile,
+            await _sessionStore.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false));
         var path = $"{OperateAdminRoutes.Alerts}?pageSize=50";
         if (!string.IsNullOrWhiteSpace(cursor)) { path += $"&cursor={Uri.EscapeDataString(cursor)}"; }
         using var request = new HttpRequestMessage(HttpMethod.Get,
@@ -27,14 +29,14 @@ public sealed partial class HttpConsoleOpsFindingsClient
             OperateObservabilityJsonContext.Default.ObservabilityAlertEventPageResponse,
             cancellationToken).ConfigureAwait(false);
         return result.IsAllowed && result.Value is { } page
-            ? OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(profile.Id, page))
+            ? OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(authority, page))
             : OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(result.Status, result.Message);
     }
 
     public async Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(
         ConsoleAlertAcknowledgement acknowledgement, CancellationToken cancellationToken = default)
     {
-        var (eventId, profileId, requestId) = acknowledgement;
+        var (eventId, authority, requestId) = acknowledgement;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
         ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
@@ -44,7 +46,8 @@ public sealed partial class HttpConsoleOpsFindingsClient
                 OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
-        if (!string.Equals(profile.Id, profileId, StringComparison.Ordinal))
+        if (authority != ConsoleAlertAuthority.Capture(profile,
+            await _sessionStore.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false)))
         {
             return OperateSectionResult<ObservabilityAlertEventResponse>.Denied(OperateSectionStatus.Conflict,
                 "The connected environment changed. Refresh alerts before acknowledging one.");
@@ -75,18 +78,20 @@ public sealed partial class HttpConsoleOpsFindingsClient
     private async Task<OperateSectionResult<T>> SendAlertRequestAsync<T>(HttpRequestMessage request,
         JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
     {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(TimeSpan.FromSeconds(10));
         try
         {
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken).ConfigureAwait(false);
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead,
+                budget.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return OperateSectionResult<T>.Denied(MapStatus(response.StatusCode),
                     $"Honua could not complete the alert request (HTTP {(int)response.StatusCode}).");
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var value = await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken).ConfigureAwait(false);
+            await using var stream = await response.Content.ReadAsStreamAsync(budget.Token).ConfigureAwait(false);
+            var value = await JsonSerializer.DeserializeAsync(stream, typeInfo, budget.Token).ConfigureAwait(false);
             return value is null
                 ? OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable, "Honua returned an empty alert response.")
                 : OperateSectionResult<T>.Allowed(value);
@@ -95,7 +100,7 @@ public sealed partial class HttpConsoleOpsFindingsClient
         {
             throw;
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException or JsonException)
         {
             return OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable,
                 "The alert request could not be confirmed. Refresh before trying again.");

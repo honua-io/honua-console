@@ -1,5 +1,6 @@
 using Bunit;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,7 +26,7 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.Empty(panel.FindAll("[data-acknowledge-alert]"));
         Assert.Equal(2, client.Commands.Count);
         Assert.Equal(client.Commands[0], client.Commands[1]);
-        Assert.Equal("profile-1", client.Commands[0].ProfileId);
+        Assert.Equal("profile-1", client.Commands[0].Authority.ProfileId);
         Assert.Contains("underlying problem may still need attention", panel.Markup, StringComparison.Ordinal);
         Assert.False(panel.Find("details").HasAttribute("open"));
         panel.Find("[data-refresh-alerts]").Click();
@@ -33,6 +34,27 @@ public sealed class OperationsAlertsPanelRenderTests
         panel.Find("[data-acknowledge-alert]").Click();
         panel.WaitForAssertion(() => Assert.Equal(3, client.Commands.Count));
         Assert.NotEqual(client.Commands[1].RequestId, client.Commands[2].RequestId);
+    }
+
+    [Fact]
+    public void RefreshConfirmationRetiresAnUncertainCommandBeforeAnotherLifecycle()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.Find("[data-acknowledge-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(client.Commands));
+        var original = client.Page;
+        client.Page = original with { Items = [original.Items[0] with { AcknowledgedAt = DateTimeOffset.UtcNow }] };
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-acknowledged]")));
+        client.Page = original;
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-acknowledge-alert]")));
+        panel.Find("[data-acknowledge-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Equal(2, client.Commands.Count));
+        Assert.NotEqual(client.Commands[0].RequestId, client.Commands[1].RequestId);
     }
 
     [Fact]
@@ -63,7 +85,7 @@ public sealed class OperationsAlertsPanelRenderTests
         public bool Confirm { get; set; }
         public List<string?> Cursors { get; } = [];
         public List<ConsoleAlertAcknowledgement> Commands { get; } = [];
-        public ObservabilityAlertEventPageResponse Page { get; init; } = new()
+        public ObservabilityAlertEventPageResponse Page { get; set; } = new()
         {
             Items = [new() { EventId = 42, RuleName = "A map needs attention", ServiceId = "Public maps" }]
         };
@@ -71,7 +93,7 @@ public sealed class OperationsAlertsPanelRenderTests
         public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(CancellationToken cancellationToken = default, string? cursor = null)
         {
             Cursors.Add(cursor);
-            return Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new("profile-1", Page)));
+            return Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(ConsoleAlertAuthority.Capture(new ConsoleEnvironmentProfile { Id = "profile-1" }, null), Page)));
         }
 
         public Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(

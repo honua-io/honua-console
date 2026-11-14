@@ -1,4 +1,5 @@
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
@@ -11,6 +12,16 @@ public interface IConsoleAlertInboxClient
         ConsoleAlertAcknowledgement acknowledgement, CancellationToken cancellationToken = default);
 }
 
-public sealed record ConsoleAlertInboxSnapshot(string ProfileId, ObservabilityAlertEventPageResponse Page);
+public sealed record ConsoleAlertAuthority(
+    string ProfileId, Uri ServerBaseUri, string TenantId, ConsoleAccountAuthMode AuthMode,
+    string AccountId, string AccountTenantId, string SessionAccountId, string SessionTenantId, Uri? SessionServerBaseUri)
+{
+    public static ConsoleAlertAuthority Capture(ConsoleEnvironmentProfile profile, ConsoleAccountSession? session) =>
+        new(profile.Id, profile.ServerBaseUri, profile.TenantId, profile.Account.AuthMode,
+            profile.Account.AccountId, profile.Account.TenantId, session?.AccountId ?? string.Empty,
+            session?.TenantId ?? string.Empty, session?.ServerBaseUri);
+}
 
-public sealed record ConsoleAlertAcknowledgement(long EventId, string ProfileId, string RequestId);
+public sealed record ConsoleAlertInboxSnapshot(ConsoleAlertAuthority Authority, ObservabilityAlertEventPageResponse Page);
+
+public sealed record ConsoleAlertAcknowledgement(long EventId, ConsoleAlertAuthority Authority, string RequestId);
