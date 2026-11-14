@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 // Opening a verified result is an explicit human selection, not an agent command.
 // The existing shared-draft reader remains responsible for rendering/editing it.
 export async function openStudioExecutionResult(workspace, artifact, current, {
@@ -41,5 +42,5 @@ export async function openStudioExecutionResult(workspace, artifact, current, {
         || workspace.hasUnsavedWork())
         throw new Error('The selected context changed. Open the result again when ready.');
     present(task);
-    navigate('/studio');
+    navigate(consoleHref('/studio'));
 }

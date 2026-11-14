@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 import { mountStudioDraftCreate } from './studio-draft-create.mjs';
 import {processTask} from './workflow-task.mjs';
 import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal } from './cookie-workspace-transport.mjs';
@@ -251,7 +252,7 @@ async function mountProcesses() {
                 const outcome = await app.addPublishedLayer(layer);
                 if (!outcome.ok) throw new Error(outcome.reason || 'The published layer could not be added to the map.');
                 element = app;
-                window.Blazor?.navigateTo('/studio');
+                window.Blazor?.navigateTo(consoleHref('/studio'));
             } catch (error) { status.textContent = error.message; }
         });
         status.textContent = `Connected to ${session.environmentName}`;
