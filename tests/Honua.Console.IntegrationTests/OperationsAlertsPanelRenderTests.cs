@@ -148,6 +148,35 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.NotEqual(client.LifecycleCommands[1].RequestId, client.LifecycleCommands[2].RequestId);
     }
 
+    [Fact]
+    public void ExpiredUncertainSnoozeStartsANewHourWithoutRefresh()
+    {
+        using var context = new BunitContext();
+        var clock = new AlertClock();
+        var client = new AlertClient();
+        context.Services.AddSingleton<TimeProvider>(clock);
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(client.LifecycleCommands));
+        var expired = client.LifecycleCommands[0];
+        clock.Now = expired.SuppressUntil!.Value.AddSeconds(1);
+        client.Confirm = true;
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
+        Assert.Equal(2, client.LifecycleCommands.Count);
+        var renewed = client.LifecycleCommands[1];
+        Assert.NotEqual(expired.RequestId, renewed.RequestId);
+        Assert.Equal(ConsoleAlertLifecycleCommand.NormalizeDeadline(clock.Now.AddHours(1)), renewed.SuppressUntil);
+        Assert.Equal(expired.Authority, renewed.Authority);
+    }
+
+    private sealed class AlertClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

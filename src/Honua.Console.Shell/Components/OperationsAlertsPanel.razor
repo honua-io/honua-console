@@ -44,7 +44,7 @@
                 }
                 @if (alert.ResolvedAt is null && !string.Equals(alert.LifecycleStatus, "resolved", StringComparison.OrdinalIgnoreCase))
                 {
-                    @if (alert.SuppressedUntil is { } suppressedUntil && suppressedUntil > DateTimeOffset.UtcNow)
+                    @if (alert.SuppressedUntil is { } suppressedUntil && suppressedUntil > Clock.GetUtcNow())
                     {
                         <p role="status" data-snoozed>Snoozed until @suppressedUntil.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")</p>
                     }
@@ -85,6 +85,8 @@
     private DateTimeOffset? _lastRefreshed;
     private string? _actionMessage;
     private IConsoleAlertInboxClient? Client => Services.GetService(typeof(IConsoleAlertInboxClient)) as IConsoleAlertInboxClient;
+
+    private TimeProvider Clock => Services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
 
     protected override Task OnInitializedAsync()
     {
@@ -130,7 +132,7 @@
                 _result = result;
                 if (_result.IsAllowed && _result.Value is { } refreshed)
                 {
-                    _lastRefreshed = DateTimeOffset.UtcNow;
+                    _lastRefreshed = Clock.GetUtcNow();
                     foreach (var item in refreshed.Page.Items)
                     {
                         ReconcileLifecycleCommands(refreshed.Authority, item);
@@ -156,11 +158,15 @@
     private Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action) => RunMutationAsync(eventId, new(async (client, snapshot) =>
     {
         var key = (snapshot.Authority, eventId, action);
+        if (_lifecycleCommands.TryGetValue(key, out var pending) && pending.SuppressUntil <= Clock.GetUtcNow())
+        {
+            _lifecycleCommands.Remove(key);
+        }
         if (!_lifecycleCommands.TryGetValue(key, out var command))
         {
             command = new(eventId, snapshot.Authority, Guid.NewGuid().ToString("N"), action,
                 action == ConsoleAlertLifecycleAction.Snooze
-                    ? ConsoleAlertLifecycleCommand.NormalizeDeadline(DateTimeOffset.UtcNow.AddHours(1)) : null);
+                    ? ConsoleAlertLifecycleCommand.NormalizeDeadline(Clock.GetUtcNow().AddHours(1)) : null);
             _lifecycleCommands[key] = command;
         }
         return await client.ChangeAlertLifecycleAsync(command, _lifetime.Token);
@@ -186,7 +192,7 @@
         {
             RetireLifecycleCommands(authority, item.EventId);
         }
-        else if (pending?.SuppressUntil <= DateTimeOffset.UtcNow)
+        else if (pending?.SuppressUntil <= Clock.GetUtcNow())
         {
             _lifecycleCommands.Remove(key);
         }
