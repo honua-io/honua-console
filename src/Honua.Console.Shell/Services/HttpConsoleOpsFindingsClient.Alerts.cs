@@ -121,8 +121,8 @@ public sealed partial class HttpConsoleOpsFindingsClient
                     $"Honua could not complete the alert request (HTTP {(int)response.StatusCode}).");
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(budget.Token).ConfigureAwait(false);
-            var value = await JsonSerializer.DeserializeAsync(stream, typeInfo, budget.Token).ConfigureAwait(false);
+            await using var stream = await response.Content.ReadAsStreamAsync(budget.Token).WaitAsync(budget.Token).ConfigureAwait(false);
+            var value = await JsonSerializer.DeserializeAsync(stream, typeInfo, budget.Token).AsTask().WaitAsync(budget.Token).ConfigureAwait(false);
             return value is null
                 ? OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable, "Honua returned an empty alert response.")
                 : OperateSectionResult<T>.Allowed(value);
