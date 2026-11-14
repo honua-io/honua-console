@@ -8,7 +8,7 @@ namespace Honua.Console.Shell.Services;
 public sealed partial class HttpConsoleOpsFindingsClient
 {
     public async Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, string? cursor = null)
     {
         var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
@@ -17,8 +17,10 @@ public sealed partial class HttpConsoleOpsFindingsClient
                 OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
+        var path = $"{OperateAdminRoutes.Alerts}?pageSize=50";
+        if (!string.IsNullOrWhiteSpace(cursor)) { path += $"&cursor={Uri.EscapeDataString(cursor)}"; }
         using var request = new HttpRequestMessage(HttpMethod.Get,
-            ConsoleServerHttp.BuildUri(profile.ServerBaseUri, $"{OperateAdminRoutes.Alerts}?pageSize=50"));
+            ConsoleServerHttp.BuildUri(profile.ServerBaseUri, path));
         await ConsoleServerHttp.AttachAuthenticationAsync(request, _sessionStore, profile, _adminApiKey,
             cancellationToken).ConfigureAwait(false);
         var result = await SendAlertRequestAsync(request,

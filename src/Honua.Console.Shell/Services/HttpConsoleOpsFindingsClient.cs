@@ -171,6 +171,7 @@ public sealed partial class HttpConsoleOpsFindingsClient : IConsoleOpsFindingsCl
     private static OperateSectionStatus MapStatus(HttpStatusCode code) => code switch
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => OperateSectionStatus.Forbidden,
+        HttpStatusCode.Conflict => OperateSectionStatus.Conflict,
         HttpStatusCode.NotFound => OperateSectionStatus.Missing,
         HttpStatusCode.NotImplemented => OperateSectionStatus.Unsupported,
         _ => OperateSectionStatus.Unavailable

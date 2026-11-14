@@ -22,6 +22,16 @@ public sealed partial class ConsoleOpsFindingsClientTests
     }
 
     [Fact]
+    public async Task AlertsEncodeTheContinuationCursor()
+    {
+        var handler = new RecordingHandler(_ => JsonResponse(new ObservabilityAlertEventPageResponse(),
+            OperateObservabilityJsonContext.Default.ObservabilityAlertEventPageResponse));
+        Assert.True((await CreateClient(handler).ListAlertsAsync(cursor: "opaque+/=token")).IsAllowed);
+        Assert.EndsWith("?pageSize=50&cursor=opaque%2B%2F%3Dtoken",
+            Assert.Single(handler.Requests).RequestUri!.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AlertAcknowledgementUsesOperatorAndStableRetryIdentity()
     {
         var handler = new RecordingHandler(_ => JsonResponse(

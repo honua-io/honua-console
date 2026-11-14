@@ -28,19 +28,24 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.Equal("profile-1", client.Commands[0].ProfileId);
         Assert.Contains("underlying problem may still need attention", panel.Markup, StringComparison.Ordinal);
         Assert.False(panel.Find("details").HasAttribute("open"));
+        panel.Find("[data-refresh-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-acknowledge-alert]")));
+        panel.Find("[data-acknowledge-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Equal(3, client.Commands.Count));
+        Assert.NotEqual(client.Commands[1].RequestId, client.Commands[2].RequestId);
     }
 
     [Fact]
     public void EmptyAndPartialAlertPagesDoNotAssertOverallHealthOrCompleteCounts()
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton<IConsoleAlertInboxClient>(new AlertClient
-        {
-            Page = new() { NextCursor = "more" }
-        });
+        var client = new AlertClient { Page = new() { NextCursor = "more" } };
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
         panel.WaitForAssertion(() => Assert.Contains("does not confirm", panel.Find("[data-no-alerts]").TextContent));
-        Assert.Contains("More alerts are available", panel.Markup, StringComparison.Ordinal);
+        Assert.Contains("does not include all alerts", panel.Markup, StringComparison.Ordinal);
+        panel.Find("[data-next-alerts]").Click();
+        panel.WaitForAssertion(() => Assert.Equal("more", client.Cursors.Last()));
         Assert.DoesNotContain("Everything is working", panel.Markup, StringComparison.Ordinal);
     }
 
@@ -56,14 +61,18 @@ public sealed class OperationsAlertsPanelRenderTests
     private sealed class AlertClient : IConsoleAlertInboxClient
     {
         public bool Confirm { get; set; }
+        public List<string?> Cursors { get; } = [];
         public List<ConsoleAlertAcknowledgement> Commands { get; } = [];
         public ObservabilityAlertEventPageResponse Page { get; init; } = new()
         {
             Items = [new() { EventId = 42, RuleName = "A map needs attention", ServiceId = "Public maps" }]
         };
 
-        public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new("profile-1", Page)));
+        public Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ListAlertsAsync(CancellationToken cancellationToken = default, string? cursor = null)
+        {
+            Cursors.Add(cursor);
+            return Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new("profile-1", Page)));
+        }
 
         public Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(
             ConsoleAlertAcknowledgement acknowledgement, CancellationToken cancellationToken = default)

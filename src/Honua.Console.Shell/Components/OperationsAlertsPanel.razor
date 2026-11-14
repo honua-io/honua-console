@@ -6,7 +6,7 @@
 <section class="console-panel" aria-labelledby="operations-alerts-heading" data-operations-alerts>
     <h2 id="operations-alerts-heading">Alerts</h2>
     <p>See recent alerts and let your team know you have seen them. Acknowledging an alert does not fix the problem.</p>
-    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="RefreshAsync" data-refresh-alerts>Refresh alerts</button>
+    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => RefreshAsync()" data-refresh-alerts>Refresh alerts</button>
     @if (!_loaded)
     {
         <p role="status">Loading alerts…</p>
@@ -48,7 +48,8 @@
         }
         @if (!string.IsNullOrWhiteSpace(snapshot.Page.NextCursor))
         {
-            <p role="note">Showing the 50 most recent alerts. More alerts are available in <a href="/operate/alerts">the alert history</a>.</p>
+            <p role="note">This page does not include all alerts.</p>
+            <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => RefreshAsync(snapshot.Page.NextCursor)" data-next-alerts>Older alerts</button>
         }
     }
     @if (!string.IsNullOrWhiteSpace(_actionMessage))
@@ -70,7 +71,7 @@
 
     protected override Task OnInitializedAsync() => RefreshAsync();
 
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(string? cursor = null)
     {
         if (_busy) { return; }
         _busy = true;
@@ -79,7 +80,7 @@
         {
             if (Client is { } client)
             {
-                _result = await ConsoleReadBudget.RunAsync(client.ListAlertsAsync, ConsoleReadBudget.Default,
+                _result = await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor), ConsoleReadBudget.Default,
                     "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
                 if (_result.IsAllowed) { _lastRefreshed = DateTimeOffset.UtcNow; }
             }
@@ -102,6 +103,7 @@
             var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.ProfileId, requestId), _lifetime.Token);
             if (result.IsAllowed && result.Value is { } updated)
             {
+                _requestIds.Remove(eventId);
                 var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
                 _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
                 _actionMessage = "Honua recorded that you have seen this alert. The underlying problem may still need attention.";
