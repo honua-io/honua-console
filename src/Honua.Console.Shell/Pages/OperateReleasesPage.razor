@@ -1004,6 +1004,7 @@
 
     private bool _listLoaded;
     private bool _detailLoaded;
+    private int _detailGeneration;
     private OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>? _proposals;
     private OperateSectionResult<GitOpsReleaseDetail>? _detail;
 
@@ -1033,6 +1034,11 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var generation = ++_detailGeneration;
+        _detailLoaded = false;
+        _detail = null;
+        _coordinated = null;
+
         // Capability-gated: when cross-environment promotion is not advertised the page renders the
         // first-class unsupported state (via ConsoleCapabilityGate), so skip the server reads entirely.
         if (!Capabilities.IsAdvertised(ConsoleCapabilityKeys.CrossEnvironmentPromotion))
@@ -1042,13 +1048,21 @@
 
         if (HasSelectedReleaseRoute)
         {
-            _detailLoaded = false;
-            _coordinated = null;
             var releaseId = SelectedReleaseId!.Trim();
-            _detail = await ReleaseClient.GetReleaseDetailAsync(releaseId);
+            var detail = await ReleaseClient.GetReleaseDetailAsync(releaseId);
+            if (generation != _detailGeneration)
+            {
+                return;
+            }
+
             // Independent sub-read: a missing coordinated op surfaces its own state.
-            _coordinated = await ReleaseClient.GetCoordinatedReleaseAsync(releaseId);
-            _detailLoaded = true;
+            var coordinated = await ReleaseClient.GetCoordinatedReleaseAsync(releaseId);
+            if (generation == _detailGeneration)
+            {
+                _detail = detail;
+                _coordinated = coordinated;
+                _detailLoaded = true;
+            }
         }
         else if (!_listLoaded)
         {
