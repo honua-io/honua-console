@@ -72,6 +72,12 @@ public sealed partial class HttpConsoleOpsFindingsClient
             OperateObservabilityJsonContext.Default.ObservabilityAlertAcknowledgeRequest);
         var authentication = await ConsoleServerHttp.AttachMutationAuthenticationAsync(request,
             _operatorBearerProvider, profile, _adminApiKey, _credentialMode, cancellationToken).ConfigureAwait(false);
+        if (!await IsAlertAuthorityCurrentAsync(authority, cancellationToken).ConfigureAwait(false))
+        {
+            return OperateSectionResult<ObservabilityAlertEventResponse>.Denied(OperateSectionStatus.Conflict,
+                "The connected environment changed. Refresh alerts before acknowledging one.");
+        }
+
         if (!authentication.IsAuthenticated)
         {
             return OperateSectionResult<ObservabilityAlertEventResponse>.Denied(
@@ -107,7 +113,7 @@ public sealed partial class HttpConsoleOpsFindingsClient
         budget.CancelAfter(TimeSpan.FromSeconds(10));
         try
         {
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead,
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
                 budget.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {

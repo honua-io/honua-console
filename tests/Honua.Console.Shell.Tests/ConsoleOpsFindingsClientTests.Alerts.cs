@@ -74,6 +74,37 @@ public sealed partial class ConsoleOpsFindingsClientTests
     }
 
     [Fact]
+    public async Task AlertAcknowledgementRejectsAccountChangeDuringCredentialResolution()
+    {
+        var profile = new ConsoleEnvironmentProfile
+        {
+            Id = "live", ServerBaseUri = new Uri("https://server.example"),
+            Account = new() { AccountId = "operator.live" }
+        };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Must not send."));
+        var provider = new ChangingAlertBearerProvider(async () =>
+            await profiles.UpsertProfileAsync(profile with { Account = new() { AccountId = "other-operator" } }));
+        var client = new HttpConsoleOpsFindingsClient(new HttpClient(handler), profiles, BearerSessions(),
+            operatorBearerProvider: provider);
+
+        var result = await client.AcknowledgeAlertAsync(new(42, AlertAuthority(), "request-1"));
+
+        Assert.Equal(OperateSectionStatus.Conflict, result.Status);
+        Assert.Empty(handler.Requests);
+    }
+
+    private sealed class ChangingAlertBearerProvider(Func<Task> change) : IConsoleOperatorBearerProvider
+    {
+        public async Task<ConsoleOperatorBearerResolution> ResolveAsync(
+            ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default)
+        {
+            await change();
+            return new() { AccessToken = "other-operator-bearer", HasInteractiveSession = true };
+        }
+    }
+
+    [Fact]
     public async Task AlertAcknowledgementUsesOperatorAndStableRetryIdentity()
     {
         var handler = new RecordingHandler(_ => JsonResponse(
@@ -193,7 +224,10 @@ public sealed partial class ConsoleOpsFindingsClientTests
     [InlineData(HttpStatusCode.Conflict, OperateSectionStatus.Conflict)]
     public async Task AlertAcknowledgementPreservesServerDenials(HttpStatusCode status, OperateSectionStatus expected)
     {
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(status));
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(status)
+        {
+            Content = new IncompleteAlertContent(stall: true)
+        });
         var result = await CreateClient(handler, sessions: BearerSessions())
             .AcknowledgeAlertAsync(new(42, AlertAuthority(), "request-1"));
 
