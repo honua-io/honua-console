@@ -198,8 +198,7 @@
         "dependencies": {
           "Honua.Sdk.Abstractions": "2.2.0",
           "Microsoft.Extensions.Http": "10.0.7",
-          "Microsoft.Extensions.Http.Resilience": "10.5.0",
-          "Microsoft.Extensions.Options": "10.0.7"
+          "Microsoft.Extensions.Http.Resilience": "10.5.0"
         }
       },
       "Microsoft.AspNetCore.Authorization": {
