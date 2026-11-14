@@ -6,6 +6,11 @@ API base URL and the user's session or bearer token. A server-hosted Blazor
 fixture remains in this repository for regression tests; its results do not
 qualify the shipping SPA.
 
+For release qualification of the shipping WebAssembly Console, use
+[Shipping Console live replay](SHIPPING_LIVE_REPLAY.md). That suite runs the
+released bundle against the packaged HTTPS quickstart with a real server at
+1280 and 390 widths.
+
 ## Choose the evidence you need
 
 | Goal | Harness | What a pass proves |
