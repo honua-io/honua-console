@@ -1,0 +1,120 @@
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Services
+@inject IServiceProvider Services
+@implements IDisposable
+
+<section class="console-panel" aria-labelledby="operations-alerts-heading" data-operations-alerts>
+    <h2 id="operations-alerts-heading">Alerts</h2>
+    <p>See recent alerts and let your team know you have seen them. Acknowledging an alert does not fix the problem.</p>
+    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="RefreshAsync" data-refresh-alerts>Refresh alerts</button>
+    @if (!_loaded)
+    {
+        <p role="status">Loading alerts…</p>
+    }
+    else if (!_result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Alerts" Status="_result.Status" Message="@_result.Message" />
+    }
+    else if (_result.Value is { } snapshot)
+    {
+        <p class="console-muted">@ConsoleFreshness.LastRefreshed(_lastRefreshed)</p>
+        @if (snapshot.Page.Items.Count == 0)
+        {
+            <p data-no-alerts>No recent alerts were returned. This alone does not confirm that everything is working.</p>
+        }
+        @foreach (var alert in snapshot.Page.Items)
+        {
+            <article class="console-panel" data-alert-id="@alert.EventId" @key="alert.EventId">
+                <h3>@(string.IsNullOrWhiteSpace(alert.RuleName) ? "An alert needs review" : alert.RuleName)</h3>
+                <p>@(string.IsNullOrWhiteSpace(alert.ServiceId) ? "The affected service was not reported." : $"Affected service: {alert.ServiceId}")</p>
+                @if (alert.AcknowledgedAt is { } acknowledgedAt)
+                {
+                    <p role="status" data-acknowledged>Acknowledged @acknowledgedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")</p>
+                }
+                else if (alert.ResolvedAt is not null || string.Equals(alert.LifecycleStatus, "resolved", StringComparison.OrdinalIgnoreCase))
+                {
+                    <p>Marked resolved by Honua.</p>
+                }
+                else
+                {
+                    <button type="button" class="console-button" disabled="@_busy" @onclick="() => AcknowledgeAsync(alert.EventId)" data-acknowledge-alert>
+                        Acknowledge
+                    </button>
+                }
+                <ConsoleDiagnostics Summary="Technical details"
+                                    Detail="@($"Alert {alert.EventId}; rule {alert.RuleId}; severity {alert.Severity}; state {alert.LifecycleStatus}; resource {alert.ResourceRef}")" />
+                <a href="@Honua.Console.Shell.Models.OperateObservabilityRoutes.AlertDetail(alert.EventId.ToString(System.Globalization.CultureInfo.InvariantCulture))">Review alert evidence</a>
+            </article>
+        }
+        @if (!string.IsNullOrWhiteSpace(snapshot.Page.NextCursor))
+        {
+            <p role="note">Showing the 50 most recent alerts. More alerts are available in <a href="/operate/alerts">the alert history</a>.</p>
+        }
+    }
+    @if (!string.IsNullOrWhiteSpace(_actionMessage))
+    {
+        <p role="status" data-alert-action-message>@_actionMessage</p>
+    }
+</section>
+
+@code {
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly Dictionary<long, string> _requestIds = [];
+    private OperateSectionResult<ConsoleAlertInboxSnapshot> _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
+        OperateSectionStatus.Unavailable, "The alert connection is unavailable.");
+    private bool _loaded;
+    private bool _busy;
+    private DateTimeOffset? _lastRefreshed;
+    private string? _actionMessage;
+    private IConsoleAlertInboxClient? Client => Services.GetService(typeof(IConsoleAlertInboxClient)) as IConsoleAlertInboxClient;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        if (_busy) { return; }
+        _busy = true;
+        _actionMessage = null;
+        try
+        {
+            if (Client is { } client)
+            {
+                _result = await ConsoleReadBudget.RunAsync(client.ListAlertsAsync, ConsoleReadBudget.Default,
+                    "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
+                if (_result.IsAllowed) { _lastRefreshed = DateTimeOffset.UtcNow; }
+            }
+            _loaded = true;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task AcknowledgeAsync(long eventId)
+    {
+        if (_busy || Client is not { } client || _result.Value is not { } snapshot) { return; }
+        _busy = true;
+        _actionMessage = null;
+        try
+        {
+            if (!_requestIds.TryGetValue(eventId, out var requestId))
+            {
+                _requestIds[eventId] = requestId = Guid.NewGuid().ToString("N");
+            }
+            var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.ProfileId, requestId), _lifetime.Token);
+            if (result.IsAllowed && result.Value is { } updated)
+            {
+                var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
+                _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
+                _actionMessage = "Honua recorded that you have seen this alert. The underlying problem may still need attention.";
+            }
+            else { _actionMessage = result.Message; }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}
