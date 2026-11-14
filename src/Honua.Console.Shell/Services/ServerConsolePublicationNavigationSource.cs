@@ -12,7 +12,7 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
     {
         var result = await client.ListServicesAsync(query, cancellationToken);
         if (result.Issue is { } issue) return Denied<HonuaAdminServicePage>(issue);
-        if (result.Data is null || (result.Data.Items ?? []).Any(service => string.IsNullOrWhiteSpace(service?.ServiceName)))
+        if (result.Data is null || !HonuaAdminCatalogReader.IsValidPage(result.Data, query) || (result.Data.Items ?? []).Any(service => string.IsNullOrWhiteSpace(service?.ServiceName)))
             return Unreadable<HonuaAdminServicePage>();
         return OperateSectionResult<HonuaAdminServicePage>.Allowed(result.Data);
     }
@@ -56,8 +56,8 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
     private static IEnumerable<ConsolePublicationLayer> ProjectServiceLayers(
         string connectionKey, IReadOnlyList<HonuaAdminPublishedLayerSummary> layers, string serviceName) => layers
         .Where(layer => string.IsNullOrWhiteSpace(layer.ServiceName) || string.Equals(layer.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase))
-        .Select(layer => new ConsolePublicationLayer(OperateResourceIdentity.ForPublishedLayer(connectionKey, layer.LayerId),
-            string.IsNullOrWhiteSpace(layer.LayerName) ? $"Layer {layer.LayerId}" : layer.LayerName, layer.GeometryType ?? "Unknown"));
+        .Select(layer => ConsolePublicationLayer.Project(OperateResourceIdentity.ForPublishedLayer(connectionKey, layer.LayerId),
+            string.IsNullOrWhiteSpace(layer.LayerName) ? $"Layer {layer.LayerId}" : layer.LayerName, layer.GeometryType));
 
     private static OperateSectionResult<T> Unreadable<T>() =>
         OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable, "The server did not return navigation data.");

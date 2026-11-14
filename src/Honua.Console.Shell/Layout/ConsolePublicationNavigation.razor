@@ -383,6 +383,7 @@
             "Layer ancestry could not be read.", _authorityLifetime.Token);
         if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision) return;
         _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];
+        if (result.Status == OperateSectionStatus.Unavailable) _pathAttempt = null;
         await InvokeAsync(StateHasChanged);
     }
 
