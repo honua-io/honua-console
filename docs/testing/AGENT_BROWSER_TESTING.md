@@ -4,13 +4,16 @@ Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-h
 Route truth: [Console Route Map](../console-route-map.md).
 Run/bindings: [Local and Staging Startup](../deployment/LOCAL_AND_STAGING.md).
 
-This is the root setup-and-run guide for driving the **live Honua Console UI in a real
-browser with Claude Code**, using the [Playwright MCP](https://www.npmjs.com/package/@playwright/mcp)
-server. It is the only browser-automation path in this repo: the existing
-`npm run smoke:parity` and `dotnet test` suites are **HTTP/contract and bUnit component**
-checks — they never open a browser. Use this when you want an agent to actually load
-`/studio`, `/catalog`, `/operate`, `/share`, click through them, and screenshot/assert what
-renders against a live honua-server.
+For release qualification of the shipping WebAssembly Console, use
+[Shipping Console live replay](SHIPPING_LIVE_REPLAY.md). That suite runs the
+released bundle against the packaged HTTPS quickstart with a real server at
+1280 and 390 widths.
+
+The older interactive setup below describes the server-hosted browser test
+fixture. Its server-side credential and network model does not describe the
+shipping WebAssembly runtime, and a pass here does not qualify the release.
+HTTP/contract and bUnit checks also do not substitute for the shipping browser
+replay.
 
 ## Topology
 
