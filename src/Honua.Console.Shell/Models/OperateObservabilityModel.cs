@@ -385,6 +385,11 @@ public sealed record OperateJobDiagnosticsView(
     IReadOnlyList<string> EvidenceMissing,
     IReadOnlyList<string> EvidenceTruncated)
 {
+    // Unsupported unless the projection carries an artifacts section; never presented as complete.
+    public OperateJobDiagnosticArtifacts Artifacts { get; init; } = OperateJobDiagnosticArtifacts.NotReported;
+
+    public IReadOnlyList<string> EvidenceNotes { get; init; } = [];
+
     public OperateJobDiagnosticsView AppendEvents(OperateJobDiagnosticsView page) =>
         this with
         {
@@ -395,6 +400,8 @@ public sealed record OperateJobDiagnosticsView(
             EventsTotalCount = page.EventsTotalCount,
             EvidenceMissing = page.EvidenceMissing,
             EvidenceTruncated = page.EvidenceTruncated,
+            Artifacts = page.Artifacts,
+            EvidenceNotes = page.EvidenceNotes,
         };
 
     public OperateJobDiagnosticsView HoldingEventsFrom(OperateJobDiagnosticsView held) =>
@@ -407,6 +414,9 @@ public sealed record OperateJobDiagnosticsView(
             EventsTotalCount = held.EventsTotalCount,
             EvidenceMissing = held.EvidenceMissing,
             EvidenceTruncated = held.EvidenceTruncated,
+            // The held page's artifact lines live in its EvidenceMissing; keep the page self-consistent.
+            Artifacts = held.Artifacts,
+            EvidenceNotes = held.EvidenceNotes,
         };
 }
 
@@ -1179,3 +1189,40 @@ public static class OperateObservabilityFixture
             ]);
     }
 }
+
+// State is the server's "none", "complete", "partial" or "unavailable", or "unsupported" for a server
+// that predates the artifacts section.
+public sealed record OperateJobDiagnosticArtifacts(
+    string State,
+    OperateJobArtifactCounts Counts,
+    IReadOnlyList<OperateJobDiagnosticArtifact> Items)
+{
+    public const string Unsupported = "unsupported";
+
+    public static OperateJobDiagnosticArtifacts NotReported { get; } = new(Unsupported, new(0, 0, 0), []);
+
+    public int AvailableCount => Counts.Available;
+
+    public int ExpiredCount => Counts.Expired;
+
+    public int UnavailableCount => Counts.Unavailable;
+
+    private int RedactedCount => Items.Count(item => item.Availability == "Redacted");
+
+    // Success wording only when every listed artifact is accounted for; an empty "complete" is not success.
+    private bool IsComplete => State == "complete" && Items.Count > 0 && AvailableCount == Items.Count;
+
+    public string Summary => State switch
+    {
+        Unsupported => "This server does not report artifact availability for the job.",
+        "none" => "The job recorded no artifacts.",
+        _ when IsComplete && RedactedCount > 0 =>
+            $"All {AvailableCount} artifact(s) are accounted for; {RedactedCount} redacted for your access.",
+        _ when IsComplete => $"All {AvailableCount} artifact(s) are available.",
+        _ => $"{AvailableCount} available, {ExpiredCount} expired, {UnavailableCount} unavailable.",
+    };
+}
+
+public sealed record OperateJobArtifactCounts(int Available, int Expired, int Unavailable);
+
+public sealed record OperateJobDiagnosticArtifact(string Label, string Availability, string? Message);

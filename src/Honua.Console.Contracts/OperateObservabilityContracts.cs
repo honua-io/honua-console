@@ -851,9 +851,26 @@ public sealed record ConsoleJobDiagnosticsResponse
 
     public ConsoleJobDiagnosticEvents Events { get; init; } = new();
 
+    // Null from a server that predates the artifacts section; render that as unsupported, never as complete.
+    public ConsoleJobDiagnosticArtifacts? Artifacts { get; init; }
+
     public ConsoleJobDiagnosticEvidence Evidence { get; init; } = new();
 
     public ConsoleJobLinks? Links { get; init; }
+}
+
+public sealed record ConsoleJobDiagnosticArtifacts
+{
+    // "none", "complete", "partial" or "unavailable", as projected by the server.
+    public string State { get; init; } = string.Empty;
+
+    public ConsoleJobArtifact[] Items { get; init; } = [];
+
+    public int AvailableCount { get; init; }
+
+    public int ExpiredCount { get; init; }
+
+    public int UnavailableCount { get; init; }
 }
 
 public sealed record ConsoleJobDiagnosticLifecycle
@@ -912,6 +929,8 @@ public sealed record ConsoleJobDiagnosticEvidence
     public string[] Missing { get; init; } = [];
 
     public string[] Truncated { get; init; } = [];
+
+    public string[] Notes { get; init; } = [];
 }
 
 public sealed record InvestigationPageResponse
