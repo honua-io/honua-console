@@ -164,6 +164,9 @@
 
     private bool _loading = true;
     private bool _saving;
+    private string? _loadedResourceId;
+    private long _resourceGeneration;
+    private long _loadGeneration;
     private StudioMapStyleCatalog _catalog = StudioMapStyleCatalog.Empty;
     private OperateLayerStyleOverrideView _overrides = new(string.Empty, []);
     private OperateLayerStyleOverrideSaveResult? _saveResult;
@@ -173,14 +176,34 @@
     private readonly Dictionary<string, string> _popupEdits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _drawingEdits = new(StringComparer.Ordinal);
 
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal)) return;
+        _loadedResourceId = ResourceId;
+        _resourceGeneration++;
+        _overrides = new(ResourceId, []);
+        _catalog = StudioMapStyleCatalog.Empty;
+        _popupEdits.Clear();
+        _drawingEdits.Clear();
+        _saving = false;
+        _saveResult = null;
+    }
+
     protected override async Task OnParametersSetAsync()
     {
-        var attempt = PublicationContext?.BeginRead(ResourceId);
+        var generation = ++_loadGeneration;
+        var resourceId = ResourceId;
+        var publication = PublicationContext;
+        var attempt = publication?.BeginRead(resourceId);
         _loading = true;
         _saveResult = null;
-        _catalog = await StyleCatalog.GetStyleCatalogAsync();
-        _overrides = await OverrideData.GetOverridesAsync(ResourceId);
-        if (attempt is { } read) PublicationContext!.CompleteStyleRead(read, _overrides);
+        var catalog = await StyleCatalog.GetStyleCatalogAsync();
+        if (generation != _loadGeneration) return;
+        var overrides = await OverrideData.GetOverridesAsync(resourceId);
+        if (generation != _loadGeneration) return;
+        _catalog = catalog;
+        _overrides = overrides;
+        if (attempt is { } read) publication!.CompleteStyleRead(read, overrides);
         _popupEdits.Clear();
         _drawingEdits.Clear();
         foreach (var layer in _overrides.Layers)
@@ -206,17 +229,20 @@
 
     private Task SaveLayerAsync(OperateLayerStyleOverride layer)
     {
+        var generation = _resourceGeneration;
+        var edit = new OperateLayerStyleOverrideEdit(
+            ResourceId,
+            layer.LayerId,
+            PopupInfoJson: PopupValue(layer.LayerId),
+            DrawingInfoJson: DrawingValue(layer.LayerId));
         _saveResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                var edit = new OperateLayerStyleOverrideEdit(
-                    ResourceId,
-                    layer.LayerId,
-                    PopupInfoJson: PopupValue(layer.LayerId),
-                    DrawingInfoJson: DrawingValue(layer.LayerId));
-                _saveResult = await OverrideData.SaveOverrideAsync(edit);
-                if (_saveResult.Succeeded)
+                var result = await OverrideData.SaveOverrideAsync(edit);
+                if (generation != _resourceGeneration) return;
+                _saveResult = result;
+                if (result.Succeeded)
                 {
                     _overrides = _overrides with
                     {
@@ -226,7 +252,12 @@
                     };
                 }
             },
-            setBusy: busy => { _saving = busy; StateHasChanged(); },
+            setBusy: busy =>
+            {
+                if (generation != _resourceGeneration) return;
+                _saving = busy;
+                StateHasChanged();
+            },
             failureMessage: "Couldn't save style override");
     }
 

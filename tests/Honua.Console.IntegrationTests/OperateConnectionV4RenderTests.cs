@@ -11,6 +11,8 @@ public sealed class OperateConnectionV4RenderTests
 {
     private static readonly OperateConnectionSummary Connection = new("connection a", "Production database", "PostGIS", "db.example:5432 / spatial", "reader", "Healthy", "Today", null);
 
+    private static readonly OperateConnectionSummary SecondConnection = new("second", "Second database", "PostGIS", "second.example", "reader", "Healthy", "Today", null);
+
     [Theory]
     [InlineData(false, "/")]
     [InlineData(true, "/")]
@@ -149,14 +151,80 @@ public sealed class OperateConnectionV4RenderTests
         CatalogAdminPreview.Capture("data-connection-new-error", page.Markup);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NavigationClearsThePreviousConnectionsTestOutcome(bool enabled)
+    {
+        using var context = Context(enabled);
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new Source { Connections = [Connection, SecondConnection] });
+        var page = context.Render<OperateConnectionDetailPage>(p => p.Add(c => c.ConnectionId, Connection.Id));
+        page.Find("button").Click();
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[role=status]")));
+
+        page.Render(p => p.Add(c => c.ConnectionId, "second"));
+
+        Assert.Equal("Second database", page.Find("h1").TextContent);
+        Assert.Empty(page.FindAll("[role=status]"));
+    }
+
+    [Fact]
+    public async Task PreviousConnectionsDelayedTestCannotReplaceCurrentTestOrClearItsBusyState()
+    {
+        using var context = Context(true);
+        var operations = new Operations();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(operations);
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new Source { Connections = [Connection, SecondConnection] });
+        var page = context.Render<OperateConnectionDetailPage>(p => p.Add(c => c.ConnectionId, Connection.Id));
+        var firstTest = page.Find("button").ClickAsync(new());
+        page.Render(p => p.Add(c => c.ConnectionId, "second"));
+        var secondTest = page.Find("button").ClickAsync(new());
+        Assert.Equal(new[] { Connection.Id, "second" }, operations.TestedConnections);
+
+        await page.InvokeAsync(() => operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Old connection result")));
+        await firstTest;
+
+        Assert.Equal("Second database", page.Find("h1").TextContent);
+        Assert.DoesNotContain("Old connection result", page.Markup, StringComparison.Ordinal);
+        Assert.True(page.Find("button").HasAttribute("disabled"));
+        Assert.Equal(1, context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.PendingOperationCount);
+        await page.InvokeAsync(() => operations.SecondTest.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Current connection result")));
+        await secondTest;
+        Assert.Contains("Current connection result", page.Markup, StringComparison.Ordinal);
+        Assert.False(page.Find("button").HasAttribute("disabled"));
+    }
+
+    [Theory]
+    [InlineData("connection a")]
+    [InlineData("second")]
+    public async Task OlderConnectionLoadCannotReplaceTheCurrentConnection(string currentId)
+    {
+        using var context = Context(true);
+        var source = new Source { Load = new(TaskCreationOptions.RunContinuationsAsynchronously), Connections = [Connection, SecondConnection] };
+        context.Services.AddSingleton<IOperateTransitionDataSource>(source);
+        var page = context.Render<OperateConnectionDetailPage>(p => p.Add(c => c.ConnectionId, Connection.Id));
+        page.Render(p => p.Add(c => c.ConnectionId, currentId));
+        var renderCount = page.RenderCount;
+        await page.InvokeAsync(() => source.Load.SetResult(new([Connection with { Name = "Outdated database" }], [], [], [], [])));
+        page.WaitForState(() => page.RenderCount > renderCount);
+        Assert.Equal(currentId == Connection.Id ? Connection.Name : "Second database", page.Find("h1").TextContent);
+        Assert.Equal(0, context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.PendingOperationCount);
+    }
+
     private sealed class Operations : IConsoleConnectionCreateOperation
     {
         public TaskCompletionSource<ConsoleConnectionProviderAvailability>? Providers { get; init; }
         public TaskCompletionSource<ConsoleConnectionTestOutcome> Test { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<ConsoleConnectionTestOutcome> SecondTest { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> TestedConnections { get; } = [];
         public TaskCompletionSource<ConsoleConnectionCreateResult> Create { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<ConsoleConnectionProviderAvailability> GetProviderAvailabilityAsync(CancellationToken cancellationToken = default) => Providers?.Task ?? Task.FromResult(new ConsoleConnectionProviderAvailability());
         public Task<ConsoleConnectionTestOutcome> TestAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Test.Task;
-        public Task<ConsoleConnectionTestOutcome> TestExistingAsync(string connectionId, CancellationToken cancellationToken = default) => Test.Task;
+        public Task<ConsoleConnectionTestOutcome> TestExistingAsync(string connectionId, CancellationToken cancellationToken = default)
+        {
+            TestedConnections.Add(connectionId);
+            return connectionId == "second" ? SecondTest.Task : Test.Task;
+        }
         public Task<ConsoleConnectionCreateResult> CreateAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Create.Task;
     }
 
@@ -175,10 +243,14 @@ public sealed class OperateConnectionV4RenderTests
     {
         public TaskCompletionSource<OperateTransitionWorkspace>? Load { get; init; }
         public TaskCompletionSource Requested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _loads;
+        public IReadOnlyList<OperateConnectionSummary> Connections { get; init; } = [Connection];
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
         {
             Requested.TrySetResult();
-            return Load?.Task ?? Task.FromResult(new OperateTransitionWorkspace([Connection], [], [], [], []));
+            return ++_loads == 1 && Load is { } load
+                ? load.Task
+                : Task.FromResult(new OperateTransitionWorkspace(Connections, [], [], [], []));
         }
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult(connectionId == Connection.Id ? Connection : null);

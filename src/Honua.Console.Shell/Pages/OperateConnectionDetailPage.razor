@@ -174,38 +174,65 @@
     private ConsoleConnectionTestOutcome? _testOutcome;
     private bool _testing;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    private string? _loadedConnectionId;
+    private int _connectionGeneration;
+    private int _loadGeneration;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (!string.Equals(_loadedConnectionId, ConnectionId, StringComparison.Ordinal))
+        {
+            _loadedConnectionId = ConnectionId;
+            _connectionGeneration++;
+            _connection = null;
+            _safeDiagnostic = null;
+            _states = Array.Empty<OperateCapabilityState>();
+            _testOutcome = null;
+            _testing = false;
+        }
+
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
+        var connectionId = ConnectionId;
+        var generation = _connectionGeneration;
+        var loadGeneration = ++_loadGeneration;
         _loading = true;
         try
         {
             var view = await OperateData.GetConnectionsViewAsync();
+            if (generation != _connectionGeneration || loadGeneration != _loadGeneration) return;
             _connection = view.Connections.FirstOrDefault(
-                connection => string.Equals(connection.Id, ConnectionId, StringComparison.OrdinalIgnoreCase));
+                connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase));
             _safeDiagnostic = _connection?.LastDiagnostic;
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
         }
         finally
         {
-            _loading = false;
+            if (generation == _connectionGeneration && loadGeneration == _loadGeneration) _loading = false;
         }
     }
 
     private async Task TestConnectionAsync()
     {
+        var connectionId = ConnectionId;
+        var generation = _connectionGeneration;
+        _testOutcome = null;
         _testing = true;
         try
         {
             // The server-side test persists the connection's health, so reload afterwards to refresh the
             // status badge, last-tested time, and diagnostic from the canonical server read.
-            _testOutcome = await ConnectionOps.TestExistingAsync(ConnectionId);
+            var outcome = await ConnectionOps.TestExistingAsync(connectionId);
+            if (generation != _connectionGeneration) return;
+            _testOutcome = outcome;
             await LoadAsync();
         }
         finally
         {
-            _testing = false;
+            if (generation == _connectionGeneration) _testing = false;
         }
     }
 
