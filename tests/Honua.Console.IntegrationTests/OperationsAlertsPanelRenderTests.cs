@@ -347,8 +347,11 @@ public sealed class OperationsAlertsPanelRenderTests
     private sealed class ChangingAuthentication : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            CreateState();
+        public void Change() => NotifyAuthenticationStateChanged(CreateState());
+
+        private static Task<AuthenticationState> CreateState() =>
             Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
-        public void Change() => NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
 
     private sealed class AlertClient : IConsoleAlertInboxClient
