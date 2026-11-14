@@ -50,14 +50,16 @@ test('audience and definition links appear only for a confirmed publication in i
     assert.equal(session.audienceLinks(), undefined);
 });
 
+async function confirmPublication(session, app) {
+    app.publishWorkspaceVersion = async () => ({ status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' });
+    await session.retry();
+}
+
 for (const outcome of ['success', 'denied', 'session-changed', 'map-changed', 'pending']) {
     test(`definition read uses the captured cross-origin bearer and handles ${outcome}`, async () => {
         const { session, app } = fixture();
         await session.review('version'); await session.submit(input);
-        if (outcome !== 'pending') {
-            app.publishWorkspaceVersion = async () => ({ status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' });
-            await session.retry();
-        }
+        if (outcome !== 'pending') await confirmPublication(session, app);
         const previous = { api: globalThis.honuaConsoleApiBase,
             authorize: globalThis.honuaConsoleCaptureResourceAuthorization, fetch: globalThis.fetch };
         const calls = [];

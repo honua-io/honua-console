@@ -220,6 +220,23 @@ export class StudioPublicationSession {
     }
 }
 
+function createDefinitionPreview(session, run) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = 'View map definition (JSON)';
+    const output = document.createElement('pre'); output.hidden = true;
+    output.setAttribute('aria-label', 'Published map definition');
+    let value;
+    button.addEventListener('click', () => {
+        value = undefined;
+        void run(async current => {
+            const definition = await session.readDefinition();
+            if (current()) value = JSON.stringify(definition, null, 2);
+        });
+    });
+    return { button, output,
+        clear() { value = undefined; output.textContent = ''; output.hidden = true; },
+        render() { output.textContent = value ?? ''; output.hidden = value === undefined; } };
+}
+
 let sourceAccessSequence = 0;
 
 export function mountStudioPublicationControls({ app, host, status }) {
@@ -253,9 +270,8 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
     const inbox = document.createElement('a'); inbox.href = consoleHref('/inbox'); inbox.textContent = 'Review approvals';
     const openMap = document.createElement('a'); openMap.textContent = 'Open published map';
-    const definition = document.createElement('button'); definition.type = 'button'; definition.textContent = 'View map definition (JSON)';
-    const definitionOutput = document.createElement('pre'); definitionOutput.hidden = true;
-    definitionOutput.setAttribute('aria-label', 'Published map definition');
+    const definitionPreview = createDefinitionPreview(session, run);
+    const { button: definition, output: definitionOutput } = definitionPreview;
     openMap.target = '_blank'; openMap.rel = 'noopener noreferrer';
     const audienceActions = document.createElement('div'); audienceActions.className = 'console-action-row';
     audienceActions.append(openMap, definition);
@@ -270,7 +286,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
     section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions, definitionOutput);
     const canvas = host.querySelector('[data-studio-mount]');
     if (canvas) canvas.before(section); else host.append(section);
-    let busy = false, disposed = false, selectedContext, definitionValue, hasReview = false;
+    let busy = false, disposed = false, selectedContext, hasReview = false;
     const active = captured => {
         try { return !disposed && host.isConnected && app.isConnected && session.viewContext() === captured; }
         catch { return false; }
@@ -286,7 +302,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
         }
         try {
             const context = session.viewContext(), record = session.read();
-            if (selectedContext !== context) { hasReview = false; definitionValue = undefined; selectedContext = context; }
+            if (selectedContext !== context) { hasReview = false; definitionPreview.clear(); selectedContext = context; }
             section.hidden = !record && !hasReview;
             notice.textContent = '';
             if (record) {
@@ -315,14 +331,12 @@ export function mountStudioPublicationControls({ app, host, status }) {
                     if (links) {
                         openMap.href = links.map;
                         openMap.hidden = definition.hidden = false;
-                        if (definitionValue !== undefined) {
-                            definitionOutput.textContent = definitionValue; definitionOutput.hidden = false;
-                        }
+                        definitionPreview.render();
                     }
                 }
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
-        if (definition.hidden) definitionValue = undefined;
+        if (definition.hidden) definitionPreview.clear();
         sourceAccess.hidden = form.hidden || audience.value !== 'public';
         if (sourceAccess.hidden) audience.removeAttribute('aria-describedby');
         else audience.setAttribute('aria-describedby', sourceAccess.id);
@@ -346,14 +360,6 @@ export function mountStudioPublicationControls({ app, host, status }) {
     audience.addEventListener('change', update);
     retry.addEventListener('click', () => void run(() => session.retry()));
     refresh.addEventListener('click', () => void run(() => session.refresh()));
-    definition.addEventListener('click', () => {
-        definitionValue = undefined;
-        void run(async current => {
-            const value = await session.readDefinition();
-            if (!current()) return;
-            definitionValue = JSON.stringify(value, null, 2);
-        });
-    });
     acknowledge.addEventListener('click', () => void run(() => { session.acknowledge(); hasReview = false; }));
     cancel.addEventListener('click', () => { if (!busy) { hasReview = false; update(); } });
     app.addEventListener('honua-workspace-draft-change', update);
