@@ -43,7 +43,7 @@ public sealed class ConsolePublicationLayerContext
     public void CompleteStyleRead(ReadAttempt attempt, OperateLayerStyleOverrideView view)
     {
         var layer = view.BindingState is null && view.ResourceId == attempt.ResourceId ? view.Layers.FirstOrDefault() : null;
-        Complete(attempt, layer is null ? null : new(view.ResourceId, layer.ServiceName, layer.ServiceDisplayName));
+        Complete(attempt, layer is null ? null : new(view.ResourceId, layer.ServiceName, layer.LayerName));
     }
 
     private void Complete(ReadAttempt attempt, ConsolePublicationLayerSelection? selection)
