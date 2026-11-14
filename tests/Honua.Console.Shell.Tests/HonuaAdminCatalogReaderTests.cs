@@ -236,6 +236,39 @@ public sealed class HonuaAdminCatalogReaderTests
         Assert.Equal(1, roundTrip.Total);
     }
 
+    [Theory]
+    [InlineData(0, 100, 1)]
+    [InlineData(2, 100, 1)]
+    [InlineData(1, 0, 1)]
+    [InlineData(1, -1, 1)]
+    [InlineData(1, 100, -1)]
+    [InlineData(1, 100, 0)]
+    public async Task ReadAllRejectsInvalidServiceAndLayerPages(int page, int pageSize, int total)
+    {
+        using var client = Client(_ => JsonSerializer.Serialize(new
+        {
+            success = true,
+            data = new { items = new[] { new { serviceName = "roads", layerId = 7 } }, page, pageSize, total }
+        }));
+        var services = await ReadAllServices(client);
+        var layers = await HonuaAdminCatalogReader.ReadAllAsync(
+            (query, token) => client.ListConnectionLayersAsync("conn", new(null, query), token),
+            result => result.Items, result => result.Total, CancellationToken.None);
+        Assert.Null(services.Data);
+        Assert.NotNull(services.Issue);
+        Assert.Null(layers.Data);
+        Assert.NotNull(layers.Issue);
+    }
+
+    [Fact]
+    public async Task ReadAllRejectsPrematureEmptyPages()
+    {
+        using var client = Client(_ => PageEnvelope("[]", 1, "1"));
+        var result = await ReadAllServices(client);
+        Assert.Null(result.Data);
+        Assert.NotNull(result.Issue);
+    }
+
     private static string PageEnvelope(string items, int page, string totalJson) =>
         "{\"success\":true,\"data\":{\"items\":" + items
         + ",\"page\":" + page.ToString(System.Globalization.CultureInfo.InvariantCulture)

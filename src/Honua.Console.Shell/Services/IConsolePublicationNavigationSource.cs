@@ -2,7 +2,11 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Services;
 
-public sealed record ConsolePublicationLayer(string ResourceId, string Name, string GeometryType);
+public sealed record ConsolePublicationLayer(string ResourceId, string Name, string GeometryType)
+{
+    public static ConsolePublicationLayer Project(string resourceId, string name, string? geometryType) =>
+        new(resourceId, name, string.IsNullOrWhiteSpace(geometryType) ? "Unknown" : geometryType);
+}
 
 public interface IConsolePublicationNavigationSource
 {

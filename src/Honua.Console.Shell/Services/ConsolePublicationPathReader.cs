@@ -18,7 +18,7 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
         tree.Load(new HonuaAdminServicePage { Items = services.Value.ToArray(), Total = 1 }, "Services");
         var service = ConsolePublicationTree.Descendants(tree.Root).Single(node => node.Kind == ConsolePublicationNodeKind.Service);
         service.Children = ConsolePublicationTree.LayerNodes(service,
-            [new(selection.ResourceId, selection.LayerName, "Unknown")]);
+            [ConsolePublicationLayer.Project(selection.ResourceId, selection.LayerName, selection.GeometryType)]);
         return OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>.Allowed(tree.PathTo($"/operate/layers/{Uri.EscapeDataString(selection.ResourceId)}"));
     }
 
@@ -33,16 +33,19 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
         {
             token.ThrowIfCancellationRequested();
             var read = await source.ReadServicesAsync(query, token);
-            if (!read.IsAllowed || read.PartialResult || read.Value is null)
+            if (!read.IsAllowed)
                 return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Denied(read.Status, read.Message);
+            if (read.PartialResult || read.Value is null)
+                return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Denied(
+                    OperateSectionStatus.Unavailable, "The service catalog read was incomplete.");
             var page = read.Value;
+            if (!HonuaAdminCatalogReader.IsValidPage(page, query) || (long)services.Count + page.Items.Length > page.Total)
+                return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Denied(
+                    OperateSectionStatus.Unavailable, "The service catalog did not return a valid page.");
             services.AddRange(page.Items);
             if (services.Count >= page.Total)
                 return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Allowed(services
                     .Where(service => string.Equals(service.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase)).ToArray());
-            if (page.Items.Length == 0 || page.Page != query.Page)
-                return OperateSectionResult<IReadOnlyList<ServiceSummary>>.Denied(
-                    OperateSectionStatus.Unavailable, "The service catalog did not return a complete page.");
             query = query.Next();
         }
     }
