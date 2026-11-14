@@ -54,6 +54,9 @@ builder.Services.AddSingleton<IConsoleBrowserAuthentication>(services => service
 
 builder.Services.AddSingleton<IConsoleOidcAuthentication, BrowserOidcAuthentication>();
 
+// Preserve startup failure propagation and the existing session notification behavior.
+// Interop errors have no recovery path in this host initialization block.
+#pragma warning disable BL0016
 var host = builder.Build();
 await using var transport = await host.Services.GetRequiredService<IJSRuntime>()
     .InvokeAsync<IJSObjectReference>("import", "./js/console-browser-transport.mjs");
@@ -66,3 +69,4 @@ await transport.InvokeVoidAsync("initialize", sessionBridge, new
 session.Changed += snapshot => _ = transport.InvokeVoidAsync("publishSession", snapshot);
 await transport.InvokeVoidAsync("publishSession", session.Snapshot());
 await host.RunAsync();
+#pragma warning restore BL0016

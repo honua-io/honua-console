@@ -39,9 +39,12 @@ public sealed class ConsoleOperatorScope : IConsoleOperatorScope
             return ConsoleOperatorIdentity.FromPrincipal(httpContext.User);
         }
 
+        // Each resolution reads fresh state; there is no cached state to invalidate.
+#pragma warning disable BL0013
         var state = await _authenticationStateProvider
             .GetAuthenticationStateAsync()
             .ConfigureAwait(false);
+#pragma warning restore BL0013
         return ConsoleOperatorIdentity.FromPrincipal(state.User);
     }
 
