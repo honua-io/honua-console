@@ -170,6 +170,9 @@ function readAuthorizedResource({ response, pathname, json }) {
     case "/api/v1/admin/services":
       json({ success: true, data: { items: [], page: 1, pageSize: 100, total: 0, layerTotal: 0 } });
       return;
+    case "/api/v1/admin/folders":
+      json({ success: true, data: [] });
+      return;
     case "/api/v1/admin/proposals":
       json({ proposals: [] });
       return;

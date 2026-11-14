@@ -103,6 +103,7 @@ The current active shims are bounded to catalog/viewer/share route parity, Studi
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|
+| `ApiKeyManagementShims.cs` | .NET | honua-console#712 | honua-sdk-dotnet#166 API-key management client | s-catalog-ui | honua-console#7 replaces the shim after the SDK projection lands |
 | Catalog search query and list request (`CatalogSearchState`, `CatalogListRequest`) | .NET | honua-console#34 | honua-sdk-dotnet#166 | Console | honua-console#7 |
 | Content summary/detail route payloads (`ConsoleContentSummary`, `ConsoleContentDetail`, versions, lineage, bindings, publication, permissions, activity, usage) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
 | Share access and public-link fields (`ConsoleShareAccess`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
@@ -149,6 +150,16 @@ regression. Public embeddable maps may still authorize without a token.
 Its query parser accepts Portal snippet `chrome` profiles (`full`,
 `minimal`, `none`), `legend`/`zoom` `on/off` controls, and only valid,
 non-degenerate WGS84 `extent=W,S,E,N` bounds.
+
+## API-key management (#712)
+
+`ApiKeyManagementShims.cs` extends the existing Operate client boundary for
+list, create (including the one-time secret), and revoke. SDK 2.2.0 exposes no
+API-key management projection. Owner: s-catalog-ui. Upstream tracking:
+[honua-sdk-dotnet#166](https://github.com/honua-io/honua-sdk-dotnet/issues/166).
+Removal: [honua-console#7](https://github.com/honua-io/honua-console/issues/7)
+once the SDK supports these routes. All calls carry the host-only expected
+authority binding; the server retains permission and full-admin mutation checks.
 
 ## Why This Boundary, Not "Whatever Works"
 
