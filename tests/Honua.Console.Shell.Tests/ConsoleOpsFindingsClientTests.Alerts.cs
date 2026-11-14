@@ -53,7 +53,8 @@ public sealed partial class ConsoleOpsFindingsClientTests
     {
         var profile = new ConsoleEnvironmentProfile
         {
-            Id = "live", ServerBaseUri = new Uri("https://server.example"),
+            Id = "live",
+            ServerBaseUri = new Uri("https://server.example"),
             Account = new() { AccountId = "operator.live" }
         };
         var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);
@@ -78,7 +79,8 @@ public sealed partial class ConsoleOpsFindingsClientTests
     {
         var profile = new ConsoleEnvironmentProfile
         {
-            Id = "live", ServerBaseUri = new Uri("https://server.example"),
+            Id = "live",
+            ServerBaseUri = new Uri("https://server.example"),
             Account = new() { AccountId = "operator.live" }
         };
         var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);
@@ -172,7 +174,8 @@ public sealed partial class ConsoleOpsFindingsClientTests
         });
         var profile = new ConsoleEnvironmentProfile
         {
-            Id = "live", ServerBaseUri = new Uri("https://server.example"),
+            Id = "live",
+            ServerBaseUri = new Uri("https://server.example"),
             Account = new() { AccountId = "operator.live" }
         };
         var client = new HttpConsoleOpsFindingsClient(
