@@ -369,31 +369,67 @@
     // Active environment profile id the page's proxy URLs are pinned to (null renders the schematic).
     private string? _environmentId;
 
+    private long _layerGeneration;
+    private string? _requestedResourceId;
+
     protected override async Task OnParametersSetAsync()
     {
+        var resourceId = ResourceId;
+        if (!string.Equals(_requestedResourceId, resourceId, StringComparison.Ordinal))
+        {
+            _requestedResourceId = resourceId;
+            ++_layerGeneration;
+            ResetLayerEdits();
+        }
+        var generation = _layerGeneration;
         _loading = true;
-        var attempt = PublicationContext?.BeginRead(ResourceId);
+        var attempt = PublicationContext?.BeginRead(resourceId);
         // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
-        _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+        var environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
             ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
         var view = await OperateData.GetLayersViewAsync();
-        _exposures = view.FindExposures(ResourceId);
+        if (generation != _layerGeneration) return;
+        _environmentId = environmentId;
+        _exposures = view.FindExposures(resourceId);
         if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
-        _ambiguousResourceIds = view.MatchingCanonicalResourceIds(ResourceId);
+        _ambiguousResourceIds = view.MatchingCanonicalResourceIds(resourceId);
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
 
         if (_exposures.Count > 0)
         {
-            await LoadFieldsAsync();
-            _savedDomainDraft = DomainDraft;
+            await LoadFieldsAsync(generation);
+            if (generation != _layerGeneration) return;
+            _savedDomainDraft ??= DomainDraft;
         }
         _loading = false;
     }
 
-    private async Task LoadFieldsAsync()
+    private void ResetLayerEdits()
     {
-        _fields = await LayerFields.GetFieldsAsync(_exposures[0].Layer.LayerId);
+        _exposures = [];
+        _ambiguousResourceIds = [];
+        _states = [];
+        _serviceSummary = string.Empty;
+        _environmentId = null;
+        _fields = ConsoleLayerFields.Unbound("Loading…");
+        _fieldEdits.Clear();
+        _metadataUnsaved = new();
+        _savedDomainDraft = null;
+        _domainField = _domainName = _domainCodes = string.Empty;
+        _domainMergePolicy = _domainSplitPolicy = _defaultValueText = string.Empty;
+        _domainKind = ConsoleDomainKind.CodedValue;
+        _domainRangeMin = _domainRangeMax = null;
+        _clearDefaultValue = false;
+        _savingField = _savingDomain = false;
+        _fieldResult = _domainResult = null;
+    }
+
+    private async Task LoadFieldsAsync(long generation)
+    {
+        var fields = await LayerFields.GetFieldsAsync(_exposures[0].Layer.LayerId);
+        if (generation != _layerGeneration) return;
+        _fields = fields;
         if (_fields.Bound && _fields.Fields.Count > 0 && string.IsNullOrEmpty(_domainField))
         {
             _domainField = _fields.Fields[0].Name;
@@ -415,21 +451,25 @@
             return Task.CompletedTask;
         }
 
+        var generation = _layerGeneration;
+        var layerId = _exposures[0].Layer.LayerId;
         _fieldResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _fieldResult = await LayerFields.SetFieldConfigurationAsync(
-                    _exposures[0].Layer.LayerId,
+                var result = await LayerFields.SetFieldConfigurationAsync(
+                    layerId,
                     fieldName,
                     edit.Alias,
                     edit.Hidden);
-                if (_fieldResult.Succeeded)
+                if (generation != _layerGeneration) return;
+                _fieldResult = result;
+                if (result.Succeeded)
                 {
-                    await LoadFieldsAsync();
+                    await LoadFieldsAsync(generation);
                 }
             },
-            setBusy: busy => { _savingField = busy; StateHasChanged(); },
+            setBusy: busy => { if (generation == _layerGeneration) { _savingField = busy; StateHasChanged(); } },
             failureMessage: "Couldn't save field settings");
     }
 
@@ -464,18 +504,22 @@
 
         // Edits made while the save is pending stay counted as unsaved.
         var submittedDraft = DomainDraft;
+        var generation = _layerGeneration;
+        var layerId = _exposures[0].Layer.LayerId;
         _domainResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
-                _domainResult = await LayerFields.SetDomainAsync(_exposures[0].Layer.LayerId, authoring);
-                if (_domainResult.Succeeded)
+                var result = await LayerFields.SetDomainAsync(layerId, authoring);
+                if (generation != _layerGeneration) return;
+                _domainResult = result;
+                if (result.Succeeded)
                 {
-                    await LoadFieldsAsync();
-                    _savedDomainDraft = submittedDraft;
+                    await LoadFieldsAsync(generation);
+                    if (generation == _layerGeneration) _savedDomainDraft = submittedDraft;
                 }
             },
-            setBusy: busy => { _savingDomain = busy; StateHasChanged(); },
+            setBusy: busy => { if (generation == _layerGeneration) { _savingDomain = busy; StateHasChanged(); } },
             failureMessage: "Couldn't save domain");
     }
 
