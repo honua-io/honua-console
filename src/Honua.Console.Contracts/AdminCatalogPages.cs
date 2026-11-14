@@ -65,12 +65,18 @@ public static class HonuaAdminCatalogReader
 {
     public static bool IsValidPage<TPage>(TPage page, HonuaAdminCatalogQuery query) => page switch
     {
-        HonuaAdminServicePage services => Valid(new(services.Page, services.PageSize, services.Total, services.Items?.Length), query),
-        HonuaAdminLayerPage layers => Valid(new(layers.Page, layers.PageSize, layers.Total, layers.Items?.Length), query),
+        HonuaAdminServicePage services => Valid(new() { Page = services.Page, PageSize = services.PageSize, Total = services.Total, Count = services.Items?.Length }, query),
+        HonuaAdminLayerPage layers => Valid(new() { Page = layers.Page, PageSize = layers.PageSize, Total = layers.Total, Count = layers.Items?.Length }, query),
         _ => false
     };
 
-    private readonly record struct PageShape(int Page, int PageSize, int Total, int? Count);
+    private readonly record struct PageShape
+    {
+        public int Page { get; init; }
+        public int PageSize { get; init; }
+        public int Total { get; init; }
+        public int? Count { get; init; }
+    }
 
     private static bool Valid(PageShape page, HonuaAdminCatalogQuery query) =>
         page.Page == query.Page && page.Total >= 0 && page.Count is >= 0 && page.Count <= page.Total

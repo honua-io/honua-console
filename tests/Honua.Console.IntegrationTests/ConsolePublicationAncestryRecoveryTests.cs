@@ -10,10 +10,11 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ConsolePublicationAncestryRecoveryTests
 {
     [Theory]
-    [InlineData(OperateSectionStatus.Unavailable, true)]
-    [InlineData(OperateSectionStatus.Forbidden, false)]
-    public async Task NavigationRetriesTransientAncestryWithoutChangingAuthority(OperateSectionStatus failure, bool recovers)
+    [InlineData(OperateSectionStatus.Unavailable)]
+    [InlineData(OperateSectionStatus.Forbidden)]
+    public async Task NavigationRetriesTransientAncestryWithoutChangingAuthority(OperateSectionStatus failure)
     {
+        var recovers = failure == OperateSectionStatus.Unavailable;
         using var context = new BunitContext();
         context.AddAuthorization().SetAuthorized("synthetic-operator");
         var source = new PublicationNavigationSource();
