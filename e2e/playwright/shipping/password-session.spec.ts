@@ -32,8 +32,11 @@ async function signIn(page: Page, password: string) {
 
 async function checkSession(page: Page, context: BrowserContext, password: string) {
   // Run requests in the page so the actual browser cookie and origin rules apply.
-  const sessionStatus = await page.evaluate(async () => (await fetch('/api/v1/admin/auth/session')).status);
-  expect(sessionStatus).toBe(200);
+  const session = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/admin/auth/session');
+    return { status: response.status, isAuthenticated: (await response.json()).isAuthenticated };
+  });
+  expect(session).toEqual({ status: 200, isAuthenticated: true });
   const cookies = await context.cookies();
   const sessionCookie = cookies.find(cookie => cookie.name === 'honua_admin_session');
   expect(Boolean(sessionCookie?.httpOnly && sessionCookie.secure && sessionCookie.sameSite === 'Strict')).toBe(true);
@@ -72,8 +75,8 @@ async function signOut(page: Page) {
     });
     const after = await fetch('/api/v1/admin/auth/session');
     const adminAfter = await fetch('/api/v1/admin/connections');
-    return { denied: denied.status, stillSignedIn: stillSignedIn.status,
-      accepted: accepted.status, after: after.status, adminAfter: adminAfter.status };
+    return { denied: denied.status, stillSignedIn: (await stillSignedIn.json()).isAuthenticated,
+      accepted: accepted.status, after: (await after.json()).isAuthenticated, adminAfter: adminAfter.status };
   });
-  expect(logout).toEqual({ denied: 400, stillSignedIn: 200, accepted: 200, after: 401, adminAfter: 401 });
+  expect(logout).toEqual({ denied: 400, stillSignedIn: true, accepted: 200, after: false, adminAfter: 401 });
 }

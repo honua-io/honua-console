@@ -15,7 +15,7 @@ root=$(pwd)
 out="$root/artifacts/shipping-live"
 mkdir -p "$out"
 work=$(mktemp -d)
-export COMPOSE_PROJECT_NAME="console-shipping-$$"
+unset COMPOSE_PROJECT_NAME
 cleanup() {
   if [[ -f "$work/package/.env" ]]; then
     (cd "$work/package" && docker compose logs --no-color > "$out/compose.log" 2>&1 || true)
