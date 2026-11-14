@@ -99,17 +99,22 @@ public sealed class PublishedMapPageRenderTests
         Assert.Equal(["import"], runtime.Identifiers);
     }
 
+    // BL0016 asks callers to guard interop; this fake is the runtime itself, and it throws on purpose.
+#pragma warning disable BL0016
     private sealed class UnavailableModuleRuntime : IJSRuntime
     {
         public List<string> Identifiers { get; } = [];
 
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => Refuse<TValue>(identifier);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+            => Refuse<TValue>(identifier);
+
+        private ValueTask<TValue> Refuse<TValue>(string identifier)
         {
             Identifiers.Add(identifier);
             throw new JSException("module unavailable");
         }
-
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
-            => InvokeAsync<TValue>(identifier, args);
     }
+#pragma warning restore BL0016
 }
