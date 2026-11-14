@@ -29,7 +29,9 @@ the release files. Do not substitute a legacy-host build for this artifact.
 Honua lanes run all .NET builds and tests through `remote-dotnet` or `remote-run`
 on the build host, including harnesses that start .NET implicitly.
 
-With an already published bundle available, run these commands from the
+Extract the published bundle's Console files into
+`artifacts/static-publish/wwwroot/console` (so that `index.html` is directly in
+that directory). With that bundle available, run these commands from the
 repository root on the browser test machine:
 
 ```sh
@@ -38,13 +40,13 @@ npm ci --prefix e2e/playwright
 (cd e2e/playwright && npx --no-install playwright test --config playwright.static.config.ts)
 ```
 
-By default the suite serves `artifacts/static-publish/wwwroot/console` at
+By default the suite serves that directory at
 `http://127.0.0.1:5184/console/`. Contract fixtures also use fixed ports
-5185, 5186, 5187 and 5188.
-Set `HONUA_CONSOLE_STATIC_ROOT` to an absolute path to the extracted bundle's
-Console files if they are elsewhere. `HONUA_CONSOLE_STATIC_PORT` overrides the
-first port only; the contract fixtures still need 5185–5188. Keep the default
-range 5184–5188 free, or the overridden first port plus 5185–5188.
+5185, 5186, 5187, 5188, 5195 and 5196.
+`HONUA_CONSOLE_STATIC_ROOT` overrides the bundle path for the boot and transport
+fixtures only; the alert fixtures still require the default directory above.
+`HONUA_CONSOLE_STATIC_PORT` overrides the first port only. Keep ports 5184–5188,
+5195 and 5196 free, or the overridden first port plus the fixed fixture ports.
 
 Playwright retains failure traces and screenshots and writes an HTML report.
 Inspect these together with browser console and network errors before changing
