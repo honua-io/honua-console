@@ -238,10 +238,13 @@ public sealed class OperationsAlertsPanelRenderTests
         if (loseSnoozeResponse)
         {
             panel.WaitForAssertion(() => Assert.Single(client.LifecycleCommands));
-            client.Page = client.Page with { Items = [client.Page.Items[0] with
+            client.Page = client.Page with
             {
-                SuppressedUntil = client.LifecycleCommands[0].SuppressUntil
-            }] };
+                Items = [client.Page.Items[0] with
+                {
+                    SuppressedUntil = client.LifecycleCommands[0].SuppressUntil
+                }]
+            };
             panel.Find("[data-refresh-alerts]").Click();
         }
         panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
@@ -289,11 +292,14 @@ public sealed class OperationsAlertsPanelRenderTests
     {
         using var context = new BunitContext();
         var client = new AlertClient();
-        client.Page = client.Page with { Items = [client.Page.Items[0] with
+        client.Page = client.Page with
         {
-            AcknowledgedAt = initialState == "acknowledged" ? DateTimeOffset.UtcNow : null,
-            SuppressedUntil = initialState == "snoozed" ? DateTimeOffset.UtcNow.AddMinutes(10) : null
-        }] };
+            Items = [client.Page.Items[0] with
+            {
+                AcknowledgedAt = initialState == "acknowledged" ? DateTimeOffset.UtcNow : null,
+                SuppressedUntil = initialState == "snoozed" ? DateTimeOffset.UtcNow.AddMinutes(10) : null
+            }]
+        };
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
         var selector = $"[data-{action}-alert]";
