@@ -37,7 +37,7 @@ python3 "$SERVER_SOURCE/scripts/docker/package_quickstart.py" \
 python3 "$root/e2e/seed-shipping-service.py" "$SERVER_SOURCE" > "$work/seed.sql"
 (
   cd "$work/package"
-  docker compose exec -T postgres psql -U honua_user -d honua_dev -v ON_ERROR_STOP=1 \
+  docker compose exec -T postgres sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
     < "$work/seed.sql" > "$out/seed.log"
   docker compose exec -T redis redis-cli FLUSHDB
   docker compose restart server
