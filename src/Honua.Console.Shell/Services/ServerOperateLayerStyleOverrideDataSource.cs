@@ -57,7 +57,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
         var layer = new OperateLayerStyleOverride(
             LayerId: layerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ServiceName: first.Service.Name,
-            ServiceDisplayName: first.Layer.Name,
+            LayerName: first.Layer.Name,
             PopupInfoJson: Pretty(popup.Data?.Document),
             DrawingInfoJson: Pretty(drawing.Data?.Document));
 

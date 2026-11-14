@@ -78,6 +78,51 @@ public sealed class ConsolePublicationLayerRenderTests
     }
 
     [Theory]
+    [InlineData("metadata", "[data-editing-save]")]
+    [InlineData("filter", "[data-filter-unbound]")]
+    [InlineData("relationships", "[data-relationships-unbound]")]
+    [InlineData("style", "[data-layer-style='7']")]
+    public void ColdLayerSubpagesPublishTheirOwnAuthorizedExposure(string suffix, string completedSelector)
+    {
+        var source = new PublicationNavigationSource
+        {
+            RefuseLayerReads = true,
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/operate/layers/connection-one-layer-7/{suffix}");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.NotNull(layout.Find(completedSelector)));
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
+        Assert.Equal("/operate/services/parcels/settings", layout.Find("nav[aria-label='Breadcrumb'] a[href*='/services/']").GetAttribute("href"));
+        Assert.Contains("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.Equal(1, source.LayerPageReads);
+        Assert.Equal(0, source.ChildReads);
+    }
+
+    [Fact]
+    public async Task DeniedStyleBindingDoesNotPublishAnOtherwisePopulatedSlot()
+    {
+        var source = new PublicationNavigationSource
+        {
+            RefuseLayerReads = true,
+            PendingLayers = new(TaskCreationOptions.RunContinuationsAsynchronously),
+            StyleBindingState = new("Layer styles", OperateLayerStyleBindingState.Forbidden, "layer styles", "Denied"),
+            ServiceSummaries = [new() { ServiceName = "parcels", FolderId = "public", FolderName = "Public", Title = "Parcels", LayerCount = 1 }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/layers/connection-one-layer-7/style");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Equal(1, source.LayerPageReads));
+        await layout.InvokeAsync(() => source.PendingLayers.SetResult(source.LayerResult));
+        layout.WaitForAssertion(() => Assert.Contains("Layer overrides are not available", layout.Markup));
+        Assert.Null(layout.FindComponent<CascadingValue<ConsolePublicationLayerContext>>().Instance.Value.Selection);
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.DoesNotContain("Parcels", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.Equal(0, source.ChildReads);
+    }
+
+    [Theory]
     [InlineData("profile")]
     [InlineData("server")]
     [InlineData("account")]
@@ -106,7 +151,8 @@ public sealed class ConsolePublicationLayerRenderTests
             await profiles.ActivateProfileAsync(changed.Id);
         });
         pending.SetResult(previous);
-        await layout.InvokeAsync(() => Task.CompletedTask);
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("h1").TextContent));
+        Assert.Null(layout.FindComponent<CascadingValue<ConsolePublicationLayerContext>>().Instance.Value.Selection);
         layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
         Assert.DoesNotContain("parcels", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }

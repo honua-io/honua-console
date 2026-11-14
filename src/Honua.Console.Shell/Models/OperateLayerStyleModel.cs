@@ -27,7 +27,7 @@ public sealed record OperateLayerStyleOverrideView(
 public sealed record OperateLayerStyleOverride(
     string LayerId,
     string ServiceName,
-    string ServiceDisplayName,
+    string LayerName,
     string? StyleIdOverride = null,
     string? PopupTemplateOverride = null,
     string? PopupInfoJson = null,
