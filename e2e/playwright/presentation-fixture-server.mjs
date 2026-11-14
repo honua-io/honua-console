@@ -13,7 +13,7 @@ export async function startPresentationFixtureServer({ pages, title, stylesheets
       const pageScripts = scripts.get(name) ?? [];
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Security-Policy": `default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src ${pageScripts.length || headScripts.length || allowScriptModules ? "'self'" : "'none'"}; frame-src 'none'; base-uri 'none'`,
+        "Content-Security-Policy": `default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; script-src ${pageScripts.length || headScripts.length || allowScriptModules ? "'self'" : "'none'"}; frame-src 'none'; base-uri 'none'`,
       });
       response.end(`<!doctype html><html lang="en"><head><title>${title}</title><meta name="viewport" content="width=device-width">${headScripts.map(src => `<script src="${src}"></script>`).join("")}${stylesheets.map(href => `<link rel="stylesheet" href="${href}">`).join("")}</head><body>${body}${pageScripts.map(src => `<script src="${src}" defer></script>`).join("")}</body></html>`);
       return;

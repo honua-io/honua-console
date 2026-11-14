@@ -15,15 +15,17 @@ public sealed class CatalogsDiscoveryPageRenderTests
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl so the Catalogs surface can bind the catalog discovery-endpoints registry (honua-server#1279).");
 
-    [Fact]
-    public void List_WhenBindingMissing_RendersMissingBindingSurface()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void List_WhenBindingMissing_RendersMissingBindingSurface(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             RegistryLoad = new CatalogDiscoveryRegistryLoad(null, [MissingBinding])
         };
 
-        var page = RenderList(data);
+        var page = RenderList(data, options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("Catalog discovery endpoints are not bound", page.Markup, StringComparison.Ordinal),
@@ -33,15 +35,17 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.DoesNotContain("data-catalogs-grid", page.Markup, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void List_Loaded_RendersEndpointCardsWithDefaultOnVsOptInDistinction()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void List_Loaded_RendersEndpointCardsWithDefaultOnVsOptInDistinction(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
         };
 
-        var page = RenderList(data);
+        var page = RenderList(data, options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
@@ -66,6 +70,15 @@ public sealed class CatalogsDiscoveryPageRenderTests
         // Aggregate counts strip.
         Assert.Contains("2 catalogs auto-default-on", page.Markup, StringComparison.Ordinal);
         Assert.Contains("3 opt-in", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
+        if (enabled)
+        {
+            Assert.Equal(5, page.FindAll(".console-panel-heading h2").Count);
+            Assert.Equal(3, page.FindAll(".console-metric-tile").Count);
+            Assert.Empty(page.FindAll(".console-overview-card"));
+            CatalogAdminPreview.CaptureV4("catalog-discovery-v4", page.Markup);
+        }
+
     }
 
     [Fact]
@@ -317,8 +330,10 @@ public sealed class CatalogsDiscoveryPageRenderTests
             TimeSpan.FromSeconds(5));
     }
 
-    [Fact]
-    public void List_WithWorkspaceQuery_PreservesWorkspaceOnDrillDownLinks()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void List_WithWorkspaceQuery_PreservesWorkspaceOnDrillDownLinks(bool enabled)
     {
         // Regression: a non-default workspace (e.g. /operate/catalogs?workspace=tenant-a) must carry the
         // ?workspace= query through the "Browse items" drill-down so the detail page does not default the
@@ -328,7 +343,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
             RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
         };
 
-        var page = RenderList(data, workspace: "tenant-a");
+        var page = RenderList(data, workspace: "tenant-a", options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
@@ -402,10 +417,11 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
     }
 
-    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null)
+    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         NavigateToWorkspace(ctx, "operate/catalogs", workspace);
         return ctx.Render<CatalogsListPage>();
     }
