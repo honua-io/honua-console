@@ -14,16 +14,23 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ApiKeySessionLifetimeTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void SessionChangeErasesAnAlreadyDisplayedSecret(bool reauthenticate)
+    [Fact]
+    public void SignOutErasesAnAlreadyDisplayedSecret()
     {
         using var context = new BunitContext();
         var session = Register(context);
         var page = CreateKey(context);
-        if (reauthenticate) SignIn(session, null);
-        else session.Clear();
+        session.Clear();
+        AssertCleared(page);
+    }
+
+    [Fact]
+    public void ReauthenticationErasesAnAlreadyDisplayedSecret()
+    {
+        using var context = new BunitContext();
+        var session = Register(context);
+        var page = CreateKey(context);
+        SignIn(session, null);
         AssertCleared(page);
     }
 
