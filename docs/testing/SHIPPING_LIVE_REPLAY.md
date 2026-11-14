@@ -16,6 +16,13 @@ reads, CSRF rejection, successful sign-out and session revocation. The artifact
 contains source-run metadata, input identities, logs and page screenshots.
 Browser traces are disabled because they can retain credentials and cookies.
 
+The disposable database also receives a one-feature service fixture compiled
+with the selected server source's metadata snapshot helper. The browser opens
+its Protocols tab, checks that displayed endpoints use the public HTTPS origin,
+and queries the displayed FeatureServer URL for the seeded count. This setup
+does not exercise service publication or approval. Its data and metadata are
+removed with the temporary stack.
+
 For local replay, install the locked dependencies in `e2e/playwright` and Chromium,
 then run from the repository root on a Docker host:
 
@@ -31,8 +38,9 @@ The host needs free quickstart ports (including 18083) and its default Docker
 subnet. The stack and generated password are removed on exit. Honua lanes run
 this through `remote-run` on the build host.
 
-A green diagnostic run against source-built images is not a release-candidate
-pass. Record a candidate pass only with the certified release's immutable image
-and bundle identities. This password-session journey does not cover OIDC,
+A green diagnostic run against source-built images is not independent verification.
+For ticket verification, use a verification cohort with immutable image and bundle
+identities and record the cohort and evidence; a cohort needs no release certification.
+Release gate acceptance still requires its recorded live pass. This password-session journey does not cover OIDC,
 publication approval or the other release journeys; approval requires an
 interactive OIDC session.
