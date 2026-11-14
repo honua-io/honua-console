@@ -154,35 +154,36 @@
         finally { if (generation == _generation) { _busy = false; } }
     }
 
-    private async Task AcknowledgeAsync(long eventId)
+    private Task AcknowledgeAsync(long eventId) => RunMutationAsync(eventId, async (client, snapshot) =>
     {
-        if (_busy || Client is not { } client || _result.Value is not { } snapshot) { return; }
-        var generation = _generation;
-        _busy = true;
-        _actionMessage = null;
-        try
+        var key = (snapshot.Authority, eventId);
+        if (!_requestIds.TryGetValue(key, out var requestId))
         {
-            var key = (snapshot.Authority, eventId);
-            if (!_requestIds.TryGetValue(key, out var requestId))
-            {
-                _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
-            }
-            var result = await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
-            if (generation != _generation) { return; }
-            if (result.IsAllowed && result.Value is { } updated)
-            {
-                _requestIds.Remove(key);
-                var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
-                _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
-                _actionMessage = "Honua recorded that you have seen this alert. The underlying problem may still need attention.";
-            }
-            else { _actionMessage = result.Message; }
+            _requestIds[key] = requestId = Guid.NewGuid().ToString("N");
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        finally { if (generation == _generation) { _busy = false; } }
-    }
+        return await client.AcknowledgeAlertAsync(new(eventId, snapshot.Authority, requestId), _lifetime.Token);
+    }, "Honua recorded that you have seen this alert. The underlying problem may still need attention.",
+        lifecycleChange: false);
 
-    private async Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action)
+    private Task ChangeLifecycleAsync(long eventId, ConsoleAlertLifecycleAction action) => RunMutationAsync(eventId, async (client, snapshot) =>
+    {
+        var key = (snapshot.Authority, eventId, action);
+        if (!_lifecycleCommands.TryGetValue(key, out var command))
+        {
+            command = new(eventId, snapshot.Authority, Guid.NewGuid().ToString("N"), action,
+                action == ConsoleAlertLifecycleAction.Snooze
+                    ? ConsoleAlertLifecycleCommand.NormalizeDeadline(DateTimeOffset.UtcNow.AddHours(1)) : null);
+            _lifecycleCommands[key] = command;
+        }
+        return await client.ChangeAlertLifecycleAsync(command, _lifetime.Token);
+    }, action == ConsoleAlertLifecycleAction.Snooze
+        ? "Honua recorded the snooze. The underlying problem may still need attention."
+        : "Honua marked this alert resolved. This does not confirm that the underlying problem is fixed.",
+        lifecycleChange: true);
+
+    private async Task RunMutationAsync(long eventId,
+        Func<IConsoleAlertInboxClient, ConsoleAlertInboxSnapshot, Task<OperateSectionResult<ObservabilityAlertEventResponse>>> mutate,
+        string confirmation, bool lifecycleChange)
     {
         if (_busy || Client is not { } client || _result.Value is not { } snapshot) { return; }
         var generation = _generation;
@@ -190,23 +191,22 @@
         _actionMessage = null;
         try
         {
-            var key = (snapshot.Authority, eventId, action);
-            if (!_lifecycleCommands.TryGetValue(key, out var command))
-            {
-                command = new(eventId, snapshot.Authority, Guid.NewGuid().ToString("N"), action,
-                    action == ConsoleAlertLifecycleAction.Snooze ? DateTimeOffset.UtcNow.AddHours(1) : null);
-                _lifecycleCommands[key] = command;
-            }
-            var result = await client.ChangeAlertLifecycleAsync(command, _lifetime.Token);
+            var result = await mutate(client, snapshot);
             if (generation != _generation) { return; }
             if (result.IsAllowed && result.Value is { } updated)
             {
-                _lifecycleCommands.Remove(key);
+                if (lifecycleChange)
+                {
+                    // A confirmed transition supersedes uncertain transitions for this event.
+                    foreach (var action in Enum.GetValues<ConsoleAlertLifecycleAction>())
+                    {
+                        _lifecycleCommands.Remove((snapshot.Authority, eventId, action));
+                    }
+                }
+                if (updated.AcknowledgedAt is not null) { _requestIds.Remove((snapshot.Authority, eventId)); }
                 var page = snapshot.Page with { Items = snapshot.Page.Items.Select(item => item.EventId == eventId ? updated : item).ToArray() };
                 _result = OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(snapshot with { Page = page });
-                _actionMessage = action == ConsoleAlertLifecycleAction.Snooze
-                    ? "Honua recorded the snooze. The underlying problem may still need attention."
-                    : "Honua marked this alert resolved. This does not confirm that the underlying problem is fixed.";
+                _actionMessage = confirmation;
             }
             else { _actionMessage = result.Message; }
         }

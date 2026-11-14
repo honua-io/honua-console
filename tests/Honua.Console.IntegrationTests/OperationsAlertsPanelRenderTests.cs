@@ -149,6 +149,43 @@ public sealed class OperationsAlertsPanelRenderTests
     }
 
     [Fact]
+    public void ConfirmedSnoozeRetiresAnUncertainResolveIdentity()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        var stored = client.Page.Items[0];
+        var consumed = new HashSet<string>();
+        client.MutateLifecycle = command =>
+        {
+            if (consumed.Add(command.RequestId))
+            {
+                stored = stored with
+                {
+                    SuppressedUntil = command.SuppressUntil,
+                    ResolvedAt = command.Action == ConsoleAlertLifecycleAction.Resolve ? DateTimeOffset.UtcNow : null
+                };
+                if (consumed.Count == 1)
+                {
+                    return OperateSectionResult<ObservabilityAlertEventResponse>.Denied(
+                        OperateSectionStatus.Unavailable, "Response lost after commit.");
+                }
+            }
+            return OperateSectionResult<ObservabilityAlertEventResponse>.Allowed(stored);
+        };
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.Find("[data-resolve-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Contains("Response lost", panel.Markup));
+        panel.Find("[data-snooze-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-snoozed]")));
+        Assert.Equal(0, client.LifecycleCommands[1].SuppressUntil!.Value.Ticks % 10);
+        panel.Find("[data-resolve-alert]").Click();
+        panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-resolve-alert]")));
+        Assert.Equal(3, consumed.Count);
+        Assert.NotEqual(client.LifecycleCommands[0].RequestId, client.LifecycleCommands[2].RequestId);
+    }
+
+    [Fact]
     public void RefreshConfirmationRetiresAnUncertainSnoozeBeforeAnotherOccurrence()
     {
         using var context = new BunitContext();
@@ -212,11 +249,13 @@ public sealed class OperationsAlertsPanelRenderTests
         }
 
         public List<ConsoleAlertLifecycleCommand> LifecycleCommands { get; } = [];
+        public Func<ConsoleAlertLifecycleCommand, OperateSectionResult<ObservabilityAlertEventResponse>>? MutateLifecycle { get; set; }
 
         public Task<OperateSectionResult<ObservabilityAlertEventResponse>> ChangeAlertLifecycleAsync(
             ConsoleAlertLifecycleCommand command, CancellationToken cancellationToken = default)
         {
             LifecycleCommands.Add(command);
+            if (MutateLifecycle is { } mutate) { return Task.FromResult(mutate(command)); }
             return Task.FromResult(Confirm
                 ? OperateSectionResult<ObservabilityAlertEventResponse>.Allowed(Page.Items[0] with
                 {

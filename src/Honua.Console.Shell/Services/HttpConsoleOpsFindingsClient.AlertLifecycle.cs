@@ -12,6 +12,10 @@ public sealed partial class HttpConsoleOpsFindingsClient
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(command.EventId);
         ArgumentException.ThrowIfNullOrWhiteSpace(command.RequestId);
         if (!Enum.IsDefined(command.Action)) { throw new ArgumentOutOfRangeException(nameof(command)); }
+        if (command.SuppressUntil is { } deadline)
+        {
+            command = command with { SuppressUntil = ConsoleAlertLifecycleCommand.NormalizeDeadline(deadline) };
+        }
         var now = DateTimeOffset.UtcNow;
         if (command.Action == ConsoleAlertLifecycleAction.Snooze &&
             (command.SuppressUntil is not { } until || until <= now || until > now.AddDays(7)))

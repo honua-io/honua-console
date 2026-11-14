@@ -12,7 +12,7 @@ public sealed partial class ConsoleOpsFindingsClientTests
     [InlineData(ConsoleAlertLifecycleAction.Resolve)]
     public async Task AlertLifecycleUsesOperatorAndConfirmsTheMatchingServerState(ConsoleAlertLifecycleAction action)
     {
-        var until = DateTimeOffset.UtcNow.AddHours(1);
+        var until = ConsoleAlertLifecycleCommand.NormalizeDeadline(DateTimeOffset.UtcNow.AddHours(1)).AddTicks(7);
         var requests = new List<string>();
         var handler = new AlertLifecycleHandler(async request =>
         {
@@ -26,7 +26,7 @@ public sealed partial class ConsoleOpsFindingsClientTests
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
                 if (action == ConsoleAlertLifecycleAction.Snooze)
                 {
-                    Assert.Equal(until, body.RootElement.GetProperty("suppressUntil").GetDateTimeOffset());
+                    Assert.Equal(ConsoleAlertLifecycleCommand.NormalizeDeadline(until), body.RootElement.GetProperty("suppressUntil").GetDateTimeOffset());
                 }
                 response = response with
                 {
