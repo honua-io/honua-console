@@ -50,6 +50,50 @@ test('audience and definition links appear only for a confirmed publication in i
     assert.equal(session.audienceLinks(), undefined);
 });
 
+for (const outcome of ['success', 'denied', 'session-changed', 'map-changed', 'pending']) {
+    test(`definition read uses the captured cross-origin bearer and handles ${outcome}`, async () => {
+        const { session, app } = fixture();
+        await session.review('version'); await session.submit(input);
+        if (outcome !== 'pending') {
+            app.publishWorkspaceVersion = async () => ({ status: 'accepted', itemId: 'item', versionId: 'version', requestId: 'request' });
+            await session.retry();
+        }
+        const previous = { api: globalThis.honuaConsoleApiBase,
+            authorize: globalThis.honuaConsoleCaptureResourceAuthorization, fetch: globalThis.fetch };
+        const calls = [];
+        let current = true;
+        const authorization = url => ({ api: true, url, headers: { Authorization: 'Bearer operator' }, credentials: 'omit' });
+        authorization.current = () => current;
+        globalThis.honuaConsoleApiBase = 'https://api.example/honua/';
+        globalThis.honuaConsoleCaptureResourceAuthorization = () => authorization;
+        globalThis.fetch = async (url, options) => {
+            calls.push({ url, options });
+            return { ok: outcome !== 'denied', status: outcome === 'denied' ? 403 : 200,
+                async json() {
+                    if (outcome === 'session-changed') current = false;
+                    if (outcome === 'map-changed') app.workspaceDraftIdentity.draftId = 'another-map';
+                    return { title: 'Published parcels' };
+                } };
+        };
+        try {
+            if (outcome === 'success') assert.deepEqual(await session.readDefinition(), { title: 'Published parcels' });
+            else await assert.rejects(session.readDefinition(), outcome === 'denied' ? /403/
+                : outcome === 'pending' ? /Publish this map/ : /map or session changed/);
+            assert.equal(calls.length, outcome === 'pending' ? 0 : 1);
+            if (calls.length) {
+                assert.equal(calls[0].url, 'https://api.example/honua/api/v1/studio/published/maps/parcels?includeSources=true');
+                assert.deepEqual(calls[0].options.headers, { Authorization: 'Bearer operator', Accept: 'application/json' });
+                assert.equal(calls[0].options.credentials, 'omit');
+                assert.equal(calls[0].options.redirect, 'error');
+            }
+        } finally {
+            globalThis.honuaConsoleApiBase = previous.api;
+            globalThis.honuaConsoleCaptureResourceAuthorization = previous.authorize;
+            globalThis.fetch = previous.fetch;
+        }
+    });
+}
+
 for (const change of ['principal', 'environment', 'source-path', 'map']) {
     test(`pending publication permits independent work after changing ${change} and recovers on return`, async () => {
         const { session, app, calls } = fixture();

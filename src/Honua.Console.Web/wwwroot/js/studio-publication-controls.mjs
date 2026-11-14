@@ -1,6 +1,6 @@
 import { consoleHref } from './console-links.mjs';
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
-import { publishedMapPath } from './published-map-viewer.mjs';
+import { publishedMapPath, nativeViewerConnection, legacyViewerConnection } from './published-map-viewer.mjs';
 
 import { studioAuthority, studioResourceId as id } from './studio-workspace-authority.mjs';
 const audiences = new Set(['personal', 'team', 'organization', 'public']);
@@ -87,6 +87,22 @@ export class StudioPublicationSession {
         const apiBase = globalThis.honuaConsoleApiBase;
         return {map: consoleHref(path), definition: typeof apiBase === 'string'
             ? new URL(`api/v1/studio/published/${key}`, apiBase).href : `/api/studio/viewer/published/${key}`};
+    }
+    async readDefinition() {
+        const context = this.viewContext(), links = this.audienceLinks();
+        if (!links) throw new Error('Publish this map before viewing its definition.');
+        const record = this.read();
+        const key = publishedMapPath(record.input.intent.route).slice('/maps/published/'.length);
+        const connect = typeof globalThis.honuaConsoleApiBase === 'string'
+            ? nativeViewerConnection() : legacyViewerConnection();
+        const connection = await connect(key);
+        const current = () => connection.current() && context === this.viewContext()
+            && this.audienceLinks()?.definition === links.definition;
+        if (!current()) throw new Error('The selected map or session changed.');
+        if (!connection.response.ok) throw new Error(`The map definition could not be read (${connection.response.status}).`);
+        const definition = await connection.response.json();
+        if (!current()) throw new Error('The selected map or session changed.');
+        return definition;
     }
     async review(versionId) {
         if (this.read()) throw new Error('Resolve the original publication before starting another.');
@@ -237,22 +253,24 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
     const inbox = document.createElement('a'); inbox.href = consoleHref('/inbox'); inbox.textContent = 'Review approvals';
     const openMap = document.createElement('a'); openMap.textContent = 'Open published map';
-    const definition = document.createElement('a'); definition.textContent = 'View map definition (JSON)';
-    for (const link of [openMap, definition]) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    const definition = document.createElement('button'); definition.type = 'button'; definition.textContent = 'View map definition (JSON)';
+    const definitionOutput = document.createElement('pre'); definitionOutput.hidden = true;
+    definitionOutput.setAttribute('aria-label', 'Published map definition');
+    openMap.target = '_blank'; openMap.rel = 'noopener noreferrer';
     const audienceActions = document.createElement('div'); audienceActions.className = 'console-action-row';
     audienceActions.append(openMap, definition);
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel publication review';
     for (const field of [route, audience, warning]) field.className = 'console-input';
     for (const label of [routeField, audienceField, warningField]) label.className = 'publish-field';
-    for (const button of [publish, retry, refresh, acknowledge, cancel]) button.className = 'console-button console-button-secondary';
+    for (const button of [publish, retry, refresh, acknowledge, cancel, definition]) button.className = 'console-button console-button-secondary';
     publish.className = 'console-button';
     const fields = document.createElement('div'); fields.className = 'publish-field-grid'; fields.append(routeField, audienceField);
     const actions = document.createElement('div'); actions.className = 'console-action-row'; actions.append(publish, cancel);
     form.append(summary, fields, sourceAccess, diagnostics, warningField, actions);
-    section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions);
+    section.append(notice, form, refresh, retry, acknowledge, inbox, audienceActions, definitionOutput);
     const canvas = host.querySelector('[data-studio-mount]');
     if (canvas) canvas.before(section); else host.append(section);
-    let busy = false, disposed = false, selectedContext, hasReview = false;
+    let busy = false, disposed = false, selectedContext, definitionValue, hasReview = false;
     const active = captured => {
         try { return !disposed && host.isConnected && app.isConnected && session.viewContext() === captured; }
         catch { return false; }
@@ -260,14 +278,15 @@ export function mountStudioPublicationControls({ app, host, status }) {
     function update() {
         if (disposed) return;
         form.hidden = retry.hidden = refresh.hidden = acknowledge.hidden = inbox.hidden = openMap.hidden = definition.hidden = true;
-        openMap.removeAttribute('href'); definition.removeAttribute('href');
+        openMap.removeAttribute('href');
+        definitionOutput.hidden = true; definitionOutput.textContent = '';
         if (!id(app.workspaceDraftIdentity?.draftId) || !['reviewWorkspacePublication', 'publishWorkspaceVersion', 'readWorkspacePublication']
             .every(name => typeof app[name] === 'function')) {
             section.hidden = true; hasReview = false; selectedContext = undefined; return;
         }
         try {
             const context = session.viewContext(), record = session.read();
-            if (selectedContext !== context) { hasReview = false; selectedContext = context; }
+            if (selectedContext !== context) { hasReview = false; definitionValue = undefined; selectedContext = context; }
             section.hidden = !record && !hasReview;
             notice.textContent = '';
             if (record) {
@@ -294,12 +313,16 @@ export function mountStudioPublicationControls({ app, host, status }) {
                     if (!inbox.hidden) inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`);
                     const links = session.audienceLinks();
                     if (links) {
-                        openMap.href = links.map; definition.href = links.definition;
+                        openMap.href = links.map;
                         openMap.hidden = definition.hidden = false;
+                        if (definitionValue !== undefined) {
+                            definitionOutput.textContent = definitionValue; definitionOutput.hidden = false;
+                        }
                     }
                 }
             } else form.hidden = !hasReview;
         } catch (error) { section.hidden = false; notice.textContent = error.message; }
+        if (definition.hidden) definitionValue = undefined;
         sourceAccess.hidden = form.hidden || audience.value !== 'public';
         if (sourceAccess.hidden) audience.removeAttribute('aria-describedby');
         else audience.setAttribute('aria-describedby', sourceAccess.id);
@@ -323,6 +346,14 @@ export function mountStudioPublicationControls({ app, host, status }) {
     audience.addEventListener('change', update);
     retry.addEventListener('click', () => void run(() => session.retry()));
     refresh.addEventListener('click', () => void run(() => session.refresh()));
+    definition.addEventListener('click', () => {
+        definitionValue = undefined;
+        void run(async current => {
+            const value = await session.readDefinition();
+            if (!current()) return;
+            definitionValue = JSON.stringify(value, null, 2);
+        });
+    });
     acknowledge.addEventListener('click', () => void run(() => { session.acknowledge(); hasReview = false; }));
     cancel.addEventListener('click', () => { if (!busy) { hasReview = false; update(); } });
     app.addEventListener('honua-workspace-draft-change', update);

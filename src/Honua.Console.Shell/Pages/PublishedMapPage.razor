@@ -98,7 +98,7 @@ else
                 var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/published-map-viewer.mjs");
                 if (_disposed || _module is not null)
                 {
-                    await DisposeQuietlyAsync(module, dispose: false);
+                    await ReleaseReferenceAsync(module);
                 }
                 else
                 {
@@ -114,7 +114,7 @@ else
             var viewer = await _module.InvokeAsync<IJSObjectReference>("mountPublishedMap", _host);
             if (!IsLatest())
             {
-                await DisposeQuietlyAsync(viewer, dispose: true);
+                await StopViewerAsync(viewer);
                 return;
             }
 
@@ -136,24 +136,28 @@ else
     {
         var viewer = _viewer;
         _viewer = null;
-        await DisposeQuietlyAsync(viewer, dispose: true);
+        await StopViewerAsync(viewer);
     }
 
-    private static async Task DisposeQuietlyAsync(IJSObjectReference? reference, bool dispose)
+    private static async Task StopViewerAsync(IJSObjectReference? viewer)
     {
-        if (reference is null)
+        if (viewer is null)
         {
             return;
         }
 
+        await IgnoreInteropShutdownAsync(() => viewer.InvokeVoidAsync("dispose"));
+        await ReleaseReferenceAsync(viewer);
+    }
+
+    private static Task ReleaseReferenceAsync(IJSObjectReference? reference)
+        => reference is null ? Task.CompletedTask : IgnoreInteropShutdownAsync(reference.DisposeAsync);
+
+    private static async Task IgnoreInteropShutdownAsync(Func<ValueTask> shutdown)
+    {
         try
         {
-            if (dispose)
-            {
-                await reference.InvokeVoidAsync("dispose");
-            }
-
-            await reference.DisposeAsync();
+            await shutdown();
         }
         catch (Exception exception) when (exception is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
         {
@@ -164,7 +168,7 @@ else
     {
         _disposed = true;
         await ReleaseViewerAsync();
-        await DisposeQuietlyAsync(_module, dispose: false);
+        await ReleaseReferenceAsync(_module);
         _module = null;
     }
 }
