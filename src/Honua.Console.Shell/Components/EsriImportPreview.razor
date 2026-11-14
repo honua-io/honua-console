@@ -1,0 +1,33 @@
+@namespace Honua.Console.Shell.Components
+@inject IServiceProvider ServiceProvider
+
+@* Target preview beside a source-content mapping: a v4 panel, or the legacy aside with its kicker head. *@
+@if (V4Enabled)
+{
+    <div class="esri-import__preview-v4" data-esri-target-preview>
+        <ConsolePanel Title="@Title" HeadingId="esri-target-preview-heading">
+            @Head
+            @ChildContent
+        </ConsolePanel>
+    </div>
+}
+else
+{
+    <aside class="esri-import__preview" data-esri-target-preview>
+        <div class="esri-import__preview-head">
+            <span class="console-kicker">@Title</span>
+            @Head
+        </div>
+        @ChildContent
+    </aside>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public RenderFragment? Head { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool V4Enabled => ServiceProvider.GetService<Models.ConsoleV4Options>()?.Enabled == true;
+}
