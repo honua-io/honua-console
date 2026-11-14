@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// SHIM(honua-server#1184 / honua-sdk-dotnet#166): honua-server owns the form
+// honua-server owns the form
 // content/publication contract (FormPackage* records in Honua.Core.Features.Forms.Packages,
 // admin lifecycle under /api/v1/admin/forms/packages and runtime offline-policy under
 // /api/v1/forms/packages). honua-sdk-dotnet does not yet project these as a consumable stable
@@ -15,7 +15,7 @@ namespace Honua.Console.Contracts;
 // form authoring surface binds through a thin HttpClient behind this single Honua.Console.Contracts
 // boundary: the wire records below mirror the server document graph, and the client speaks the
 // real admin lifecycle. Do not add a sibling-repo ProjectReference. Swap these for SDK types when
-// honua-sdk-dotnet ships a consumable form-package projection and honua-console#7 wires the feed.
+// honua-sdk-dotnet ships a consumable form-package projection and the Console wires the feed.
 //
 // The form authoring routes are admin routes, so this client reuses the shared
 // HonuaAdminEndpointResult<T>/HonuaAdminEndpointIssue envelope (defined in OperateAdminShims.cs).
