@@ -1,7 +1,7 @@
 @using Honua.Console.Shell.Services
 
 <div class="console-panel operate-status-panel @StateClass">
-    <HonuaState Kind="@StateKind" Kicker="@Heading" Title="@ResolvedTitle" Message="@ResolvedMessage" HeadingLevel="3"
+    <HonuaState Kind="@StateKind" Kicker="@Heading" Title="@ResolvedTitle" Message="@ResolvedMessage" HeadingLevel="@HeadingLevel"
                 Treatment="@(Status == OperateSectionStatus.Unsupported ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)">
         @if (!Loading && !Empty && !string.IsNullOrWhiteSpace(Detail))
         {
@@ -13,6 +13,9 @@
 @code {
     [Parameter, EditorRequired]
     public required string Heading { get; set; }
+
+    [Parameter]
+    public int HeadingLevel { get; set; } = 3;
 
     [Parameter]
     public bool Loading { get; set; }

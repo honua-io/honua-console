@@ -10,7 +10,7 @@
     </ConsolePageHeading>
     @if (_readIssue is not null)
     {
-        <OperateSectionStatusPanel Heading="API keys" Status="@ReadStatus" Message="@_readIssue.Detail" />
+        <OperateSectionStatusPanel Heading="API keys" HeadingLevel="2" Status="@ReadStatus" Message="@_readIssue.Detail" />
     }
     @if (_issue is not null)
     {

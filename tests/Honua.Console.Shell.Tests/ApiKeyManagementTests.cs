@@ -60,6 +60,7 @@ public sealed class ApiKeyManagementTests
         fixture.Handler.Status = response;
         var page = fixture.Context.Render<OperateApiKeysPage>();
         page.WaitForAssertion(() => Assert.Equal(expected, page.FindComponent<OperateSectionStatusPanel>().Instance.Status));
+        Assert.Single(page.FindAll(".operate-status-panel h2"));
         Assert.Empty(page.FindAll("form"));
         Assert.DoesNotContain("No API keys", page.Markup);
         V4PagePreview.Capture("api-keys-denied", page.Markup);
@@ -119,6 +120,7 @@ public sealed class ApiKeyManagementTests
     {
         Assert.Equal(OperateSectionStatus.Unsupported, page.FindComponent<OperateSectionStatusPanel>().Instance.Status);
         Assert.Equal(ConsoleStateTreatment.Informational, page.FindComponent<HonuaState>().Instance.Treatment);
+        Assert.Single(page.FindAll(".operate-status-panel h2"));
         Assert.Empty(page.FindAll(".console-state-error"));
         Assert.Empty(page.FindAll("form"));
     }
