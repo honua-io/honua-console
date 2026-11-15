@@ -2,9 +2,8 @@
 @using Honua.Console.Shell.Models
 
 @*
-    Reusable multi-step publish-wizard shell, mirroring the design-handoff wizard chrome in
-    screens-quick-publish.jsx (Service → Layer → Review) and screens-publish-flow.jsx
-    (Target → Compatibility → Slot → Fields → Projection → Access → Review).
+    Reusable multi-step publish-wizard shell for the quick flow (Service → Layer → Review)
+    and the author-first flow (Target → Compatibility → Slot → Fields → Projection → Access → Review).
 
     It composes the existing PublishStepper for the labelled step rail, renders the current step's
     body in a slot, and provides ←/→ footer navigation with per-step validity gating: the forward
