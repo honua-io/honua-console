@@ -271,7 +271,7 @@ real HTTP transport cannot silently accept a drifted payload:
 - **`publish-handoff/v1.1.0`** — The fixture at
   [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
   matches every top-level required field in
-  [`publish-handoff-v1.json`](https://github.com/honua-io/honua-portal/blob/main/schemas/publish-handoff-v1.json):
+  [`publish-handoff-v1.json`](https://github.com/honua-io/honua-portal/blob/trunk/schemas/publish-handoff-v1.json):
   `type, title, summary, owner, extent, nativeCrs, license, attribution,
   source, target, endpoints, preview, capabilities, dependencies, access`.
   `source.kind` is restricted to the enum (`import|publish|admin-job|external`),
