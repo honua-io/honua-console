@@ -63,7 +63,7 @@ public sealed class OptionalFeatureAvailabilityTests
         var panel = context.Render<OperateSectionStatusPanel>(parameters => parameters
             .Add(p => p.Heading, "Optional feature").Add(p => p.Status, status));
         Assert.Single(panel.FindAll($".console-state-{expectedTreatment}"));
-        Assert.Equal(1, panel.FindAll(".console-state-informational, .console-state-denied").Count);
+        Assert.Single(panel.FindAll(".console-state-informational, .console-state-denied"));
     }
 
     [Theory]
