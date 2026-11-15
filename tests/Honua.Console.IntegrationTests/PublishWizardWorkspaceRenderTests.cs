@@ -388,6 +388,35 @@ public sealed class PublishWizardWorkspaceRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QuickPublish_RemainsBusyDuringAuthorityCapture(bool enabled)
+    {
+        var pending = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var authority = new PublishingAuthority { PendingCapture = pending.Task };
+        var publish = new RecordingPublishOperation();
+        using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        var cut = ctx.Render<OperatePublishLayerPage>();
+        cut.Find("[data-workspace-field='connectionId']").Change("conn-a");
+        cut.Find("[data-workspace-field='table']").Change("hydro.streams");
+        cut.Find("[data-workspace-field='serviceName']").Input("new-service");
+        var first = cut.InvokeAsync(() => cut.Find("[data-workspace-publish]").ClickAsync(new MouseEventArgs()));
+        cut.WaitForAssertion(() => Assert.Equal(1, authority.Captures));
+        var busyDuringCapture = cut.Find("[data-workspace-publish]").HasAttribute("disabled");
+        // Dispatch a queued click even though the rendered button should already be disabled.
+        var second = cut.InvokeAsync(() => cut.Find("[data-workspace-publish]").TriggerEventAsync("onclick", new MouseEventArgs()));
+        var captures = authority.Captures;
+        pending.SetResult("reviewed-environment");
+        await Task.WhenAll(first, second);
+        Assert.True(busyDuringCapture);
+        Assert.Equal(1, captures);
+        Assert.Single(publish.Commands);
+        Assert.False(cut.Find("[data-workspace-publish]").HasAttribute("disabled"));
+    }
+
     private sealed class PublishingFolders : IConsoleFolderClient
     {
         public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
@@ -404,10 +433,11 @@ public sealed class PublishWizardWorkspaceRenderTests
         public bool Current { get; set; } = true;
         public string? Binding { get; set; } = "reviewed-environment";
         public int Captures { get; private set; }
+        public Task<string?>? PendingCapture { get; init; }
         public Task<string?> CaptureAsync(CancellationToken cancellationToken = default)
         {
             Captures++;
-            return Task.FromResult(Binding);
+            return PendingCapture ?? Task.FromResult(Binding);
         }
         public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) => Task.FromResult(Current && binding == "reviewed-environment");
     }
