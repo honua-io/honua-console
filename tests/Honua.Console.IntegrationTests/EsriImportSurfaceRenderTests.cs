@@ -72,7 +72,9 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Equal(4, cut.FindAll("tbody tr.esri-mapping__row").Count);
 
         // "issues only" hides the clean row.
+        Assert.Equal(new string?[] { "true", "false" }, cut.FindAll("button.esri-mapping__filter").Select(b => b.GetAttribute("aria-pressed")).ToArray());
         cut.FindAll("button.esri-mapping__filter").Single(b => b.TextContent.Contains("issues only", StringComparison.Ordinal)).Click();
+        Assert.Equal(new string?[] { "false", "true" }, cut.FindAll("button.esri-mapping__filter").Select(b => b.GetAttribute("aria-pressed")).ToArray());
         Assert.Equal(3, cut.FindAll("tbody tr.esri-mapping__row").Count);
         Assert.DoesNotContain("esri-mapping__row--clean", cut.Markup, StringComparison.Ordinal);
     }
@@ -92,6 +94,7 @@ public sealed class EsriImportSurfaceRenderTests
         Assert.Contains("Upload file", page.Markup, StringComparison.Ordinal);
         Assert.Contains("From URL / item ID", page.Markup, StringComparison.Ordinal);
         Assert.Contains("From connected source", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(new string?[] { "true", "false", "false", "false" }, page.FindAll("[data-intake-mode]").Select(t => t.GetAttribute("aria-selected")).ToArray());
 
         // Default state is the empty intake — no preloaded sample masquerading as the user's import.
         Assert.DoesNotContain("Layer mapping", page.Markup, StringComparison.Ordinal);
