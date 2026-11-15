@@ -13,6 +13,8 @@ root endpoint service stays outside the folder. The compiler creates the
 metadata snapshot. The fixture also registers the quickstart database using its
 existing `env:ConnectionStrings__DefaultConnection` secret reference, so the
 connection-based navigation tree can discover the layer without copied credentials.
+The harness allows that single environment reference through a Compose override
+inside the disposable package before startup.
 `shipping-folder.sql` adds membership and refreshes
 the snapshot and current-pointer ETags before the server restarts. This setup
 does not exercise folder creation, import, publication approval, or mutation APIs.
