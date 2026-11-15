@@ -66,17 +66,35 @@ public sealed class OptionalFeatureAvailabilityTests
         Assert.Equal(1, panel.FindAll(".console-state-informational, .console-state-denied").Count);
     }
 
-    [Fact]
-    public async Task MissingCatalogRegistryIsNotConfiguredButIndividualEndpointsRemainMissing()
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.NotImplemented)]
+    public async Task MissingCatalogRegistryIsNotConfiguredButIndividualEndpointsRemainMissing(HttpStatusCode code)
     {
-        using var client = new HonuaCatalogDiscoveryHttpClient(Http(HttpStatusCode.NotFound),
+        using var client = new HonuaCatalogDiscoveryHttpClient(Http(code),
             new HonuaCatalogDiscoveryClientOptions(new Uri("https://server.example")));
         var source = new HonuaServerCatalogDiscoveryDataSource(client);
         var registry = await source.LoadRegistryAsync("current");
         var state = Assert.Single(registry.CapabilityStates);
         Assert.Equal("Not configured", state.State);
         Assert.Contains("Console:CatalogDiscovery:Workspaces", state.Detail);
-        Assert.DoesNotContain("404", state.Detail);
+        Assert.DoesNotContain(((int)code).ToString(System.Globalization.CultureInfo.InvariantCulture), state.Detail);
+        var endpoint = await source.LoadEndpointAsync("current", "ogc");
+        Assert.NotEqual("Not configured", Assert.Single(endpoint.CapabilityStates).State);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task CatalogRegistryFailuresKeepDiagnostics(HttpStatusCode code)
+    {
+        using var client = new HonuaCatalogDiscoveryHttpClient(Http(code),
+            new HonuaCatalogDiscoveryClientOptions(new Uri("https://server.example")));
+        var source = new HonuaServerCatalogDiscoveryDataSource(client);
+        var registry = await source.LoadRegistryAsync("current");
+        var state = Assert.Single(registry.CapabilityStates);
+        Assert.NotEqual("Not configured", state.State);
+        Assert.Contains($"HTTP {(int)code}", state.Detail);
         var endpoint = await source.LoadEndpointAsync("current", "ogc");
         Assert.NotEqual("Not configured", Assert.Single(endpoint.CapabilityStates).State);
     }
