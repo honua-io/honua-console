@@ -9,6 +9,20 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ConsoleSensorThingsClientTests
 {
     [Fact]
+    public async Task AbsentCollectionsOfferSetupGuidanceButMissingRecordsRemainMissing()
+    {
+        var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var things = await client.ListThingsAsync();
+        var streams = await client.ListDatastreamsAsync();
+        Assert.Equal(SensorThingsReadStatus.Unsupported, things.Status);
+        Assert.Equal(SensorThingsReadStatus.Unsupported, streams.Status);
+        Assert.Contains("enable SensorThings", things.Message);
+        Assert.Equal(SensorThingsReadStatus.Missing, (await client.GetDatastreamAsync(99)).Status);
+        Assert.Equal(SensorThingsReadStatus.Missing, (await client.ListDatastreamObservationsAsync(99)).Status);
+    }
+
+
+    [Fact]
     public async Task ListDatastreams_ReadsStaCollectionEndpoint()
     {
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch

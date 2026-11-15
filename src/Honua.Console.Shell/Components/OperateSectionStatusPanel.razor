@@ -1,7 +1,8 @@
 @using Honua.Console.Shell.Services
 
 <div class="console-panel operate-status-panel @StateClass">
-    <HonuaState Kind="@StateKind" Kicker="@Heading" Title="@ResolvedTitle" Message="@ResolvedMessage" HeadingLevel="3">
+    <HonuaState Kind="@StateKind" Kicker="@Heading" Title="@ResolvedTitle" Message="@ResolvedMessage" HeadingLevel="3"
+                Treatment="@(Status == OperateSectionStatus.Unsupported ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)">
         @if (!Loading && !Empty && !string.IsNullOrWhiteSpace(Detail))
         {
             <ConsoleDiagnostics Detail="@Detail" />
@@ -34,7 +35,7 @@
     [Parameter]
     public string EmptyMessage { get; set; } = "The connected server returned no records for this surface.";
 
-    private string StateKind => Loading ? "loading" : Empty ? "empty" : "denied";
+    private string StateKind => Loading ? "loading" : Empty ? "empty" : Status == OperateSectionStatus.Unsupported ? "missing" : "denied";
 
     private string StateClass => $"operate-status-{StateKind}";
 
