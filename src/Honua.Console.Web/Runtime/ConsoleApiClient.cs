@@ -127,8 +127,7 @@ public sealed class BrowserAuthenticationStateProvider(
                 if (api.CapturesManagementBearer)
                 {
                     var bearer = await api.GetPasswordTokenAsync(password, cancellationToken);
-                    session.Set(new ClaimsPrincipal(new ClaimsIdentity()), new ConsoleSessionCredentials(
-                        csrf, ManagementAccessToken: bearer.AccessToken, ManagementExpiresAt: bearer.ExpiresAt));
+                    session.RememberManagementBearer(bearer.AccessToken!, bearer.ExpiresAt);
                 }
             }
             else
@@ -148,8 +147,10 @@ public sealed class BrowserAuthenticationStateProvider(
     public async Task PrepareCookieRequestAsync(CancellationToken cancellationToken = default)
     {
         var csrf = await api.GetCsrfAsync(cancellationToken);
-        session.Set(session.Principal, new ConsoleSessionCredentials(
-            csrf, session.AccessToken, session.ExpiresAt, session.ManagementAccessToken, session.ManagementExpiresAt));
+        var managementToken = session.ManagementAccessToken;
+        var managementExpiry = session.ManagementExpiresAt;
+        session.Set(session.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, session.ExpiresAt));
+        if (!string.IsNullOrWhiteSpace(managementToken)) session.RememberManagementBearer(managementToken, managementExpiry);
     }
 
     private async Task LoadAuthenticatedStateAsync()
@@ -183,8 +184,10 @@ public sealed class BrowserAuthenticationStateProvider(
         {
             expiresAt = tokenExpiry;
         }
-        session.Set(result.Principal, new ConsoleSessionCredentials(
-            csrf, session.AccessToken, expiresAt, session.ManagementAccessToken, session.ManagementExpiresAt));
+        var managementToken = session.ManagementAccessToken;
+        var managementExpiry = session.ManagementExpiresAt;
+        session.Set(result.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, expiresAt));
+        if (!string.IsNullOrWhiteSpace(managementToken)) session.RememberManagementBearer(managementToken, managementExpiry);
         var principal = session.IsAuthenticated ? result.Principal : new ClaimsPrincipal(new ClaimsIdentity());
         if (session.IsAuthenticated)
         {

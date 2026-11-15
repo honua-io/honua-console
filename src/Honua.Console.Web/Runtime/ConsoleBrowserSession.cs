@@ -51,8 +51,8 @@ public sealed class ConsoleBrowserSession
         CsrfToken = credentials?.CsrfToken;
         AccessToken = credentials?.AccessToken;
         ExpiresAt = credentials?.ExpiresAt;
-        ManagementAccessToken = credentials?.ManagementAccessToken;
-        ManagementExpiresAt = credentials?.ManagementExpiresAt;
+        ManagementAccessToken = null;
+        ManagementExpiresAt = null;
         liveAnnouncement = IsAuthenticated;
         Changed?.Invoke(CreateSnapshot());
     }
@@ -66,11 +66,16 @@ public sealed class ConsoleBrowserSession
         ExpiresAt);
 
     public void Clear() => Set(new ClaimsPrincipal(new ClaimsIdentity()));
+
+    internal void RememberManagementBearer(string token, DateTimeOffset? expiresAt)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        ManagementAccessToken = token;
+        ManagementExpiresAt = expiresAt;
+    }
 }
 
 public sealed record ConsoleSessionCredentials(
     string? CsrfToken = null,
     string? AccessToken = null,
-    DateTimeOffset? ExpiresAt = null,
-    string? ManagementAccessToken = null,
-    DateTimeOffset? ManagementExpiresAt = null);
+    DateTimeOffset? ExpiresAt = null);

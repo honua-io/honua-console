@@ -106,7 +106,8 @@ public sealed class BrowserApiTransportTests
         var recorder = new RecordingHandler();
         var origins = new BrowserApiOrigins(Api, App, new Uri("http://127.0.0.1:18082/"));
         var session = new ConsoleBrowserSession();
-        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf", ManagementAccessToken: "manager-token", ManagementExpiresAt: DateTimeOffset.UtcNow.AddMinutes(5)));
+        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        session.RememberManagementBearer("manager-token", DateTimeOffset.UtcNow.AddMinutes(5));
         using var client = Client(session, recorder, new BrowserTransportOptions(origins, BrowserApiAccess.Authenticated));
         await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(new Uri("http://127.0.0.1:18082/layers")));
         using var response = await client.PostAsync("layers", null);
@@ -120,7 +121,7 @@ public sealed class BrowserApiTransportTests
     public async Task CookieSignInCapturesAManagerBearerWithoutAttachingItToServingCalls()
     {
         var session = new ConsoleBrowserSession();
-        var handler = new SignInHandler(crossOrigin: false, captureManagementBearer: true);
+        var handler = new ManagerBearerSignInHandler();
         using var http = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(Api, App), session, BrowserApiAccess.Public) { InnerHandler = handler }) { BaseAddress = Api };
         var provider = new BrowserAuthenticationStateProvider(
             new ConsoleApiClient(http) { UsesCookieSession = true, CapturesManagementBearer = true },
@@ -320,7 +321,39 @@ public sealed class BrowserApiTransportTests
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
     }
 
-    private sealed class SignInHandler(bool crossOrigin, bool captureManagementBearer = false) : HttpMessageHandler
+    private sealed class ManagerBearerSignInHandler : HttpMessageHandler
+    {
+        private bool _signedIn;
+        private bool _tokenIssued;
+        public List<string> Paths { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.Segments.Last();
+            Paths.Add(path);
+            if (request.Method == HttpMethod.Post)
+            {
+                Assert.Equal(_signedIn ? "password-token" : "session", path);
+                using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+                Assert.Equal("fixture-password", body!.RootElement.GetProperty("password").GetString());
+                Assert.Null(request.Headers.Authorization);
+                Assert.Equal("anonymous-csrf", Assert.Single(request.Headers.GetValues("X-Honua-CSRF")));
+                if (_signedIn) _tokenIssued = true;
+                _signedIn = true;
+                return _tokenIssued
+                    ? Json(new { accessToken = "issued-bearer", tokenType = "Bearer", expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) })
+                    : new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            if (path == "csrf") return Json(new { requestToken = _signedIn ? "identified-csrf" : "anonymous-csrf" });
+            Assert.True(_signedIn);
+            Assert.Null(request.Headers.Authorization);
+            return Json(new { isAuthenticated = true, claims = new[] { new { type = ClaimTypes.NameIdentifier, value = "operator" } }, expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) });
+        }
+
+        private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK) { Content = JsonContent.Create(body) };
+    }
+
+    private sealed class SignInHandler(bool crossOrigin) : HttpMessageHandler
     {
         private bool _signedIn;
         public List<string> Paths { get; } = [];
@@ -331,7 +364,7 @@ public sealed class BrowserApiTransportTests
             Paths.Add(path);
             if (request.Method == HttpMethod.Post)
             {
-                Assert.Equal(crossOrigin || (captureManagementBearer && _signedIn) ? "password-token" : "session", path);
+                Assert.Equal(crossOrigin ? "password-token" : "session", path);
                 using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>(cancellationToken);
                 Assert.Equal("fixture-password", body!.RootElement.GetProperty("password").GetString());
                 Assert.Null(request.Headers.Authorization);
@@ -339,9 +372,8 @@ public sealed class BrowserApiTransportTests
                 {
                     Assert.Equal("anonymous-csrf", Assert.Single(request.Headers.GetValues("X-Honua-CSRF")));
                 }
-                var tokenRequest = path == "password-token";
                 _signedIn = true;
-                return tokenRequest ? Json(new { accessToken = "issued-bearer", tokenType = "Bearer", expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) })
+                return crossOrigin ? Json(new { accessToken = "issued-bearer", tokenType = "Bearer", expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) })
                     : new HttpResponseMessage(HttpStatusCode.NoContent);
             }
             if (path == "csrf")
