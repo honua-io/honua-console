@@ -210,7 +210,7 @@ export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = f
       await signInWithPassword(context);
       return;
     }
-    if (request.method === "POST" && context.pathname === "/api/v1/studio/mcp" && context.authorized) {
+    if (request.method === "POST" && context.pathname === "/mcp" && context.authorized) {
       let body = "";
       for await (const chunk of request) body += chunk;
       const rpc = JSON.parse(body);
@@ -219,6 +219,8 @@ export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = f
           protocolVersion: rpc.params.protocolVersion, capabilities: { tools: {} },
           serverInfo: { name: "published-layer-fixture", version: "1" },
         } });
+      } else if (rpc.method === "notifications/initialized") {
+        response.writeHead(202).end();
       } else if (rpc.method === "tools/call" && rpc.params.name === "honua_list_layers") {
         context.json({ jsonrpc: "2.0", id: rpc.id, result: { content: [], structuredContent: {
           layers: [{ serviceId: "roads", serviceName: "transport-roads", serviceLayerIndex: 2,

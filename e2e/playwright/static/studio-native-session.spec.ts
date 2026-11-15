@@ -31,7 +31,7 @@ for (const crossOrigin of [false, true]) {
         return app.studioClient.listPackages();
       })).toEqual([]);
       const catalog = page.waitForResponse(response => {
-        if (!response.url().endsWith('/api/v1/studio/mcp')) return false;
+        if (!response.url().endsWith('/mcp')) return false;
         return response.request().postDataJSON()?.method === 'tools/call';
       });
       expect(await page.evaluate(async () => {

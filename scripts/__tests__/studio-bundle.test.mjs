@@ -12,24 +12,26 @@ class Editor extends EventTarget {
     }
 }
 
-for (const failed of [false, true]) {
-    test(`renamed Studio save preserves lease and ${failed ? 'failure without retry' : 'result'}`, async () => {
-        const editor = connectStudioHost(new Editor());
-        trackStudioLeaseTurns(editor);
-        connectStudioHost(editor); // Reconnecting must not replace the lease-tracked alias.
-        const saved = editor.saveWorkspaceVersion('map-draft');
-        assert.equal(hasPendingStudioLeaseTurn(editor), true);
-        if (failed) {
-            const failure = new Error('draft conflict');
-            editor.fail(failure);
-            await assert.rejects(saved, error => error === failure);
-        } else {
-            editor.complete({ versionId: 'v1' });
-            assert.deepEqual(await saved, { versionId: 'v1' });
-        }
-        assert.equal(hasPendingStudioLeaseTurn(editor), false);
-        assert.equal(editor.calls, 1);
-    });
+for (const method of ['saveWorkspaceVersion', 'saveEditorVersion']) {
+    for (const failed of [false, true]) {
+        test(`Studio ${method} preserves lease and ${failed ? 'failure without retry' : 'result'}`, async () => {
+            const editor = connectStudioHost(new Editor());
+            trackStudioLeaseTurns(editor);
+            connectStudioHost(editor); // Reconnecting must not replace the lease-tracked alias.
+            const saved = editor[method]('map-draft');
+            assert.equal(hasPendingStudioLeaseTurn(editor), true);
+            if (failed) {
+                const failure = new Error('draft conflict');
+                editor.fail(failure);
+                await assert.rejects(saved, error => error === failure);
+            } else {
+                editor.complete({ versionId: 'v1' });
+                assert.deepEqual(await saved, { versionId: 'v1' });
+            }
+            assert.equal(hasPendingStudioLeaseTurn(editor), false);
+            assert.equal(editor.calls, 1);
+        });
+    }
 }
 
 test('renamed draft events reach the existing Console listener exactly once with original detail', () => {
