@@ -103,6 +103,7 @@ The current active shims are bounded to catalog/viewer/share route parity, Studi
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|
+| API-key list, create and revoke (`AdminApiKeyContracts.cs`, `AdminApiKeyClient.cs`) | .NET | honua-console#712 | honua-sdk-dotnet#531 merged; Honua.Sdk.Admin 3.0.0 is not a consumable nuget.org package (latest 2.2.0) | s-catalog-ui | honua-console#7 replaces these types with the published SDK models |
 | File-import validation issues (`HonuaAdminImportValidationIssue`: code, message, feature index and field) | .NET | file-import validation | honua-sdk-dotnet#166 | Operate | honua-console#7 replaces with the published SDK import projection |
 | Catalog search query and list request (`CatalogSearchState`, `CatalogListRequest`) | .NET | honua-console#34 | honua-sdk-dotnet#166 | Console | honua-console#7 |
 | Content summary/detail route payloads (`ConsoleContentSummary`, `ConsoleContentDetail`, versions, lineage, bindings, publication, permissions, activity, usage) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
@@ -150,6 +151,17 @@ regression. Public embeddable maps may still authorize without a token.
 Its query parser accepts Portal snippet `chrome` profiles (`full`,
 `minimal`, `none`), `legend`/`zoom` `on/off` controls, and only valid,
 non-degenerate WGS84 `extent=W,S,E,N` bounds.
+
+## API-key management (#712)
+
+`AdminApiKeyContracts.cs` and `AdminApiKeyClient.cs` extend the existing Operate
+client for list, create (including the one-time secret), and revoke. The shapes
+match honua-sdk-dotnet#531. That projection is merged, and the stable package
+`Honua.Sdk.Admin` 3.0.0 is not on nuget.org (latest consumable release is 2.2.0),
+so these files stay until the package restores. Owner: s-catalog-ui. Removal:
+[honua-console#7](https://github.com/honua-io/honua-console/issues/7). All calls
+carry the host-only expected authority binding; the server retains permission
+and full-admin mutation checks.
 
 ## Why This Boundary, Not "Whatever Works"
 

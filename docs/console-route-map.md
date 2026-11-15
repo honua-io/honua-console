@@ -1342,3 +1342,13 @@ Context routes exclude the application mount, query and fragment while retaining
 identifiers. Page publishers may supply logical routes or mounted paths; query-only navigation
 keeps the active provider, selection and unsaved summary. Use this shared helper for direct registry
 callers as well.
+
+### API-key settings (rc.3, #712)
+
+`/operate/settings/api-keys` is linked from v4 Settings. It reads the server's
+key metadata and supports full-admin create and confirmed revoke. Secrets appear
+only in the creation response and are cleared on dismissal, refresh, environment
+change, and navigation. Permission failures remain visible; missing operator
+binding or disabled v4 is unsupported. Mutations use the authority snapshot that
+loaded the list. Ambiguous outcomes require an explicit read before another
+attempt. This route does not rotate keys or edit referrer/IP restrictions.

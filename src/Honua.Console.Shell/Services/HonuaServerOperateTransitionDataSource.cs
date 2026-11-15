@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Services;
 
@@ -408,7 +409,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         HonuaAdminEndpointResult<HonuaAdminVersionResponse> versionResult,
         HonuaAdminEndpointResult<HonuaAdminCapabilitiesResponse> capabilitiesResult,
         HonuaAdminEndpointResult<HonuaAdminLicenseStatusResponse> licenseResult,
-        HonuaAdminEndpointResult<HonuaAdminApiKeyResponse[]> apiKeysResult,
+        HonuaAdminEndpointResult<AdminApiKeyResponse[]> apiKeysResult,
         HonuaAdminEndpointResult<HonuaAdminOidcProviderResponse[]> oidcProvidersResult,
         List<OperateCapabilityState> states)
     {

@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -56,6 +57,35 @@ public sealed class ConsoleSettingsV4Tests
         Assert.Empty(page.FindAll("table"));
         Assert.Empty(page.FindAll(".console-panel .console-panel"));
         Assert.Empty(page.FindAll("#server-configuration-heading"));
+    }
+
+    [Theory]
+    [InlineData("https://honua.example/")]
+    [InlineData("https://honua.example/console/")]
+    public void ApiKeySettingsLinkPreservesTheHostMount(string baseUri)
+    {
+        using var context = Context(new ConsoleV4Options { Enabled = true }, new([], []));
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(baseUri));
+        var page = context.Render<OperateSettingsPage>();
+        var link = page.FindAll("a").Single(anchor => anchor.TextContent == "Manage API keys");
+        Assert.Equal(baseUri + "operate/settings/api-keys", new Uri(new Uri(baseUri), link.GetAttribute("href")!).AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("https://honua.example/")]
+    [InlineData("https://honua.example/console/")]
+    public void ApiKeySettingsBreadcrumbPreservesTheHostMount(string baseUri)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<NavigationManager>(new HostedNavigationManager(baseUri));
+        var page = context.Render<OperateApiKeysPage>();
+        var link = page.FindAll("a").Single(anchor => anchor.TextContent == "Settings");
+        Assert.Equal(baseUri + "operate/settings", new Uri(new Uri(baseUri), link.GetAttribute("href")!).AbsoluteUri);
+    }
+
+    private sealed class HostedNavigationManager : NavigationManager
+    {
+        public HostedNavigationManager(string baseUri) => Initialize(baseUri, baseUri);
     }
 
     private static BunitContext Context(ConsoleV4Options options, OperateSettingsView view)
