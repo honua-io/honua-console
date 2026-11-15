@@ -313,4 +313,4 @@ used as a fallback. If the manager URL is omitted, management clients continue t
 active serving endpoint. With a same-origin `apiBaseUrl`, builtin password sign-in requests
 the bearer and holds it in memory for the manager; a refreshed page must sign in again.
 Same-origin OIDC has no bearer and cannot use a separate manager. A remote manager URL must
-be HTTPS. Loopback HTTP is limited to the hosts the shipped Content-Security-Policy allows.
+be HTTPS. Loopback HTTP is limited to `localhost` and `127.0.0.1`.

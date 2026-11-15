@@ -34,7 +34,7 @@ public sealed record ConsoleRuntimeConfiguration
         if (management == apiBaseUri) return null;
         if (!AdmittedByShippedConnectPolicy(management))
         {
-            throw new InvalidOperationException("managementApiBaseUrl must be HTTPS, or loopback HTTP on localhost, 127.0.0.1 or [::1]. The shipped Content-Security-Policy blocks every other HTTP origin.");
+            throw new InvalidOperationException("managementApiBaseUrl must be HTTPS, or loopback HTTP on localhost or 127.0.0.1. The shipped Content-Security-Policy blocks every other HTTP origin, including IPv6.");
         }
 
         return management;
@@ -63,8 +63,7 @@ public sealed record ConsoleRuntimeConfiguration
         if (uri.Scheme == Uri.UriSchemeHttps) return true;
         if (uri.Scheme != Uri.UriSchemeHttp) return false;
         return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-            || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-            || uri.IdnHost.Equals("::1", StringComparison.OrdinalIgnoreCase);
+            || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Uri RequireBase(Uri applicationBaseUri, string value, string name)

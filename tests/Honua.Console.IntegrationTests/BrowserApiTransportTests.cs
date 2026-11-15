@@ -167,6 +167,7 @@ public sealed class BrowserApiTransportTests
         Assert.Equal(new Uri("https://other.example/"), new ConfiguredConsoleManagerEndpoint(Api, null).Resolve(new Uri("https://other.example")));
         Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "https://user:secret@manager.example/" }.ResolveManagementBaseUri(App, Api));
         Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "http://10.1.2.3:18082/" }.ResolveManagementBaseUri(App, Api));
+        Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "http://[::1]:18082/" }.ResolveManagementBaseUri(App, Api));
         Assert.Null(new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = Api.AbsoluteUri }.ResolveManagementBaseUri(App, Api));
         configured.EnsureManagementSignIn(App, Api, management);
         var oidc = new ConsoleRuntimeConfiguration

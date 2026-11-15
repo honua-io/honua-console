@@ -88,7 +88,7 @@ For a same-origin deployment, use `"apiBaseUrl": "/"` and route API requests to
 Honua Server alongside the static `/console/` files. A separate-origin API needs
 HTTPS and Honua Server CORS configuration for the Console origin. Plain HTTP for
 the API is limited to the Console's own origin. A local Compose manager may use
-loopback HTTP on `localhost`, `127.0.0.1` or `[::1]`; see
+loopback HTTP on `localhost` or `127.0.0.1`; see
 [Static SPA deployment](docs/deployment/STATIC_SPA.md).
 
 `config.json` is public. Keep passwords, API keys, bearer tokens and provider

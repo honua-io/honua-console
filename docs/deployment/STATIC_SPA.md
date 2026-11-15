@@ -41,8 +41,9 @@ set it to that manager's base URL, for example `http://127.0.0.1:18082/` on a lo
 It applies only to the configured serving API. Those calls send the operator bearer and do not
 send the serving session cookie or CSRF token when the manager is another origin. The manager
 must allow the Console origin and accept that bearer. A credential, query or fragment in either
-URL is rejected. A remote manager must be HTTPS. Loopback HTTP is limited to `localhost`,
-`127.0.0.1` and `[::1]`, which the shipped `connect-src` already allows. On a same-origin
+URL is rejected. A remote manager must be HTTPS. Loopback HTTP is limited to `localhost`
+and `127.0.0.1`, which the shipped `connect-src` already allows. IPv6 literals are rejected.
+On a same-origin
 `apiBaseUrl` (`/`), builtin password sign-in also requests that bearer and keeps it in memory
 for the manager only; reload the page and sign in again after a refresh, because the bearer is
 not restored from the session cookie. Same-origin OIDC cannot call a separate manager.
@@ -85,7 +86,7 @@ the bundle behind your own CDN or web server, set the same headers on the same p
 and header policies both apply and a request must pass each, so do not widen only one.
 
 The API origin is chosen per deployment, so `connect-src` admits `https:` and `wss:`, plus
-loopback `http:` and `ws:` on `localhost`, `127.0.0.1` and `[::1]` for a local Compose manager.
+loopback `http:` and `ws:` on `localhost` and `127.0.0.1` for a local Compose manager.
 A separate-origin API must use HTTPS. A plain-HTTP API works from the Console's own origin.
 Validate policy changes with the browser journeys before rollout.
 
