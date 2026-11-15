@@ -42,9 +42,9 @@
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="missing"
+        <ConsoleStateView Treatment="@(V4Enabled || _bindingState.State == "Not configured" ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="@(_bindingState.State == "Not configured" ? "disabled" : "missing")"
                           Kicker="@_bindingState.State"
-                          Title="Catalog discovery endpoints are not bound"
+                          Title="@(_bindingState.State == "Not configured" ? "Catalog discovery is not configured" : "Catalog discovery endpoints are not bound")"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else if (_registry is { } registry)

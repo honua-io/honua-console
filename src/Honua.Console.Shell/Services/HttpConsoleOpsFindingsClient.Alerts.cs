@@ -40,6 +40,12 @@ public sealed partial class HttpConsoleOpsFindingsClient
                 "The connected environment changed. Refresh alerts before continuing.");
         }
 
+        if (result.Status is OperateSectionStatus.Missing or OperateSectionStatus.Unsupported)
+        {
+            return OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
+                OperateSectionStatus.Unsupported, ConsoleOptionalFeatures.Alerts);
+        }
+
         return result.IsAllowed && result.Value is { } page
             ? OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(authority, page))
             : OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(result.Status, result.Message);

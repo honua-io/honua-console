@@ -18,6 +18,23 @@ public sealed class CatalogsDiscoveryPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void List_WhenRegistryNotConfigured_RendersNeutralGuidance(bool enabled)
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            RegistryLoad = new CatalogDiscoveryRegistryLoad(null, [new CatalogDiscoveryCapabilityState(
+                "Catalogs", "Not configured", "registry", "Check Console:CatalogDiscovery:Workspaces.")])
+        };
+        var page = RenderList(data, options: new ConsoleV4Options { Enabled = enabled });
+        page.WaitForAssertion(() => Assert.Contains("Catalog discovery is not configured", page.Markup));
+        Assert.Single(page.FindAll(".console-state-informational"));
+        Assert.Empty(page.FindAll(".console-state-missing"));
+        Assert.Contains("Console:CatalogDiscovery:Workspaces", page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void List_WhenBindingMissing_RendersMissingBindingSurface(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource

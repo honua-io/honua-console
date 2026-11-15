@@ -172,6 +172,12 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
 
             if (!response.IsSuccessStatusCode)
             {
+                if (relativePath.Split('?')[0] is $"{BasePath}/Things" or $"{BasePath}/Datastreams"
+                    && response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
+                {
+                    return SensorThingsReadResult<T>.Denied(SensorThingsReadStatus.Unsupported, ConsoleOptionalFeatures.Sensors);
+                }
+
                 return SensorThingsReadResult<T>.Denied(
                     MapStatus(response.StatusCode),
                     $"The honua-server SensorThings API returned {(int)response.StatusCode} {response.ReasonPhrase}.");

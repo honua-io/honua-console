@@ -1217,9 +1217,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                     LogSafe(relativePath),
                     (int)response.StatusCode,
                     LogSafe(response.ReasonPhrase));
+                var optional = ConsoleOptionalFeatures.IsAlertCollection(relativePath)
+                    && response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented;
                 return FetchResult<T>.Failed(
-                    MapStatus(response.StatusCode),
-                    problem.Message,
+                    optional ? OperateSectionStatus.Unsupported : MapStatus(response.StatusCode),
+                    optional ? ConsoleOptionalFeatures.Alerts : problem.Message,
                     profile,
                     problem.Detail);
             }

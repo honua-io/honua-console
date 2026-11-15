@@ -22,7 +22,11 @@ public sealed class HonuaServerCatalogDiscoveryDataSource : ICatalogDiscoveryDat
         var result = await _client.GetRegistryAsync(workspaceId, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
-            return new CatalogDiscoveryRegistryLoad(null, [ToCapabilityState(issue)]);
+            var state = issue.StatusCode == 404
+                ? new CatalogDiscoveryCapabilityState(Surface, "Not configured", issue.Contract,
+                    "Catalog discovery is not configured or available for this environment. Ask an administrator to check Console:CatalogDiscovery:Workspaces and tenant/namespace bindings.")
+                : ToCapabilityState(issue);
+            return new CatalogDiscoveryRegistryLoad(null, [state]);
         }
 
         return new CatalogDiscoveryRegistryLoad(CatalogDiscoveryMapper.ToView(result.Data!), []);

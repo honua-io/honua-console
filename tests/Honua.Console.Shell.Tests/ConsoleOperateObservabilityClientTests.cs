@@ -1044,7 +1044,28 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Contains(rule.ValidationMessages, message => message.Contains("Rule health unavailable", StringComparison.Ordinal));
         Assert.False(rule.CanEnable);
         Assert.Equal(OperateSectionStatus.Unsupported, result.Value.ZonesStatus);
-        Assert.Contains("501", result.Value.ZonesMessage);
+        Assert.Contains("alerts.geofence", result.Value.ZonesMessage);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, OperateSectionStatus.Unsupported)]
+    [InlineData(HttpStatusCode.NotImplemented, OperateSectionStatus.Unsupported)]
+    [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError, OperateSectionStatus.Unavailable)]
+    public async Task RulesSurfaceDistinguishesAbsentFeatureFromFailures(HttpStatusCode status, OperateSectionStatus expected)
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/services/" => ServicesResponse("svc-live"),
+            _ => new HttpResponseMessage(status)
+        });
+
+        var result = await CreateClient(handler).GetRulesAsync();
+
+        Assert.Equal(expected, result.Status);
+        Assert.All(handler.Requests.Where(request => request.RequestUri!.AbsolutePath != "/api/v1/admin/services/"),
+            request => Assert.Equal("?serviceId=svc-live", request.RequestUri!.Query));
+        if (expected == OperateSectionStatus.Unsupported) { Assert.Contains("alerts.geofence", result.Message); }
     }
 
     [Fact]
