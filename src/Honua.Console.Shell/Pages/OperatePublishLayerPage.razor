@@ -289,12 +289,6 @@
         _clientError = Validate();
         if (_clientError is not null) return;
 
-        var target = await ConsolePublishAuthority.CaptureAsync(Services, _folderId, _folderAuthority);
-        if (target.Error is { } error)
-        {
-            _clientError = error;
-            return;
-        }
         var table = _selectedTable!;
         var command = new ServiceLayerPublishCommand
         {
@@ -305,13 +299,20 @@
             ServiceName = _serviceName.Trim(),
             FolderId = _folderId,
             PublicName = string.IsNullOrWhiteSpace(_publicName) ? null : _publicName.Trim(),
-            AuthorityBinding = target.Binding,
             GeometryColumn = table.GeometryColumn,
             GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,
             Fields = table.Columns,
             Enabled = true
         };
+
+        var target = await ConsolePublishAuthority.CaptureAsync(Services, command.FolderId, _folderAuthority);
+        if (target.Error is { } error)
+        {
+            _clientError = error;
+            return;
+        }
+        command = command with { AuthorityBinding = target.Binding };
 
         _unverifiedCommand = null;
         _publishAttempt++;
