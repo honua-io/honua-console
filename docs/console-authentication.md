@@ -62,8 +62,14 @@ cannot fall back to an admin API key.
 
 ## Same-origin OIDC
 
-Set `auth.mode` to `oidc` with the same-origin API. Console gets provider labels
-from `GET /api/v1/admin/auth/config`. After refreshing CSRF, it requests a sign-in
+Set `auth.mode` to `oidc` with the same-origin API. Also configure `auth.authority`
+as an absolute HTTPS URL without user information, query or fragment, set a
+nonblank `auth.clientId`, and supply a nonempty `auth.scopes` array with no blank
+entries. The SPA validates these public settings at startup, before fetching the
+server configuration. Keep client secrets on Honua Server.
+
+Console gets provider labels from `GET /api/v1/admin/auth/config`. After refreshing
+CSRF, it requests a sign-in
 URL from `POST /api/v1/admin/auth/providers/{provider}/authorize-url` and navigates
 the browser to that URL. Honua Server owns PKCE, callback correlation, provider
 credentials, code exchange and session-cookie issuance.
