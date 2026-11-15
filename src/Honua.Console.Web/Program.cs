@@ -22,6 +22,7 @@ var session = new ConsoleBrowserSession();
 var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri, session);
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton(session);
+builder.Services.AddBrowserAuthorityBinding(apiBaseUri);
 builder.Services.AddSingleton<IConsolePreviewAddress>(new ConfiguredApiPreviewAddress(apiBaseUri));
 builder.Services.AddSingleton<IHonuaServerBoundClientFactory>(clients);
 builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri))
