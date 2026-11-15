@@ -147,6 +147,11 @@ export function mountStudioDraftCreate({ app, host }) {
     const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Check approval and open map';
     const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge outcome and start another map';
     const reset = document.createElement('button'); reset.type = 'button'; reset.textContent = 'Forget unreadable local handoff';
+    form.className = 'console-action-row';
+    key.className = 'console-input';
+    create.className = 'console-button';
+    for (const button of [refresh, acknowledge, reset]) button.className = 'console-button console-button-secondary';
+    inbox.className = 'console-button console-button-secondary';
     form.append(key, create, notice, inbox, refresh, acknowledge, reset);
     host.querySelector('[data-studio-mount]').before(form);
     let disposed = false, busy = false, renderedRecord;
