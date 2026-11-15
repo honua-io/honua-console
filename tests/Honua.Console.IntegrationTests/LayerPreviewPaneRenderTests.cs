@@ -48,8 +48,8 @@ public sealed class LayerPreviewPaneRenderTests
         ctx.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new PublicationClient
         {
             Result = ambiguous
-                ? Publications(new("pub-a", "cadastre", "a"), new("pub-b", "cadastre", "b"))
-                : Publications(new("pub-other", "another-service", "parcels"))
+                ? Publications(new DiscoveryPublicationImpact("pub-a", "cadastre", "a"), new("pub-b", "cadastre", "b"))
+                : Publications(new DiscoveryPublicationImpact("pub-other", "another-service", "parcels"))
         });
         var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
         Assert.NotNull(preview.Find("[data-preview-unrendered]"));
@@ -64,14 +64,14 @@ public sealed class LayerPreviewPaneRenderTests
         var reads = 0;
         ctx.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new PublicationClient
         {
-            Read = () => ++reads == 1 ? pending.Task : Task.FromResult(Publications(new("pub-new", "cadastre", "new")))
+            Read = () => ++reads == 1 ? pending.Task : Task.FromResult(Publications(new DiscoveryPublicationImpact("pub-new", "cadastre", "new")))
         });
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
         module.Mode = JSRuntimeMode.Loose;
         var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
         preview.Render(p => p.Add(x => x.Layer, Parcels with { LayerId = 8 }));
         preview.WaitForAssertion(() => Assert.Single(module.Invocations["init"]));
-        await preview.InvokeAsync(() => pending.SetResult(Publications(new("pub-old", "cadastre", "old"))));
+        await preview.InvokeAsync(() => pending.SetResult(Publications(new DiscoveryPublicationImpact("pub-old", "cadastre", "old"))));
         Assert.Single(module.Invocations["init"]);
         Assert.Contains("/styles/pub-new.json", System.Text.Json.JsonSerializer.Serialize(module.Invocations["init"][0].Arguments[1]), StringComparison.Ordinal);
         Assert.DoesNotContain("pub-old", preview.Markup, StringComparison.Ordinal);
@@ -129,7 +129,7 @@ public sealed class LayerPreviewPaneRenderTests
         ctx.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([new() { Id = "env-2" }]));
         ctx.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new PublicationClient
         {
-            Read = () => { reads++; return Task.FromResult(Publications(new("pub-wrong-environment", "cadastre", "parcels"))); }
+            Read = () => { reads++; return Task.FromResult(Publications(new DiscoveryPublicationImpact("pub-wrong-environment", "cadastre", "parcels"))); }
         });
         var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
         Assert.Equal(0, reads);
@@ -140,7 +140,7 @@ public sealed class LayerPreviewPaneRenderTests
     private sealed class PublicationClient : IHonuaDiscoveryMetadataClient
     {
         public HonuaAdminEndpointResult<DiscoveryMetadataResponse> Result { get; init; } =
-            Publications(new("pub-other-service", "other", "parcels"), new("pub-cadastre-parcels", "cadastre", "parcels"));
+            Publications(new DiscoveryPublicationImpact("pub-other-service", "other", "parcels"), new("pub-cadastre-parcels", "cadastre", "parcels"));
         public Func<Task<HonuaAdminEndpointResult<DiscoveryMetadataResponse>>>? Read { get; init; }
 
         public Task<HonuaAdminEndpointResult<DiscoveryMetadataResponse>> ReadDiscoveryAsync(
