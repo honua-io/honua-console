@@ -155,11 +155,15 @@ public sealed class ApiKeyManagementTests
             if (Pending is not null) return await Pending;
             if (Status != HttpStatusCode.OK) return new(Status);
             return Path.EndsWith("/revoke", StringComparison.Ordinal)
-                ? Json(new { success = true, data = new AdminApiKeyResponse
+                ? Json(new
                 {
-                    Id = Key.Id, Name = Key.Name, KeyPrefix = Key.KeyPrefix,
-                    Permissions = Key.Permissions, Status = "revoked", RevokedAt = DateTimeOffset.UtcNow
-                } })
+                    success = true,
+                    data = new AdminApiKeyResponse
+                    {
+                        Id = Key.Id, Name = Key.Name, KeyPrefix = Key.KeyPrefix,
+                        Permissions = Key.Permissions, Status = "revoked", RevokedAt = DateTimeOffset.UtcNow
+                    }
+                })
                 : Json(new { success = true, data = new { apiKey = Key, key = "one-time-secret" } });
         }
 
