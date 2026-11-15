@@ -16,6 +16,10 @@ public sealed class ConsoleBrowserSession
     public string? AccessToken { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
     public string? CsrfToken { get; private set; }
+
+    // Bearer for a separate manager. It is not the serving session and is not published to script.
+    internal string? ManagementAccessToken { get; private set; }
+    internal DateTimeOffset? ManagementExpiresAt { get; private set; }
     public bool IsAuthenticated => Principal.Identity?.IsAuthenticated == true
         && (ExpiresAt is null || ExpiresAt > DateTimeOffset.UtcNow);
 
@@ -29,6 +33,8 @@ public sealed class ConsoleBrowserSession
         {
             liveAnnouncement = false;
             AccessToken = null;
+            ManagementAccessToken = null;
+            ManagementExpiresAt = null;
             Revision++;
             var expired = CreateSnapshot();
             Changed?.Invoke(expired);
@@ -45,8 +51,18 @@ public sealed class ConsoleBrowserSession
         CsrfToken = credentials?.CsrfToken;
         AccessToken = credentials?.AccessToken;
         ExpiresAt = credentials?.ExpiresAt;
+        ManagementAccessToken = null;
+        ManagementExpiresAt = null;
         liveAnnouncement = IsAuthenticated;
         Changed?.Invoke(CreateSnapshot());
+    }
+
+    internal void ReplaceServingCredentials(ClaimsPrincipal principal, ConsoleSessionCredentials? credentials)
+    {
+        var managementToken = ManagementAccessToken;
+        var managementExpiry = ManagementExpiresAt;
+        Set(principal, credentials);
+        if (!string.IsNullOrWhiteSpace(managementToken)) RememberManagementBearer(managementToken, managementExpiry);
     }
 
     private ConsoleBrowserSessionSnapshot CreateSnapshot() => new(
@@ -58,6 +74,13 @@ public sealed class ConsoleBrowserSession
         ExpiresAt);
 
     public void Clear() => Set(new ClaimsPrincipal(new ClaimsIdentity()));
+
+    internal void RememberManagementBearer(string token, DateTimeOffset? expiresAt)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        ManagementAccessToken = token;
+        ManagementExpiresAt = expiresAt;
+    }
 }
 
 public sealed record ConsoleSessionCredentials(

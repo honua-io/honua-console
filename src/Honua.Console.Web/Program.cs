@@ -19,8 +19,12 @@ using var configurationClient = new HttpClient { BaseAddress = applicationBaseUr
 var configuration = await configurationClient.GetFromJsonAsync<ConsoleRuntimeConfiguration>("config.json")
     ?? throw new InvalidOperationException("Console config.json is missing.");
 var apiBaseUri = configuration.ResolveApiBaseUri(applicationBaseUri);
+var managementBaseUri = configuration.ResolveManagementBaseUri(applicationBaseUri, apiBaseUri);
+configuration.EnsureManagementSignIn(applicationBaseUri, apiBaseUri, managementBaseUri);
+var servingSameOrigin = ConsoleRuntimeConfiguration.SameOrigin(apiBaseUri, applicationBaseUri);
 var session = new ConsoleBrowserSession();
-var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri, session);
+var clients = new BrowserServerBoundClientFactory(new BrowserApiOrigins(apiBaseUri, applicationBaseUri, managementBaseUri), session);
+builder.Services.AddSingleton<IConsoleManagerEndpoint>(new ConfiguredConsoleManagerEndpoint(apiBaseUri, managementBaseUri));
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton(session);
 builder.Services.AddBrowserAuthorityBinding(apiBaseUri);
@@ -28,8 +32,9 @@ builder.Services.AddSingleton<IConsolePreviewAddress>(new ConfiguredApiPreviewAd
 builder.Services.AddSingleton<IHonuaServerBoundClientFactory>(clients);
 builder.Services.AddSingleton(new ConsoleApiClient(clients.CreatePublicClient(apiBaseUri))
 {
-    UsesCookieSession = Uri.Compare(apiBaseUri, applicationBaseUri, UriComponents.SchemeAndServer,
-        UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0,
+    UsesCookieSession = servingSameOrigin,
+    CapturesManagementBearer = servingSameOrigin && managementBaseUri is not null
+        && !ConsoleRuntimeConfiguration.SameOrigin(managementBaseUri, applicationBaseUri),
     SupportsPasswordSignIn = configuration.Auth.Mode == "builtin"
 });
 builder.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([

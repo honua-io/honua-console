@@ -302,10 +302,15 @@ permission or an Admin API parity claim. Server authorization is identical in bo
 
 For a customer Compose installation with a separate management process, set
 `HONUA_SERVER_BASE_URL` to the serving server and `HONUA_MANAGER_BASE_URL` to the trusted
-manager base URL. The manager mapping applies only to the configured serving environment;
-selecting another environment without its own mapping fails management requests closed.
+manager base URL. The static bundle has no process environment: set `apiBaseUrl` and the
+optional `managementApiBaseUrl` in `config.json` instead. The manager mapping applies only to
+the configured serving environment; selecting another environment without its own mapping
+fails management requests closed.
 The operator signs in to the serving environment, and the manager must accept that same
 operator bearer with the intended issuer and audience. Configure the manager as a trusted
-endpoint: management requests and management realtime subscriptions forward the operator's
-bearer to it. No shared admin key is used as a fallback. If the manager URL is omitted,
-management clients continue to use the active serving endpoint.
+endpoint: management requests forward the operator's bearer to it. No shared admin key is
+used as a fallback. If the manager URL is omitted, management clients continue to use the
+active serving endpoint. With a same-origin `apiBaseUrl`, builtin password sign-in requests
+the bearer and holds it in memory for the manager; a refreshed page must sign in again.
+Same-origin OIDC has no bearer and cannot use a separate manager. A remote manager URL must
+be HTTPS. Loopback HTTP is limited to `localhost` and `127.0.0.1`.
