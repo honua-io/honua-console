@@ -12,7 +12,7 @@ const path = require('node:path');
 const args = process.argv.slice(2);
 const command = path.basename(process.argv[1]);
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-  /^(COMPOSE_|HONUA_(HTTP|GRPC|MANAGER|CONSOLE)_PORT|HONUA_SHIPPING_BASE_URL)/.test(key)));
+  /^(COMPOSE_|HONUA_(HTTP|GRPC|MANAGER|CONSOLE)_PORT|HONUA_CONSOLE_EDGE_|HONUA_SHIPPING_BASE_URL)/.test(key)));
 const entry = { command, args, env, cwd: process.cwd() };
 if (command === 'python3' && args[0].endsWith('package_quickstart.py')) {
   fs.mkdirSync(args[args.indexOf('--output') + 1], { recursive: true });
@@ -70,6 +70,9 @@ test('shipping replay uses custom ports for initialization, readiness, browser a
     HONUA_SHIPPING_PORT: '28083', COMPOSE_PROJECT_NAME: 'verification-742',
     COMPOSE_FILE: '/another/stack.yml', COMPOSE_PROFILES: 'production', COMPOSE_PATH_SEPARATOR: ';',
     HONUA_HTTP_PORT: '18080', HONUA_CONSOLE_PORT: '18083',
+    HONUA_CONSOLE_EDGE_SUBNET: '172.31.250.248/29',
+    HONUA_CONSOLE_EDGE_ADDRESS: '172.31.250.250',
+    HONUA_CONSOLE_EDGE_SERVER_ADDRESS: '172.31.250.251',
   });
   assert.equal(result.status, 0, result.stderr);
   const init = result.commands.find(entry => entry.args[0] === 'quickstart.py');
@@ -79,6 +82,9 @@ test('shipping replay uses custom ports for initialization, readiness, browser a
     assert.equal(entry.env.COMPOSE_PROJECT_NAME, 'verification-742');
     assert.equal(entry.env.HONUA_HTTP_PORT, '28080');
     assert.equal(entry.env.HONUA_CONSOLE_PORT, '28083');
+    assert.equal(entry.env.HONUA_CONSOLE_EDGE_SUBNET, '172.31.250.248/29');
+    assert.equal(entry.env.HONUA_CONSOLE_EDGE_ADDRESS, '172.31.250.250');
+    assert.equal(entry.env.HONUA_CONSOLE_EDGE_SERVER_ADDRESS, '172.31.250.251');
     assert.equal(entry.env.COMPOSE_FILE, undefined);
     assert.equal(entry.env.COMPOSE_PROFILES, undefined);
     assert.equal(entry.env.COMPOSE_PATH_SEPARATOR, undefined);

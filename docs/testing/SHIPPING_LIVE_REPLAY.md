@@ -42,6 +42,19 @@ choose a name unused by other stacks. The runner ignores inherited Compose file
 and profile settings and removes only its project and generated password on exit.
 Honua lanes run this through `remote-run` on the build host.
 
+The default Console edge subnet `172.31.250.240/29` must also be unused. To run
+beside another Console quickstart, select an unused subnet and two distinct host
+addresses inside it, and override all three edge settings together. For example,
+with the required image and bundle variables above already exported:
+
+```bash
+HONUA_SHIPPING_PORT=28083 \
+HONUA_CONSOLE_EDGE_SUBNET=172.31.250.248/29 \
+HONUA_CONSOLE_EDGE_ADDRESS=172.31.250.250 \
+HONUA_CONSOLE_EDGE_SERVER_ADDRESS=172.31.250.251 \
+bash e2e/run-shipping-live.sh
+```
+
 A green diagnostic run against source-built images is not independent verification.
 For ticket verification, use a verification cohort with immutable image and bundle
 identities and record the cohort and evidence; a cohort needs no release certification.
