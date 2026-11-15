@@ -3,8 +3,10 @@ using System.Text;
 using System.Text.Json;
 using Bunit;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
+using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests;
@@ -48,13 +50,16 @@ public sealed class ApiKeyManagementTests
         page.WaitForAssertion(() => Assert.Contains("revoked", page.Markup));
     }
 
-    [Fact]
-    public void PermissionFailureIsVisibleAndDoesNotInventAnEmptyList()
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, OperateSectionStatus.Unavailable)]
+    [InlineData(HttpStatusCode.NotFound, OperateSectionStatus.Unsupported)]
+    public void ReadFailureUsesSharedStatusAndDoesNotInventAnEmptyList(HttpStatusCode response, OperateSectionStatus expected)
     {
         using var fixture = new Fixture();
-        fixture.Handler.Status = HttpStatusCode.Forbidden;
+        fixture.Handler.Status = response;
         var page = fixture.Context.Render<OperateApiKeysPage>();
-        page.WaitForAssertion(() => Assert.Contains("Missing permission", page.Markup));
+        page.WaitForAssertion(() => Assert.Equal(expected, page.FindComponent<OperateSectionStatusPanel>().Instance.Status));
         Assert.Empty(page.FindAll("form"));
         Assert.DoesNotContain("No API keys", page.Markup);
         V4PagePreview.Capture("api-keys-denied", page.Markup);
@@ -89,17 +94,24 @@ public sealed class ApiKeyManagementTests
         page.Find("#api-key-permissions").Change("admin:read");
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.Contains("Missing permission", page.Markup));
+        Assert.Empty(page.FindComponents<OperateSectionStatusPanel>());
         Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
         page.Find("form").Submit();
         Assert.Equal(1, fixture.Handler.Mutations);
     }
 
-    [Fact]
-    public void MissingBindingFailsClosed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MissingBindingFailsClosed(bool disabled)
     {
+        using var fixture = new Fixture();
         using var context = new BunitContext();
-        var page = context.Render<OperateApiKeysPage>();
-        Assert.Contains("Unsupported", page.Markup);
+        if (disabled) fixture.Context.Services.AddSingleton(new ConsoleV4Options { Enabled = false });
+        var page = (disabled ? fixture.Context : context).Render<OperateApiKeysPage>();
+        Assert.Equal(OperateSectionStatus.Unsupported, page.FindComponent<OperateSectionStatusPanel>().Instance.Status);
+        Assert.Equal(ConsoleStateTreatment.Informational, page.FindComponent<HonuaState>().Instance.Treatment);
+        Assert.Empty(page.FindAll(".console-state-error"));
         Assert.Empty(page.FindAll("form"));
     }
 

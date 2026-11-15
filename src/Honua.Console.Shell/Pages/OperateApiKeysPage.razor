@@ -8,6 +8,10 @@
         <p><a href="@Navigation.ToConsoleHref("/operate/settings")">Settings</a> / API keys</p>
         <p>Create and revoke credentials for the connected server. Full administrator authority is required for changes.</p>
     </ConsolePageHeading>
+    @if (_readIssue is not null)
+    {
+        <OperateSectionStatusPanel Heading="API keys" Status="@ReadStatus" Message="@_readIssue.Detail" />
+    }
     @if (_issue is not null)
     {
         <ConsoleStateView Kind="error" HeadingLevel="2" Title="@_issue.State" Message="@_issue.Detail" />

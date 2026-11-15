@@ -16,6 +16,10 @@ public partial class OperateApiKeysPage
     private ConsoleConfirmDialog? _confirm;
     private IReadOnlyList<AdminApiKeyResponse> _keys = [];
     private HonuaAdminEndpointIssue? _issue;
+    private HonuaAdminEndpointIssue? _readIssue;
+    private OperateSectionStatus ReadStatus => _readIssue?.State == "Missing permission"
+        ? OperateSectionStatus.Forbidden
+        : Enum.TryParse<OperateSectionStatus>(_readIssue?.State, out var status) ? status : OperateSectionStatus.Unavailable;
     private string? _binding;
     private string? _secret;
     private string _name = "";
@@ -44,7 +48,7 @@ public partial class OperateApiKeysPage
         ClearSensitiveState();
         if (Services.GetService<ConsoleV4Options>()?.Enabled != true || _client is null || _authority is null)
         {
-            _issue = new("Unsupported", "API keys", "Operator-bound API-key management is unavailable in this Console environment.");
+            _readIssue = new("Unsupported", "API keys", "Operator-bound API-key management is unavailable in this Console environment.");
             return;
         }
         _busy = _loading = true;
@@ -55,14 +59,14 @@ public partial class OperateApiKeysPage
             if (binding is null) { TargetChanged(); return; }
             var result = await _client.ListApiKeysBoundAsync(binding);
             if (generation != _generation || !await CurrentAsync(binding)) return;
-            _issue = result.Issue;
+            _readIssue = result.Issue;
             _binding = result.Issue is null && result.Data is not null ? binding : null;
             _keys = result.Data ?? [];
             _needsRefresh = false;
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            _issue = new("Unavailable", "API keys", "The server could not be reached. Refresh to try reading keys again.");
+            _readIssue = new("Unavailable", "API keys", "The server could not be reached. Refresh to try reading keys again.");
         }
         finally { _busy = _loading = false; }
     }
@@ -175,7 +179,7 @@ public partial class OperateApiKeysPage
         _keys = [];
         _name = _permissions = "";
         _expiry = null;
-        _issue = null;
+        _issue = _readIssue = null;
     }
 
     public void Dispose()
