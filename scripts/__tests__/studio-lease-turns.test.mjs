@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from '../../src/Honua.Console.Web/wwwroot/js/studio-lease-turns.mjs';
+import { READ_HOLD_MS, hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from '../../src/Honua.Console.Web/wwwroot/js/studio-lease-turns.mjs';
 
 function deferred() {
     let resolve, reject;
@@ -66,4 +66,34 @@ test('a pending action in another retained editor cannot hold this editor lease'
     assert.equal(hasPendingStudioLeaseTurn(second), false);
     assert.equal(hasPendingStudioLeaseTurn(undefined), false);
     action.resolve(); await result;
+});
+
+test('a source read keeps its lease, so the layer picker never sees a mid-read rotation', async () => {
+    const read = deferred(), signal = new AbortController().signal;
+    const app = { listRecipeSources(value) { assert.equal(value, signal); return read.promise; },
+        resolveRecipeSource() { return read.promise; } };
+    trackStudioLeaseTurns(app);
+    for (const method of ['listRecipeSources', 'resolveRecipeSource']) {
+        const result = app[method](signal);
+        assert.equal(hasPendingStudioLeaseTurn(app), true, method);
+        read.resolve([]); assert.deepEqual(await result, []);
+        assert.equal(hasPendingStudioLeaseTurn(app), false, method);
+    }
+});
+
+test('a stalled source read stops holding the lease after the read hold, and its late settle is not counted', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const stalled = deferred(), save = deferred();
+    const app = { listRecipeSources() { return stalled.promise; }, saveWorkspaceVersion() { return save.promise; } };
+    trackStudioLeaseTurns(app);
+    const read = app.listRecipeSources();
+    t.mock.timers.tick(READ_HOLD_MS - 1);
+    assert.equal(hasPendingStudioLeaseTurn(app), true);
+    t.mock.timers.tick(1);
+    assert.equal(hasPendingStudioLeaseTurn(app), false, 'the stalled read no longer defers renewal');
+    const saving = app.saveWorkspaceVersion();
+    stalled.resolve([]); await read;
+    assert.equal(hasPendingStudioLeaseTurn(app), true, 'a late read settle must not release the save');
+    save.resolve(); await saving;
+    assert.equal(hasPendingStudioLeaseTurn(app), false);
 });
