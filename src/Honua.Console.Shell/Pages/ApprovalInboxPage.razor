@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
+@using Microsoft.JSInterop
 @inject IConsoleApprovalInboxClient Inbox
 @inject IConsoleProposalRealtimeClient Realtime
 @inject IServiceProvider ServiceProvider
@@ -181,10 +182,11 @@
                                 <tbody>
                                     @foreach (var item in VisibleItems)
                                     {
-                                        <tr class="@(IsSelected(item) ? "is-selected" : null)">
+                                        <tr @key="item.ProposalId" class="@(IsSelected(item) ? "is-selected" : null)">
                                             <td>
                                                 <button type="button" class="approval-inbox-select"
                                                         aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                                        @ref="_rowButtons[item.ProposalId]"
                                                         data-proposal-id="@item.ProposalId"
                                                         data-proposal-source="@item.Source"
                                                         @onclick="() => Select(item)">
@@ -229,10 +231,11 @@
                         <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
                             @foreach (var item in VisibleItems)
                             {
-                                <li class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
+                                <li @key="item.ProposalId" class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
                                     <button type="button"
                                             class="approval-inbox-select"
                                             aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                            @ref="_rowButtons[item.ProposalId]"
                                             data-proposal-id="@item.ProposalId"
                                             data-proposal-source="@item.Source"
                                             @onclick="() => Select(item)">
@@ -266,15 +269,19 @@
                 }
             </div>
 
-            <div class="approval-inbox-detail" aria-live="polite">
+            @* Not a live region: the review is several hundred characters and re-renders on every
+               detail poll. Selecting a proposal moves focus to the review instead, and Close review
+               returns it to the proposal's row; action results announce through the panel's own
+               role="status" message. *@
+            <div class="approval-inbox-detail" data-approval-review>
                 @if (V4Enabled)
                 {
-                    <h2>Review proposal</h2>
+                    <h2 tabindex="-1" @ref="_reviewHeading" data-approval-review-heading>Review proposal</h2>
                 }
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
                     var approvalInstance = _approvalInstance;
-                    <button type="button" class="console-button console-button-secondary" @onclick="ClearSelection">Close review</button>
+                    <button type="button" class="console-button console-button-secondary" @ref="_closeReviewButton" @onclick="ClearSelection">Close review</button>
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
@@ -360,6 +367,12 @@
     private Task? _detailPollingTask;
     private bool _disposed;
 
+    private readonly Dictionary<string, ElementReference> _rowButtons = new(StringComparer.Ordinal);
+    private ElementReference _reviewHeading;
+    private ElementReference _closeReviewButton;
+    private bool _focusReviewPending;
+    private string? _focusRowPendingId;
+
     private string ServerName =>
         string.IsNullOrWhiteSpace(_serverName) ? "the connected honua-server" : _serverName;
 
@@ -414,14 +427,59 @@
         }
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_loaded && !_disposed && _realtimeStartupTask is null && _updates is not null)
         {
             _realtimeStartupTask = StartRealtimeAsync(_updates);
         }
 
-        return Task.CompletedTask;
+        await MovePendingFocusAsync();
+    }
+
+    private async Task MovePendingFocusAsync()
+    {
+        if (_disposed || !RendererInfo.IsInteractive) return;
+
+        if (_focusReviewPending)
+        {
+            _focusReviewPending = false;
+            if (_selectedProposalId is not null)
+            {
+                await TryFocusAsync(V4Enabled ? _reviewHeading : _closeReviewButton);
+            }
+        }
+        else if (_focusRowPendingId is { } rowId)
+        {
+            _focusRowPendingId = null;
+            // Rows are keyed by proposal id, so a listed row's captured button is its own. A row the
+            // filter or a resolution removed falls back to the review heading in v4.
+            if (VisibleItems.Any(item => string.Equals(item.ProposalId, rowId, StringComparison.Ordinal))
+                && _rowButtons.TryGetValue(rowId, out var row))
+            {
+                await TryFocusAsync(row);
+            }
+            else if (V4Enabled)
+            {
+                await TryFocusAsync(_reviewHeading);
+            }
+        }
+    }
+
+    private static async Task TryFocusAsync(ElementReference element)
+    {
+        try
+        {
+            await element.FocusAsync();
+        }
+        catch (JSException)
+        {
+            // Focus is a convenience: an element removed in the same frame keeps the page running.
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit closed while focus was moving; there is nothing left to focus.
+        }
     }
 
     private async Task StartRealtimeAsync(ConsoleProposalSubscription updates)
@@ -535,11 +593,15 @@
     {
         SetSelectedProposal(item.ProposalId);
         _terminalProposalId = null;
+        _focusReviewPending = true;
+        _focusRowPendingId = null;
         SyncSelectionQuery();
     }
 
     private void ClearSelection()
     {
+        _focusRowPendingId = _selectedProposalId;
+        _focusReviewPending = false;
         SetSelectedProposal(null);
         SyncSelectionQuery();
     }
