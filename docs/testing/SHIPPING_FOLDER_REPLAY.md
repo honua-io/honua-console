@@ -5,10 +5,12 @@ Run the packaged quickstart with `e2e/run-shipping-live.sh` as described in
 includes `folder-navigation.spec.ts` at 1280 and 390 pixel widths, with no route
 interception or development web host.
 
-The disposable database fixture adds `ShippingFolder`, one service, and one layer
-over the same single-point table used by the endpoint check. The root endpoint
-service stays outside the folder. The selected server's compatibility compiler
-creates the metadata snapshot; `shipping-folder.sql` adds membership and refreshes
+The disposable database fixture adds `ShippingFolder` and one service over the
+same single-point table used by the endpoint check. The selected server's
+compatibility compiler projects its layer into vector and imagery resources,
+so the folder reports two layers. Navigation targets the vector resource. The
+root endpoint service stays outside the folder. The compiler creates the
+metadata snapshot; `shipping-folder.sql` adds membership and refreshes
 the snapshot and current-pointer ETags before the server restarts. This setup
 does not exercise folder creation, import, publication approval, or mutation APIs.
 

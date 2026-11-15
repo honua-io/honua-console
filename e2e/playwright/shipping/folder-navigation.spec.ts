@@ -11,7 +11,7 @@ test('shipping Folder → Service → Layer navigation survives reload', async (
   await checkMembership(page);
   await page.goto(folderPath);
   await expect(page.getByRole('heading', { name: 'Shipping Folder', exact: true, level: 1 })).toBeVisible();
-  await expect(page.locator('[data-folder-count]')).toHaveText('1 Service · 1 Layer');
+  await expect(page.locator('[data-folder-count]')).toHaveText('1 Service · 2 Layers');
   await screenshot(page, info, 'folder');
   const service = page.getByRole('region', { name: 'Folder Services', exact: true })
     .getByRole('link', { name: 'folder-navigation-check', exact: true });
@@ -46,7 +46,7 @@ async function checkMembership(page: Page) {
   expect(reads.services.status).toBe(200);
   expect(reads.services.body.data.total).toBe(1);
   expect(reads.services.body.data.items).toEqual([
-    expect.objectContaining({ serviceName: 'folder-navigation-check', folderId: 'shipping-folder', layerCount: 1 }),
+    expect.objectContaining({ serviceName: 'folder-navigation-check', folderId: 'shipping-folder', layerCount: 2 }),
   ]);
 }
 
