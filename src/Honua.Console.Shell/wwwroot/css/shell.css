@@ -58,6 +58,12 @@
     box-shadow: inset 0 -2px var(--c-accent);
 }
 
+.console-topnav > a.active:focus-visible,
+.console-navigation-menu[open] > summary:focus-visible,
+.console-navigation-menu:has(a.active) > summary:focus-visible {
+    box-shadow: var(--honua-focus-ring), inset 0 -2px var(--c-accent);
+}
+
 .console-navigation-menu { position: relative; }
 .console-navigation-items {
     position: absolute;
