@@ -35,7 +35,7 @@ Evidence roots: [services](../../src/Honua.Console.Shell/Services/),
 [capability mappings](../../src/Honua.Console.Shell/Services/IConsoleCapabilityManifest.cs),
 [Home](../../src/Honua.Console.Shell/Pages/ConsoleHomePage.razor),
 [summary strip](../../src/Honua.Console.Shell/Components/OpsSummaryStrip.razor),
-[workspace BFF](../../src/Honua.Console.Web/AgentWorkspaceBff.cs),
+[legacy workspace BFF test fixture](../../tests/Honua.Console.LegacyHost/AgentWorkspaceBff.cs),
 [Studio lock](../../scripts/studio-release.lock.json).
 
 ## Explicit limits

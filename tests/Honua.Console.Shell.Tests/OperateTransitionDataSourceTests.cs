@@ -117,6 +117,8 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.Equal(["planning", "public"], resource.BlastRadius.Services);
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
         Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.CanonicalResourceId == resource.ResourceId));
+        Assert.Equal("planning", workspace.Services.Single(service => service.Name == "planning").Layers.Single().ServiceName);
+        Assert.Equal("public", workspace.Services.Single(service => service.Name == "public").Layers.Single().ServiceName);
         Assert.True(workspace.Services.Single(service => service.Name == "planning").Layers.Single().Enabled);
         Assert.False(workspace.Services.Single(service => service.Name == "public").Layers.Single().Enabled);
         Assert.Contains(workspace.SettingsChanges, change => change.Id == "license" && change.ProposedChange.Contains("Community", StringComparison.Ordinal));
