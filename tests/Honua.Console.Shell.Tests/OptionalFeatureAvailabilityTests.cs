@@ -53,17 +53,17 @@ public sealed class OptionalFeatureAvailabilityTests
     }
 
     [Theory]
-    [InlineData(OperateSectionStatus.Unsupported, true)]
-    [InlineData(OperateSectionStatus.Forbidden, false)]
-    [InlineData(OperateSectionStatus.Unavailable, false)]
-    [InlineData(OperateSectionStatus.Missing, false)]
-    public void OnlyUnsupportedSectionsUseNeutralPresentation(OperateSectionStatus status, bool neutral)
+    [InlineData(OperateSectionStatus.Unsupported, "informational")]
+    [InlineData(OperateSectionStatus.Forbidden, "denied")]
+    [InlineData(OperateSectionStatus.Unavailable, "denied")]
+    [InlineData(OperateSectionStatus.Missing, "denied")]
+    public void OnlyUnsupportedSectionsUseNeutralPresentation(OperateSectionStatus status, string expectedTreatment)
     {
         using var context = new BunitContext();
         var panel = context.Render<OperateSectionStatusPanel>(parameters => parameters
             .Add(p => p.Heading, "Optional feature").Add(p => p.Status, status));
-        Assert.Equal(neutral, panel.FindAll(".console-state-informational").Count == 1);
-        Assert.Equal(!neutral, panel.FindAll(".console-state-denied").Count == 1);
+        Assert.Single(panel.FindAll($".console-state-{expectedTreatment}"));
+        Assert.Equal(1, panel.FindAll(".console-state-informational, .console-state-denied").Count);
     }
 
     [Fact]

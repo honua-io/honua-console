@@ -40,6 +40,12 @@ public sealed partial class HttpConsoleOpsFindingsClient
                 "The connected environment changed. Refresh alerts before continuing.");
         }
 
+        return ToAlertInboxResult(result, authority);
+    }
+
+    private static OperateSectionResult<ConsoleAlertInboxSnapshot> ToAlertInboxResult(
+        OperateSectionResult<ObservabilityAlertEventPageResponse> result, ConsoleAlertAuthority authority)
+    {
         if (result.Status is OperateSectionStatus.Missing or OperateSectionStatus.Unsupported)
         {
             return OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
