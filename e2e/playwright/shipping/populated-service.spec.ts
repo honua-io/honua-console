@@ -23,8 +23,9 @@ async function checkEndpoints(page: Page, info: TestInfo) {
   await expect(urls.first()).toBeVisible();
   const endpoints = (await urls.allTextContents()).map(value => value.trim());
   expect(endpoints.length).toBeGreaterThan(0);
+  const expectedOrigin = new URL(info.project.use.baseURL!).origin;
   for (const endpoint of endpoints.filter(value => value !== 'No single service URL')) {
-    expect(new URL(endpoint).origin).toBe('https://localhost:18083');
+    expect(new URL(endpoint).origin).toBe(expectedOrigin);
   }
   const featureUrl = endpoints.find(value => value.endsWith('/public-endpoint-check/FeatureServer'));
   expect(featureUrl).toBeTruthy();
