@@ -100,15 +100,23 @@ public sealed class ApiKeyManagementTests
         Assert.Equal(1, fixture.Handler.Mutations);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void MissingBindingFailsClosed(bool disabled)
+    [Fact]
+    public void MissingBindingFailsClosed()
+    {
+        using var context = new BunitContext();
+        AssertUnsupported(context.Render<OperateApiKeysPage>());
+    }
+
+    [Fact]
+    public void DisabledFeatureFailsClosed()
     {
         using var fixture = new Fixture();
-        using var context = new BunitContext();
-        if (disabled) fixture.Context.Services.AddSingleton(new ConsoleV4Options { Enabled = false });
-        var page = (disabled ? fixture.Context : context).Render<OperateApiKeysPage>();
+        fixture.Context.Services.AddSingleton(new ConsoleV4Options { Enabled = false });
+        AssertUnsupported(fixture.Context.Render<OperateApiKeysPage>());
+    }
+
+    private static void AssertUnsupported(IRenderedComponent<OperateApiKeysPage> page)
+    {
         Assert.Equal(OperateSectionStatus.Unsupported, page.FindComponent<OperateSectionStatusPanel>().Instance.Status);
         Assert.Equal(ConsoleStateTreatment.Informational, page.FindComponent<HonuaState>().Instance.Treatment);
         Assert.Empty(page.FindAll(".console-state-error"));
