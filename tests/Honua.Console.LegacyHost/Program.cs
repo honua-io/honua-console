@@ -45,7 +45,8 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.Use(async (context, next) =>
 {
     if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy")
-        || context.Request.Path.StartsWithSegments("/api/studio/viewer"))
+        || context.Request.Path.StartsWithSegments("/api/studio/viewer")
+        || context.Request.Path.StartsWithSegments("/api/studio/catalog-mcp"))
         && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
     {
         // Fetch clients must receive the original 401/403, never a rendered not-found page.
@@ -83,9 +84,9 @@ app.MapRazorComponents<App>()
 var mapProxyLogger = app.Services.GetRequiredService<ILoggerFactory>()
     .CreateLogger("Honua.Console.Web.MapProxy");
 
-app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
+app.MapGet("/map-proxy/{environmentId}/styles/{publicationId}.json", async (
     string environmentId,
-    int layerId,
+    string publicationId,
     HttpContext httpContext,
     IHttpClientFactory httpClientFactory,
     Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
@@ -111,7 +112,7 @@ app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
     var client = httpClientFactory.CreateClient("honua-map-proxy");
     using var request = new HttpRequestMessage(HttpMethod.Get,
         Honua.Console.Shell.Services.ConsoleServerHttp.BuildUri(
-            activeProfile.ServerBaseUri, $"api/styles/{layerId}.json"));
+            activeProfile.ServerBaseUri, $"api/styles/{Uri.EscapeDataString(publicationId)}.json"));
 
     HttpResponseMessage response;
     try
@@ -122,8 +123,8 @@ app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
     {
         ConsoleMapProxyTelemetry.RecordTransportFault("styles");
         mapProxyLogger.LogWarning(ex,
-            "Map-proxy styles upstream request failed for layer {LayerId}: honua-server was unreachable or timed out.",
-            layerId);
+            "Map-proxy styles upstream request failed for publication {PublicationId}: honua-server was unreachable or timed out.",
+            publicationId);
         return Results.StatusCode(StatusCodes.Status502BadGateway);
     }
 
@@ -133,8 +134,8 @@ app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
         if (!response.IsSuccessStatusCode)
         {
             mapProxyLogger.LogWarning(
-                "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
-                (int)response.StatusCode, layerId);
+                "Map-proxy styles upstream returned {StatusCode} for publication {PublicationId}.",
+                (int)response.StatusCode, publicationId);
             return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 

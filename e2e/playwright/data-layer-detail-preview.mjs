@@ -11,7 +11,10 @@ await runV4PagePresentation({
   scope: ".console-page",
   controls: ".console-page :is(a[href], button, input, select, textarea, summary):not(:disabled):not([tabindex='-1']):visible",
   inspect: async (page, name) => {
-    assert.equal(await page.locator("[data-layer-preview] figure[data-map-mode='layer']").count(), 1);
+    // These field-editor fixtures have no publication metadata binding.
+    assert.equal(await page.locator("[data-layer-preview] figure[data-map-mode='layer']").count(), 0);
+    assert.equal(await page.locator("[data-layer-preview] [data-preview-unrendered]").textContent(),
+      "The published map style is unavailable for this layer.");
     assert.equal(await page.locator(".console-page-heading-v4").count(), 1);
     const panels = await page.locator(".console-panel:visible").evaluateAll(elements => elements.map(element => ({
       title: element.querySelector("h2")?.textContent,

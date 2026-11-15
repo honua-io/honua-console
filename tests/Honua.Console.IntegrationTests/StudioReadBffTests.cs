@@ -59,6 +59,20 @@ public sealed class StudioReadBffTests
         Assert.False(StudioReadBff.IsCatalogRead(document.RootElement));
     }
 
+    [Theory]
+    [InlineData("0", "0", true)]
+    [InlineData("12", "12", true)]
+    [InlineData("0", "1", false)]
+    [InlineData("1", "-1", false)]
+    [InlineData("0", "\"0\"", false)]
+    [InlineData("0", "null", false)]
+    [InlineData("0", "2147483648", false)]
+    public void CatalogDescriptorAcceptsOnlyTheMatchingServiceLocalIndex(string layerId, string index, bool accepted)
+    {
+        using var json = JsonDocument.Parse("{\"method\":\"tools/call\",\"params\":{\"name\":\"honua_describe_layer\",\"arguments\":{\"serviceId\":\"published\",\"layerId\":" + layerId + ",\"serviceLayerIndex\":" + index + "}}}");
+        Assert.Equal(accepted, StudioReadBff.IsCatalogRead(json.RootElement));
+    }
+
     [Fact]
     public void NegotiatedMcpSessions_AreIsolatedByOperatorProfileAndWorkspace()
     {

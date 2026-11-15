@@ -99,9 +99,11 @@
         string ProtocolLabel,
         string Route)
     {
+        public string? ServiceName { get; init; }
+
         public static PreviewSelection? For(ResourceTreeNode node, PublicationTreeNode publication) =>
             publication.Route is { } route
-                ? new(node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route)
+                ? new(node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route) { ServiceName = publication.ServiceName }
                 : null;
     }
 }
