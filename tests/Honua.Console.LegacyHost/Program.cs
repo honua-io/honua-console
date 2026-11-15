@@ -122,8 +122,8 @@ app.MapGet("/map-proxy/{environmentId}/styles/{publicationId}.json", async (
     {
         ConsoleMapProxyTelemetry.RecordTransportFault("styles");
         mapProxyLogger.LogWarning(ex,
-            "Map-proxy styles upstream request failed for layer {LayerId}: honua-server was unreachable or timed out.",
-            layerId);
+            "Map-proxy styles upstream request failed for publication {PublicationId}: honua-server was unreachable or timed out.",
+            publicationId);
         return Results.StatusCode(StatusCodes.Status502BadGateway);
     }
 
@@ -133,8 +133,8 @@ app.MapGet("/map-proxy/{environmentId}/styles/{publicationId}.json", async (
         if (!response.IsSuccessStatusCode)
         {
             mapProxyLogger.LogWarning(
-                "Map-proxy styles upstream returned {StatusCode} for layer {LayerId}.",
-                (int)response.StatusCode, layerId);
+                "Map-proxy styles upstream returned {StatusCode} for publication {PublicationId}.",
+                (int)response.StatusCode, publicationId);
             return Honua.Console.Web.MapProxySupport.UpstreamFailure(httpContext, response.StatusCode);
         }
 

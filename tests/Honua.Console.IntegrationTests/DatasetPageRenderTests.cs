@@ -174,6 +174,47 @@ public sealed class DatasetPageRenderTests
             "/ogc/features/collections/layer-02"), selected);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SharedResource_ProtocolSelectionKeepsTheSelectedService(bool enabled)
+    {
+        var (context, _) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new SharedResourceDataSource());
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/operate/data?focus=parcels");
+        var page = ctx.Render<OperateDataPage>();
+        page.WaitForAssertion(() => Assert.Equal("alpha", page.FindComponent<LayerPreviewPane>().Instance.Layer?.ServiceName));
+
+        await page.InvokeAsync(() => page.FindComponent<LayerPreviewPane>().Instance.OnProtocolSelected.InvokeAsync("MapServer"));
+
+        page.WaitForAssertion(() =>
+        {
+            var pane = page.FindComponent<LayerPreviewPane>().Instance;
+            Assert.Equal("zeta", pane.Layer?.ServiceName);
+            Assert.Equal("zeta", pane.Selection?.ServiceName);
+            Assert.Equal("/rest/services/zeta/MapServer", pane.Selection?.Route);
+            Assert.Equal(1, pane.Layer?.LayerId);
+        });
+    }
+
+    private sealed class SharedResourceDataSource : IOperateTransitionDataSource
+    {
+        private readonly DatasetDataSource _inner = new();
+        public async Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        {
+            var workspace = await _inner.GetWorkspaceAsync(cancellationToken);
+            var service = workspace.Services[0];
+            return workspace with { Services = [
+                service with { Name = "alpha", ServiceType = "FeatureServer" },
+                service with { Name = "zeta", ServiceType = "MapServer" }
+            ] };
+        }
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => _inner.FindConnectionAsync(connectionId, cancellationToken);
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) => _inner.FindResourceEditAsync(resourceId, cancellationToken);
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => _inner.FindServiceAsync(serviceName, cancellationToken);
+    }
+
     private static BunitContext CatalogContext()
     {
         var ctx = new BunitContext();
