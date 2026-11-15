@@ -684,7 +684,8 @@
                                             <td>@job.JobType</td>
                                             <td><span class="console-status @job.Status.CssClass">@job.Status.Label</span></td>
                                             <td>
-                                                <div class="operate-progress" aria-label="@($"{job.ProgressPercent} percent complete")">
+                                                <div class="operate-progress" role="progressbar" aria-label="@($"{job.JobRunId} progress")"
+                                                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="@job.ProgressPercent">
                                                     <span style="@($"width: {job.ProgressPercent}%")"></span>
                                                 </div>
                                             </td>
