@@ -1,3 +1,4 @@
+import { loadStudioBundle, connectStudioHost } from './studio-bundle.mjs';
 import { consoleHref } from './console-links.mjs';
 import { mountStudioDraftCreate } from './studio-draft-create.mjs';
 import {processTask} from './workflow-task.mjs';
@@ -24,7 +25,7 @@ window.addEventListener('beforeunload',event=>{
 async function studioElement(session) {
     let app = elementsByEnvironment.get(session.environmentId);
     if (!app) {
-        app = document.createElement('honua-studio-app');
+        app = connectStudioHost(document.createElement('honua-studio-app'));
         app.styleEditorAssetsUrl = new URL('../_studio/maputnik/index.html', import.meta.url).href;
         trackStudioLeaseTurns(app);
         app.routingMode = 'host'; app.setAttribute('base-path', '/studio');
@@ -120,7 +121,7 @@ async function mount() {
     host.dataset.mounted = 'true';
     const status = host.querySelector('[data-studio-status]');
     try {
-        assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
+        assets ||= loadStudioBundle();
         const module = await assets;
         module.registerAllStudioElements();
         session = await readStudioSession();
@@ -169,7 +170,7 @@ async function mountProcesses() {
     host.dataset.mounted = 'true';
     const status = host.querySelector('[data-processes-status]');
     try {
-        assets ||= import(new URL('../_studio/console.js', import.meta.url).href);
+        assets ||= loadStudioBundle();
         const module = await assets; module.registerAllStudioElements();
         const session = await readStudioSession().catch(error => {
             throw error instanceof StudioSignInRequired ? new Error('Sign in to Honua to open Processes.') : error;
@@ -177,9 +178,9 @@ async function mountProcesses() {
         let view;
         const options = { environmentId: session.environmentId, csrfToken: session.csrfToken, principalId:session.principalId,
             fetchImpl:capturedProcessFetch(session,{current:()=>view?.session || session}) };
-        const builtin = document.createElement('honua-studio-processes');
+        const builtin = connectStudioHost(document.createElement('honua-studio-processes'));
         builtin.client = new module.ServerProcessWorkspace(options);
-        const custom = document.createElement('honua-studio-custom-processes');
+        const custom = connectStudioHost(document.createElement('honua-studio-custom-processes'));
         custom.client = new module.LocalProcessWorkspace({...options,maxArtifactUploadBytes:session.maxArtifactUploadBytes,workspaceId:()=>window.honuaAgentWorkspace?.workspaceId});
         view = processView = {builtin,custom,host,mode:'builtin',session};
         // Local Python/.NET processes require the Console host.

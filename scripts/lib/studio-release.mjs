@@ -111,7 +111,7 @@ async function downloadArchive(url, { fetchImpl, maxArchiveBytes }) {
 
 async function writeStudioProvenance(root, lock) {
   const main = await readFile(join(root, "console.js"), "utf8");
-  if (!main.includes("createWorkspaceAgentSession") || main.includes("__honuaStudioFixtureToken")) {
+  if (!main.includes("createEditorAgentSession") || main.includes("__honuaStudioFixtureToken")) {
     throw new Error("the release does not contain a production Console Studio entry");
   }
   const sdk = JSON.parse(await readFile(join(root, SDK_PROVENANCE), "utf8"));
