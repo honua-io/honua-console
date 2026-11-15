@@ -68,6 +68,7 @@ public sealed class LayerPreviewPaneRenderTests
         });
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
         module.Mode = JSRuntimeMode.Loose;
+        module.Setup<bool>("init", _ => true).SetResult(true);
         var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
         preview.Render(p => p.Add(x => x.Layer, Parcels with { LayerId = 8 }));
         preview.WaitForAssertion(() => Assert.Single(module.Invocations["init"]));
