@@ -119,7 +119,6 @@ public sealed partial class ApprovalInboxPageRenderTests
         Assert.Equal(presentation == ConsolePresentationMode.Legacy, page.FindAll(".approval-inbox-list").Count == 1);
         if (presentation == ConsolePresentationMode.V4)
         {
-            // Status and risk stack as whole pills in their own flex wrapper so they cannot overlap.
             Assert.All(page.FindAll(".approval-inbox-table tbody tr"), row =>
                 Assert.Equal(2, row.QuerySelectorAll(".approval-inbox-pills > .console-status").Length));
         }
