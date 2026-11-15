@@ -64,7 +64,7 @@ cd honua-console
 cp src/Honua.Console.Web/global.json global.json
 
 dotnet restore Honua.Console.slnx --configfile NuGet.config --locked-mode
-dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
+dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj -- --urls http://127.0.0.1:5174 --pathbase=/console
 ```
 
 Open <http://127.0.0.1:5174/console/>. This command starts the development
@@ -108,7 +108,7 @@ and [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md) for checks
 
 | Task | Command |
 |---|---|
-| Run the browser host | `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174` |
+| Run the browser host | `dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj -- --urls http://127.0.0.1:5174 --pathbase=/console` |
 | Fast local check (unit tests + web build) | `./scripts/fast-local-check.sh` |
 | .NET unit tests | `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj` |
 | Format gate (CI-enforced) | `dotnet format Honua.Console.slnx --verify-no-changes` |
