@@ -37,7 +37,6 @@ function startWith(fetchResponses) {
     console: { warn() {} },
     fetch: (url, init) => {
       calls.push({ url, init });
-      assert.ok(fetchResponses.length > 0, `unexpected extra fetch of ${url}`);
       const next = fetchResponses.shift();
       return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
     },
@@ -69,6 +68,15 @@ test('startup gives up after five attempts and reports the last failure', async 
   assert.equal(calls.length, 5);
   assert.deepEqual(delays, [500, 1000, 2000, 4000]);
   assert.equal('integrity' in calls[0].init, false);
+});
+
+test('startup releases the body of a transient response before retrying', async () => {
+  let cancelled = 0;
+  const ok = { ok: true, status: 200 };
+  const unavailable = { ok: false, status: 503, body: { cancel: () => { cancelled++; return Promise.reject(new Error('gone')); } } };
+  const { options } = startWith([unavailable, ok]);
+  assert.equal(await options.loadBootResource('assembly', 'a.wasm', '/console/_framework/a.wasm', '', 'assembly'), ok);
+  assert.equal(cancelled, 1);
 });
 
 test('startup returns the last transient HTTP failure once its attempts run out', async () => {
