@@ -24,6 +24,24 @@ public sealed class DeployApprovalMapperTests
         Assert.Equal(expected, DeployOperationPresentation.MapLifecycle(raw));
     }
 
+    [Theory]
+    [InlineData("javascript:void(0)")]
+    [InlineData("data:text/html,pr")]
+    [InlineData("git.example/pr/77")]
+    public void PullRequestLink_IsDroppedUnlessItIsAnAbsoluteWebUrl(string prUrl)
+    {
+        var response = new DeployOperationResponse
+        {
+            OperationId = "op-78",
+            Kind = "gitops-deploy",
+            Status = "AwaitingApproval",
+            MetadataRelease = new MetadataReleaseContextResponse { PackageId = "pkg-2", PrUrl = prUrl },
+        };
+
+        Assert.Null(DeployApprovalMapper.MapProposal(response).PrUrl);
+        Assert.Null(GitOpsReleaseMapper.MapOperation(response).PrUrl);
+    }
+
     [Fact]
     public void MapProposal_ProjectsCoreFieldsAndRollbackPlan()
     {

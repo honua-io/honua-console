@@ -338,6 +338,10 @@ public static class UrlRule
             && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase));
     }
+
+    // Server-supplied links render as anchors; anything but an absolute web URL is dropped.
+    public static string? AbsoluteHttpOrNull(string? value) =>
+        IsAbsoluteHttp(value) ? value!.Trim() : null;
 }
 
 public static class IdentifierRule

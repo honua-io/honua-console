@@ -1,5 +1,6 @@
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Services;
 
@@ -62,7 +63,7 @@ public static class DeployApprovalMapper
             ChangeSummary: BuildChangeSummary(operation, environment, desiredRevision),
             RequestedBy: operation.RequestedBy,
             Reason: operation.Reason,
-            PrUrl: release?.PrUrl,
+            PrUrl: UrlRule.AbsoluteHttpOrNull(release?.PrUrl),
             CommitSha: release?.CommitSha,
             Evidence: evidence,
             RollbackPlan: rollback,
