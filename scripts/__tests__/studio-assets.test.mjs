@@ -21,7 +21,7 @@ test('the vendored Studio tree is the production bundle of the locked release',{
     assert.equal(provenance.releaseQualified,false);
     assert.equal(provenance.release.tag,lock.tag);
     const main=await readFile(join(root,'console.js'),'utf8');
-    assert.ok(main.includes('createWorkspaceAgentSession'));
+    assert.ok(main.includes('createEditorAgentSession'));
     assert.ok(!main.includes('__honuaStudioFixtureToken'));
 });
 
