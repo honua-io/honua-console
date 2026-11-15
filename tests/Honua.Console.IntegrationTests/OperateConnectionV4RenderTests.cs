@@ -152,6 +152,36 @@ public sealed class OperateConnectionV4RenderTests
     }
 
     [Theory]
+    [InlineData(false, "input[placeholder='db-prod.honua.internal']")]
+    [InlineData(true, "input[placeholder='db-prod.honua.internal']")]
+    [InlineData(false, "input[type=password]")]
+    [InlineData(true, "input[type=password]")]
+    public async Task EditingConnectionSettingsDiscardsAnInFlightTestResult(bool enabled, string editedInput)
+    {
+        using var context = Context(enabled);
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        var operations = new Operations();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(operations);
+        var page = context.Render<OperateConnectionNewPage>();
+        page.Find("input[placeholder='db-prod.honua.internal']").Input("original.example");
+        page.Find("input[placeholder='honua_geo']").Input("spatial");
+        page.Find("input[placeholder='honua_reader']").Input("reader");
+        page.Find("input[type=password]").Input("fixture-password");
+        var pending = page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").ClickAsync(new());
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+
+        page.Find(editedInput).Input("changed-settings");
+        await page.InvokeAsync(() => operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Obsolete test result")));
+        await pending;
+
+        Assert.DoesNotContain("Obsolete test result", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("changed-settings", page.Find(editedInput).GetAttribute("value"));
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.False(page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").HasAttribute("disabled"));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void NavigationClearsThePreviousConnectionsTestOutcome(bool enabled)

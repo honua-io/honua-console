@@ -258,6 +258,7 @@
 
     private bool _busy;
     private bool _testing;
+    private long _editRevision;
     private ConsoleConnectionCreateResult? _result;
     private ConsoleConnectionTestOutcome? _testOutcome;
 
@@ -303,6 +304,7 @@
 
     private void OnEdit()
     {
+        _editRevision++;
         _dirty.MarkDirty();
         // A field edit invalidates a prior test/create result — the target may have changed.
         _testOutcome = null;
@@ -354,11 +356,16 @@
         }
 
         _testing = true;
+        var revision = _editRevision;
         _testOutcome = null;
         _result = null;
         try
         {
-            _testOutcome = await ConnectionCreate.TestAsync(BuildCommand());
+            var outcome = await ConnectionCreate.TestAsync(BuildCommand());
+            if (revision == _editRevision)
+            {
+                _testOutcome = outcome;
+            }
         }
         finally
         {
