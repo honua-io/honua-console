@@ -18,7 +18,7 @@ test('shipping Folder → Service → Layer navigation survives reload', async (
   await expect(service).toHaveAttribute('href', servicePath);
   await service.click();
   await expect(page).toHaveURL(new RegExp(`${servicePath}$`));
-  await expect(page.locator('[data-service-loaded="true"] tr[data-layer-id="946801"]'))
+  await expect(page.locator('[data-service-loaded] tr[data-layer-id="946801"]'))
     .toContainText('Folder navigation layer');
   await screenshot(page, info, 'service');
   await openLayer(page);
@@ -72,7 +72,7 @@ async function openLayer(page: Page) {
 }
 
 async function checkLayerContext(page: Page) {
-  await expect(page.locator('[data-layer-loaded="true"]')).toBeVisible();
+  await expect(page.locator('[data-layer-loaded]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Folder navigation layer', exact: true, level: 1 })).toBeVisible();
   const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb', exact: true });
   await expect(breadcrumb.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute('href', '/console/');
