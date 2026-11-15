@@ -126,6 +126,7 @@ public sealed class BrowserAuthenticationStateProvider(
                 await api.SignInCookieAsync(password, cancellationToken);
                 if (api.CapturesManagementBearer)
                 {
+                    await PrepareCookieRequestAsync(cancellationToken);
                     var bearer = await api.GetPasswordTokenAsync(password, cancellationToken);
                     session.RememberManagementBearer(bearer.AccessToken!, bearer.ExpiresAt);
                 }
@@ -147,10 +148,7 @@ public sealed class BrowserAuthenticationStateProvider(
     public async Task PrepareCookieRequestAsync(CancellationToken cancellationToken = default)
     {
         var csrf = await api.GetCsrfAsync(cancellationToken);
-        var managementToken = session.ManagementAccessToken;
-        var managementExpiry = session.ManagementExpiresAt;
-        session.Set(session.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, session.ExpiresAt));
-        if (!string.IsNullOrWhiteSpace(managementToken)) session.RememberManagementBearer(managementToken, managementExpiry);
+        session.ReplaceServingCredentials(session.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, session.ExpiresAt));
     }
 
     private async Task LoadAuthenticatedStateAsync()
@@ -184,10 +182,7 @@ public sealed class BrowserAuthenticationStateProvider(
         {
             expiresAt = tokenExpiry;
         }
-        var managementToken = session.ManagementAccessToken;
-        var managementExpiry = session.ManagementExpiresAt;
-        session.Set(result.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, expiresAt));
-        if (!string.IsNullOrWhiteSpace(managementToken)) session.RememberManagementBearer(managementToken, managementExpiry);
+        session.ReplaceServingCredentials(result.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, expiresAt));
         var principal = session.IsAuthenticated ? result.Principal : new ClaimsPrincipal(new ClaimsIdentity());
         if (session.IsAuthenticated)
         {

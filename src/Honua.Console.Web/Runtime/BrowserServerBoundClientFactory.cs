@@ -106,14 +106,15 @@ internal sealed class BrowserApiHandler(
         var bearerExpiry = managementCall && session.ManagementAccessToken is not null
             ? session.ManagementExpiresAt
             : session.ExpiresAt;
-        if (!sameOrigin
+        var bearerCall = managementCall || !sameOrigin;
+        if (bearerCall
             && !string.IsNullOrWhiteSpace(bearer)
             && bearerExpiry > DateTimeOffset.UtcNow
             && (session.IsAuthenticated || access == BrowserApiAccess.Public))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
         }
-        else if (!sameOrigin && access != BrowserApiAccess.Public)
+        else if (bearerCall && access != BrowserApiAccess.Public)
         {
             throw new HttpRequestException(
                 managementCall
@@ -122,7 +123,7 @@ internal sealed class BrowserApiHandler(
                 null, System.Net.HttpStatusCode.Unauthorized);
         }
 
-        if (sameOrigin && request.Method != HttpMethod.Get && request.Method != HttpMethod.Head
+        if (!bearerCall && request.Method != HttpMethod.Get && request.Method != HttpMethod.Head
             && request.Method != HttpMethod.Options)
         {
             if (string.IsNullOrWhiteSpace(session.CsrfToken))
@@ -132,7 +133,7 @@ internal sealed class BrowserApiHandler(
             request.Headers.Add("X-Honua-CSRF", session.CsrfToken);
         }
 
-        request.SetBrowserRequestCredentials(sameOrigin ? BrowserRequestCredentials.SameOrigin : BrowserRequestCredentials.Omit);
+        request.SetBrowserRequestCredentials(bearerCall ? BrowserRequestCredentials.Omit : BrowserRequestCredentials.SameOrigin);
         request.SetBrowserRequestOption("redirect", "error");
     }
 }

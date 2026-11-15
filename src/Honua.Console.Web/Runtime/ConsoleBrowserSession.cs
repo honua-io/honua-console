@@ -57,6 +57,14 @@ public sealed class ConsoleBrowserSession
         Changed?.Invoke(CreateSnapshot());
     }
 
+    internal void ReplaceServingCredentials(ClaimsPrincipal principal, ConsoleSessionCredentials? credentials)
+    {
+        var managementToken = ManagementAccessToken;
+        var managementExpiry = ManagementExpiresAt;
+        Set(principal, credentials);
+        if (!string.IsNullOrWhiteSpace(managementToken)) RememberManagementBearer(managementToken, managementExpiry);
+    }
+
     private ConsoleBrowserSessionSnapshot CreateSnapshot() => new(
         Revision,
         IsAuthenticated,
