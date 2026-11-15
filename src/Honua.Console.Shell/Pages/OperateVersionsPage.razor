@@ -37,7 +37,7 @@
         @VersionWorkflow
     }
 
-    <ConsoleConfirmDialog @ref="_confirm" />
+    <ConsoleConfirmDialog @key="_serviceGeneration" @ref="_confirm" />
 </section>
 
 @code {
@@ -69,7 +69,7 @@
                        data-service-id-input />
             </label>
             <button class="console-button" type="button" @onclick="LoadVersionsAsync"
-                    disabled="@(_loading || string.IsNullOrWhiteSpace(_serviceIdInput))" data-load-versions>
+                    disabled="@(_loading || _busy || string.IsNullOrWhiteSpace(_serviceIdInput))" data-load-versions>
                 @(_loading ? "Loading…" : "Load versions")
             </button>
         </div>
@@ -247,6 +247,7 @@
     private string? _serviceId;
     private OperateVersionListView? _versions;
     private bool _loading;
+    private int _serviceGeneration;
     private bool _busy;
 
     private string _policy = "none";
@@ -272,17 +273,21 @@
 
     private async Task LoadVersionsAsync()
     {
-        if (string.IsNullOrWhiteSpace(_serviceIdInput))
+        if (_busy || _loading || string.IsNullOrWhiteSpace(_serviceIdInput))
         {
             return;
         }
 
+        var serviceId = _serviceIdInput.Trim();
+        if (_serviceId != serviceId) CancelAlter();
+        _serviceGeneration++;
+        _versions = null;
         _loading = true;
         _lastResult = null;
         _lastReconcile = null;
         try
         {
-            _serviceId = _serviceIdInput.Trim();
+            _serviceId = serviceId;
             _versions = await VersionOps.ListVersionsAsync(_serviceId);
         }
         finally
@@ -293,7 +298,7 @@
 
     private Task ReconcileAsync(OperateVersionView version)
     {
-        if (_serviceId is null) return Task.CompletedTask;
+        if (_serviceId is null || _loading || _busy) return Task.CompletedTask;
         _lastResult = null;
         _reconciledVersionGuid = version.VersionGuid;
         return Notifications.RunGuardedAsync(
@@ -313,17 +318,18 @@
 
     private void ConfirmDelete(OperateVersionView version)
     {
-        if (_confirm is null) return;
+        if (_confirm is null || _serviceId is null || _loading || _busy) return;
+        var generation = _serviceGeneration;
         _confirm.Open(
             title: $"Delete version '{version.VersionName}'?",
-            onConfirm: () => DeleteAsync(version),
+            onConfirm: () => generation == _serviceGeneration ? DeleteAsync(version) : Task.CompletedTask,
             body: $"This permanently removes branch version '{version.VersionName}'. Edits in this version will be lost. This cannot be undone.",
             confirmLabel: "Delete version");
     }
 
     private Task DeleteAsync(OperateVersionView version)
     {
-        if (_serviceId is null) return Task.CompletedTask;
+        if (_serviceId is null || _loading || _busy) return Task.CompletedTask;
         _lastReconcile = null;
         return Notifications.RunGuardedAsync(
             async () =>
@@ -372,7 +378,7 @@
 
     private Task SubmitFormAsync()
     {
-        if (_serviceId is null || string.IsNullOrWhiteSpace(_formName))
+        if (_serviceId is null || _loading || _busy || string.IsNullOrWhiteSpace(_formName))
         {
             return Task.CompletedTask;
         }
