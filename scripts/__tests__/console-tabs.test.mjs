@@ -7,6 +7,7 @@ function tabList() {
     const visits = [];
     const tabs = ['layers', 'protocols', 'access'].map(id => ({
         focus: () => visits.push(`focus:${id}`),
+        scrollIntoView: options => assert.deepEqual(options, { block: 'nearest', inline: 'nearest' }),
         click: () => visits.push(`select:${id}`)
     }));
     const element = {
