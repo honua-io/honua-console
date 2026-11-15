@@ -19,6 +19,17 @@ await runV4PagePresentation({
       assert.equal(await heading.evaluate(element => getComputedStyle(element).fontSize), expected);
     }
     if (name === "activity-selected") {
+      const clipped = await page.locator(".operate-timeline").evaluate(region => {
+        const bounds = region.getBoundingClientRect();
+        return [...region.querySelectorAll("[data-timeline-row] td")]
+          .filter(cell => cell.getBoundingClientRect().right > bounds.right + 0.5)
+          .map(cell => cell.dataset.label ?? cell.cellIndex);
+      });
+      assert.deepEqual(clipped, [], `Activity event columns are hidden at ${width}px`);
+      if (width === 390) {
+        assert.ok(await page.locator(".operate-timeline").evaluate(region => region.scrollWidth <= region.clientWidth + 0.5),
+          "Activity event history scrolls sideways at phone width");
+      }
       const timeline = page.locator(".operate-table-panel .operate-timeline");
       assert.equal(await timeline.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
       assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => {

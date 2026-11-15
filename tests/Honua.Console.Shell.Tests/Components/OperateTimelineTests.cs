@@ -35,6 +35,8 @@ public sealed class OperateTimelineTests : ConsoleComponentTestBase
         Assert.Equal(rollout.Headings,
             cut.FindAll("th").Select(th => th.TextContent));
         Assert.Single(cut.FindAll("[data-timeline-row]"));
+        Assert.Equal(rollout.Headings,
+            cut.FindAll("[data-timeline-row] td").Select(td => td.GetAttribute("data-label")));
         Assert.Equal("Published <map>", cut.Find("td a").TextContent);
         Assert.Equal("/operate/events/evt-1", cut.Find("td a").GetAttribute("href"));
         Assert.Contains("corr-1", cut.Find("[data-correlation-id]").TextContent, StringComparison.Ordinal);
