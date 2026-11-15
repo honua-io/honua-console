@@ -38,7 +38,7 @@
                           ActionLabel="Back to support" />
         @if (_polling)
         {
-            <p class="console-muted" role="status">Retrying every 5s...</p>
+            <p class="console-muted" role="status">Retrying automatically...</p>
         }
     }
     else
@@ -130,6 +130,7 @@
     public string TicketId { get; set; } = string.Empty;
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxRetryInterval = TimeSpan.FromSeconds(60);
 
     private SupportTicketResponse? _ticket;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
@@ -221,11 +222,12 @@
 
     private async Task PollAsync(string ticketId, CancellationToken token)
     {
-        using var timer = new PeriodicTimer(PollInterval);
+        var delay = PollInterval;
         try
         {
-            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            while (true)
             {
+                await Task.Delay(delay, token).ConfigureAwait(false);
                 await InvokeAsync(async () =>
                 {
                     if (token.IsCancellationRequested || !await RefreshAsync(ticketId, token))
@@ -240,6 +242,11 @@
                 {
                     return;
                 }
+
+                // Back off while the read keeps failing, so a misconfigured endpoint is not hit every 5s forever.
+                delay = _status == OperateSectionStatus.Unavailable
+                    ? TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxRetryInterval.Ticks))
+                    : PollInterval;
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -256,8 +263,8 @@
         _polling = false;
     }
 
-    // Unavailable (network, server error, timeout or unexpected response) may clear, so it is retried;
-    // Forbidden, Missing and Unsupported will not, and a terminal ticket has nothing left to change.
+    // Unavailable (network, server error, timeout or unexpected response) may clear, so it is retried with
+    // backoff; every other status will not, and a terminal ticket has nothing left to change.
     private bool ShouldPoll() =>
         _status == OperateSectionStatus.Unavailable || (_ticket is not null && !IsTerminal(_ticket.Phase));
 
