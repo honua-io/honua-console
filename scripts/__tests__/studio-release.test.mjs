@@ -22,7 +22,7 @@ after(() => rm(scratch, { recursive: true, force: true }));
 
 const SDK_REVISION = "b".repeat(40);
 const RELEASE_FILES = {
-  "console.js": "export const createWorkspaceAgentSession = () => {};\n",
+  "console.js": "export const createEditorAgentSession = () => {};\n",
   "style.css": "honua-studio-app { display: block; }\n",
   LICENSE: "Apache License\n",
   "THIRD-PARTY-NOTICES.txt": "notices\n",
@@ -87,7 +87,7 @@ test("a lock cannot redirect trust to another repository or signer workflow", ()
 test("a release whose digest differs from the lock is refused before extraction", async () => {
   const destination = join(scratch, "digest-mismatch");
   const lock = lockFor(releaseArchive());
-  const tampered = releaseArchive({ ...RELEASE_FILES, "console.js": "export const createWorkspaceAgentSession = 1;\n" });
+  const tampered = releaseArchive({ ...RELEASE_FILES, "console.js": "export const createEditorAgentSession = 1;\n" });
   await assert.rejects(
     fetchStudioRelease(lock, destination, { fetchImpl: serving(tampered) }),
     new RegExp(`the Studio release lock requires ${lock.sha256}`),

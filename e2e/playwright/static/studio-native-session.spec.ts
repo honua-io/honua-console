@@ -30,7 +30,26 @@ for (const crossOrigin of [false, true]) {
         };
         return app.studioClient.listPackages();
       })).toEqual([]);
-      for (const response of [await bootstrap, await packages]) {
+      const catalog = page.waitForResponse(response => {
+        if (!response.url().endsWith('/api/v1/studio/mcp')) return false;
+        return response.request().postDataJSON()?.method === 'tools/call';
+      });
+      expect(await page.evaluate(async () => {
+        const app = document.querySelector('honua-studio-app') as HTMLElement & {
+          [method: string]: unknown;
+          listRecipeSources(signal: AbortSignal): Promise<unknown[]>;
+        };
+        // These are the Console host entry points, backed by the released Studio editor.
+        for (const method of ['createWorkspaceDraft', 'saveWorkspaceVersion', 'prepareWorkspaceTurn',
+          'reviewWorkspacePublication', 'publishWorkspaceVersion', 'createWorkspaceStyleProvider']) {
+          if (typeof app[method] !== 'function') throw new Error(`Missing Console entry point: ${method}`);
+        }
+        return app.listRecipeSources(new AbortController().signal);
+      })).toEqual([expect.objectContaining({
+        id: 'roads/2', title: 'Published roads',
+        locator: expect.objectContaining({ layerId: 2, serviceId: 'roads' }),
+      })]);
+      for (const response of [await bootstrap, await packages, await catalog]) {
         expect(response.status()).toBe(200);
         const headers = await response.request().allHeaders();
         expect(headers['x-api-key']).toBeUndefined();

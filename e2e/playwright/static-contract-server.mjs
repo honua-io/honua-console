@@ -210,6 +210,26 @@ export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = f
       await signInWithPassword(context);
       return;
     }
+    if (request.method === "POST" && context.pathname === "/api/v1/studio/mcp" && context.authorized) {
+      let body = "";
+      for await (const chunk of request) body += chunk;
+      const rpc = JSON.parse(body);
+      if (rpc.method === "initialize") {
+        context.json({ jsonrpc: "2.0", id: rpc.id, result: {
+          protocolVersion: rpc.params.protocolVersion, capabilities: { tools: {} },
+          serverInfo: { name: "published-layer-fixture", version: "1" },
+        } });
+      } else if (rpc.method === "tools/call" && rpc.params.name === "honua_list_layers") {
+        context.json({ jsonrpc: "2.0", id: rpc.id, result: { content: [], structuredContent: {
+          layers: [{ serviceId: "roads", serviceName: "transport-roads", serviceLayerIndex: 2,
+            name: "Published roads", geometryType: "MultiLineString" }],
+          offset: 0, hasMore: false, layerCount: 1,
+        } } });
+      } else {
+        context.json({ jsonrpc: "2.0", id: rpc.id, error: { code: -32601, message: "Unknown fixture method" } });
+      }
+      return;
+    }
     readResource(context);
   };
 }
