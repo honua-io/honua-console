@@ -47,4 +47,3 @@ public sealed record HonuaAdminPublishedLayerSummary
     // Stored extent in EPSG:4326, or null when the layer has none.
     public HonuaAdminLayerExtent? Extent { get; init; }
 }
-
