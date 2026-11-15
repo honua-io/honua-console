@@ -23,8 +23,8 @@ under "Pass the cross-surface smoke."
 > it, and emits evidence recording the server image, the seed profile, and
 > `sourceHydrated: true`. The fast in-memory harness here stays as a cheap
 > contract-shape check but no longer satisfies the gate on its own. See
-> [Console end-to-end smoke against a real honua-server](../deployment/LOCAL_AND_STAGING.md#console-end-to-end-smoke-against-a-real-honua-server-issue-59)
-> for how to run it.
+> [Checks and legacy integration fixtures](../deployment/LOCAL_AND_STAGING.md#checks-and-legacy-integration-fixtures)
+> for fixture commands and the separate browser qualification requirements.
 
 ## Running the smoke
 
@@ -271,7 +271,7 @@ real HTTP transport cannot silently accept a drifted payload:
 - **`publish-handoff/v1.1.0`** — The fixture at
   [`smoke/parity/fixtures/publish-handoff.json`](../../smoke/parity/fixtures/publish-handoff.json)
   matches every top-level required field in
-  [`publish-handoff-v1.json`](https://github.com/honua-io/honua-portal/blob/main/schemas/publish-handoff-v1.json):
+  [`publish-handoff-v1.json`](https://github.com/honua-io/honua-portal/blob/trunk/schemas/publish-handoff-v1.json):
   `type, title, summary, owner, extent, nativeCrs, license, attribution,
   source, target, endpoints, preview, capabilities, dependencies, access`.
   `source.kind` is restricted to the enum (`import|publish|admin-job|external`),

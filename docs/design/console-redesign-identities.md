@@ -30,7 +30,7 @@ not a design for later object routes. See [routes](console-redesign-route-compat
 Source locations: [models](../../src/Honua.Console.Shell/Models/),
 [services](../../src/Honua.Console.Shell/Services/),
 [pages](../../src/Honua.Console.Shell/Pages/),
-[workspace session BFF](../../src/Honua.Console.Web/AgentWorkspaceBff.cs),
+[legacy workspace BFF test fixture](../../tests/Honua.Console.LegacyHost/AgentWorkspaceBff.cs),
 [browser workspace](../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs).
 Names above identify existing projections, not new wire DTOs.
 
