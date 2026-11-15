@@ -83,9 +83,9 @@ app.MapRazorComponents<App>()
 var mapProxyLogger = app.Services.GetRequiredService<ILoggerFactory>()
     .CreateLogger("Honua.Console.Web.MapProxy");
 
-app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
+app.MapGet("/map-proxy/{environmentId}/styles/{publicationId}.json", async (
     string environmentId,
-    int layerId,
+    string publicationId,
     HttpContext httpContext,
     IHttpClientFactory httpClientFactory,
     Honua.Console.Web.Auth.IConsoleOperatorScope operatorScope,
@@ -111,7 +111,7 @@ app.MapGet("/map-proxy/{environmentId}/styles/{layerId:int}.json", async (
     var client = httpClientFactory.CreateClient("honua-map-proxy");
     using var request = new HttpRequestMessage(HttpMethod.Get,
         Honua.Console.Shell.Services.ConsoleServerHttp.BuildUri(
-            activeProfile.ServerBaseUri, $"api/styles/{layerId}.json"));
+            activeProfile.ServerBaseUri, $"api/styles/{Uri.EscapeDataString(publicationId)}.json"));
 
     HttpResponseMessage response;
     try

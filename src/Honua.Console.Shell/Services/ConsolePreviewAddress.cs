@@ -3,14 +3,15 @@ namespace Honua.Console.Shell.Services;
 // Browser previews on the static host call the configured Honua API. The legacy host keeps its proxy routes.
 public interface IConsolePreviewAddress
 {
-    string? LayerStyle(string? environmentId, int layerId);
+    string? LayerStyle(string? environmentId, string publicationId);
 }
 
 public sealed class ConfiguredApiPreviewAddress(Uri apiBase) : IConsolePreviewAddress
 {
-    public string? LayerStyle(string? environmentId, int layerId)
+    public string? LayerStyle(string? environmentId, string publicationId)
     {
-        if (string.IsNullOrWhiteSpace(environmentId)
+        if (string.IsNullOrWhiteSpace(publicationId)
+            || string.IsNullOrWhiteSpace(environmentId)
             || !apiBase.IsAbsoluteUri
             || apiBase.UserInfo.Length != 0
             || apiBase.Query.Length != 0
@@ -20,6 +21,6 @@ public sealed class ConfiguredApiPreviewAddress(Uri apiBase) : IConsolePreviewAd
             return null;
         }
 
-        return new Uri(apiBase, FormattableString.Invariant($"api/styles/{layerId}.json")).AbsoluteUri;
+        return new Uri(apiBase, $"api/styles/{Uri.EscapeDataString(publicationId)}.json").AbsoluteUri;
     }
 }
