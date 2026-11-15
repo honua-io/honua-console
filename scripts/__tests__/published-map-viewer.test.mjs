@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as viewerModule from '../../src/Honua.Console.Web/wwwroot/js/published-map-viewer.mjs';
 
-const {audienceCatalog, createPublishedMapViewer, publishedMapPath} = viewerModule;
+const {audienceCatalog, createPublishedMapViewer, legacyViewerConnection, mountPublishedMap, nativeViewerConnection, publishedMapPath} = viewerModule;
 const origin = 'https://console.test';
 const partition = 'a'.repeat(64);
 const publicationUrl = `${origin}/api/studio/viewer/published/map/map-1`;
@@ -46,12 +46,14 @@ function harness(responder = () => publishedResponse()) {
             settled: async () => {}, dispose() { disposed++; }};
     }};
     const viewer = createPublishedMapViewer({route: 'map/map-1', container, widgetContainer, status, title,
-        origin, fetchImpl, loadRenderer: async () => runtime});
+        connect: legacyViewerConnection({origin, fetchImpl}), documentUrl: `${origin}/maps/published/map/map-1`,
+        loadRenderer: async () => runtime});
     return {viewer, calls, renders, container, widgetContainer, status, title, runtime, get disposed() { return disposed; }};
 }
 
 test('exports only current reader viewer helpers and validates publication routes', () => {
-    assert.deepEqual(Object.keys(viewerModule).sort(), ['audienceCatalog', 'createPublishedMapViewer', 'publishedMapPath']);
+    assert.deepEqual(Object.keys(viewerModule).sort(), ['audienceCatalog', 'createPublishedMapViewer', 'legacyViewerConnection',
+        'mountPublishedMap', 'nativeViewerConnection', 'publishedMapPath']);
     assert.equal(publishedMapPath('/map/map-1'), '/maps/published/map/map-1');
     assert.equal(publishedMapPath('/maps/2026.1'), '/maps/published/maps/2026.1');
     assert.equal(publishedMapPath('/maps/Hawaiʻi #1'), '/maps/published/maps/Hawai%CA%BBi%20%231');
@@ -61,7 +63,7 @@ test('exports only current reader viewer helpers and validates publication route
 
 test('current-reader descriptors rebind their actual service path without deriving one from source ID', () => {
     const source = artifact().sourceCatalog[0];
-    const catalog = audienceCatalog([source], origin);
+    const catalog = audienceCatalog([source], `${origin}/api/studio/viewer/data`);
     assert.equal(catalog[0].id, 'opaque-source-id');
     assert.equal(catalog[0].locator.url,
         `${origin}/api/studio/viewer/data/rest/services/actual-folder/actual-service/FeatureServer`);
@@ -211,6 +213,8 @@ test('denied, missing, changed and incompatible publications show honest states'
     assert.equal(wrongFamily.renders.length, 0);
 
     for (const value of [
+        {family: 'map'},
+        {...artifact(), envelope: null},
         {...artifact(), family: 'query', envelope: {family: 'query', body: {layers: []}}},
         {...artifact(), envelope: {family: 'map', body: {format: 'honua_map_package.v1', mapSpec: {}}}},
         {...artifact(), family: 'dashboard', envelope: {family: 'dashboard', body: {dashboard: {widgets: []}}}},
@@ -320,4 +324,180 @@ test('dispose aborts the active view and discards late canvas creation', async (
     assert.equal(h.calls.length, 1);
     await h.viewer.reload();
     assert.equal(h.calls.length, 1);
+});
+
+const apiBase = 'https://api.test/honua/';
+const nativePublication = `${apiBase}api/v1/studio/published/map/map-1?includeSources=true`;
+
+function nativeHarness(responder = () => publishedResponse(artifact(), 200, null), {headers = {Authorization: 'Bearer viewer'}, credentials = 'omit'} = {}) {
+    const calls = [];
+    const renders = [];
+    const decisions = [];
+    let live = true;
+    const authorize = async () => {
+        const authorization = url => {
+            if (!live) throw new Error('The Console session changed. Reopen this view before continuing.');
+            const target = new URL(url);
+            const api = target.origin === 'https://api.test' && /^\/honua\/(api|rest|ogc)\//.test(target.pathname);
+            decisions.push(target.href);
+            return {url: target.href, api, credentials, headers};
+        };
+        authorization.current = () => live;
+        return authorization;
+    };
+    const fetchImpl = async (url, init) => { calls.push({url, init}); return responder(url, init, calls.length); };
+    const listeners = new Set();
+    const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
+    let disposedCanvases = 0;
+    let settle = async () => {};
+    const container = {dataset: {}};
+    const status = {textContent: ''};
+    const title = {textContent: ''};
+    const runtime = {AudienceStyleProvider: class { constructor(options) { Object.assign(this, options); } },
+        createReadOnlyCompositionView: options => {
+            renders.push(options);
+            return {status: 'ready', statusDetail: '', renderedFeatureCount: 1, settled: () => settle(),
+                dispose() { disposedCanvases++; }};
+        }};
+    const viewer = createPublishedMapViewer({route: 'map/map-1', container, widgetContainer: {}, status, title,
+        connect: nativeViewerConnection({apiBase, authorize, fetchImpl, subscribe}),
+        documentUrl: 'https://console.test/console/maps/published/map/map-1', loadRenderer: async () => runtime});
+    return {viewer, calls, renders, decisions, status, title, listeners, container,
+        get disposedCanvases() { return disposedCanvases; }, holdSettle(promise) { settle = () => promise; },
+        endSession() { live = false; for (const listener of [...listeners]) listener(); }};
+}
+
+test('the static bundle reads the native published resolver with the viewer session only', async () => {
+    const h = nativeHarness();
+    await h.viewer.reload();
+    assert.equal(h.calls[0].url, nativePublication);
+    assert.deepEqual(h.calls[0].init.headers, {Authorization: 'Bearer viewer', Accept: 'application/json'});
+    assert.deepEqual({method: h.calls[0].init.method, credentials: h.calls[0].init.credentials,
+        redirect: h.calls[0].init.redirect, cache: h.calls[0].init.cache},
+    {method: 'GET', credentials: 'omit', redirect: 'error', cache: 'no-store'});
+    const options = h.renders[0];
+    assert.equal(options.projection.baseUrl, 'https://api.test/honua');
+    assert.equal(options.sourceAuthBaseUrl, 'https://api.test/honua');
+    assert.equal(options.projection.catalog[0].locator.url,
+        `${apiBase}rest/services/actual-folder/actual-service/FeatureServer`, 'the source is rebound to the configured API');
+    assert.equal(options.styleProvider.styleBaseUrl, `${apiBase}ogc/styles`);
+    assert.equal(options.styleProvider.documentUrl, 'https://console.test/console/maps/published/map/map-1');
+    assert.equal(h.status.textContent, 'Map ready.');
+    h.viewer.dispose();
+});
+
+test('native data and style reads carry the session decision and stay on the bound routes', async () => {
+    const h = nativeHarness(url => url === nativePublication ? publishedResponse(artifact(), 200, null) : new Response('{}'),
+        {headers: {}, credentials: 'same-origin'});
+    await h.viewer.reload();
+    const transport = h.renders[0].getAudienceTransport();
+    const query = `${apiBase}rest/services/actual-folder/actual-service/FeatureServer/7/query?f=geojson`;
+    const style = `${apiBase}ogc/styles/audience-style`;
+    await transport.fetchRequest(query, {headers: {Authorization: 'Bearer stolen', 'X-API-Key': 'admin'}});
+    await transport.fetchRequest(style);
+    assert.deepEqual(h.calls.slice(1).map(call => [call.url, call.init.headers, call.init.credentials, call.init.method]), [
+        [query, {Accept: 'application/json'}, 'same-origin', 'GET'],
+        [style, {Accept: 'application/vnd.mapbox.style+json'}, 'same-origin', 'GET'],
+    ]);
+    for (const refused of ['https://elsewhere.test/honua/rest/services/actual-folder/actual-service/FeatureServer/7/query',
+        `${apiBase}rest/services/actual-folder/actual-service/FeatureServer/8/query`,
+        `${apiBase}rest/services/actual-folder/actual-service/FeatureServer/7/deleteFeatures`,
+        `${style}?draft=true`])
+        await assert.rejects(transport.fetchRequest(refused), /unsupported data route/);
+    await assert.rejects(transport.fetchRequest(query, {method: 'POST'}), /unsupported data route/);
+    assert.equal(h.calls.length, 3);
+    h.viewer.dispose();
+});
+
+test('a session change ends the native view and an anonymous reader still gets honest states', async () => {
+    const h = nativeHarness();
+    await h.viewer.reload();
+    const transport = h.renders[0].getAudienceTransport();
+    h.endSession();
+    assert.equal(h.renders[0].getAudienceTransport(), undefined);
+    await assert.rejects(transport.fetchRequest(
+        `${apiBase}rest/services/actual-folder/actual-service/FeatureServer/7/query`), /map view changed/);
+    assert.equal(h.calls.length, 1);
+
+    const late = nativeHarness(() => publishedResponse(artifact(), 200, null));
+    const pending = late.viewer.reload();
+    late.endSession();
+    await pending;
+    assert.equal(late.renders.length, 0, 'a reply for the old session is not rendered');
+    assert.match(late.status.textContent, /session changed|view changed/);
+
+    for (const [code, expected] of [[401, 'Sign in'], [403, 'cannot view'], [404, 'no longer available']]) {
+        const anonymous = nativeHarness(() => new Response('{}', {status: code}), {headers: {}, credentials: 'omit'});
+        await anonymous.viewer.reload();
+        assert.deepEqual(anonymous.calls[0].init.headers, {Accept: 'application/json'});
+        assert.match(anonymous.status.textContent, new RegExp(expected));
+        assert.equal(anonymous.renders.length, 0);
+    }
+});
+
+test('a native viewer without the Console transport or with a non-API route fails closed', async () => {
+    const status = {textContent: ''};
+    const viewer = createPublishedMapViewer({route: 'map/map-1', container: {dataset: {}}, widgetContainer: {}, status,
+        title: {textContent: ''}, documentUrl: 'https://console.test/console/maps/published/map/map-1',
+        connect: nativeViewerConnection({apiBase: undefined, authorize: async () => undefined, fetchImpl: async () => assert.fail()}),
+        loadRenderer: async () => assert.fail()});
+    await viewer.reload();
+    assert.match(status.textContent, /viewer connection is unavailable/);
+    const noTransport = nativeViewerConnection({apiBase, authorize: async () => undefined, fetchImpl: async () => assert.fail()});
+    await assert.rejects(noTransport('map/map-1'), /viewer connection is unavailable/);
+    const outside = nativeViewerConnection({apiBase, fetchImpl: async () => assert.fail(), authorize: async () => {
+        const authorization = url => ({url, api: false, credentials: 'omit', headers: {}});
+        authorization.current = () => true;
+        return authorization;
+    }});
+    await assert.rejects(outside('map/map-1'), /unsupported data route/);
+});
+
+test('mountPublishedMap wires reload and releases the view on dispose', async () => {
+    const listeners = {};
+    const elements = {
+        '[data-map-canvas]': {dataset: {}}, '[data-map-widgets]': {}, '[data-map-status]': {textContent: ''},
+        '[data-map-title]': {textContent: ''},
+        '[data-map-reload]': {addEventListener(name, fn) { listeners[name] = fn; }, removeEventListener(name, fn) {
+            if (listeners[name] === fn) delete listeners[name]; }},
+    };
+    let reads = 0;
+    const host = {dataset: {publishedRoute: 'map/map-1'}, querySelector: selector => elements[selector]};
+    const mounted = mountPublishedMap(host, {documentUrl: 'https://console.test/console/maps/published/map/map-1',
+        connect: async () => { reads++; return {response: new Response('{}', {status: 404}), current: () => true}; }});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(reads, 1);
+    assert.match(elements['[data-map-status]'].textContent, /no longer available/);
+    await listeners.click();
+    assert.equal(reads, 2);
+    mounted.dispose();
+    assert.equal(listeners.click, undefined);
+});
+
+test('a session change removes a rendered native view and explains why', async () => {
+    const h = nativeHarness();
+    await h.viewer.reload();
+    assert.equal(h.status.textContent, 'Map ready.');
+    assert.equal(h.listeners.size, 1);
+    h.endSession();
+    assert.equal(h.disposedCanvases, 1, 'the protected canvas is not left on screen');
+    assert.equal(h.container.dataset.renderedFeatureCount, '0');
+    assert.match(h.status.textContent, /session changed/);
+    assert.equal(h.title.textContent, 'Published map', 'the protected title is not left on screen');
+    assert.equal(h.listeners.size, 0);
+});
+
+test('a session change while the map is settling never leaves it loading', async () => {
+    const h = nativeHarness();
+    let release;
+    h.holdSettle(new Promise(resolve => { release = resolve; }));
+    const pending = h.viewer.reload();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    h.endSession();
+    release();
+    await pending;
+    assert.match(h.status.textContent, /session changed/);
+    assert.notEqual(h.status.textContent, 'Loading map…');
+    h.viewer.dispose();
+    assert.equal(h.listeners.size, 0);
 });

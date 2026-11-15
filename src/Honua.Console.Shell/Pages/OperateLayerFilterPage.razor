@@ -124,7 +124,7 @@
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
-    private OperateServiceLayerProjection? _layer;
+    private OperateServiceLayer? _layer;
     private ConsoleLayerFilter _filter = ConsoleLayerFilter.Unbound("Loading…");
     private string _editExpression = string.Empty;
     private string _editLanguage = "arcgis-sql";

@@ -119,10 +119,21 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 SourceSrid = data.SourceSrid,
                 StoredSrid = data.StoredSrid,
                 Reprojected = data.Reprojected,
-                ValidationErrors = data.ValidationErrors ?? []
+                ValidationErrors = (data.ValidationErrors ?? []).Select(DescribeValidationIssue).ToArray(),
+                Warnings = data.Warnings ?? []
             };
         }
         return new() { State = result.Issue?.State ?? "Unavailable", Detail = result.Issue?.Detail ?? "The server did not accept the file-import request." };
+    }
+
+    private static string DescribeValidationIssue(HonuaAdminImportValidationIssue issue)
+    {
+        var location = string.Join(", ", new[]
+        {
+            issue.FeatureIndex is { } index ? $"Feature index {index}" : null,
+            issue.Field
+        }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrEmpty(location) ? $"{issue.Code}: {issue.Message}" : $"{location} — {issue.Code}: {issue.Message}";
     }
 
     private static bool IsPreviewTooLarge(HonuaAdminEndpointIssue? issue)

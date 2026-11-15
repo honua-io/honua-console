@@ -104,7 +104,7 @@
 
     private IReadOnlyList<LayerPreviewCatalog.Row> _catalogRows = [];
 
-    private OperateServiceLayerProjection? PreviewLayer => _preview is { } preview ? _servicesView?.FindLayer(preview.ResourceId) : null;
+    private OperateServiceLayer? PreviewLayer => _preview is { } preview ? _servicesView?.FindLayer(preview.ResourceId) : null;
 
     private bool _loaded;
     private string? _loadError;

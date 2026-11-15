@@ -3,10 +3,11 @@ using System.Net.Http.Json;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Xunit.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class ConsolePublicationPathReaderTests
+public sealed class ConsolePublicationPathReaderTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("unique", 4)]
@@ -20,6 +21,8 @@ public sealed class ConsolePublicationPathReaderTests
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var result = await new ConsolePublicationPathReader(new ServerConsolePublicationNavigationSource(client))
             .ReadAsync(new("connection-one-layer-101", "z-parcels", "Bridges"), CancellationToken.None);
+        Assert.Equal(scenario != "catalog-denied", result.IsAllowed);
+        if (scenario == "catalog-denied") Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Equal(expectedNodes, result.Value?.Count ?? 0);
         if (expectedNodes > 0)
         {
@@ -44,7 +47,26 @@ public sealed class ConsolePublicationPathReaderTests
         Assert.Empty(handler.Paths);
     }
 
-    private sealed class PathHandler(string scenario) : HttpMessageHandler
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10000)]
+    public async Task ReadAsync_LargeLayerCountNeedsOnlyOneCatalogRead(int layerCount)
+    {
+        using var handler = new PathHandler("unique", layerCount);
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        var result = await new ConsolePublicationPathReader(new ServerConsolePublicationNavigationSource(client))
+            .ReadAsync(new("connection-one-layer-101", "z-parcels", "Bridges") { GeometryType = "LineString" }, CancellationToken.None);
+        elapsed.Stop();
+        output.WriteLine($"Cold ancestry: {layerCount} layers, {handler.Paths.Count} request, {elapsed.Elapsed.TotalMilliseconds:F2} ms (budget {ConsoleReadBudget.Default.TotalMilliseconds} ms).");
+        Assert.True(result.IsAllowed);
+        Assert.Equal("LineString", result.Value![^1].GeometryType);
+        Assert.Single(handler.Paths);
+        Assert.True(elapsed.Elapsed < ConsoleReadBudget.Default);
+    }
+
+    private sealed class PathHandler(string scenario, int layerCount = 1) : HttpMessageHandler
     {
         public List<string> Paths { get; } = [];
 
@@ -56,7 +78,7 @@ public sealed class ConsolePublicationPathReaderTests
             if (scenario == "catalog-denied") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
             var count = scenario == "missing" ? 0 : scenario == "ambiguous" ? 2 : 1;
             var services = Enumerable.Range(0, count).Select(_ => new
-            { serviceName = "z-parcels", title = "Parcels", folderId = "public", folderName = "Public", layerCount = 1 }).ToArray();
+            { serviceName = "z-parcels", title = "Parcels", folderId = "public", folderName = "Public", layerCount }).ToArray();
             return Task.FromResult(Envelope(new { items = services, page = 1, pageSize = 100, total = count }));
         }
 

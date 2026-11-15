@@ -13,6 +13,30 @@ public sealed class OperateSyncPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Sync_SelectingReplicaClearsPreviousConflictsBeforeReviewCompletes(bool enabled)
+    {
+        var client = DeepLinkClient();
+        var secondReplica = SampleReplica with { ReplicaId = "replica-2" };
+        client.ReplicaQueue = new ReplicaConflictQueue([SampleReplica, secondReplica]);
+        var pending = new TaskCompletionSource<ReplicaConflictReview>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingReviews[secondReplica.ReplicaId] = pending.Task;
+        var page = Render(client, enabled);
+        ClickByText(page, "Open queue");
+        ClickByText(page, "Review");
+        page.WaitForAssertion(() => Assert.Contains("Client wins", page.Markup, StringComparison.Ordinal));
+
+        var reviewTask = page.FindAll("button").Where(button => button.TextContent.Trim() == "Review")
+            .ElementAt(1).ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() => Assert.DoesNotContain("Client wins", page.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("conflict-1", page.Markup, StringComparison.Ordinal);
+        pending.SetResult(new ReplicaConflictReview(secondReplica, []));
+        await reviewTask;
+        Assert.DoesNotContain("Client wins", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Sync_WhenBindingMissing_RendersNotBoundSurfaceNotEmptyQueue(bool enabled)
     {
         var page = Render(new FakeSyncClient
@@ -365,6 +389,7 @@ public sealed class OperateSyncPageRenderTests
         public ReplicaConflictQueue ReplicaQueue { get; set; } = new([]);
         public ReplicaConflictReview ConflictReview { get; set; } = new(Replica: null, []);
         public ReplicaConflictReview? ReviewAfterResolution { get; set; }
+        public Dictionary<string, Task<ReplicaConflictReview>> PendingReviews { get; } = [];
         public SyncConflictResolutionResult? Resolution { get; set; }
         public Task<SyncConflictResolutionResult>? PendingResolution { get; set; }
         public bool ResolutionStarted { get; private set; }
@@ -397,6 +422,7 @@ public sealed class OperateSyncPageRenderTests
         public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(string replicaId, CancellationToken cancellationToken = default)
         {
             ReviewCalls++;
+            if (PendingReviews.TryGetValue(replicaId, out var pending)) return pending;
             return Task.FromResult(_resolved && ReviewAfterResolution is not null ? ReviewAfterResolution : ConflictReview);
         }
 

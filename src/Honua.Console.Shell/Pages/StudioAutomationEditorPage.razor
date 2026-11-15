@@ -21,7 +21,7 @@
         <div class="console-page-heading">
             <p class="console-kicker">Studio collect.automation</p>
             <h1>Automation Editor</h1>
-            <p>Author trigger-bound rules and engine actions over Collect's shipped Data Events engine, then save a versioned content item alongside the form definition.</p>
+            <p>Author trigger-bound rules and engine actions over Collect's shipped Data Events engine, then save a versioned automation alongside the form definition.</p>
         </div>
     }
 
@@ -49,7 +49,7 @@
                           HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Automation"
                           Title="Automation draft unavailable"
-                          Message="The requested automation draft was not found or cannot be opened in this workspace."
+                          Message="The requested automation draft was not found or cannot be opened with your access."
                           ActionHref="/studio/automations/new"
                           ActionLabel="Create automation" />
     }
@@ -220,11 +220,11 @@
                     </label>
                 </div>
                 <dl class="console-definition-list">
-                    <dt>Package</dt>
+                    <dt>Type</dt>
                     <dd>@_draft.PackageType</dd>
                     <dt>Schema</dt>
                     <dd>@_draft.SchemaVersion</dd>
-                    <dt>Content item</dt>
+                    <dt>Saved ID</dt>
                     <dd>@(string.IsNullOrWhiteSpace(_draft.ContentItemId) ? "not saved" : _draft.ContentItemId)</dd>
                     <dt>Current version</dt>
                     <dd>@DescribeCurrentVersion(_draft)</dd>
@@ -235,7 +235,7 @@
         {
             <section class="console-panel automation-raw" aria-label="Automation contract summary">
                 <div class="automation-section-heading">
-                    <p class="console-kicker">Package · raw</p>
+                    <p class="console-kicker">Contract · raw</p>
                     <h2>Generated Contract</h2>
                 </div>
                 <p class="console-muted">Inspectable summary of the automation body the Data Events engine runs.</p>
@@ -271,7 +271,7 @@
     [
         (TabRules, "Rules"),
         (TabSettings, "Settings"),
-        (TabRaw, "Package · raw"),
+        (TabRaw, "Contract · raw"),
     ];
 
     [Parameter]

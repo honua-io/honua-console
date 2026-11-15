@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Honua.Console.Shell.Models;
 
-public sealed record OperateLayerExposure(OperateServiceDetail Service, OperateServiceLayerProjection Layer);
+public sealed record OperateLayerExposure(OperateServiceDetail Service, OperateServiceLayer Layer);
 
 public static class OperateLayerLookup
 {
@@ -22,7 +22,7 @@ public static class OperateLayerLookup
             .ToArray();
     }
 
-    public static OperateServiceLayerProjection? FindLayer(this OperateServicesView view, string? layerReference) =>
+    public static OperateServiceLayer? FindLayer(this OperateServicesView view, string? layerReference) =>
         view.FindExposures(layerReference).FirstOrDefault()?.Layer;
 
     public static IReadOnlyDictionary<string, string> GeometryByCanonicalResourceId(this OperateServicesView view) =>

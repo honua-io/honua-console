@@ -11,7 +11,7 @@ public sealed class LayerMetadataPageRenderTests
 {
     private const string ResourceId = "conn-1-layer-1";
 
-    private static readonly OperateServiceLayerProjection Parcels =
+    private static readonly OperateServiceLayer Parcels =
         new(1, "Parcels", "polygon", ResourceId, "parcels");
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class LayerMetadataPageRenderTests
     public void NavigatingToAnotherLayer_StartsFromAnUnchangedForm()
     {
         var metadata = new RecordingMetadata();
-        var roads = new OperateServiceLayerProjection(2, "Roads", "LineString", "conn-1-layer-2", "roads");
+        var roads = new OperateServiceLayer(2, "Roads", "LineString", "conn-1-layer-2", "roads");
         using var ctx = CreateContext(metadata,
             new OperateServiceDetail("cadastre", "cadastre", "FeatureServer", "Running", "honua-server", [Parcels, roads], [], []));
         var page = ctx.Render<OperateLayerMetadataPage>(p => p.Add(x => x.ResourceId, ResourceId));

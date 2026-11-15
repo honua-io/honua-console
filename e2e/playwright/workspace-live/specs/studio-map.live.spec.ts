@@ -123,7 +123,7 @@ test('installed workspace: visual and prompted styling persist on the same rende
   expect(originalWorkspace).toBeTruthy();
   await expect(page.locator('textarea:visible')).toHaveCount(1);
 
-  await page.getByRole('textbox', { name: 'New map package key' }).fill(packageKey);
+  await page.getByRole('textbox', { name: 'New map key' }).fill(packageKey);
   await page.getByRole('button', { name: 'New map', exact: true }).click();
   await expect.poll(() => identity(page).then(value => value?.packageKey)).toBe(packageKey);
   const originalDraft = (await identity(page))!;

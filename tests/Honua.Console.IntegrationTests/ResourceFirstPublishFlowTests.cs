@@ -301,7 +301,7 @@ public sealed class ResourceFirstPublishFlowTests
 
         var cut = ctx.Render<PublishProtocolPicker>(p => p
             .Add(c => c.Enabled, PublishProtocolCatalog.DefaultEnabled)
-            .Add(c => c.ServiceSlot, "city/parcels"));
+            .Add(c => c.ServiceName, "city/parcels"));
 
         Assert.Contains("data-publication-preview", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("Will serve through: FeatureServer · MapServer · STAC API", cut.Markup, StringComparison.Ordinal);
@@ -537,10 +537,10 @@ public sealed class ResourceFirstPublishFlowTests
         new(id, name, "file", "—", "Valid",
             new OperateBlastRadius([], [], [], [], [], []), [], []);
 
-    private static OperateServiceLayerProjection Layer(int layerId, string canonicalResourceId) =>
+    private static OperateServiceLayer Layer(int layerId, string canonicalResourceId) =>
         new(layerId, $"layer{layerId}", "Polygon", canonicalResourceId, canonicalResourceId);
 
-    private static OperateServiceDetail Service(string name, string serviceType, params OperateServiceLayerProjection[] layers) =>
+    private static OperateServiceDetail Service(string name, string serviceType, params OperateServiceLayer[] layers) =>
         new(name, name, serviceType, "Running", "managed", layers, [], []);
 
     private sealed class OneConnectionDataSource(string connectionId, string name) : IOperateTransitionDataSource
@@ -601,7 +601,7 @@ public sealed class ResourceFirstPublishFlowTests
     private sealed class OneResourceDataSource(string resourceId, string name) : IOperateTransitionDataSource
     {
         private readonly OperateServiceDetail _service =
-            Service("parcels", "FeatureServer, MapServer", new OperateServiceLayerProjection(1, name, "Polygon", resourceId, name));
+            Service("parcels", "FeatureServer, MapServer", new OperateServiceLayer(1, name, "Polygon", resourceId, name));
 
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new OperateTransitionWorkspace([], [EditPreview(resourceId, name)], [_service], [], []));

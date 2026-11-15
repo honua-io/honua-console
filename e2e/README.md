@@ -1,4 +1,9 @@
-# Console live e2e harness
+# Console legacy-host live e2e harness
+
+This harness runs the test-only `Honua.Console.LegacyHost` against a live server.
+It does not qualify the shipping static WASM bundle. Use the
+[browser testing guide](../docs/testing/AGENT_BROWSER_TESTING.md) to select static
+bundle tests or a deployed candidate journey.
 
 ## One command
 
@@ -30,7 +35,7 @@ argument to `composeArgs()` in `e2e/run-live-llm.mjs`.
 
 - Docker (with Compose v2 — `docker compose` as a sub-command)
 - Node.js >= 20 with `npx` on `PATH`
-- .NET 10 SDK (the Console host starts via `dotnet run`)
+- .NET 11 SDK (the Console host starts via `dotnet run`)
 - `openssl` and `bash` (the runner generates a throwaway TLS cert for the test IdP)
 - Outbound HTTPS (service-import specs contact public source GIS platform sample servers)
 
@@ -41,7 +46,7 @@ argument to `composeArgs()` in `e2e/run-live-llm.mjs`.
 2. Starts the stack (`docker-compose.yml` plus the `docker-compose.auth.yml`
    Keycloak overlay) via `docker compose up -d --wait`; all services must be
    healthy before Playwright runs.
-3. Boots the Console (`src/Honua.Console.Web`) via `dotnet run` (managed by
+3. Boots the legacy fixture (`tests/Honua.Console.LegacyHost`) via `dotnet run` (managed by
    Playwright's `webServer` hook) bound to `http://127.0.0.1:5274`.
 4. Runs `playwright test --config playwright.live.config.ts` against the live
    stack (specs under `e2e/playwright/live/specs/`).
@@ -98,6 +103,6 @@ and reuses the layer on a retry. `services-layers` publishes `e2e_layer_src` and
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `HONUA_CONSOLE_E2E_SERVER_URL` | `http://127.0.0.1:8088` | honua-server base URL (for Playwright + Console) |
-| `HONUA_CONSOLE_E2E_ADMIN_KEY` | `honua-console-dev-key` | `X-API-Key` sent to admin endpoints |
+| `HONUA_CONSOLE_E2E_ADMIN_KEY` | `honua-console-dev-key` | `X-API-Key` used only by the independent API verifier, never supplied to the Console browser |
 | `HONUA_CONSOLE_E2E_NATIVE_PROBE` | unset | Set to `true` to use the compiled server readiness probe |
 | `HONUA_CONSOLE_E2E_LIVE_PORT` | `5274` | Console port (Playwright webServer); must match the realm's registered callback |

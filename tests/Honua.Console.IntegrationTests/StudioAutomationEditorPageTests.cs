@@ -57,7 +57,7 @@ public sealed class StudioAutomationEditorPageTests
 
         var tabRow = page.Find("nav.automation-tab-row");
         var tabLabels = tabRow.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray();
-        Assert.Equal(["Rules", "Settings", "Package · raw"], tabLabels);
+        Assert.Equal(["Rules", "Settings", "Contract · raw"], tabLabels);
 
         // The Rules tab is active by default and renders the seeded rule cards.
         Assert.NotEmpty(page.FindAll("section.automation-rules article.automation-rule-card"));

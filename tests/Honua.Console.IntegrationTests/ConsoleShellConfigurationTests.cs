@@ -43,14 +43,14 @@ public sealed class ConsoleShellConfigurationTests
     [InlineData("false", null, false)]
     [InlineData(null, "true", true)]
     [InlineData(null, "false", false)]
-    [InlineData(null, null, false)]
-    [InlineData("invalid", null, false)]
-    [InlineData(null, "invalid", false)]
+    [InlineData(null, null, true)]
+    [InlineData("invalid", null, true)]
+    [InlineData(null, "invalid", true)]
     [InlineData("true", "false", true)]
     [InlineData("false", "true", false)]
-    [InlineData("invalid", "true", false)]
-    [InlineData("", "true", false)]
-    [InlineData(" ", "true", false)]
+    [InlineData("invalid", "false", true)]
+    [InlineData("", "false", true)]
+    [InlineData(" ", "false", true)]
     public void V4FlagBindsToSharedOptions(string? keyValue, string? environmentValue, bool expectedEnabled)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

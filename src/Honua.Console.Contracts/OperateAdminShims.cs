@@ -940,9 +940,21 @@ public sealed record HonuaAdminImportResult
 
     public string? ErrorMessage { get; init; }
 
-    public IReadOnlyList<string> ValidationErrors { get; init; } = [];
+    public IReadOnlyList<HonuaAdminImportValidationIssue> ValidationErrors { get; init; } = [];
 
     public IReadOnlyList<string> Warnings { get; init; } = [];
+}
+
+// SHIM(honua-sdk-dotnet#166): File-import validation details are not projected by the consumed SDK.
+public sealed record HonuaAdminImportValidationIssue
+{
+    public required string Code { get; init; }
+
+    public required string Message { get; init; }
+
+    public int? FeatureIndex { get; init; }
+
+    public string? Field { get; init; }
 }
 
 public sealed record HonuaAdminConnectionSummary

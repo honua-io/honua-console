@@ -51,6 +51,53 @@ public sealed class FileImportCoordinateSystemTests
         Assert.Null(result.Reprojected);
     }
 
+    [Fact]
+    public async Task StructuredImportFailurePreservesTheReasonAndFeatureLocation()
+    {
+        using var handler = new ImportHandler
+        {
+            RawResponse = """
+                {"success":false,"errorMessage":"GeoJSON feature is missing geometry.",
+                 "errorCode":"import.geometry_missing","validationErrors":[
+                 {"code":"import.geometry_missing","message":"GeoJSON feature is missing geometry.","featureIndex":2,"field":"geometry"}]}
+                """
+        };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).ImportAsync(Command(null, null));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Rejected", result.State);
+        Assert.Equal("GeoJSON feature is missing geometry.", result.Detail);
+        var error = Assert.Single(result.ValidationErrors);
+        Assert.Contains("import.geometry_missing", error);
+        Assert.Contains("Feature index 2", error);
+        Assert.Contains("geometry", error);
+        Assert.False(result.RequiresReconciliation);
+    }
+
+    [Theory]
+    [InlineData("[\"One feature has no optional name.\"]", "One feature has no optional name.")]
+    [InlineData("null", null)]
+    public async Task CompletedImportPreservesWarnings(string warnings, string? expected)
+    {
+        using var handler = new ImportHandler
+        {
+            RawResponse = "{\"success\":true,\"sourceSrid\":2193,\"storedSrid\":2193,\"reprojected\":false,\"featureCount\":1,\"tableName\":\"projected\",\"warnings\":" + warnings + "}"
+        };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).ImportAsync(Command(null, null));
+
+        Assert.True(result.Succeeded, result.Detail);
+        Assert.Equal("Imported", result.State);
+        Assert.Equal(1, result.FeatureCount);
+        if (expected is null) Assert.Empty(result.Warnings);
+        else Assert.Equal(expected, Assert.Single(result.Warnings));
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData(null, 4326)]

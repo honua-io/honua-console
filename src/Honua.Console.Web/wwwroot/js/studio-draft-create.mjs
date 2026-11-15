@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 import { capturedProcessFetch } from './cookie-workspace-transport.mjs';
 
 import { studioAuthority, studioResourceId as validId } from './studio-workspace-authority.mjs';
@@ -11,7 +12,8 @@ export class StudioDraftCreateSession {
     constructor(app, { storage = app.workspace?.storage, uuid = () => crypto.randomUUID(), readOperation, isCurrent = () => true } = {}) {
         this.app = app; this.storage = storage; this.uuid = uuid; this.isCurrent = isCurrent;
         this.readOperation = readOperation ?? (async operationId => {
-            const request = capturedProcessFetch(app.session, { current: () => app.session });
+            const binding = () => app.workspaceProcessBinding ?? app.session;
+            const request = capturedProcessFetch(binding(), { current: binding });
             const response = await request(`/api/processes/operations/handles/${encodeURIComponent(operationId)}`);
             if (!response.ok) throw new Error(`Operation status could not be read (${response.status}). The original action is retained.`);
             return response.json();
@@ -138,7 +140,7 @@ export function mountStudioDraftCreate({ app, host }) {
     const form = document.createElement('form');
     const key = document.createElement('input');
     key.required = true; key.maxLength = 200; key.pattern = '(?:[A-Za-z0-9._]|-){1,200}';
-    key.placeholder = 'Map package key'; key.setAttribute('aria-label', 'New map package key');
+    key.placeholder = 'Map key'; key.setAttribute('aria-label', 'New map key');
     const create = document.createElement('button'); create.type = 'submit'; create.textContent = 'New map';
     const notice = document.createElement('p'); notice.setAttribute('role', 'status');
     const inbox = document.createElement('a'); inbox.textContent = 'Review approval in Inbox';
@@ -172,7 +174,7 @@ export function mountStudioDraftCreate({ app, host }) {
                         : `New map ${record.status}. The original action is retained.`;
             if (record.receipt) {
                 inbox.hidden = false;
-                inbox.href = `/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`;
+                inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`, inbox.ownerDocument?.baseURI);
                 refresh.hidden = record.status !== 'awaiting-approval'; refresh.disabled = busy;
             }
         } catch (error) { notice.textContent = error.message; create.disabled = true; reset.hidden = !(error instanceof UnreadableHandoffError); reset.disabled = busy; }

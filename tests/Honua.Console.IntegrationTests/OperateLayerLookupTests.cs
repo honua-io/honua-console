@@ -8,11 +8,11 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateLayerLookupTests
 {
-    private static readonly OperateServiceLayerProjection ParcelsOnConnA =
+    private static readonly OperateServiceLayer ParcelsOnConnA =
         new(1, "Parcels", "Polygon", "conn-a-layer-1", "parcels");
-    private static readonly OperateServiceLayerProjection ShelterOnConnA =
+    private static readonly OperateServiceLayer ShelterOnConnA =
         new(2, "Shelters", "Point", "conn-a-layer-2", "shelters");
-    private static readonly OperateServiceLayerProjection RoadsOnConnB =
+    private static readonly OperateServiceLayer RoadsOnConnB =
         new(1, "Roads", "LineString", "conn-b-layer-1", "roads");
 
     [Theory]
@@ -106,6 +106,6 @@ public sealed class OperateLayerLookupTests
 
     private static OperateServicesView ViewOf(params OperateServiceDetail[] services) => new(services, []);
 
-    private static OperateServiceDetail Service(string name, params OperateServiceLayerProjection[] layers) =>
+    private static OperateServiceDetail Service(string name, params OperateServiceLayer[] layers) =>
         new(name, name, "FeatureServer", "Running", "honua-server", layers, [], []);
 }

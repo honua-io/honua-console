@@ -18,9 +18,9 @@
     else
     {
         <div class="console-page-heading">
-            <p class="console-kicker">Studio workflow.package</p>
+            <p class="console-kicker">Studio workflow</p>
             <h1>Workflow Editor</h1>
-            <p>Author a unified GP/ETL workflow package, dry-run it through job contracts, save a versioned content item, and publish to job runner or an eligible process endpoint.</p>
+            <p>Author a unified GP/ETL workflow, dry-run it through job contracts, save a versioned workflow, and publish to job runner or an eligible process endpoint.</p>
         </div>
     }
 
@@ -44,19 +44,19 @@
     {
         <article class="console-panel">
             <h2>Loading workflow draft</h2>
-            <p class="console-muted">Resolving the Studio workflow package projection.</p>
+            <p class="console-muted">Loading the Studio workflow.</p>
         </article>
     }
     else if (_draft is null)
     {
         <article class="console-panel">
             <h2>Workflow draft unavailable</h2>
-            <p class="console-muted">The requested workflow draft was not found or cannot be opened in this workspace.</p>
+            <p class="console-muted">The requested workflow draft was not found or cannot be opened with your access.</p>
         </article>
     }
     else
     {
-        <header class="workflow-editor-header" aria-label="Workflow package header">
+        <header class="workflow-editor-header" aria-label="Workflow header">
             <span class="workflow-editor-glyph" aria-hidden="true">⇋</span>
             <input class="console-input workflow-title-input" aria-label="Workflow name" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
             <span class="console-status workflow-badge-draft">@DraftStatusBadge(_draft)</span>
@@ -85,7 +85,7 @@
             <a href="#workflow-schedule">Schedule</a>
             <a href="#workflow-secrets">Secrets</a>
             <a href="#workflow-history">Run history</a>
-            <a href="#workflow-package">Package · raw</a>
+            <a href="#workflow-package">Contract · raw</a>
         </nav>
 
         <div class="workflow-editor-shell">
@@ -109,7 +109,7 @@
             </aside>
 
             @{ RenderFragment workflowContent = @<text>
-                <section class="console-panel workflow-package-panel" aria-label="Package metadata">
+                <section class="console-panel workflow-package-panel" aria-label="Workflow metadata">
                     <div class="workflow-form-grid">
                         <label>
                             <span>Title</span>
@@ -120,11 +120,11 @@
                             <textarea class="console-input" rows="3" @bind="_draft.Summary" @bind:event="oninput" @bind:after="OnEdit"></textarea>
                         </label>
                         <dl class="console-definition-list">
-                            <dt>Package</dt>
+                            <dt>Type</dt>
                             <dd>@_draft.PackageType</dd>
                             <dt>Schema</dt>
                             <dd>@_draft.SchemaVersion</dd>
-                            <dt>Content item</dt>
+                            <dt>Saved ID</dt>
                             <dd>@(string.IsNullOrWhiteSpace(_draft.ContentItemId) ? "not saved" : _draft.ContentItemId)</dd>
                             <dt>Current version</dt>
                             <dd>@DescribeCurrentVersion(_draft)</dd>
@@ -497,7 +497,7 @@
                     {
                         @if (IsBlockedPublish(_lastPublish))
                         {
-                            <p class="console-status">Publish blocked: package validation requires attention</p>
+                            <p class="console-status">Publish blocked: workflow validation requires attention</p>
                         }
                         <dl class="console-definition-list">
                             <dt>Status</dt>
@@ -593,7 +593,7 @@
                                         @if (!string.IsNullOrWhiteSpace(run.ProvenanceUrl))
                                         {
                                             <dt>Provenance</dt>
-                                            <dd><a href="@Navigation.ToConsoleLinkHref(run.ProvenanceUrl)">Content item history</a></dd>
+                                            <dd><a href="@Navigation.ToConsoleLinkHref(run.ProvenanceUrl)">Workflow history</a></dd>
                                         }
                                     </dl>
                                     @if (run.Artifacts.Count > 0)
@@ -611,14 +611,14 @@
                     }
                 </section>
 
-                <section id="workflow-package" class="console-panel workflow-package-raw" aria-label="Workflow package contract">
+                <section id="workflow-package" class="console-panel workflow-package-raw" aria-label="Workflow contract">
                     <div class="workflow-section-heading">
-                        <p class="console-kicker">Package · raw</p>
+                        <p class="console-kicker">Contract · raw</p>
                         <h2>Generated Contract</h2>
                     </div>
-                    <p class="console-muted">Inspectable summary of the generated workflow package projection before save or publish.</p>
+                    <p class="console-muted">Inspectable summary of the generated workflow contract before save or publish.</p>
                     <dl class="console-definition-list">
-                        <dt>Package</dt>
+                        <dt>Type</dt>
                         <dd>@_draft.PackageType</dd>
                         <dt>Schema</dt>
                         <dd>@_draft.SchemaVersion</dd>
@@ -781,7 +781,7 @@
         await RefreshRunHistoryAsync();
     }
 
-    // Loads the execution history for the saved content item so the editor surfaces queued/running/failed/
+    // Loads the execution history for the saved workflow so the editor surfaces queued/running/failed/
     // succeeded runs, rejected rows, artifacts, and provenance links (#17). A never-saved draft has no content
     // item, so this short-circuits to an empty history rather than probing the server.
     private async Task RefreshRunHistoryAsync()

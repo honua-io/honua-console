@@ -49,7 +49,7 @@ public static class CatalogContentTypes
         new("service", "Services", "Published service endpoints and APIs.", "⚙"),
         new("layer", "Layers", "Renderable feature, raster, and vector layers.", "◐"),
         new("document", "Documents", "Public metadata documents and downloadable resources.", "⊟"),
-        new("map", "Maps", "Saved maps and web map packages.", "◐"),
+        new("map", "Maps", "Saved maps.", "◐"),
         new("dashboard", "Dashboards", "Operational and analytical dashboards.", "▤"),
         new("report", "Reports", "Static or scheduled analytical reports.", "⊟"),
         new("form", "Forms", "Field collection forms and surveys.", "☱"),
@@ -331,7 +331,7 @@ public enum ConsoleContentSupportState
 {
     Supported,
     UnsupportedServiceMetadata,
-    UnsupportedPackageBinding
+    UnsupportedContentBinding
 }
 
 public sealed record ConsoleContentDetail
@@ -374,7 +374,7 @@ public sealed record ConsoleContentActivity(DateTimeOffset OccurredAt, string Ac
 
 public sealed record ConsoleContentUsage(string ConsumerId, string ConsumerTitle, string ConsumerType, string Risk);
 
-public sealed record ConsoleMapPackage
+public sealed record ConsoleMap
 {
     public ConsoleContentSummary Summary { get; init; } = new();
 

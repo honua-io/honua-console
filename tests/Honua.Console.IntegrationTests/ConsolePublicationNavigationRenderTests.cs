@@ -350,7 +350,7 @@ public sealed class ConsolePublicationNavigationRenderTests
     }
 
     [Fact]
-    public async Task ColdLayerNavigationRejectsDelayedAncestryAfterAuthenticationChanges()
+    public void ColdLayerNavigationRejectsDelayedAncestryAfterAuthenticationChanges()
     {
         var source = new PublicationNavigationSource
         {
@@ -370,7 +370,8 @@ public sealed class ConsolePublicationNavigationRenderTests
         layout.WaitForAssertion(() => Assert.Equal(1, source.LayerPageReads));
         authorization.SetNotAuthorized();
         source.PendingLayers.SetResult(source.LayerResult);
-        await layout.InvokeAsync(() => Task.CompletedTask);
+        layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("h1").TextContent));
+        Assert.Null(layout.FindComponent<CascadingValue<ConsolePublicationLayerContext>>().Instance.Value.Selection);
         layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
         Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }
@@ -727,6 +728,7 @@ public sealed class ConsolePublicationNavigationRenderTests
 
     [Theory]
     [InlineData("denied", false)]
+    [InlineData("invalid-page", false)]
     [InlineData("changed-before", false)]
     [InlineData("changed-after", false)]
     [InlineData("success", true)]
@@ -741,6 +743,13 @@ public sealed class ConsolePublicationNavigationRenderTests
         changes.Changed += () => reloads++;
         context.Services.AddSingleton(changes);
         if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
+        if (outcome == "invalid-page") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+        {
+            Items = [new() { ServiceName = "service-000", LayerCount = 10 }],
+            Page = 2,
+            PageSize = 100,
+            Total = 1
+        });
         if (outcome == "changed-after") source.OnServiceRead = () => authority.Current = false;
         context.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);

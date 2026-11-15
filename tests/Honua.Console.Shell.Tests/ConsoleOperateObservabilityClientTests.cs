@@ -767,6 +767,53 @@ public sealed class ConsoleOperateObservabilityClientTests
     }
 
     [Fact]
+    public async Task GetJobDiagnosticsKeepsExpiredArtifactsAndNotesFromTheServerShape()
+    {
+        // Wire shape of honua.job-diagnostics/v1 after a result-retention expiry (server ConsoleJobDiagnosticArtifacts).
+        const string body = """
+            {"schema":"honua.job-diagnostics/v1","jobId":"gp-job-1",
+             "lifecycle":{"phase":"succeeded","timingSource":"measured"},"attempt":{"number":1,"maxAttempts":1},
+             "steps":[],"events":{"state":"complete","items":[],"totalCount":0,"limit":100,"truncated":false},
+             "artifacts":{"state":"partial","availableCount":1,"expiredCount":1,"unavailableCount":0,"items":[
+               {"artifactId":"a-1","availability":"Available","label":"buffer.geojson"},
+               {"artifactId":"a-2","availability":"Expired","message":"Result retention ended."}]},
+             "evidence":{"missing":["artifacts: 1 artifact(s) expired and can no longer be fetched"],"truncated":[],
+               "notes":["artifacts: expired results cannot be fetched; resubmit the job to produce them again"]},
+             "links":{"self":"/api/v1/admin/jobs/gp-job-1"}}
+            """;
+        var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
+        }));
+
+        var view = (await client.GetJobDiagnosticsAsync("gp-job-1")).Value!;
+
+        Assert.Equal("partial", view.Artifacts.State);
+        Assert.Equal((1, 1, 0), (view.Artifacts.AvailableCount, view.Artifacts.ExpiredCount, view.Artifacts.UnavailableCount));
+        Assert.Equal("1 available, 1 expired, 0 unavailable.", view.Artifacts.Summary);
+        Assert.Equal(
+            [("buffer.geojson", "Available", (string?)null), ("a-2", "Expired", "Result retention ended.")],
+            view.Artifacts.Items.Select(item => (item.Label, item.Availability, item.Message)));
+        Assert.Single(view.EvidenceNotes);
+        Assert.Contains("resubmit", view.EvidenceNotes[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADiagnosticsDocumentWithoutArtifactsIsUnsupportedNotComplete()
+    {
+        var view = OperateObservabilityMapper.MapJobDiagnostics(new ConsoleJobDiagnosticsResponse
+        {
+            Schema = "honua.job-diagnostics/v1",
+            JobId = "gp-job-1",
+        });
+
+        Assert.Equal(OperateJobDiagnosticArtifacts.Unsupported, view.Artifacts.State);
+        Assert.Empty(view.Artifacts.Items);
+        Assert.Contains("does not report", view.Artifacts.Summary, StringComparison.Ordinal);
+        Assert.Empty(view.EvidenceNotes);
+    }
+
+    [Fact]
     public async Task GetJobDiagnosticsRejectsADifferentSchema()
     {
         var handler = new RecordingHandler(_ => JsonResponse(

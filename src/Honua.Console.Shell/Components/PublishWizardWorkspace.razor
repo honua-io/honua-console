@@ -25,7 +25,7 @@
 
     It previously carried the design-handoff mockup's fixtures inline — a `prod-postgis` connection
     constant, `public.parcels_2024`, a seeded service tree, a resource table with feature counts and
-    PII flags, and review panels quoting a field count, a layer slot, a cache TTL and a published
+    PII flags, and review panels quoting a field count, a layer route, a cache TTL and a published
     URL. The finish action built its real publish command from those constants, so on any deployment
     without a connection named `prod-postgis` the POST 404'd, and the review step described a
     resource the operator had never chosen. Fixtures in a surface that also makes real calls are
@@ -243,7 +243,7 @@ else
                 : null;
             if (binding is not null && authority is not null && await authority.IsCurrentAsync(binding))
                 _publishedServiceUrl = currentServices?.Value?.Services
-                    .SingleOrDefault(service => service.Name == _publishResult.ServiceName)?.PublicationSlots
+                    .SingleOrDefault(service => service.Name == _publishResult.ServiceName)?.Endpoints
                     .FirstOrDefault(slot => slot.Name == "FeatureServer")?.Url;
             Notifications.Success(
                 $"Published {_publishResult.LayerName ?? command.LayerName} into {_publishResult.ServiceName ?? command.ServiceName}.");

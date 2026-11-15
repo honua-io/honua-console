@@ -1,3 +1,4 @@
+import {consoleHref} from './console-links.mjs';
 import {attachConsolePageContext, promptWithConsolePageContext} from './console-agent-context.mjs';
 import {hasOperatorShell} from './console-shell-context.mjs';
 import {mountWorkspacePreferences} from './operator-preferences.mjs';
@@ -551,7 +552,7 @@ export function mountWorkspace() {
     const workspaceInput = host.querySelector('[data-workspace-id]');
     const targetDescription = document.createTextNode(''), taskSeparator = document.createTextNode('');
     const importTaskLink = document.createElement('a');
-    importTaskLink.href = '/operate/resources/import/task'; importTaskLink.textContent = 'Open import task';
+    importTaskLink.href = consoleHref('/operate/resources/import/task', importTaskLink.ownerDocument?.baseURI); importTaskLink.textContent = 'Open import task';
     target.replaceChildren(targetDescription, taskSeparator, importTaskLink);
     let displayedScope;
     const notify = state => {

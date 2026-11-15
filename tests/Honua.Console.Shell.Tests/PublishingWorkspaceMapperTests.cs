@@ -17,9 +17,9 @@ public sealed class PublishingWorkspaceMapperTests
         Assert.Equal("Parcels map", review.ResourceName);
         Assert.Equal(PublishingResourceKind.StudioArtifact, review.ResourceKind);
         // Slot carries the route slug, lifecycle, and active revision.
-        Assert.Contains("parcels", review.Slot, StringComparison.Ordinal);
-        Assert.Contains("active", review.Slot, StringComparison.Ordinal);
-        Assert.Contains("rev 2", review.Slot, StringComparison.Ordinal);
+        Assert.Contains("parcels", review.Route, StringComparison.Ordinal);
+        Assert.Contains("active", review.Route, StringComparison.Ordinal);
+        Assert.Contains("rev 2", review.Route, StringComparison.Ordinal);
         // Generated endpoint is the registry-claimed public route path.
         var endpoint = Assert.Single(review.GeneratedEndpoints);
         Assert.Equal("/published/parcels", endpoint.Url);

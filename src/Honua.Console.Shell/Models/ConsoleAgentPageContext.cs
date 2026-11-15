@@ -12,7 +12,7 @@ public sealed record ConsoleAgentEntity
     public string? ServiceName { get; init; }
     public string? ResourceId { get; init; }
 
-    public static ConsoleAgentEntity ForLayer(OperateServiceLayerProjection layer) => ForLayer(layer.LayerId, layer.CanonicalResourceId);
+    public static ConsoleAgentEntity ForLayer(OperateServiceLayer layer) => ForLayer(layer.LayerId, layer.CanonicalResourceId);
 
     public static ConsoleAgentEntity ForLayer(int layerId, string canonicalResourceId) => new()
     {

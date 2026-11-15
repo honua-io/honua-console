@@ -105,6 +105,64 @@ public sealed class PublishWizardWorkspaceRenderTests
         Assert.Contains("hydro.basins", options[2].TextContent, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QuickPublish_DelayedTablesCannotReplaceTheCurrentConnectionsTables(bool enabled)
+    {
+        var first = new TaskCompletionSource<IReadOnlyList<ServiceLayerPublishTable>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publish = new RecordingPublishOperation
+        {
+            OnListTables = connection => connection == "conn-a" ? first.Task : Task.FromResult<IReadOnlyList<ServiceLayerPublishTable>>([
+                new() { Schema = "warehouse", Table = "current", Columns = ["id"] }
+            ])
+        };
+        using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var cut = ctx.Render<OperatePublishLayerPage>();
+        var oldChange = cut.InvokeAsync(() => cut.Find("[data-workspace-field='connectionId']").ChangeAsync(new ChangeEventArgs { Value = "conn-a" }));
+        cut.WaitForAssertion(() => Assert.Equal("conn-a", publish.LastListedConnectionId));
+        await cut.Find("[data-workspace-field='connectionId']").ChangeAsync(new ChangeEventArgs { Value = "conn-b" });
+        cut.Find("[data-workspace-field='table']").Change("warehouse.current");
+        first.SetResult([new() { Schema = "hydro", Table = "obsolete", Columns = ["old"] }]);
+        await oldChange;
+        Assert.Contains("warehouse.current", cut.Find("[data-workspace-field='table']").TextContent);
+        Assert.DoesNotContain("hydro.obsolete", cut.Markup, StringComparison.Ordinal);
+        cut.Find("[data-workspace-field='serviceName']").Input("current-service");
+        await cut.Find("[data-workspace-publish]").ClickAsync(new MouseEventArgs());
+        var command = Assert.Single(publish.Commands);
+        Assert.Equal("conn-b", command.ConnectionId);
+        Assert.Equal("warehouse", command.Schema);
+        Assert.Equal("current", command.Table);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QuickPublish_ObsoleteTableCompletionCannotClearCurrentLoadingOrRestoreClearedSelection(bool enabled)
+    {
+        var first = new TaskCompletionSource<IReadOnlyList<ServiceLayerPublishTable>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<IReadOnlyList<ServiceLayerPublishTable>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publish = new RecordingPublishOperation { OnListTables = connection => connection == "conn-a" ? first.Task : second.Task };
+        using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var cut = ctx.Render<OperatePublishLayerPage>();
+        var oldChange = cut.InvokeAsync(() => cut.Find("[data-workspace-field='connectionId']").ChangeAsync(new ChangeEventArgs { Value = "conn-a" }));
+        cut.WaitForAssertion(() => Assert.Equal("conn-a", publish.LastListedConnectionId));
+        var currentChange = cut.InvokeAsync(() => cut.Find("[data-workspace-field='connectionId']").ChangeAsync(new ChangeEventArgs { Value = "conn-b" }));
+        cut.WaitForAssertion(() => Assert.Equal("conn-b", publish.LastListedConnectionId));
+        first.SetResult([]);
+        await oldChange;
+        Assert.Contains("Loading tables", cut.Find("[data-workspace-field='table']").TextContent);
+        await cut.Find("[data-workspace-field='connectionId']").ChangeAsync(new ChangeEventArgs { Value = "" });
+        Assert.DoesNotContain("Loading tables", cut.Find("[data-workspace-field='table']").TextContent);
+        second.SetResult([new() { Schema = "warehouse", Table = "obsolete", Columns = ["id"] }]);
+        await currentChange;
+        Assert.Single(cut.FindAll("[data-workspace-field='table'] option"));
+        Assert.True(cut.Find("[data-workspace-field='table']").HasAttribute("disabled"));
+        Assert.DoesNotContain("warehouse.obsolete", cut.Markup, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task LayerRail_DescribesTheSelectedTableFromTheServersOwnMetadata()
     {
@@ -455,7 +513,7 @@ public sealed class PublishWizardWorkspaceRenderTests
         {
             Services = _workspace.Services.Select(service => service with
             {
-                PublicationSlots = [new("FeatureServer", url, "Exposed")]
+                Endpoints = [new("FeatureServer", url, "Exposed")]
             }).ToArray()
         });
         public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)
@@ -478,7 +536,7 @@ public sealed class PublishWizardWorkspaceRenderTests
                     status,
                     "server",
                     Enumerable.Range(0, layers)
-                        .Select(index => new OperateServiceLayerProjection(
+                        .Select(index => new OperateServiceLayer(
                             index,
                             $"layer-{index}",
                             "LineString",
@@ -520,6 +578,7 @@ public sealed class PublishWizardWorkspaceRenderTests
     {
         public List<ServiceLayerPublishCommand> Commands { get; } = [];
         public Action? OnPublish { get; set; }
+        public Func<string, Task<IReadOnlyList<ServiceLayerPublishTable>>>? OnListTables { get; set; }
 
         public string? LastListedConnectionId { get; private set; }
 
@@ -544,6 +603,7 @@ public sealed class PublishWizardWorkspaceRenderTests
             CancellationToken cancellationToken = default)
         {
             LastListedConnectionId = connectionId;
+            if (OnListTables is not null) return OnListTables(connectionId);
 
             IReadOnlyList<ServiceLayerPublishTable> tables = connectionId == "conn-a"
                 ?

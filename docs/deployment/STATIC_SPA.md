@@ -24,12 +24,13 @@ request accepts it, and `Vary: Accept-Encoding`.
 {
   "apiBaseUrl": "/",
   "auth": { "mode": "builtin", "authority": null, "clientId": null, "scopes": [] },
-  "v4Enabled": false
+  "v4Enabled": true
 }
 ```
 
-The single v4 flag applies to every v4 surface. Do not put an admin API key, password, client
-secret or operator token in this file. Tokens remain in browser memory. Cross-origin API
+The single v4 flag applies to every v4 surface. It is on by default; set `"v4Enabled": false`
+to roll back to the earlier Console presentation without redeploying the bundle. Do not put an
+admin API key, password, client secret or operator token in this file. Tokens remain in browser memory. Cross-origin API
 access requires an operator bearer token and an explicit API CORS allowlist. Same-origin
 mutations require the API's session cookie and issued CSRF token.
 

@@ -6,9 +6,9 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* Import source dashboard JSON → dashboard package (screens-import-esri.jsx ImportEsriDashboard).
+@* Import source dashboard JSON → dashboard (screens-import-esri.jsx ImportEsriDashboard).
    Dashboard JSON intake → element inventory → element → widget mapping grid with supported/unsupported
-   callouts, target layout preview, "Create dashboard package →" CTA. The source-format JSON parse is deterministic
+   callouts, target layout preview, "Create dashboard →" CTA. The source-format JSON parse is deterministic
    Console-side work. *@
 
 <UnsavedChangesGuard IsDirty="_dirty.IsDirty" Message="You have an unsaved Dashboard import. Leave this page and discard it?" />
@@ -16,13 +16,13 @@
 <section class="console-page esri-import" data-esri-import="dashboard">
     <EsriImportHeading Title="Import source dashboard" Crumb="Dashboard">
         <Description>
-            Convert a source dashboard JSON into a Honua dashboard package. Element-by-element support is
+            Convert a source dashboard JSON into a Honua dashboard. Element-by-element support is
             shown before commit.
         </Description>
         <Actions>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
-            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create dashboard package →</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create dashboard →</a>
         </div>
         </Actions>
     </EsriImportHeading>
@@ -81,7 +81,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="empty"
                           Kicker="Import source content"
                           Title="Paste or upload a Dashboard JSON"
-                          Message="Choose an intake mode above to convert a source dashboard into a dashboard-package preview." />
+                          Message="Choose an intake mode above to convert a source dashboard into a dashboard preview." />
     }
 </section>
 

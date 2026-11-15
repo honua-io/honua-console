@@ -36,7 +36,7 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
     }
 
     // Projects the SDK manifest into the console view model: each advertised capability entry becomes a
-    // descriptor, and each SUPPORTED package family id is carried so the resolver can gate deferred
+    // descriptor, and each SUPPORTED content kind id is carried so the resolver can gate deferred
     // families. Only supported families are surfaced — an unsupported family is treated as absent.
     private static CapabilityRegistrySnapshot Project(CapabilityManifest manifest)
     {

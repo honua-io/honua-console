@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// Workspace roles inherit downward; a narrower scope overrides them.
+// Workspace-scope roles inherit downward; a narrower scope overrides them.
 public static class HonuaConsoleAccessScopeLevels
 {
     public const string Workspace = "workspace";
@@ -227,8 +227,8 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         var detail = status switch
         {
             HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-            HttpStatusCode.Forbidden => "The current principal lacks permission to read workspace access (manage-roles).",
-            HttpStatusCode.NotFound => "The Honua server does not expose the Console Access (RBAC) contract for this workspace.",
+            HttpStatusCode.Forbidden => "The current principal lacks permission to read access (manage-roles).",
+            HttpStatusCode.NotFound => "The Honua server does not expose the Console Access (RBAC) contract.",
             _ => $"The Honua server returned HTTP {(int)status} ({status})."
         };
         return new HonuaAdminEndpointIssue(ReadState(status), contract, detail, (int)status);
@@ -240,9 +240,9 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
         var detail = status switch
         {
             HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
-            HttpStatusCode.Forbidden => "The current principal lacks permission to manage workspace roles.",
+            HttpStatusCode.Forbidden => "The current principal lacks permission to manage roles.",
             HttpStatusCode.BadRequest => "The Honua server rejected the role change (e.g. blank name, or a built-in role cannot be edited or deleted).",
-            HttpStatusCode.NotFound => "The role was not found, or the Console Access contract is not exposed for this workspace.",
+            HttpStatusCode.NotFound => "The role was not found, or the Console Access contract is not exposed.",
             _ => $"The Honua server returned HTTP {(int)status} ({status})."
         };
         return new HonuaAdminEndpointIssue(state, contract, detail, (int)status);

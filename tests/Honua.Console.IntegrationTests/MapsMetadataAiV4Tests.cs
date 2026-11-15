@@ -18,8 +18,8 @@ public sealed class MapsMetadataAiV4Tests
         var page = context.Render<MapViewerPage>(p => p.Add(x => x.MapId, "map-storm-response"));
 
         page.WaitForAssertion(() => Assert.Equal("Storm Response Map", page.Find("h1").TextContent));
-        var package = await new InMemoryConsoleCatalogClient().GetMapPackageAsync("map-storm-response", CatalogReadContext.Authenticated);
-        var expectedActions = MapViewerPage.ResolveViewerActions(package.MapPackage!.Summary, isAuthenticated: true)
+        var package = await new InMemoryConsoleCatalogClient().GetMapAsync("map-storm-response", CatalogReadContext.Authenticated);
+        var expectedActions = MapViewerPage.ResolveViewerActions(package.Map!.Summary, isAuthenticated: true)
             .Select(action => action.Label).ToArray();
         Assert.NotEmpty(expectedActions);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);

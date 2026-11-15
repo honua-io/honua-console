@@ -347,6 +347,25 @@ public sealed record ObservabilityAuditRecordResponse
     public string Details { get; init; } = string.Empty;
 }
 
+// SHIM(honua-sdk-dotnet#231): alert lifecycle requests pending a consumable SDK projection.
+public sealed record ObservabilityAlertSuppressRequest
+{
+    public required DateTimeOffset SuppressUntil { get; init; }
+
+    public string? Note { get; init; }
+}
+
+// SHIM(honua-sdk-dotnet#231): alert lifecycle requests pending a consumable SDK projection.
+public sealed record ObservabilityAlertResolveRequest
+{
+    public string? Note { get; init; }
+}
+
+public sealed record ObservabilityAlertAcknowledgeRequest
+{
+    public string? Note { get; init; }
+}
+
 public sealed record ObservabilityAlertEventPageResponse
 {
     public IReadOnlyList<ObservabilityAlertEventResponse> Items { get; init; } = [];
@@ -832,9 +851,26 @@ public sealed record ConsoleJobDiagnosticsResponse
 
     public ConsoleJobDiagnosticEvents Events { get; init; } = new();
 
+    // Null from a server that predates the artifacts section; render that as unsupported, never as complete.
+    public ConsoleJobDiagnosticArtifacts? Artifacts { get; init; }
+
     public ConsoleJobDiagnosticEvidence Evidence { get; init; } = new();
 
     public ConsoleJobLinks? Links { get; init; }
+}
+
+public sealed record ConsoleJobDiagnosticArtifacts
+{
+    // "none", "complete", "partial" or "unavailable", as projected by the server.
+    public string State { get; init; } = string.Empty;
+
+    public ConsoleJobArtifact[] Items { get; init; } = [];
+
+    public int AvailableCount { get; init; }
+
+    public int ExpiredCount { get; init; }
+
+    public int UnavailableCount { get; init; }
 }
 
 public sealed record ConsoleJobDiagnosticLifecycle
@@ -893,6 +929,8 @@ public sealed record ConsoleJobDiagnosticEvidence
     public string[] Missing { get; init; } = [];
 
     public string[] Truncated { get; init; } = [];
+
+    public string[] Notes { get; init; } = [];
 }
 
 public sealed record InvestigationPageResponse
@@ -1001,4 +1039,8 @@ public sealed record InvestigationLinkResponse
 [JsonSerializable(typeof(ConsoleJobDiagnosticsResponse))]
 [JsonSerializable(typeof(InvestigationPageResponse))]
 [JsonSerializable(typeof(InvestigationResponse))]
+[JsonSerializable(typeof(ObservabilityAlertEventResponse))]
+[JsonSerializable(typeof(ObservabilityAlertSuppressRequest))]
+[JsonSerializable(typeof(ObservabilityAlertResolveRequest))]
+[JsonSerializable(typeof(ObservabilityAlertAcknowledgeRequest))]
 public sealed partial class OperateObservabilityJsonContext : JsonSerializerContext;

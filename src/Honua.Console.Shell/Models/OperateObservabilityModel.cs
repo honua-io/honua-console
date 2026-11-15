@@ -385,6 +385,11 @@ public sealed record OperateJobDiagnosticsView(
     IReadOnlyList<string> EvidenceMissing,
     IReadOnlyList<string> EvidenceTruncated)
 {
+    // Unsupported unless the projection carries an artifacts section; never presented as complete.
+    public OperateJobDiagnosticArtifacts Artifacts { get; init; } = OperateJobDiagnosticArtifacts.NotReported;
+
+    public IReadOnlyList<string> EvidenceNotes { get; init; } = [];
+
     public OperateJobDiagnosticsView AppendEvents(OperateJobDiagnosticsView page) =>
         this with
         {
@@ -395,6 +400,8 @@ public sealed record OperateJobDiagnosticsView(
             EventsTotalCount = page.EventsTotalCount,
             EvidenceMissing = page.EvidenceMissing,
             EvidenceTruncated = page.EvidenceTruncated,
+            Artifacts = page.Artifacts,
+            EvidenceNotes = page.EvidenceNotes,
         };
 
     public OperateJobDiagnosticsView HoldingEventsFrom(OperateJobDiagnosticsView held) =>
@@ -407,6 +414,9 @@ public sealed record OperateJobDiagnosticsView(
             EventsTotalCount = held.EventsTotalCount,
             EvidenceMissing = held.EvidenceMissing,
             EvidenceTruncated = held.EvidenceTruncated,
+            // The held page's artifact lines live in its EvidenceMissing; keep the page self-consistent.
+            Artifacts = held.Artifacts,
+            EvidenceNotes = held.EvidenceNotes,
         };
 }
 
@@ -559,7 +569,7 @@ public static class OperateObservabilityFixture
                 new("degraded", "One alert is firing; telemetry export is partially configured."),
                 "2026-05-24 09:34 HST",
                 "Platform Ops",
-                "2 package bindings drifted from release rel-2026.05.18"),
+                "2 content bindings drifted from release rel-2026.05.18"),
             new(
                 "staging",
                 "Staging",
@@ -585,7 +595,7 @@ public static class OperateObservabilityFixture
             new("SDK contract projection", "mock UI projection", "honua-sdk-dotnet operate contract", new("unknown", "The backend/SDK projection is tracked in honua-server#1168-1170 and honua-sdk-js#229."), "docs/architecture/operate-observability-information-model.md"),
             new("Admin realtime stream", "not advertised", "optional", new("unsupported", "Realtime is not required for static evidence review."), "evt-telemetry-004"),
             new("OTLP exporter", "not configured", "optional", new("not configured", "Operators can still inspect product-level events and raw evidence links."), "evt-telemetry-001"),
-            new("Package binding compatibility", "2 drifted", "0 drifted", new("degraded", "Generated app and layer package bindings differ from release rel-2026.05.18."), "evt-release-211")
+            new("Content binding compatibility", "2 drifted", "0 drifted", new("degraded", "Generated app and layer content bindings differ from release rel-2026.05.18."), "evt-release-211")
         ],
         Events:
         [
@@ -605,7 +615,7 @@ public static class OperateObservabilityFixture
                 "alert-slo-burn",
                 [
                     new("grafana", "SLO burn panel", "https://grafana.example.invalid/d/slo-parcels", "Error budget burn exceeded 2 percent over 30 minutes."),
-                    new("log", "Release gate log", "/operate/events/evt-log-410", "Gate watcher recorded three failed package preview checks.")
+                    new("log", "Release gate log", "/operate/events/evt-log-410", "Gate watcher recorded three failed content preview checks.")
                 ],
                 [
                     new("alert", "alert-slo-burn", "/operate/alerts/alert-slo-burn"),
@@ -624,7 +634,7 @@ public static class OperateObservabilityFixture
                         new("grafana", "SLO burn panel", "https://grafana.example.invalid/d/slo-parcels", "Metric evidence linked from the alert.")
                     ],
                     [
-                        "Review package binding drift before retrying the publish job.",
+                        "Review content binding drift before retrying the publish job.",
                         "Keep the release gate active until the SLO panel returns below threshold."
                     ])),
             new(
@@ -642,7 +652,7 @@ public static class OperateObservabilityFixture
                 "job-publish-001",
                 "alert-slo-burn",
                 [
-                    new("log", "Job runner log", "/operate/jobs/job-publish-001", "Stage preview failed after package binding validation."),
+                    new("log", "Job runner log", "/operate/jobs/job-publish-001", "Stage preview failed after content binding validation."),
                     new("artifact", "Preview failure report", "/operate/jobs/job-publish-001#artifacts", "Failure report captured by the job runner.")
                 ],
                 [
@@ -651,7 +661,7 @@ public static class OperateObservabilityFixture
                 ],
                 [
                     "Job queued",
-                    "Package validation passed with warnings",
+                    "Content validation passed with warnings",
                     "Preview stage failed"
                 ],
                 new(
@@ -662,7 +672,7 @@ public static class OperateObservabilityFixture
                     ],
                     [
                         "Open the artifact report before retrying.",
-                        "Use retry only after the package binding warning is resolved."
+                        "Use retry only after the content binding warning is resolved."
                     ])),
             new(
                 "evt-audit-118",
@@ -696,7 +706,7 @@ public static class OperateObservabilityFixture
                 "warning",
                 "release",
                 "gitops",
-                "GitOps release detected package binding drift before deployment.",
+                "GitOps release detected content binding drift before deployment.",
                 "prod",
                 "honua-prod-01",
                 "corr-rel-20260524",
@@ -778,7 +788,7 @@ public static class OperateObservabilityFixture
                 "error",
                 "log",
                 "generated app preview",
-                "Preview renderer returned binding unsupported for dashboard package.",
+                "Preview renderer returned binding unsupported for dashboard.",
                 "prod",
                 "honua-prod-01",
                 "corr-rel-20260524",
@@ -959,7 +969,7 @@ public static class OperateObservabilityFixture
                 "Studio",
                 "gp",
                 "studio-analysis",
-                new("succeeded", "Studio analysis package completed."),
+                new("succeeded", "Studio analysis completed."),
                 "mira@honua.example",
                 "2026-05-24 07:12 HST",
                 "staging",
@@ -968,7 +978,7 @@ public static class OperateObservabilityFixture
                 "none",
                 ["studio-project:watershed-dashboard", "content:watershed-score"],
                 [
-                    Stage("Queued", "succeeded", 100, "Studio submitted the package run."),
+                    Stage("Queued", "succeeded", 100, "Studio submitted the analysis run."),
                     Stage("Analyze", "succeeded", 100, "Spatial analysis completed."),
                     Stage("Publish artifact", "succeeded", 100, "Result attached to Studio project.")
                 ]),
@@ -987,7 +997,7 @@ public static class OperateObservabilityFixture
                 ["content:parcels-service", "release:rel-2026.05.18", "app:parcel-dashboard"],
                 [
                     Stage("Queued", "succeeded", 100, "Publish request accepted."),
-                    Stage("Validate package", "warning", 100, "Package binding drift detected."),
+                    Stage("Validate content", "warning", 100, "Package binding drift detected."),
                     Stage("Preview generated app", "failed", 34, "Dashboard binding unsupported by current preview runtime."),
                     Stage("Promote", "blocked", 0, "Promotion blocked until preview succeeds.")
                 ]),
@@ -1087,7 +1097,7 @@ public static class OperateObservabilityFixture
             new(
                 "inv-prod-17",
                 "Production publish SLO burn",
-                new("mitigating", "Operator is reviewing package binding drift before retry."),
+                new("mitigating", "Operator is reviewing content binding drift before retry."),
                 "alex@honua.example",
                 "2026-05-24 09:21-10:00 HST",
                 ["evt-alert-900", "evt-job-301", "evt-log-410"],
@@ -1095,7 +1105,7 @@ public static class OperateObservabilityFixture
                 ["job-publish-001", "job-gitops-001"],
                 [
                     "Pinned the alert, publish job, and raw preview renderer log.",
-                    "Waiting for package owner to update unsupported dashboard binding."
+                    "Waiting for the dashboard owner to update unsupported dashboard binding."
                 ]),
             new(
                 "inv-sync-04",
@@ -1179,3 +1189,40 @@ public static class OperateObservabilityFixture
             ]);
     }
 }
+
+// State is the server's "none", "complete", "partial" or "unavailable", or "unsupported" for a server
+// that predates the artifacts section.
+public sealed record OperateJobDiagnosticArtifacts(
+    string State,
+    OperateJobArtifactCounts Counts,
+    IReadOnlyList<OperateJobDiagnosticArtifact> Items)
+{
+    public const string Unsupported = "unsupported";
+
+    public static OperateJobDiagnosticArtifacts NotReported { get; } = new(Unsupported, new(0, 0, 0), []);
+
+    public int AvailableCount => Counts.Available;
+
+    public int ExpiredCount => Counts.Expired;
+
+    public int UnavailableCount => Counts.Unavailable;
+
+    private int RedactedCount => Items.Count(item => item.Availability == "Redacted");
+
+    // Success wording only when every listed artifact is accounted for; an empty "complete" is not success.
+    private bool IsComplete => State == "complete" && Items.Count > 0 && AvailableCount == Items.Count;
+
+    public string Summary => State switch
+    {
+        Unsupported => "This server does not report artifact availability for the job.",
+        "none" => "The job recorded no artifacts.",
+        _ when IsComplete && RedactedCount > 0 =>
+            $"All {AvailableCount} artifact(s) are accounted for; {RedactedCount} redacted for your access.",
+        _ when IsComplete => $"All {AvailableCount} artifact(s) are available.",
+        _ => $"{AvailableCount} available, {ExpiredCount} expired, {UnavailableCount} unavailable.",
+    };
+}
+
+public sealed record OperateJobArtifactCounts(int Available, int Expired, int Unavailable);
+
+public sealed record OperateJobDiagnosticArtifact(string Label, string Availability, string? Message);

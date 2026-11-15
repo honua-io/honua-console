@@ -357,7 +357,7 @@ public sealed class OperateLayerFieldRangeDomainTests
     private static FixedServicesDataSource LayerData(string resourceId, int layerId) =>
         new(new OperateServiceDetail(
             "terrain-fs", "Terrain FeatureServer", "FeatureServer", "Running", "honua-server",
-            [new OperateServiceLayerProjection(layerId, "terrain", "Polygon", resourceId, "conn-1.terrain")],
+            [new OperateServiceLayer(layerId, "terrain", "Polygon", resourceId, "conn-1.terrain")],
             [],
             []));
 }

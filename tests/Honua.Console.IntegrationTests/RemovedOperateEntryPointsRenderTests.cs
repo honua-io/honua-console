@@ -8,7 +8,7 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class RemovedOperateEntryPointsRenderTests
 {
-    private static readonly OperateServiceLayerProjection Parcels =
+    private static readonly OperateServiceLayer Parcels =
         new(1, "Parcels", "Polygon", "conn-1-layer-1", "parcels");
 
     private static readonly OperateServiceDetail Cadastre =
@@ -48,7 +48,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-detail]")));
         Assert.NotNull(page.Find($"a[href='{mount}operate/resources/conn-1-layer-1']"));
         Assert.Empty(page.FindAll("[data-publication-overrides-link], [data-service-discovery-link], [data-save-settings-caps]"));
-        Assert.Contains(Cadastre.PublicationSlots[0].Url!, page.Markup, StringComparison.Ordinal);
+        Assert.Contains(Cadastre.Endpoints[0].Url!, page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("fieldset[style], article[role='status']"));
         Assert.Equal(enabled ? 4 : 0, page.FindAll("[role='tab']").Count);
         if (mount == "/console/") CatalogAdminPreview.Capture(enabled ? "data-service-detail" : "service", page.Markup);

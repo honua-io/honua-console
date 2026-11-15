@@ -20,7 +20,7 @@ public sealed class ConsolePublicationLayerContextTests
         if (completeBeforeLayout) context.CompleteRead(attempt, [Exposure]);
         context.SetPath($"/operate/layers/{ResourceId}");
         if (!completeBeforeLayout) context.CompleteRead(attempt, [Exposure]);
-        Assert.Equal(new(ResourceId, "parcels", "Bridges"), context.Selection);
+        Assert.Equal(new(ResourceId, "parcels", "Bridges") { GeometryType = "LineString" }, context.Selection);
     }
 
     [Fact]
@@ -28,10 +28,10 @@ public sealed class ConsolePublicationLayerContextTests
     {
         var context = Context();
         context.CompleteRead(context.BeginRead(ResourceId), [Exposure]);
-        Assert.Equal(new(ResourceId, "parcels", "Bridges"), context.Selection);
+        Assert.Equal(new(ResourceId, "parcels", "Bridges") { GeometryType = "LineString" }, context.Selection);
         context.SetPath("/operate/layers/7");
         context.CompleteRead(context.BeginRead("7"), [Exposure]);
-        Assert.Equal(new(ResourceId, "parcels", "Bridges"), context.Selection);
+        Assert.Equal(new(ResourceId, "parcels", "Bridges") { GeometryType = "LineString" }, context.Selection);
     }
 
     [Fact]

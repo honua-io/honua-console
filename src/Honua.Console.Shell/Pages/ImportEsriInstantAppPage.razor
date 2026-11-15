@@ -6,9 +6,9 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* Import source Instant App configuration → app package (honua.app-package.v1).
+@* Import source Instant App configuration → app (honua.app-package.v1).
    Instant App JSON intake → template + capability inventory → capability → Console app element mapping with
-   per-capability fidelity badges, target app-shell preview, "Create app package →" CTA. The source-format JSON parse
+   per-capability fidelity badges, target app-shell preview, "Create app →" CTA. The source-format JSON parse
    is deterministic Console-side work; the app's primary web map imports via the Web Map surface, so it shows
    as a binding row (Console Patterns Charter §11). *@
 
@@ -17,13 +17,13 @@
 <section class="console-page esri-import" data-esri-import="instant-app">
     <EsriImportHeading Title="Import source Instant App" Crumb="Instant App">
         <Description>
-            Convert a source app configuration (Sidebar / Basic template) into a Honua app package
+            Convert a source app configuration (Sidebar / Basic template) into a Honua App
             (<code>honua.app-package.v1</code>). Capability-by-capability fidelity is shown before commit.
         </Description>
         <Actions>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
-            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create app package →</a>
+            <a class="console-button" href="@ConsoleNavigation.ToConsoleHref("/operate/publishing")">Create app →</a>
         </div>
         </Actions>
     </EsriImportHeading>
@@ -90,7 +90,7 @@
                 <span class="console-status console-state-info">binding required</span>
                 <span class="esri-binding-banner__text">
                     The app's primary content <strong>@unbound.SourceName</strong> imports separately. Import its
-                    web map first, then bind it here, or create the app package as a draft.
+                    web map first, then bind it here, or create the app as a draft.
                 </span>
                 <div class="console-button-row">
                     <a class="console-button console-button-sm" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri/web-map")">Import Web Map first</a>

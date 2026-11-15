@@ -2,6 +2,7 @@ using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -19,7 +20,16 @@ internal static class ConsolePublicationRenderFixture
             var navigation = context.Services.GetRequiredService<NavigationManager>();
             var path = ConsoleNavigation.ContextForPath(navigation.ToBaseRelativePath(navigation.Uri), ConsoleNavigation.Groups);
             if (path.Kind != ConsoleNavigationContextKind.Layer) return;
-            builder.OpenComponent<Honua.Console.Shell.Pages.OperateLayerDetailPage>(0);
+            var suffix = navigation.ToBaseRelativePath(navigation.Uri).Split('/').ElementAtOrDefault(3);
+            var pageType = suffix switch
+            {
+                "metadata" => typeof(OperateLayerMetadataPage),
+                "filter" => typeof(OperateLayerFilterPage),
+                "relationships" => typeof(OperateLayerRelationshipsPage),
+                "style" => typeof(OperateLayerStylePage),
+                _ => typeof(OperateLayerDetailPage)
+            };
+            builder.OpenComponent(0, pageType);
             builder.AddComponentParameter(1, "ResourceId", Uri.UnescapeDataString(path.Path["/operate/layers/".Length..]));
             builder.CloseComponent();
         }));
@@ -31,7 +41,7 @@ internal static class ConsolePublicationRenderFixture
             source.LayerPageReads++;
             var read = await (source.PendingLayers?.Task ?? Task.FromResult(source.LayerResult));
             var name = source.ServiceSummaries?.LastOrDefault(service => service.LayerCount > 0)?.ServiceName ?? "service-000";
-            var layers = read.IsAllowed ? read.Value!.Select(layer => new OperateServiceLayerProjection(
+            var layers = read.IsAllowed ? read.Value!.Select(layer => new OperateServiceLayer(
                 7, layer.Name, layer.GeometryType, layer.ResourceId, layer.Name)).ToArray() : [];
             return new([], [], [new(name!, name!, "FeatureServer", "Running", "server", layers, [], [])], [], []);
         }
@@ -40,6 +50,22 @@ internal static class ConsolePublicationRenderFixture
         public Task<OperateResourceEditPreview?> FindResourceEditAsync(string id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class LayerStyleDataSource(PublicationNavigationSource source) : IOperateLayerStyleOverrideDataSource
+    {
+        public async Task<OperateLayerStyleOverrideView> GetOverridesAsync(string resourceId, CancellationToken cancellationToken = default)
+        {
+            source.LayerPageReads++;
+            var read = await (source.PendingLayers?.Task ?? Task.FromResult(source.LayerResult));
+            var name = source.ServiceSummaries?.LastOrDefault(service => service.LayerCount > 0)?.ServiceName ?? "service-000";
+            var layers = read.Value?.Select(layer => new OperateLayerStyleOverride("7", name!, layer.Name)).ToArray() ?? [];
+            return new(resourceId, layers, source.StyleBindingState ?? (read.IsAllowed ? null :
+                new("Layer styles", OperateLayerStyleBindingState.Forbidden, "layer styles", "Denied")));
+        }
+
+        public Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(OperateLayerStyleOverrideEdit edit, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 
@@ -62,6 +88,11 @@ internal static class ConsolePublicationRenderFixture
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         context.Services.AddSingleton<IOperateTransitionDataSource>(new LayerPageDataSource(source));
         context.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
+        context.Services.AddSingleton<IConsoleLayerMetadataOperation, UnsupportedConsoleLayerMetadataOperation>();
+        context.Services.AddSingleton<IConsoleLayerFilterOperation, UnsupportedConsoleLayerFilterOperation>();
+        context.Services.AddSingleton<IConsoleLayerRelationshipsOperation, UnsupportedConsoleLayerRelationshipsOperation>();
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(new LayerStyleDataSource(source));
+        context.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
     }
 
     internal static ConsoleEnvironmentProfile ChangedProfile(ConsoleEnvironmentProfile profile, string field) => field switch
@@ -89,6 +120,7 @@ internal sealed class PublicationNavigationSource : IConsolePublicationNavigatio
     public IReadOnlyList<string> ConnectionKeys { get; set; } = ["connection-one"];
     public List<IReadOnlyList<string>> RequestedConnectionSets { get; } = [];
     public int LayerPageReads { get; set; }
+    public OperateLayerStyleBindingState? StyleBindingState { get; set; }
     public int ChildReads { get; private set; }
     public int ConnectionReads { get; private set; }
     public List<string> RequestedServices { get; } = [];

@@ -41,7 +41,7 @@ public sealed class AdminContractClientPipelineTests
             Mismatch: "The Honua server Console Access response did not match the expected contract: ",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console Access response did not include data.",
-            NotFound: "The Honua server does not expose the Console Access (RBAC) contract for this workspace."),
+            NotFound: "The Honua server does not expose the Console Access (RBAC) contract."),
         new(
             "rbac POST",
             (handler, token) => Run(new HonuaConsoleRbacHttpClient(Http(handler), new HonuaConsoleRbacClientOptions(BaseUri, "key"))
@@ -50,7 +50,7 @@ public sealed class AdminContractClientPipelineTests
             Mismatch: "The Honua server Console Access response did not match the expected contract: ",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console Access response did not include data.",
-            NotFound: "The role was not found, or the Console Access contract is not exposed for this workspace."),
+            NotFound: "The role was not found, or the Console Access contract is not exposed."),
         new(
             "share GET",
             (handler, token) => Run(new HonuaConsoleShareHttpClient(Http(handler), new HonuaConsoleShareClientOptions(BaseUri, "key")).GetShareAsync("item-1", token)),
@@ -58,14 +58,14 @@ public sealed class AdminContractClientPipelineTests
             Mismatch: "The Honua server Console share response did not match the expected contract: ",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console share response did not include data.",
-            NotFound: "The Honua server Console content item or share token was not found."),
+            NotFound: "The Honua server has no Console item or share token with that ID."),
         new(
             "form package GET",
             (handler, token) => Run(new HonuaFormPackageHttpClient(Http(handler), new HonuaFormPackageClientOptions(BaseUri, "key")).ListPackagesAsync(token)),
-            Endpoint: "The Honua server form package endpoint",
-            Mismatch: "The Honua server form package response did not match the expected contract: ",
+            Endpoint: "The Honua server form endpoint",
+            Mismatch: "The Honua server form response did not match the expected contract: ",
             MissingBody: "null",
-            Missing: "The Honua server form package response body was empty.",
+            Missing: "The Honua server form response body was empty.",
             NotFound: "The Honua server does not expose this admin API contract."),
         new(
             "content publication GET",

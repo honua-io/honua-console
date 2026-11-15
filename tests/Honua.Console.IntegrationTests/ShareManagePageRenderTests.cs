@@ -441,14 +441,14 @@ public sealed class ShareManagePageRenderTests
         public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
             Task.FromResult(CatalogItemReadResult.Allowed(detail, anonymousRead: true));
 
-        public Task<MapPackageReadResult> GetMapPackageAsync(string mapId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
-            Task.FromResult(MapPackageReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
+        public Task<MapReadResult> GetMapAsync(string mapId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MapReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
 
-        public Task<MapPackageReadResult> GetDraftMapAsync(string sourceItemId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
-            Task.FromResult(MapPackageReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
+        public Task<MapReadResult> GetDraftMapAsync(string sourceItemId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MapReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
 
-        public Task<MapPackageReadResult> AuthorizeEmbedAsync(string mapId, EmbedRouteOptions options, CancellationToken cancellationToken = default) =>
-            Task.FromResult(MapPackageReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
+        public Task<MapReadResult> AuthorizeEmbedAsync(string mapId, EmbedRouteOptions options, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MapReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
     }
 
     private sealed class FakeShareDataSource : IShareAccessDataSource

@@ -151,6 +151,15 @@ function readResource({ request, response, pathname, crossOrigin, authorized, js
 
 function readAuthorizedResource({ response, pathname, json }) {
   switch (pathname) {
+    case "/api/v1/studio/session":
+      json({ success: true, data: {
+        authenticated: true, principalId: "fixture-operator",
+        environmentId: "fixture-environment", sourcePathBase: "",
+      } });
+      return;
+    case "/api/v1/studio/content-items":
+      json({ success: true, data: { items: [], nextCursor: null } });
+      return;
     case "/api/v1/admin/connections":
       json({ success: true, data: [{
         connectionId: "11111111-1111-1111-1111-111111111111", name: "Browser transport fixture",

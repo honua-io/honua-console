@@ -239,6 +239,7 @@
     // Active environment profile id the scene proxy URL is pinned to.
     private string? _environmentId;
     private string? _resolvedViewerFor;
+    private int _viewerGeneration;
 
     private int _fileInputKey;
     private IBrowserFile? _selectedFile;
@@ -254,17 +255,33 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!string.IsNullOrWhiteSpace(SceneId) && _resolvedViewerFor != SceneId)
+        var sceneId = string.IsNullOrWhiteSpace(SceneId) ? null : SceneId;
+        if (_resolvedViewerFor == sceneId)
         {
-            _resolvedViewerFor = SceneId;
-            _environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
-                ServiceProvider.GetService<IConsoleEnvironmentProfileStore>()).ConfigureAwait(false);
-            _viewerTilesetUrl = await Scenes.ResolveTilesetUrlAsync(SceneId).ConfigureAwait(false);
+            return;
         }
-        else if (string.IsNullOrWhiteSpace(SceneId))
+
+        var generation = ++_viewerGeneration;
+        _resolvedViewerFor = sceneId;
+        _viewerTilesetUrl = null;
+        _environmentId = null;
+        if (sceneId is null)
         {
-            _viewerTilesetUrl = null;
-            _resolvedViewerFor = null;
+            return;
+        }
+
+        var environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
+            ServiceProvider.GetService<IConsoleEnvironmentProfileStore>()).ConfigureAwait(false);
+        if (generation != _viewerGeneration)
+        {
+            return;
+        }
+
+        var tilesetUrl = await Scenes.ResolveTilesetUrlAsync(sceneId).ConfigureAwait(false);
+        if (generation == _viewerGeneration)
+        {
+            _environmentId = environmentId;
+            _viewerTilesetUrl = tilesetUrl;
         }
     }
 
@@ -281,12 +298,17 @@
             return;
         }
 
+        var selectedFile = _selectedFile;
+        var fileName = selectedFile.Name;
+        var displayName = string.IsNullOrWhiteSpace(_displayName) ? null : _displayName;
+        var description = string.IsNullOrWhiteSpace(_description) ? null : _description;
+        var sourceCrs = _sourceCrs;
         _ingesting = true;
         _ingestResult = null;
         try
         {
             byte[] content;
-            await using (var stream = _selectedFile.OpenReadStream(MaxFileBytes))
+            await using (var stream = selectedFile.OpenReadStream(MaxFileBytes))
             {
                 using var buffer = new MemoryStream();
                 await stream.CopyToAsync(buffer).ConfigureAwait(false);
@@ -296,10 +318,10 @@
             var request = new PointCloudIngestRequest
             {
                 Content = content,
-                FileName = _selectedFile.Name,
-                DisplayName = string.IsNullOrWhiteSpace(_displayName) ? null : _displayName,
-                Description = string.IsNullOrWhiteSpace(_description) ? null : _description,
-                SourceCrs = _sourceCrs
+                FileName = fileName,
+                DisplayName = displayName,
+                Description = description,
+                SourceCrs = sourceCrs
             };
 
             _ingestResult = await Scenes.IngestPointCloudAsync(request).ConfigureAwait(false);

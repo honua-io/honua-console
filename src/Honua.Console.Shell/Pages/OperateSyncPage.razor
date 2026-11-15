@@ -541,11 +541,9 @@
 
     private async Task ReviewReplicaAsync(DisconnectedReplica replica)
     {
-        var generation = ++_reviewGeneration;
+        ResetConflictReviewState();
+        var generation = _reviewGeneration;
         _selectedReplica = replica;
-        _selectedConflictIds.Clear();
-        _lastResolution = null;
-        _resolutionBinding = null;
         var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
         if (generation != _reviewGeneration) return;
         _conflictReviewBinding = review.BindingState;
@@ -562,6 +560,7 @@
     private void ResetConflictReviewState()
     {
         _reviewGeneration++;
+        _resolveBusy = false;
         _selectedReplica = null;
         _conflicts = [];
         _conflictReviewBinding = null;
@@ -594,7 +593,7 @@
 
     private Task ResolveAsync(IReadOnlyList<string> conflictIds, SyncResolutionAction action)
     {
-        if (conflictIds.Count == 0 || _selectedReplica is null)
+        if (conflictIds.Count == 0 || _selectedReplica is null || _resolveBusy)
         {
             return Task.CompletedTask;
         }
@@ -618,7 +617,12 @@
                     _selectedConflictIds.Clear();
                 }
             },
-            setBusy: busy => { _resolveBusy = busy; StateHasChanged(); },
+            setBusy: busy =>
+            {
+                if (generation != _reviewGeneration) return;
+                _resolveBusy = busy;
+                StateHasChanged();
+            },
             failureMessage: "Couldn't resolve the conflicts");
     }
 

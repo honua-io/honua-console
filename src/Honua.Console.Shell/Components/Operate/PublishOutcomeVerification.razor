@@ -65,10 +65,13 @@
             var read = await ConsoleReadBudget.RunAsync(
                 token => source.ReadServicesAsync(HonuaAdminCatalogQuery.First with { NameQuery = serviceName }, token),
                 ConsoleReadBudget.Default, "The original catalog could not be read.");
-            if (!read.IsAllowed || !await authority.IsCurrentAsync(binding) ||
+            if (!read.IsAllowed || read.PartialResult || read.Value is null ||
+                !HonuaAdminCatalogReader.IsValidPage(read.Value, HonuaAdminCatalogQuery.First) || !await authority.IsCurrentAsync(binding) ||
                 AuthorityBinding != binding || ServiceName != serviceName || LayerName != layerName)
             {
-                _reason = read.Message ?? "The publishing target changed while reading. Return to the original target.";
+                _reason = string.IsNullOrWhiteSpace(read.Message)
+                    ? "The original catalog could not be verified. Return to the original target and try again."
+                    : read.Message;
                 return;
             }
             _readServiceName = serviceName;

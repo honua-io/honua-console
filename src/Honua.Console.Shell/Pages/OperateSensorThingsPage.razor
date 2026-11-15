@@ -235,6 +235,7 @@
     private SensorThingsReadResult<StaEntitySet<StaDatastream>>? _datastreams;
     private SensorThingsReadResult<SensorThingsTimeSeries>? _series;
     private long? _loadedSeriesFor;
+    private int _seriesGeneration;
 
     protected override async Task OnInitializedAsync()
     {
@@ -248,16 +249,22 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (DatastreamId is { } id && _loadedSeriesFor != id)
+        var datastreamId = DatastreamId;
+        if (_loadedSeriesFor == datastreamId)
         {
-            _series = null;
-            _loadedSeriesFor = id;
-            _series = await SensorThings.GetDatastreamTimeSeriesAsync(id).ConfigureAwait(false);
+            return;
         }
-        else if (DatastreamId is null)
+
+        var generation = ++_seriesGeneration;
+        _loadedSeriesFor = datastreamId;
+        _series = null;
+        if (datastreamId is { } id)
         {
-            _series = null;
-            _loadedSeriesFor = null;
+            var series = await SensorThings.GetDatastreamTimeSeriesAsync(id).ConfigureAwait(false);
+            if (generation == _seriesGeneration)
+            {
+                _series = series;
+            }
         }
     }
 

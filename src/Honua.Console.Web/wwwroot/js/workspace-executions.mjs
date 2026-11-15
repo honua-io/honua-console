@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 // Native execution observations are separate from model conversation text. This
 // reader never launches a worker, replays a prompt or approves a proposal.
 const identity = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
@@ -298,13 +299,13 @@ export function renderExecutions(host, workspace, report) {
                 detail.textContent=`${kind}: ${operation.status}`;row.append(detail);
                 if (operation.proposalId) {
                     const link=host.ownerDocument.createElement('a');
-                    link.href=`/inbox?proposalId=${encodeURIComponent(operation.proposalId)}`;
+                    link.href=consoleHref(`/inbox?proposalId=${encodeURIComponent(operation.proposalId)}`,host.ownerDocument.baseURI);
                     link.dataset.executionAction=`${record.turnId}:proposal:${operation.proposalId}`;
                     link.textContent='Open approval';row.append(link);
                 }
                 if (operation.jobId) {
                     const link=host.ownerDocument.createElement('a');
-                    link.href=`/operate/jobs/${encodeURIComponent(operation.jobId)}`;
+                    link.href=consoleHref(`/operate/jobs/${encodeURIComponent(operation.jobId)}`,host.ownerDocument.baseURI);
                     link.dataset.executionAction=`${record.turnId}:job:${operation.jobId}`;
                     link.textContent='Open job';row.append(link);
                 }

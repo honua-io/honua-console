@@ -58,7 +58,7 @@ export async function setup(page:Page) {
   await expect(host).toHaveAttribute('data-connected','true');
   await expect(page.locator('textarea:visible')).toHaveCount(1);
   const createMap=async(packageKey:string)=>{
-    await page.getByRole('textbox',{name:'New map package key'}).fill(packageKey);
+    await page.getByRole('textbox',{name:'New map key'}).fill(packageKey);
     await page.getByRole('button',{name:'New map',exact:true}).click();
     await expect.poll(()=>identity(page).then(value=>value?.packageKey)).toBe(packageKey);
     const created=(await identity(page))!;

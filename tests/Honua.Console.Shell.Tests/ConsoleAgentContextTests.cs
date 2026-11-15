@@ -246,6 +246,8 @@ public sealed class ConsoleAgentContextTests
         Assert.Empty(runtime.ModuleCalls);
     }
 
+    // This fake implements interop and deliberately propagates failures to the caller under test.
+#pragma warning disable BL0016
     private sealed class PendingImport : IJSRuntime, IJSObjectReference
     {
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -272,6 +274,8 @@ public sealed class ConsoleAgentContextTests
             return ValueTask.CompletedTask;
         }
     }
+
+#pragma warning restore BL0016
 
     private static ConsoleAgentEntity Folder(string id) => new() { Kind = ConsoleAgentEntityKind.Folder, Id = id };
 }

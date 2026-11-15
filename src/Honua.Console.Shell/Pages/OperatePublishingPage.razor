@@ -99,7 +99,7 @@
     }
 </section>
 
-<ConsoleConfirmDialog @ref="_confirm" />
+<ConsoleConfirmDialog @key="_lookupGeneration" @ref="_confirm" />
 
 @code {
     private const string LookupGuidance = "Enter a release ID to review its route, release a new version, or restore a previous version.";
@@ -112,7 +112,7 @@
         Unsaved = new()
         {
             ChangedFieldCount = string.IsNullOrWhiteSpace(_republishTitle) ? 0 : 1,
-            PendingOperationCount = (!_loaded ? 1 : 0) + (_busy ? 1 : 0)
+            PendingOperationCount = (!_loaded ? 1 : 0) + (IsBusy ? 1 : 0)
         }
     };
     private RenderFragment LookupContent => @<text>
@@ -125,11 +125,11 @@
                            @bind="_lookupId"
                            @bind:event="oninput"
                            @bind:after="OnLookupEdit"
-                           disabled="@_busy" />
+                           disabled="@IsBusy" />
                     <button class="console-button"
                             type="button"
                             @onclick="LookupAsync"
-                            disabled="@(_busy || _validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking))">
+                            disabled="@(IsBusy || _validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking))">
                         Review
                     </button>
                 </div>
@@ -155,11 +155,11 @@
                                        aria-label="Republish title"
                                        @bind="_republishTitle"
                                        @bind:event="oninput"
-                                       disabled="@_busy" />
+                                       disabled="@IsBusy" />
                                 <button class="console-button"
                                         type="button"
                                         @onclick="ConfirmRepublish"
-                                        disabled="@_busy">
+                                        disabled="@IsBusy">
                                     Republish
                                 </button>
                             </div>
@@ -196,7 +196,7 @@
                                                             <button class="console-button console-button-secondary"
                                                                     type="button"
                                                                     @onclick="() => ConfirmRollback(version.VersionId, version.Revision)"
-                                                                    disabled="@_busy">
+                                                                    disabled="@IsBusy">
                                                                 Roll back to rev @version.Revision
                                                             </button>
                                                         }
@@ -269,7 +269,12 @@
     private string _republishTitle = string.Empty;
     private bool _busy;
     private bool _loaded;
-    private bool _deepLinkAttempted;
+    private bool _parametersApplied;
+    private bool _lookingUp;
+    private string? _publicationId;
+    private int _lookupGeneration;
+    private Task<PublishingWorkspace>? _workspaceRead;
+    private bool IsBusy => _busy || _lookingUp;
 
     // Client-side validation of the publication lookup id. The publication registry has no field-addressable
     // body-validator for the lookup id, so this is purely client-side and surfaced inline.
@@ -294,44 +299,44 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!_loaded)
-        {
-            _workspace = await PublishingData.GetWorkspaceAsync();
-            _states = OperateCapabilityStateFilters.ForSurface(_workspace.CapabilityStates, "Publishing");
-            _loaded = true;
-        }
+        var publicationId = PublicationId?.Trim();
+        _workspace = await (_workspaceRead ??= PublishingData.GetWorkspaceAsync());
+        _states = OperateCapabilityStateFilters.ForSurface(_workspace.CapabilityStates, "Publishing");
+        _loaded = true;
+        if (publicationId != PublicationId?.Trim() || (_parametersApplied && _publicationId == publicationId)) return;
 
-        // Deep link: /operate/publishing?publicationId=... pre-fills and runs the lookup once.
-        if (!_deepLinkAttempted && !string.IsNullOrWhiteSpace(PublicationId))
-        {
-            _deepLinkAttempted = true;
-            _lookupId = PublicationId;
-            await LookupAsync();
-        }
+        _parametersApplied = true;
+        _publicationId = publicationId;
+        _lookupId = publicationId ?? string.Empty;
+        _lookup = null;
+        _republishTitle = string.Empty;
+        _lookupGeneration++;
+        _lookingUp = false;
+        OnLookupEdit();
+        if (!string.IsNullOrWhiteSpace(publicationId)) await LoadLookupAsync();
     }
 
-    private async Task LookupAsync()
+    private Task LookupAsync() => IsBusy ? Task.CompletedTask : LoadLookupAsync();
+
+    private async Task LoadLookupAsync()
     {
-        if (string.IsNullOrWhiteSpace(_lookupId) || _busy)
-        {
-            return;
-        }
-
-        // Gate on the client-side identifier-format rule before issuing the lookup; never fabricate server state.
         OnLookupEdit();
-        if (_validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(_lookupId)
+            || _validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking)) return;
 
-        _busy = true;
+        var generation = ++_lookupGeneration;
+        var publicationId = _lookupId.Trim();
+        _lookup = null;
+        _republishTitle = string.Empty;
+        _lookingUp = true;
         try
         {
-            _lookup = await PublishingData.LookupAsync(_lookupId.Trim());
+            var lookup = await PublishingData.LookupAsync(publicationId);
+            if (generation == _lookupGeneration) _lookup = lookup;
         }
         finally
         {
-            _busy = false;
+            if (generation == _lookupGeneration) _lookingUp = false;
         }
     }
 
@@ -349,9 +354,10 @@
         var resourceName = string.IsNullOrWhiteSpace(_lookup.Review.ResourceName)
             ? _lookup.Review.ResourceId
             : _lookup.Review.ResourceName;
+        var generation = _lookupGeneration;
         _confirm.Open(
             title: "Release a new version?",
-            onConfirm: RepublishAsync,
+            onConfirm: () => generation == _lookupGeneration ? RepublishAsync() : Task.CompletedTask,
             body: $"This creates a new live version of \"{resourceName}\" in the registry. Consumers will see the new version.",
             confirmLabel: "Republish");
     }
@@ -366,9 +372,10 @@
         var resourceName = string.IsNullOrWhiteSpace(_lookup.Review.ResourceName)
             ? _lookup.Review.ResourceId
             : _lookup.Review.ResourceName;
+        var generation = _lookupGeneration;
         _confirm.Open(
             title: $"Roll back to rev {revision}?",
-            onConfirm: () => RollbackAsync(targetVersionId),
+            onConfirm: () => generation == _lookupGeneration ? RollbackAsync(targetVersionId) : Task.CompletedTask,
             body: $"This makes revision {revision} the live version of \"{resourceName}\" again. The current live version is superseded.",
             confirmLabel: $"Roll back to rev {revision}");
     }
@@ -381,12 +388,15 @@
         }
 
         var resourceId = _lookup.Review.ResourceId;
+        var generation = _lookupGeneration;
         return Notifications.RunGuardedAsync(
             async () =>
             {
                 var command = new PublishingRepublishCommand(
                     Title: string.IsNullOrWhiteSpace(_republishTitle) ? null : _republishTitle.Trim());
-                _lookup = await PublishingData.RepublishAsync(resourceId, command);
+                var lookup = await PublishingData.RepublishAsync(resourceId, command);
+                if (generation != _lookupGeneration) return;
+                _lookup = lookup;
                 _republishTitle = string.Empty;
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
@@ -402,11 +412,13 @@
         }
 
         var resourceId = _lookup.Review.ResourceId;
+        var generation = _lookupGeneration;
         return Notifications.RunGuardedAsync(
             async () =>
             {
                 var command = new PublishingRollbackCommand(TargetVersionId: targetVersionId);
-                _lookup = await PublishingData.RollbackAsync(resourceId, command);
+                var lookup = await PublishingData.RollbackAsync(resourceId, command);
+                if (generation == _lookupGeneration) _lookup = lookup;
             },
             setBusy: busy => { _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't restore the previous version",

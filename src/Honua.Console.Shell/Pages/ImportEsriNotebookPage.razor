@@ -6,9 +6,9 @@
 @using Honua.Console.Shell.Validation
 @implements IDisposable
 
-@* Import source notebook (hosted arcpy) → notebook package (honua.notebook-package.v1).
+@* Import source notebook (hosted arcpy) → notebook (honua.notebook-package.v1).
    Notebook .ipynb intake → cell / parameter / schedule inventory → source → target mapping with per-row
-   fidelity badges, target notebook-package preview, "Create notebook package →" CTA. The .ipynb parse is
+   fidelity badges, target notebook-package preview, "Create notebook →" CTA. The .ipynb parse is
    deterministic Console-side work (Console Patterns Charter §11).
 
    SCOPE BOUNDARY (#159): Console represents/imports the notebook DEFINITION only. Executing hosted arcpy
@@ -21,14 +21,13 @@
 <section class="console-page esri-import" data-esri-import="notebook">
     <EsriImportHeading Title="Import source notebook" Crumb="Notebook">
         <Description>
-            Convert a source notebook (hosted arcpy) <code>.ipynb</code> definition into a Honua notebook
-            package (<code>honua.notebook-package.v1</code>). Cells, parameters, and the schedule import;
+            Convert a source notebook (hosted arcpy) <code>.ipynb</code> definition into a Honua notebook (<code>honua.notebook-package.v1</code>). Cells, parameters, and the schedule import;
             execution stays gated to a server hosted-arcpy runtime.
         </Description>
         <Actions>
         <div class="console-button-row">
             <a class="console-button-ghost" href="@ConsoleNavigation.ToConsoleHref("/operate/import/esri")">Discard</a>
-            <button type="button" class="console-button" disabled="@(_result is null)">Create notebook package →</button>
+            <button type="button" class="console-button" disabled="@(_result is null)">Create notebook →</button>
         </div>
         </Actions>
     </EsriImportHeading>
@@ -47,8 +46,8 @@
         <div class="esri-import__split">
             <div class="esri-import__mapping">
                 <SourceTargetMappingTable HeadingLevel="2" Rows="result.Rows"
-                                          Heading="Cell → notebook-package mapping"
-                                          Subhead="source notebook cell / parameter / schedule → Honua notebook package element"
+                                          Heading="Cell → notebook mapping"
+                                          Subhead="source notebook cell / parameter / schedule → Honua notebook element"
                                           SourceHeader="Notebook element"
                                           SourceTypeHeader="Kind"
                                           TargetHeader="→ Honua element"
@@ -57,7 +56,7 @@
                                           CarryOver="result.CarryOver" />
             </div>
 
-            <EsriImportPreview Title="Target notebook package">
+            <EsriImportPreview Title="Target notebook">
                 <Head>
                     <strong><code>@result.TargetSchema</code></strong>
                 </Head>
