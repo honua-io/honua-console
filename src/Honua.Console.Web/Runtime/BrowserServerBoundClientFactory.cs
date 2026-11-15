@@ -101,7 +101,10 @@ internal sealed class BrowserApiHandler(
         request.Headers.Remove("X-Honua-CSRF");
         request.Headers.Authorization = null;
         var sameOrigin = ConsoleRuntimeConfiguration.SameOrigin(target, origins.Application);
-        var managementCall = access == BrowserApiAccess.Manager;
+        var managerOnServingOrigin = origins.Management is { } management
+            && ConsoleRuntimeConfiguration.SameOrigin(management, origins.Application)
+            && ConsoleRuntimeConfiguration.SameOrigin(origins.Api, origins.Application);
+        var managementCall = access == BrowserApiAccess.Manager && origins.Management is not null && !managerOnServingOrigin;
         var bearer = managementCall ? session.ManagementAccessToken ?? session.AccessToken : session.AccessToken;
         var bearerExpiry = managementCall && session.ManagementAccessToken is not null
             ? session.ManagementExpiresAt

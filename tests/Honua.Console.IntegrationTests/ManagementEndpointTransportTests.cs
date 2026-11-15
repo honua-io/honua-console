@@ -52,6 +52,47 @@ public sealed class ManagementEndpointTransportTests
     }
 
     [Fact]
+    public async Task ManagerOnTheServingOriginKeepsTheCookie()
+    {
+        var recorder = new BrowserApiTransportTests.RecordingHandler();
+        var api = new Uri("https://honua.example/api/");
+        var app = new Uri("https://honua.example/console/");
+        var management = new Uri("https://honua.example/manager/");
+        var origins = new BrowserApiOrigins(api, app, management);
+        var session = new ConsoleBrowserSession();
+        session.Set(BrowserApiTransportTests.Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        using var client = new HttpClient(new BrowserApiHandler(origins, session, BrowserApiAccess.Manager) { InnerHandler = recorder })
+        {
+            BaseAddress = api
+        };
+
+        using var response = await client.PostAsync("layers", null);
+
+        Assert.Equal(new Uri(management, "layers"), recorder.Last);
+        Assert.Null(recorder.Authorization);
+        Assert.True(recorder.SentCsrf);
+    }
+
+    [Fact]
+    public async Task OmittedManagerStaysOnTheServingCookie()
+    {
+        var recorder = new BrowserApiTransportTests.RecordingHandler();
+        var origins = new BrowserApiOrigins(BrowserApiTransportTests.Api, BrowserApiTransportTests.App);
+        var session = new ConsoleBrowserSession();
+        session.Set(BrowserApiTransportTests.Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        using var client = new HttpClient(new BrowserApiHandler(origins, session, BrowserApiAccess.Manager) { InnerHandler = recorder })
+        {
+            BaseAddress = BrowserApiTransportTests.Api
+        };
+
+        using var response = await client.PostAsync("layers", null);
+
+        Assert.Equal(new Uri(BrowserApiTransportTests.Api, "layers"), recorder.Last);
+        Assert.Null(recorder.Authorization);
+        Assert.True(recorder.SentCsrf);
+    }
+
+    [Fact]
     public async Task ServingRequestsKeepCookieAuthWhenTheManagerSharesTheOrigin()
     {
         var recorder = new BrowserApiTransportTests.RecordingHandler();
