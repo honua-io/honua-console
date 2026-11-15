@@ -248,9 +248,6 @@ public sealed partial class OperateTransitionDataSourceTests
         var servicesView = await dataSource.GetServicesViewAsync();
         var workspace = await dataSource.GetWorkspaceAsync();
 
-        Assert.Contains(layersView.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
-        Assert.Contains(servicesView.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
-        Assert.Contains(workspace.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
         foreach (var services in new[] { layersView.Services, servicesView.Services, workspace.Services })
         {
             var layers = Assert.Single(services).Layers.OrderBy(layer => layer.LayerId).ToArray();

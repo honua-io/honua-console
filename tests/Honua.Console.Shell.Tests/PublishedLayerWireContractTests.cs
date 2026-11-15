@@ -6,9 +6,9 @@ namespace Honua.Console.Shell.Tests;
 public sealed class PublishedLayerWireContractTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task PublishingWritesPreserveStorageIdentityForMetadataRequests(bool publish)
+    [InlineData("publish")]
+    [InlineData("enable")]
+    public async Task PublishingWritesPreserveStorageIdentityForMetadataRequests(string operation)
     {
         var handler = ScriptedHttpHandler.Returning(HttpStatusCode.OK, """
             {"success":true,"data":{"storageLayerId":5,"layerName":"QA points","schema":"honua_data","table":"qa_points","geometryType":"Point","srid":4326,"primaryKey":"id","fieldCount":3,"enabled":true,"serviceName":"qa"}}
@@ -16,7 +16,7 @@ public sealed class PublishedLayerWireContractTests
         using var client = new HonuaAdminOperateHttpClient(
             new HttpClient(handler), new HonuaAdminOperateClientOptions(new Uri("https://server.example")));
 
-        var result = publish
+        var result = operation == "publish"
             ? await client.PublishLayerAsync("connection", new() { Schema = "honua_data", Table = "qa_points", LayerName = "QA points" })
             : await client.SetLayerEnabledAsync("connection", 5, true, "qa");
 
