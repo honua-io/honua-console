@@ -1032,6 +1032,7 @@ public sealed record HonuaAdminUpdateMapServerSettingsRequest
 
 public sealed record HonuaAdminPublishedLayerSummary
 {
+    [JsonPropertyName("storageLayerId")]
     public int LayerId { get; init; }
 
     public string? LayerName { get; init; }

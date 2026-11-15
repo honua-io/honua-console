@@ -116,11 +116,12 @@ public sealed class HonuaAdminCatalogReaderTests
     public async Task PagedLayerListKeepsTheServerPage()
     {
         using var client = Client(_ => """
-            {"success":true,"data":{"items":[{"layerId":7,"layerName":"Parcels"}],"page":3,"pageSize":25,"total":40}}
+            {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Parcels"}],"page":3,"pageSize":25,"total":40}}
             """);
         var page = await client.ListConnectionLayersAsync("conn", new HonuaAdminLayerListRequest(null, HonuaAdminCatalogQuery.First));
         Assert.True(page.Data is not null, page.Issue?.Detail);
         Assert.Equal("Parcels", Assert.Single(page.Data!.Items).LayerName);
+        Assert.Equal(7, page.Data.Items[0].LayerId);
         Assert.Equal(3, page.Data.Page);
         Assert.Equal(25, page.Data.PageSize);
         Assert.Equal(40, page.Data.Total);
@@ -133,12 +134,13 @@ public sealed class HonuaAdminCatalogReaderTests
         {
             Assert.Equal(1, Page(request));
             return """
-                {"success":true,"data":[{"layerId":7,"layerName":"Parcels"},{"layerId":8,"layerName":"Roads"}]}
+                {"success":true,"data":[{"storageLayerId":7,"layerName":"Parcels"},{"storageLayerId":8,"layerName":"Roads"}]}
                 """;
         });
         var page = await client.ListConnectionLayersAsync("conn", new HonuaAdminLayerListRequest("roads", HonuaAdminCatalogQuery.First));
         Assert.True(page.Data is not null, page.Issue?.Detail);
         Assert.Equal(["Parcels", "Roads"], page.Data!.Items.Select(layer => layer.LayerName));
+        Assert.Equal([7, 8], page.Data.Items.Select(layer => layer.LayerId));
         Assert.Equal(1, page.Data.Page);
         Assert.Equal(2, page.Data.PageSize);
         Assert.Equal(2, page.Data.Total);

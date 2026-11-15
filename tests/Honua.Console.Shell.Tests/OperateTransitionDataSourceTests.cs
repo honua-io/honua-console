@@ -70,10 +70,10 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=public"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":false,"serviceName":"public"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","description":"Fixture layer","geometryType":"Polygon","fieldCount":5,"enabled":false,"serviceName":"public"}],"page":1,"pageSize":100,"total":1}}
                 """,
             ["/api/v1/admin/services/?page=1&pageSize=100"] = """
                 {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer","MapServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
@@ -209,7 +209,7 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
@@ -239,7 +239,7 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0,"layerTotal":0}}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"},{"storageLayerId":8,"layerName":"Console Roads","schema":"public","table":"roads","geometryType":"Line","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":2}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
@@ -251,6 +251,15 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.Contains(layersView.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
         Assert.Contains(servicesView.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
         Assert.Contains(workspace.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        foreach (var services in new[] { layersView.Services, servicesView.Services, workspace.Services })
+        {
+            var layers = Assert.Single(services).Layers.OrderBy(layer => layer.LayerId).ToArray();
+            Assert.Equal([7, 8], layers.Select(layer => layer.LayerId));
+            Assert.Equal(
+                new[] { $"{connectionId}-layer-7", $"{connectionId}-layer-8" },
+                layers.Select(layer => layer.CanonicalResourceId));
+        }
+        Assert.Equal(2, workspace.ResourceEdits.Select(resource => resource.ResourceId).Distinct().Count());
         // The service is derived from the layer's own service name, not the absent services endpoint.
         Assert.Contains(servicesView.Services, service => service.Name == "planning");
         // Resources read the same layer rows directly and must also keep the published layer.
@@ -348,10 +357,10 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100&serviceName=public"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"public"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"public"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
@@ -401,10 +410,10 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
             [$"/api/v1/admin/connections/{connectionA}/layers/?page=1&pageSize=100&serviceName=planning"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Connection A Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Connection A Parcels","schema":"public","table":"parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """,
             [$"/api/v1/admin/connections/{connectionB}/layers/?page=1&pageSize=100&serviceName=planning"] = """
-                {"success":true,"data":{"items":[{"layerId":7,"layerName":"Connection B Roads","schema":"public","table":"roads","geometryType":"Line","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Connection B Roads","schema":"public","table":"roads","geometryType":"Line","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
                 """
         });
         var dataSource = CreateServerDataSource(handler);
