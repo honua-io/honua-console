@@ -44,8 +44,11 @@ honua-console-<version>.zip.json
 ```
 
 The ZIP contains the contents of the publish output's `wwwroot/console` directory,
-without an extra directory prefix. Extract beneath `/console/`. The package step
-rejects missing entrypoints, a different base path, symbolic links and output inside
+without an extra directory prefix, plus the Console `LICENSE` and `NOTICE` and, under
+`licenses/`, the license texts of the .NET code in `_framework/` (kept in
+`release/licenses/` and checked against the locked package versions). Extract beneath
+`/console/`. The package step rejects missing entrypoints, published files that would
+replace a license file, a different base path, symbolic links and output inside
 the source tree. The receipt records `asset`, `version`, `files`,
 `uncompressedBytes`, `zipBytes` and `sha256` for artifact inspection.
 

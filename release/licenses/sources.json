@@ -1,0 +1,33 @@
+{
+  "description": "Upstream licence texts for the .NET code the static Console bundle ships in _framework/. The files are byte-identical to the named source; package-console-static.py adds them to the release ZIP under licenses/.",
+  "files": [
+    {
+      "file": "dotnet-runtime/LICENSE.TXT",
+      "lockedPackage": "Microsoft.NET.Sdk.WebAssembly.Pack",
+      "version": "11.0.0",
+      "source": "nuget:Microsoft.NETCore.App.Runtime.Mono.browser-wasm/11.0.0/LICENSE.TXT",
+      "sha256": "cfc21f5e8bd655ae997eec916138b707b1d290b83272c02a95c9f821b8c87310"
+    },
+    {
+      "file": "dotnet-runtime/THIRD-PARTY-NOTICES.TXT",
+      "lockedPackage": "Microsoft.NET.Sdk.WebAssembly.Pack",
+      "version": "11.0.0",
+      "source": "nuget:Microsoft.NETCore.App.Runtime.Mono.browser-wasm/11.0.0/THIRD-PARTY-NOTICES.TXT",
+      "sha256": "4790bb15f0edd1b105aecb05174fc6c589d4d9fad0c50616ef5f7dc365f1c8a6"
+    },
+    {
+      "file": "aspnetcore/THIRD-PARTY-NOTICES.txt",
+      "lockedPackage": "Microsoft.AspNetCore.Components.WebAssembly",
+      "version": "11.0.0",
+      "source": "nuget:Microsoft.AspNetCore.Components.WebAssembly/11.0.0/THIRD-PARTY-NOTICES.txt",
+      "sha256": "ae45a01fa3062e9d9932760cf834dae3ba23dbd75a75a2b919654f9c738d1ed9"
+    },
+    {
+      "file": "polly/LICENSE",
+      "lockedPackage": "Polly.Core",
+      "version": "8.4.2",
+      "source": "https://github.com/App-vNext/Polly/blob/8.4.2/LICENSE",
+      "sha256": "dc1eb8db05817f5d569bfb3965899d17693afa01e45880de939534947b59910f"
+    }
+  ]
+}

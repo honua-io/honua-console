@@ -48,7 +48,7 @@ test("static release validates locked assets before packaging and limits release
   }
 });
 
-test("release ZIP contains browser files only and its receipt verifies the actual bytes", async () => {
+test("release ZIP contains browser files and license texts only and its receipt verifies the actual bytes", async () => {
   const directory = await mkdtemp(join(tmpdir(), "console-static-"));
   const source = join(directory, "publish", "wwwroot", "console");
   const output = join(directory, "release");
@@ -64,13 +64,20 @@ test("release ZIP contains browser files only and its receipt verifies the actua
     assert.equal(result.status, 0, result.stderr);
     const receipt = JSON.parse(result.stdout);
     const bundle = await readFile(join(output, receipt.asset));
-    assert.equal(receipt.files, 3);
+    const legal = ["LICENSE", "NOTICE", ...JSON.parse(await readFile(join(root, "release/licenses/sources.json"), "utf8"))
+      .files.map(entry => `licenses/${entry.file}`), "licenses/sources.json"];
+    assert.equal(receipt.files, 3 + legal.length);
     assert.equal(receipt.zipBytes, bundle.length);
     assert.equal(receipt.sha256, createHash("sha256").update(bundle).digest("hex"));
     assert.deepEqual(JSON.parse(await readFile(join(output, `${receipt.asset}.json`))), receipt);
     const inspect = spawnSync("python3", ["-c", "import json,sys,zipfile; print(json.dumps(zipfile.ZipFile(sys.argv[1]).namelist()))", join(output, receipt.asset)], { encoding: "utf8" });
     assert.equal(inspect.status, 0, inspect.stderr);
-    assert.deepEqual(JSON.parse(inspect.stdout), ["_framework/blazor.webassembly.js", "config.json", "index.html"]);
+    assert.deepEqual(JSON.parse(inspect.stdout), ["_framework/blazor.webassembly.js", "config.json", "index.html", ...legal].sort());
+    const bytes = spawnSync("python3", ["-c", "import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read('NOTICE').decode())", join(output, receipt.asset)], { encoding: "utf8" });
+    assert.equal(bytes.stdout, await readFile(join(root, "NOTICE"), "utf8"), "the bundle carries the Console NOTICE as is");
+    await writeFile(join(source, "LICENSE"), "a published file must not replace the Console LICENSE");
+    assert.notEqual(run().status, 0, "published files cannot shadow the release licence files");
+    await rm(join(source, "LICENSE"));
     assert.notEqual(run("--version", "../../escape").status, 0);
     assert.notEqual(run("--output", join(source, "release")).status, 0);
     await symlink(join(directory, "publish", "host-secret.json"), join(source, "secret.json"));

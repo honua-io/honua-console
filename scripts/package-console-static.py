@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package only the standalone browser files for release and static hosting."""
+"""Package the standalone browser files, with the Console and .NET license texts, for release and static hosting."""
 
 import argparse
 import hashlib
@@ -7,6 +7,17 @@ import json
 import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
+
+REPOSITORY = Path(__file__).resolve().parent.parent
+
+
+def legal_files() -> dict[str, Path]:
+    """The Console's Apache-2.0 LICENSE and NOTICE plus the upstream licences of the shipped .NET code."""
+    files = {"LICENSE": REPOSITORY / "LICENSE", "NOTICE": REPOSITORY / "NOTICE"}
+    licenses = REPOSITORY / "release" / "licenses"
+    files.update((f"licenses/{path.relative_to(licenses).as_posix()}", path)
+                 for path in sorted(licenses.rglob("*")) if path.is_file())
+    return files
 
 
 def package(source: Path, output: Path, version: str) -> dict:
@@ -22,18 +33,23 @@ def package(source: Path, output: Path, version: str) -> dict:
         raise ValueError("static release must not contain symbolic links")
     if output.resolve().is_relative_to(source.resolve()):
         raise ValueError("output must be outside the static source directory")
+    entries = {path.relative_to(source).as_posix(): path for path in files}
+    legal = legal_files()
+    if clash := sorted(set(entries) & set(legal)):
+        raise ValueError(f"published files collide with release licence files: {clash}")
+    entries.update(legal)
     output.mkdir(parents=True, exist_ok=True)
     destination = output / f"honua-console-{version}.zip"
     with ZipFile(destination, "w", compression=ZIP_DEFLATED) as archive:
-        for path in files:
-            archive.write(path, path.relative_to(source))
+        for name in sorted(entries):
+            archive.write(entries[name], name)
     with destination.open("rb") as bundle:
         digest = hashlib.file_digest(bundle, "sha256").hexdigest()
     receipt = {
         "asset": destination.name,
         "version": version,
-        "files": len(files),
-        "uncompressedBytes": sum(path.stat().st_size for path in files),
+        "files": len(entries),
+        "uncompressedBytes": sum(path.stat().st_size for path in entries.values()),
         "zipBytes": destination.stat().st_size,
         "sha256": digest,
     }

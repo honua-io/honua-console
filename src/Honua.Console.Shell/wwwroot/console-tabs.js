@@ -12,6 +12,7 @@ export function attach(element) {
             : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
         tabs[next].focus();
         tabs[next].click();
+        tabs[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
     };
     handlers.set(element, handler);
     element.addEventListener('keydown', handler);
