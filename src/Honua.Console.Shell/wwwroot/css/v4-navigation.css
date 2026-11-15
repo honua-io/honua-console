@@ -69,13 +69,13 @@
     padding: var(--space-2);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
     .console-shell[data-console-v4="true"] .console-topbar {
         padding-block: var(--space-2);
     }
 }
 
-@container console-topbar (max-width: 75rem) {
+@container console-topbar (max-width: 66.75rem) {
     .console-shell[data-console-v4="true"] .console-menu-toggle {
         display: inline-grid;
         order: -1;

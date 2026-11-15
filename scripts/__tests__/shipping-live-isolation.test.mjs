@@ -19,7 +19,10 @@ if (command === 'python3' && args[0].endsWith('package_quickstart.py')) {
 }
 if (command === 'python3' && args[0] === 'quickstart.py') {
   entry.settings = fs.readFileSync('.env', 'utf8');
+  entry.override = fs.existsSync('compose.override.yaml')
+    ? fs.readFileSync('compose.override.yaml', 'utf8') : null;
 }
+if (command === 'python3' && args[0] === '-') entry.script = fs.readFileSync(0, 'utf8');
 fs.appendFileSync(process.env.COMMAND_LOG, JSON.stringify(entry) + '\\n');
 if (command === process.env.FAIL_COMMAND) process.exit(19);
 `;
@@ -120,4 +123,19 @@ test('invalid Compose project fails before packaging or cleanup', () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /COMPOSE_PROJECT_NAME/);
   assert.deepEqual(result.commands, []);
+});
+
+test('shipping replay adds the disposable override to quickstart files between init and start', () => {
+  const result = replay();
+  assert.equal(result.status, 0, result.stderr);
+  const python = result.commands.filter(entry => entry.command === 'python3');
+  const order = python.map(entry => entry.args.join(' '));
+  const init = order.indexOf('quickstart.py --profile console --init-only');
+  const update = order.indexOf('-');
+  const start = order.indexOf('quickstart.py --profile console');
+  assert.ok(init >= 0 && init < update && update < start, order.join(' | '));
+  assert.match(python[init].override,
+    /AllowedEnvironmentVariables__0: ConnectionStrings__DefaultConnection/);
+  assert.match(python[update].script,
+    /'COMPOSE_FILE': values\['COMPOSE_FILE'\] \+ separator \+ 'compose\.override\.yaml'/);
 });

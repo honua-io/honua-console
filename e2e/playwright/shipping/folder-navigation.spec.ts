@@ -57,8 +57,10 @@ async function checkMembership(page: Page) {
 
 async function openLayer(page: Page) {
   const browse = page.getByRole('button', { name: 'Browse services', exact: true });
-  if (await browse.isVisible()) await browse.click();
   const tree = page.getByRole('tree', { name: 'Services and layers', exact: true });
+  // Wait until either the desktop tree or the narrow-screen toggle has rendered before branching.
+  await expect(tree.or(browse).first()).toBeVisible();
+  if (!await tree.isVisible()) await browse.click();
   const folder = tree.locator('[data-publication-key="folder:shipping-folder"]');
   await expect(folder).toBeVisible();
   if (await folder.getAttribute('aria-expanded') !== 'true') await folder.locator('[data-tree-expand]').click();

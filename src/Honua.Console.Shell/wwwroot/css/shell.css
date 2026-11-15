@@ -12,6 +12,9 @@
     background: var(--c-topbar-bg);
     color: var(--c-topbar-text);
     container: console-topbar / inline-size;
+    /* Size containment makes a stacking context; lift it so open menus stay above page content. */
+    position: relative;
+    z-index: var(--z-topbar);
 }
 
 .console-topbar-brand {
@@ -125,8 +128,8 @@
 .console-contextbar li:last-child { display: flex; align-items: center; }
 .console-contextbar summary { white-space: normal; overflow-wrap: anywhere; }
 
-/* 75rem follows the root font size, so doubled text collapses this bar. */
-@container console-topbar (max-width: 75rem) {
+/* 66.75rem (1100px viewport at 16px text) follows the root font size, so enlarged text collapses this bar. */
+@container console-topbar (max-width: 66.75rem) {
     .console-menu-toggle {
         display: inline-grid;
         place-items: center;

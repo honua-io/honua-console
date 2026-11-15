@@ -50,6 +50,7 @@ services:
     environment:
       Security__RequestSecretReferences__AllowedEnvironmentVariables__0: ConnectionStrings__DefaultConnection
 YAML
+# quickstart init adds only missing keys, so this project name and these ports are kept.
 cat > "$work/package/.env" <<EOF
 COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME
 HONUA_HTTP_PORT=$HONUA_HTTP_PORT
@@ -61,7 +62,6 @@ EOF
   cd "$work/package"
   python3 quickstart.py --profile console --init-only > "$out/quickstart-init.log" 2>&1
   python3 - <<'PY'
-import os
 from pathlib import Path
 import quickstart
 
@@ -70,12 +70,6 @@ values = quickstart.parse_environment(env_file.read_text().splitlines())
 separator = values.get('COMPOSE_PATH_SEPARATOR', ':')
 quickstart.update_environment(env_file, {
     'COMPOSE_FILE': values['COMPOSE_FILE'] + separator + 'compose.override.yaml',
-    # Isolated project name and ports for this replay (see shipping-live-isolation test).
-    'COMPOSE_PROJECT_NAME': os.environ['COMPOSE_PROJECT_NAME'],
-    'HONUA_HTTP_PORT': os.environ['HONUA_HTTP_PORT'],
-    'HONUA_GRPC_PORT': os.environ['HONUA_GRPC_PORT'],
-    'HONUA_MANAGER_PORT': os.environ['HONUA_MANAGER_PORT'],
-    'HONUA_CONSOLE_PORT': os.environ['HONUA_CONSOLE_PORT'],
 })
 PY
   python3 quickstart.py --profile console > "$out/quickstart.log" 2>&1
