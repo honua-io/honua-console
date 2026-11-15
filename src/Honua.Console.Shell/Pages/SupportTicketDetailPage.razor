@@ -228,7 +228,7 @@
                     {
                         return;
                     }
-                    // Unavailable is transient (network, 5xx, timeout): keep polling so the page recovers.
+                    // Unavailable (network, server error, timeout or unexpected response) may clear: keep polling so the page can recover.
                     _polling = _status == OperateSectionStatus.Unavailable
                         || (_ticket is not null && !IsTerminal(_ticket.Phase));
                     StateHasChanged();
