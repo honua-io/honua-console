@@ -14,6 +14,86 @@ public sealed class OperateTemporalPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task TemporalViewer_PreviousDiffCompletionDoesNotUnlockCurrentSource(bool enabled)
+    {
+        var client = new FakeTemporalClient
+        {
+            Workspace = new TemporalViewerWorkspace([RollbackSource, RollbackSource with { SourceId = "second" }], []),
+            Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")])
+        };
+        var first = new TaskCompletionSource<TemporalDiff>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<TemporalDiff>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingDiffs[RollbackSource.SourceId] = first.Task;
+        client.PendingDiffs["second"] = second.Task;
+        var page = Render(client, enabled);
+        InspectFirstSource(page);
+        var firstTask = page.FindAll("button").First(button => button.TextContent.Contains("Compare", StringComparison.Ordinal))
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() => Assert.Equal(1, client.DiffCalls));
+        page.FindAll("button").Where(button => button.TextContent.Contains("Inspect", StringComparison.Ordinal)).ElementAt(1).Click();
+        var compare = page.FindAll("button").First(button => button.TextContent.Contains("Compare", StringComparison.Ordinal));
+        Assert.False(compare.HasAttribute("disabled"));
+        var secondTask = compare.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() => Assert.Equal(2, client.DiffCalls));
+        first.SetResult(TemporalDiff.Blocked(MissingBinding));
+        await firstTask;
+        Assert.True(page.FindAll("button").First(button => button.TextContent.Contains("Compare", StringComparison.Ordinal)).HasAttribute("disabled"));
+        second.SetResult(TemporalDiff.Blocked(MissingBinding));
+        await secondTask;
+        Assert.False(page.FindAll("button").First(button => button.TextContent.Contains("Compare", StringComparison.Ordinal)).HasAttribute("disabled"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TemporalViewer_SourceChangeClosesRollbackConfirmation(bool enabled)
+    {
+        var client = new FakeTemporalClient
+        {
+            Workspace = new TemporalViewerWorkspace([RollbackSource, RollbackSource with { SourceId = "second" }], []),
+            Checkpoints = new TemporalCheckpointList([Checkpoint("cp-now", "Now"), Checkpoint("cp-prev", "Before")]),
+            RollbackPlan = new TemporalRollbackPlan("plan-1", "src-parcels", TemporalRollbackScope.ChangeSet,
+                "cp-prev", "cp-now", AffectedFeatureCount: 12, RequiresJob: true, RequiresApproval: true,
+                TemporalRollbackMode.DataRevert, "medium", [], [])
+        };
+        var page = Render(client, enabled);
+        InspectFirstSource(page);
+        ClickByText(page, "Plan Rollback");
+        ClickByText(page, "Execute Rollback Job");
+        Assert.Single(page.FindAll("[data-console-confirm-accept]"));
+        page.FindAll("button").Where(button => button.TextContent.Contains("Inspect", StringComparison.Ordinal)).ElementAt(1).Click();
+        ClickByText(page, "Plan Rollback");
+        Assert.Empty(page.FindAll("[data-console-confirm-accept]"));
+        Assert.Equal(0, client.ExecuteRollbackCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Temporal_SelectingReplicaClearsPreviousConflictsBeforeReviewCompletes(bool enabled)
+    {
+        var client = ClientWithConflicts();
+        var secondReplica = SampleReplica with { ReplicaId = "replica-2" };
+        client.ReplicaQueue = new ReplicaConflictQueue([SampleReplica, secondReplica]);
+        var pending = new TaskCompletionSource<ReplicaConflictReview>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingReviews[secondReplica.ReplicaId] = pending.Task;
+        var page = Render(client, enabled);
+        InspectFirstSource(page);
+        ClickByText(page, "Review");
+        page.WaitForAssertion(() => Assert.Contains("Client wins", page.Markup, StringComparison.Ordinal));
+
+        var reviewTask = page.FindAll("button").Where(button => button.TextContent.Trim() == "Review")
+            .ElementAt(1).ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() => Assert.DoesNotContain("Client wins", page.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("conflict-1", page.Markup, StringComparison.Ordinal);
+        pending.SetResult(new ReplicaConflictReview(secondReplica, []));
+        await reviewTask;
+        Assert.DoesNotContain("Client wins", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void TemporalViewer_WhenBindingMissing_RendersCapabilityExplanationNotEmptyViewer(bool enabled)
     {
         var page = Render(new FakeTemporalClient
@@ -868,12 +948,14 @@ public sealed class OperateTemporalPageRenderTests
         public TemporalCheckpointList Checkpoints { get; set; } = new([]);
         public Dictionary<string, Task<TemporalCheckpointList>> PendingCheckpoints { get; } = new(StringComparer.Ordinal);
         public TemporalDiff? Diff { get; set; }
+        public Dictionary<string, Task<TemporalDiff>> PendingDiffs { get; } = [];
         public TemporalFeatureTimeline? Timeline { get; set; }
         public TemporalRollbackPlan? RollbackPlan { get; set; }
         public TemporalRollbackOperation? RollbackOperation { get; set; }
         public ReplicaConflictQueue ReplicaQueue { get; set; } = new([]);
         public ReplicaConflictReview ConflictReview { get; set; } = new(Replica: null, []);
         public ReplicaConflictReview? ReviewAfterResolution { get; set; }
+        public Dictionary<string, Task<ReplicaConflictReview>> PendingReviews { get; } = [];
         public SyncConflictResolutionResult? Resolution { get; set; }
 
         public int DiffCalls { get; private set; }
@@ -891,7 +973,8 @@ public sealed class OperateTemporalPageRenderTests
         public Task<TemporalDiff> GetDiffAsync(string sourceId, string fromCheckpointId, string toCheckpointId, CancellationToken cancellationToken = default)
         {
             DiffCalls++;
-            return Task.FromResult(Diff ?? TemporalDiff.Blocked(MissingBinding));
+            return PendingDiffs.TryGetValue(sourceId, out var pending) ? pending
+                : Task.FromResult(Diff ?? TemporalDiff.Blocked(MissingBinding));
         }
 
         public Task<TemporalFeatureTimeline> GetFeatureTimelineAsync(string sourceId, string featureId, CancellationToken cancellationToken = default) =>
@@ -910,7 +993,8 @@ public sealed class OperateTemporalPageRenderTests
             Task.FromResult(ReplicaQueue);
 
         public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(string replicaId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(_resolved && ReviewAfterResolution is not null ? ReviewAfterResolution : ConflictReview);
+            PendingReviews.TryGetValue(replicaId, out var pending) ? pending
+                : Task.FromResult(_resolved && ReviewAfterResolution is not null ? ReviewAfterResolution : ConflictReview);
 
         public Task<SyncConflictResolutionResult> ResolveConflictsAsync(SyncConflictResolutionRequest request, CancellationToken cancellationToken = default)
         {

@@ -153,7 +153,7 @@
             }
         }
     }
-<ConsoleConfirmDialog @ref="_confirm" />
+<ConsoleConfirmDialog @key="_sourceGeneration" @ref="_confirm" />
 </section>
 </ConsoleCapabilityGate>
 
@@ -166,6 +166,7 @@
 
     private int _parameterGeneration;
     private int _sourceGeneration;
+    private int _replicaReviewGeneration;
     private Task _sourceLoadTask = Task.CompletedTask;
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
@@ -417,6 +418,12 @@
 
     private void ResetDetailState()
     {
+        _diffBusy = false;
+        _timelineBusy = false;
+        _rollbackBusy = false;
+        _replicaBusy = false;
+        _resolveBusy = false;
+        _replicaReviewGeneration++;
         _checkpointBinding = null;
         _checkpoints = [];
         _fromCheckpointId = null;
@@ -1085,7 +1092,7 @@
         }
         finally
         {
-            _diffBusy = false;
+            if (generation == _sourceGeneration) _diffBusy = false;
         }
     }
 
@@ -1107,7 +1114,7 @@
         }
         finally
         {
-            _timelineBusy = false;
+            if (generation == _sourceGeneration) _timelineBusy = false;
         }
     }
 
@@ -1130,16 +1137,19 @@
         }
         finally
         {
-            _rollbackBusy = false;
+            if (generation == _sourceGeneration) _rollbackBusy = false;
         }
     }
 
     private void ConfirmRollback()
     {
         if (_confirm is null || _rollbackPlan is null) return;
+        var generation = _sourceGeneration;
+        var planId = _rollbackPlan.RollbackPlanId;
         _confirm.Open(
             title: "Execute the rollback job?",
-            onConfirm: ExecuteRollbackAsync,
+            onConfirm: () => generation == _sourceGeneration && _rollbackPlan?.RollbackPlanId == planId
+                ? ExecuteRollbackAsync() : Task.CompletedTask,
             body: $"This will roll back {_rollbackPlan.AffectedFeatureCount} feature(s) to checkpoint '{_rollbackPlan.TargetCheckpointId}'. The rollback runs as a server job and cannot be undone.",
             confirmLabel: "Execute rollback");
     }
@@ -1159,13 +1169,22 @@
                 _rollbackOperation = operation;
                 _rollbackBinding = operation.BindingState;
             },
-            setBusy: busy => { _rollbackBusy = busy; StateHasChanged(); },
+            setBusy: busy =>
+            {
+                if (generation != _sourceGeneration) return;
+                _rollbackBusy = busy;
+                StateHasChanged();
+            },
             failureMessage: "Couldn't execute the rollback");
     }
 
     private async Task ReviewReplicaAsync(DisconnectedReplica replica)
     {
+        var reviewGeneration = ++_replicaReviewGeneration;
         _selectedReplica = replica;
+        _conflicts = [];
+        _conflictReviewBinding = null;
+        _resolveBusy = false;
         _selectedConflictIds.Clear();
         _lastResolution = null;
         _resolutionBinding = null;
@@ -1175,13 +1194,13 @@
         try
         {
             var review = await TemporalData.GetReplicaConflictReviewAsync(replica.ReplicaId);
-            if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replica.ReplicaId) return;
+            if (generation != _sourceGeneration || reviewGeneration != _replicaReviewGeneration) return;
             _conflictReviewBinding = review.BindingState;
             _conflicts = review.BindingState is null ? review.Conflicts : [];
         }
         finally
         {
-            _replicaBusy = false;
+            if (generation == _sourceGeneration && reviewGeneration == _replicaReviewGeneration) _replicaBusy = false;
         }
     }
 
@@ -1205,18 +1224,19 @@
 
     private async Task ResolveAsync(IReadOnlyList<string> conflictIds, SyncResolutionAction action)
     {
-        if (conflictIds.Count == 0)
+        if (conflictIds.Count == 0 || _selectedReplica is null || _resolveBusy)
         {
             return;
         }
 
         var generation = _sourceGeneration;
-        var replicaId = _selectedReplica?.ReplicaId;
+        var replicaId = _selectedReplica.ReplicaId;
+        var reviewGeneration = _replicaReviewGeneration;
         _resolveBusy = true;
         try
         {
             var result = await TemporalData.ResolveConflictsAsync(new SyncConflictResolutionRequest(conflictIds, action));
-            if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replicaId) return;
+            if (generation != _sourceGeneration || reviewGeneration != _replicaReviewGeneration) return;
             _resolutionBinding = result.BindingState;
             _lastResolution = result.BindingState is null ? result : null;
 
@@ -1224,7 +1244,7 @@
             {
                 // Refresh the queue/review so resolved conflicts drop out and audit evidence stays accurate.
                 var review = await TemporalData.GetReplicaConflictReviewAsync(replicaId);
-                if (generation != _sourceGeneration || _selectedReplica?.ReplicaId != replicaId) return;
+                if (generation != _sourceGeneration || reviewGeneration != _replicaReviewGeneration) return;
                 _conflictReviewBinding = review.BindingState;
                 _conflicts = review.BindingState is null ? review.Conflicts : [];
                 _selectedConflictIds.Clear();
@@ -1232,7 +1252,7 @@
         }
         finally
         {
-            _resolveBusy = false;
+            if (generation == _sourceGeneration && reviewGeneration == _replicaReviewGeneration) _resolveBusy = false;
         }
     }
 
