@@ -306,6 +306,7 @@
     private string _clientSecret = string.Empty;
     private string _referer = string.Empty;
 
+    private long _sourceRevision;
     private bool _busy;
     private string? _clientError;
     private ConsoleServiceImportResult? _result;
@@ -330,6 +331,7 @@
 
     private void ClearResult()
     {
+        _sourceRevision++;
         _clientError = null;
         _importError = null;
         _result = null;
@@ -367,9 +369,16 @@
         }
 
         _busy = true;
+        var revision = _sourceRevision;
         try
         {
-            _result = await ServiceImport.DiscoverAsync(url, auth);
+            var result = await ServiceImport.DiscoverAsync(url, auth);
+            if (revision != _sourceRevision)
+            {
+                return;
+            }
+
+            _result = result;
             if (_result.Succeeded)
             {
                 BuildTree(_result);
@@ -637,6 +646,7 @@
         }
 
         _importing = true;
+        var autoPublish = _autoPublish;
         var auth = TryBuildAuth(out var built, out _) ? built : null;
         try
         {
@@ -659,8 +669,8 @@
                         TableName = table,
                         TargetSchema = ImportTargetSchema,
                         OverwriteExisting = authorizedReplacementTargets.Contains(layer.Key),
-                        AutoPublish = _autoPublish,
-                        ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
+                        AutoPublish = autoPublish,
+                        ServiceName = autoPublish ? BuildServiceName(service.Name) : null,
                         Auth = auth,
                     });
 
@@ -856,7 +866,11 @@
         _pollTimer = null;
     }
 
-    public void Dispose() => StopPolling();
+    public void Dispose()
+    {
+        _sourceRevision++;
+        StopPolling();
+    }
 
     private static string JobStatusClass(ImportJobRow job) =>
         job.Terminal && !job.Succeeded ? "console-status console-status-danger" : "console-status";
