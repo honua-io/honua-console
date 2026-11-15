@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class ShareManagePageRenderTests
+public sealed partial class ShareManagePageRenderTests
 {
     [Theory]
     [InlineData(true)]
@@ -365,11 +365,14 @@ public sealed class ShareManagePageRenderTests
         var future = DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-ddTHH:mm:ss");
         page.Find("[data-share-panel='public-link'] input[type='datetime-local']").Change(future);
 
+        Assert.True(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
+
         // A successful mint returns the form to a clean baseline (and surfaces the one-time secret).
         page.Find("[data-share-panel='public-link'] button[type='submit']").Click();
         page.WaitForAssertion(
             () => Assert.Contains("opaque-secret-once", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
+        Assert.False(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
     }
 
     private static void CapturePreview(IRenderedComponent<ShareManagePage> page, string tab, ConsoleV4Options options) =>
@@ -455,6 +458,7 @@ public sealed class ShareManagePageRenderTests
     {
         public ShareAccessLoad Load { get; set; } = new(null, []);
         public ShareCommandResult Command { get; set; } = new(null, null, null, []);
+        public Task<ShareCommandResult>? PendingMint { get; set; }
 
         public Task<ShareAccessLoad> LoadAsync(string itemId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Load);
@@ -466,7 +470,7 @@ public sealed class ShareManagePageRenderTests
             Task.FromResult(Command);
 
         public Task<ShareCommandResult> MintPublicLinkAsync(string itemId, DateTimeOffset? expiresAt, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Command);
+            PendingMint ?? Task.FromResult(Command);
 
         public Task<ShareCommandResult> RevokePublicLinkAsync(string itemId, string tokenId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Command);
