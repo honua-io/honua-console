@@ -1,161 +1,129 @@
 ---
 type: guide
 title: "Run Console locally and in staging"
-description: "Standing up the Console against a local or staging server: what it needs, how it is configured, and what differs between the two."
-resource: "https://github.com/honua-io/honua-console/pkgs/container/honua-console"
+description: "Develop the static Console and verify a staged browser bundle against Honua Server."
 tags: [deployment, local, staging]
 ---
 # Local and Staging Startup
 
-Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
-Build contract: [BUILD_ARTIFACT.md](BUILD_ARTIFACT.md).
+Console is a static Blazor WebAssembly SPA mounted at `/console/`. Honua Server
+provides the API and authentication endpoints. Start with
+[Static SPA deployment](STATIC_SPA.md) for the runtime configuration, security
+headers and migration gates, and [Build artifact contract](BUILD_ARTIFACT.md)
+for the release ZIP and receipt.
 
 ## Prerequisites
 
-- .NET SDK 10.x.
-- Node.js 20.x only for the dependency-free smoke harness and metadata writer.
+- .NET SDK 11.0.100, pinned by `src/Honua.Console.Web/global.json`.
+- Node.js 20 or later for pinned browser assets and the smoke/e2e harnesses.
+- Python 3 for static release packaging.
+- A compatible Honua Server for live data and sign-in.
 
 ## Local development
 
+From the repository root:
+
 ```bash
+cp src/Honua.Console.Web/global.json global.json
+dotnet restore Honua.Console.slnx --configfile NuGet.config --locked-mode
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
 
-`/studio`, `/catalog`, `/operate`, and `/share` are Razor routes from the
-shared shell and resolve from the same origin.
+Open `http://127.0.0.1:5174/console/`. Studio, Catalog, Operate and Share are
+under `/console/studio`, `/console/catalog`, `/console/operate` and
+`/console/share`. The development server serves browser files; it does not proxy
+Honua API requests or read server-side Console environment variables.
 
-Same-origin API expectations:
+Configure `src/Honua.Console.Web/wwwroot/config.json` using the public settings
+in [Static SPA deployment](STATIC_SPA.md). The checked-in `apiBaseUrl: "/"`
+expects API endpoints at the same origin as Console. For a local same-origin
+setup, put a reverse proxy in front of the development server and Honua Server:
+route `/console/` to Console and the API and authentication paths to Honua Server.
+Use the proxy origin in the browser. Plain HTTP is accepted only on loopback;
+the production CSP also requires plain-HTTP API traffic to share Console's origin.
 
-- Console build output does not bake in an API base URL. The browser host
-  reads runtime configuration.
-- Operate transition routes bind to honua-server admin endpoints when
-  `Honua:Server:BaseUrl`, `Honua__Server__BaseUrl`, or
-  `HONUA_SERVER_BASE_URL` is configured with an absolute HTTP(S) URL.
-  `Honua:Server:AdminApiKey`, `Honua__Server__AdminApiKey`, or
-  `HONUA_ADMIN_API_KEY` is optional and is forwarded as `X-API-Key` by
-  documented read/headless paths. Human approval, deploy rollback, and finding-proposal
-  mutations require an operator bearer by default and never silently use this key.
-- Without a valid server base URL, Operate renders a missing-binding state
-  instead of seeded sample data.
+Alternatively, set `apiBaseUrl` to the HTTPS Honua API origin and configure
+Honua Server CORS for the exact Console origin. This uses an operator bearer in
+browser memory. Same-origin sign-in uses the server cookie and CSRF protection.
+OIDC requires the same-origin server broker; configure it as described in
+[Static SPA deployment](STATIC_SPA.md#migration-status).
 
-Local server-backed Operate run:
-
-```bash
-HONUA_SERVER_BASE_URL=http://127.0.0.1:5000 \
-HONUA_ADMIN_API_KEY=dev-admin-key \
-dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
-```
-
-That local command supports read-only Operate work immediately. For human-attributable mutations,
-configure honua-server's `PUBLIC_BASE_URL` as `http://127.0.0.1:5174` (the Console origin),
-register `http://127.0.0.1:5174/admin/auth/callback` with the development OIDC provider, and
-use Console's built-in per-operator server-session BFF as documented in
-[Console authentication](../console-authentication.md). The Console still calls the server directly
-at `HONUA_SERVER_BASE_URL`; only the browser callback returns to the Console origin.
-Non-interactive host composition can opt in with `HeadlessService` and an explicit `ServiceApiKey`
-environment profile; the key is then accepted only when that profile has no interactive account
-session. Interactive profile creation does not offer this mode. Do not use it to work around an
-expired or sentinel human session.
-
-Common commands:
-
-- `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj`
-- `dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj`
-- `./scripts/fast-local-check.sh`
-- `npm test` - Node smoke and metadata-writer unit tests; no npm dependencies.
-- `npm run smoke:parity` - fixture/local artifact parity smoke.
-
-Optional live Operate binding evidence:
-
-```bash
-HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
-HONUA_SERVER_PROJECT=/path/to/honua-server/src/Honua.Server/Honua.Server.csproj \
-dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --filter OperateTransitionLiveServerTests
-```
-
-This evidence path skips when it is not opted in or when Docker/server
-prerequisites are unavailable.
-
-### Console end-to-end smoke against a real honua-server (issue #59)
-
-The Console end-to-end smoke boots ONE real `honua-server` + PostgreSQL via
-Testcontainers and drives the core cross-surface chain — catalog list, a Studio
-package render, and an operate/publishing surface — against that single live
-server, then emits evidence recording the server image, the seed profile, and
-`sourceHydrated: true` (the discriminator the `honua-console#9` gate uses to
-reject in-memory-only runs). Pin the same nightly image the SDK conformance lane
-uses:
-
-```bash
-HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true \
-HONUA_CONSOLE_SERVER_IMAGE=ghcr.io/honua-io/honua-server:nightly \
-HONUA_CONSOLE_ADMIN_API_KEY=<admin api key> \
-dotnet test tests/Honua.Console.IntegrationTests/Honua.Console.IntegrationTests.csproj \
-  --filter ConsoleEndToEndSmokeTests
-```
-
-Evidence is written to `smoke-evidence/console-e2e-smoke.json` (or
-`HONUA_CONSOLE_E2E_EVIDENCE_PATH`). Without the opt-in flag, the server image, or
-the admin API key — and on any runner without Docker — the smoke reports a skip
-rather than a failure, so the standard CI lane stays green. The fast in-memory
-`npm run smoke:parity` harness (`sourceHydrated: false`) remains as a cheap
-contract-shape check but no longer satisfies the gate on its own.
+Keep credentials out of `config.json` and the static bundle. `HONUA_SERVER_BASE_URL`
+and `HONUA_ADMIN_API_KEY` belong to legacy test-host configurations; setting them
+on a static host does not configure the browser app.
 
 ## Verifying the production artifact locally
 
+Produce the ZIP and JSON receipt using [Build artifact contract](BUILD_ARTIFACT.md).
+For a local asset and navigation check, serve the published directory with the
+repository's static test server:
+
 ```bash
-rm -rf artifacts/honua-console-web
-dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web
-HONUA_CONSOLE_ARTIFACT_DIR=artifacts/honua-console-web node scripts/write-build-metadata.mjs
-dotnet artifacts/honua-console-web/Honua.Console.Web.dll --urls http://127.0.0.1:4174
+HONUA_CONSOLE_STATIC_ROOT=artifacts/static-publish/wwwroot/console \
+HONUA_CONSOLE_STATIC_PORT=5184 \
+node e2e/playwright/static-bundle-server.mjs
 ```
 
-Then open `http://127.0.0.1:4174/` and confirm:
+Open `http://127.0.0.1:5184/console/`. This helper supplies static files and SPA
+navigation fallback only; it does not start or proxy a live Honua API. Use the
+same-origin proxy or HTTPS API configuration above for server-backed checks.
+The helper is a development fixture; production headers and caching must follow
+[Static SPA deployment](STATIC_SPA.md).
 
-1. `/studio`, `/catalog`, `/operate`, and `/share` each render the shared
-   Console area surface.
-2. Direct navigation to any of those paths resolves through the Blazor Web
-   host.
-3. `http://127.0.0.1:4174/version.json` returns the build metadata block.
+Check that:
 
-## Staging preview environments
+1. `/console/config.json` contains the intended public API/auth settings.
+2. The browser loads framework, Studio, CSS and JavaScript files from `/console/`
+   without missing assets or MIME-type failures.
+3. A direct navigation and reload of `/console/operate` returns the app shell.
+4. Missing asset requests return 404 instead of `index.html`.
+5. The ZIP digest matches the companion receipt before deploying those bytes.
 
-Staging is owned by `honua-devops` (see honua-devops#55 / #56). Console only
-needs to:
+The static artifact contains no runnable Console application server. Release
+identity comes from the ZIP receipt; `/version.json` is a legacy test-host endpoint.
 
-- Produce the published Blazor artifact documented in
-  [BUILD_ARTIFACT.md](BUILD_ARTIFACT.md).
-- Surface `/version.json` so release-promotion tooling can attach Console
-  artifact versions to release notes alongside legacy Portal/Admin deployment
-  status.
+## Staging verification
 
-For smoke evidence during staging promotion, exercise:
+Deploy the release ZIP under `/console/`, set public runtime configuration and
+apply the headers and cache rules in [Static SPA deployment](STATIC_SPA.md).
+Record the Console ZIP receipt and Honua Server version with the evidence.
 
-- Console's HttpOnly operator cookie survives navigation between `/studio`, `/catalog`,
-  `/operate`, and `/share`; honua-server's HttpOnly session cookie remains only in the
-  operator/profile-partitioned BFF jar.
-- The OIDC provider returns `/admin/auth/callback` to Console on the configured shared public
-  origin, and a server-authenticated operator can perform one bearer-only approval mutation.
-- `HONUA_SERVER_BASE_URL` points at the absolute HTTP(S) staging honua-server
-  origin or proxy used for admin API reads, and `/operate` shows either live
-  admin data or named unsupported/missing-permission states for absent server
-  contracts.
-- `/version.json` is reachable on the deployed origin.
-- A direct page load of `/operate/anything` is handled by the Console host
-  rather than a static-server 404.
+Verify direct navigation and reload on all four main surfaces, then sign in as
+an operator and exercise a permitted read and an approval mutation. Confirm that
+same-origin mutations send the CSRF header with the server cookie, or that
+separate-origin requests carry the operator bearer and pass CORS. A missing or
+expired session must produce an explicit sign-in or permission state.
 
-## CI expectations
+For OIDC, verify that `/admin/auth/callback` reaches Honua Server, that the server
+returns to an allowlisted `/console/` path and that the authenticated session
+survives navigation. Check the served CSP with:
 
-The in-repo GitHub Actions workflow at `.github/workflows/ci.yml` implements
-this gate for pushes to `main` and pull requests.
+```bash
+node scripts/console-csp.mjs --verify-origin https://your-console.example
+```
 
-The release pipeline (`honua-devops#56`) should run:
+A successful build or fixture run does not establish installed browser usability.
+Record the live journey separately; the remaining qualification requirements are
+listed in [Static SPA deployment](STATIC_SPA.md#migration-status).
 
-1. `dotnet restore Honua.Console.slnx`
-2. `dotnet test tests/Honua.Console.Shell.Tests/Honua.Console.Shell.Tests.csproj --nologo --verbosity minimal`
-3. `dotnet build src/Honua.Console.Web/Honua.Console.Web.csproj --no-restore --nologo --verbosity minimal`
-4. `npm test`
-5. `dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web`
-6. `HONUA_CONSOLE_ARTIFACT_DIR=artifacts/honua-console-web node scripts/write-build-metadata.mjs`
+## Checks and legacy integration fixtures
 
-Then upload `artifacts/honua-console-web/` as the Console artifact.
+Documentation gates:
+
+```bash
+python3 scripts/check-okf-bundle.py
+python3 scripts/generate-summary.py --check
+```
+
+Use `./scripts/fast-local-check.sh` for the shared Shell tests and browser build,
+`npm test` for Node checks and `npm run smoke:parity` for in-process contract shapes.
+The static-bundle workflow publishes and packages the browser output; the exact
+preparation and verification commands are in [Build artifact contract](BUILD_ARTIFACT.md).
+
+The opt-in `OperateTransitionLiveServerTests`, `ConsoleEndToEndSmokeTests` and
+other Testcontainers suites retain server-side test fixtures. Their flags and
+commands remain in the README's [live-server test lanes](../../README.md#opt-in-live-server-test-lanes).
+Their API keys, BFF cookies and `/version.json` checks describe those fixtures;
+they do not qualify the shipped static browser session. For browser harnesses and
+evidence requirements, see [Agent Browser Testing](../testing/AGENT_BROWSER_TESTING.md)
+and [the e2e harness](../../e2e/README.md).

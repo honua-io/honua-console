@@ -8,7 +8,7 @@ See the [Honua vocabulary](https://github.com/honua-io/honua-server/blob/trunk/d
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 Honua Console is the unified web console — and the admin/UI home — for the
-[Honua](https://honua.io) geospatial platform. It is one Blazor web app that gives a
+[Honua](https://honua.io) geospatial platform. It is a static Blazor WebAssembly app that gives a
 [honua-server](https://github.com/honua-io/honua-server) deployment its authoring,
 catalog, operations, and sharing surfaces from a single origin and a single
 deployable artifact. If you run honua-server and want a UI on top of it — as an
@@ -21,8 +21,10 @@ evaluator, self-hoster, or contributor — this is the repo.
 | **Operate** | `/operate` | Publishing, jobs, service configuration, identity, connectors, deployment health, observability, and runtime administration |
 | **Share** | `/share` | Public links, embeds, open-data pages, exports, and external publishing |
 
-All four resolve from the same Blazor Web host (`src/Honua.Console.Web`): one
-build, one deploy, one origin. Decision source:
+The routes above are relative to the `/console/` mount (for example,
+`/console/studio`). `src/Honua.Console.Web` publishes the browser bundle; Honua
+Server owns API and authentication endpoints. Deployment source:
+[Static SPA deployment](docs/deployment/STATIC_SPA.md). Runtime decision:
 [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md).
 
 ## Status
@@ -47,7 +49,7 @@ lands here. Honest signal on maturity:
 Prerequisites:
 
 - **.NET 11 SDK**
-- **Node.js >= 20** (only for the smoke/e2e harnesses and build-metadata stamping)
+- **Node.js >= 20** (pinned browser-asset preparation and smoke/e2e harnesses)
 - Anonymous access to nuget.org. Every package, including `Honua.Sdk.Studio`
   and `Honua.Sdk.Abstractions`, restores from the single public source declared
   in [NuGet.config](NuGet.config); no GitHub Packages credential or token is
@@ -59,55 +61,48 @@ Prerequisites:
 ```bash
 git clone https://github.com/honua-io/honua-console.git
 cd honua-console
+cp src/Honua.Console.Web/global.json global.json
 
 dotnet restore Honua.Console.slnx --configfile NuGet.config --locked-mode
 dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
 ```
 
-Open <http://127.0.0.1:5174> — `/studio`, `/catalog`, `/operate`, and `/share`
-all resolve from the same host. Without a server binding you will see the
-console shell with explicit missing-binding states on live routes.
+Open <http://127.0.0.1:5174/console/>. This command starts the development
+static-file server. Live routes need a reachable Honua API and an authorized
+operator session; they do not use demo data by default.
 
 ### Connect it to a honua-server
 
-Set a server base URL (and, for admin reads, an API key) before starting the
-web host:
+Set `apiBaseUrl` in `src/Honua.Console.Web/wwwroot/config.json` for development,
+or in the deployed `/console/config.json` for a published bundle:
 
-```bash
-HONUA_SERVER_BASE_URL=http://127.0.0.1:5000 \
-HONUA_ADMIN_API_KEY=dev-admin-key \
-dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
+```json
+{
+  "apiBaseUrl": "https://your-honua-server.example/",
+  "auth": { "mode": "builtin", "authority": null, "clientId": null, "scopes": [] },
+  "v4Enabled": true
+}
 ```
 
-Read-only and explicitly headless paths may send the key as `X-API-Key`;
-interactive mutations (proposal decisions, deploy submit/rollback) require a
-forwardable operator bearer via the built-in per-operator BFF and fail closed
-without one. The published Console's Content-Security-Policy admits a separate-origin
-API only over HTTPS (`connect-src` has no `http:`); serve a plain-HTTP API from the
-Console's own origin instead. See [Console authentication](docs/console-authentication.md) and
-[Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md).
+For a same-origin deployment, use `"apiBaseUrl": "/"` and route API requests to
+Honua Server alongside the static `/console/` files. A separate-origin API needs
+HTTPS and Honua Server CORS configuration for the Console origin. Plain HTTP is
+limited to same-origin loopback development by the runtime configuration and CSP.
 
-### Or run it from honua-server's compose stack
+`config.json` is public. Keep passwords, API keys, bearer tokens and provider
+secrets out of it. Sign in through Console; same-origin requests use the server
+session cookie and CSRF protection, while separate-origin requests use the
+operator bearer held in browser memory. OIDC currently requires the same-origin
+server-broker setup in [Static SPA deployment](docs/deployment/STATIC_SPA.md).
 
-honua-server's `docker-compose.yml` ships a `console` profile that starts the
-Console next to the server, pre-wired with the server URL and admin key:
+### Deploy the static release
 
-```bash
-# in a honua-server checkout
-HONUA_CONSOLE_IMAGE=<compatible-console-image> docker compose --profile console up -d
-```
-
-Trunk publishes a multi-architecture Console image at
-`ghcr.io/honua-io/honua-console:nightly`. Release automation resolves that tag
-to an immutable digest; self-hosted deployments should pin the same way:
-
-```bash
-HONUA_CONSOLE_IMAGE=ghcr.io/honua-io/honua-console@sha256:<digest> \
-  docker compose --profile console up -d
-```
-
-The directory packaged into that image remains the deployable artifact defined
-in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
+Use `honua-console-<version>.zip` and its JSON receipt. Extract the ZIP beneath
+`/console/` on a static host and apply the routing, caching and security headers
+in [Static SPA deployment](docs/deployment/STATIC_SPA.md). Console container
+publication has been replaced by this bundle. See
+[Build artifact contract](docs/deployment/BUILD_ARTIFACT.md) for packaging commands
+and [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md) for checks.
 
 ## Development
 
@@ -120,8 +115,8 @@ in [BUILD_ARTIFACT.md](docs/deployment/BUILD_ARTIFACT.md).
 | Node tests (smoke + metadata, no npm deps) | `npm ci && npm test` |
 | Parity smoke (in-memory contract shapes) | `npm run smoke:parity` |
 | Workflow-package contract smoke | `npm run smoke:workflow` |
-| Live end-to-end (Docker: PostGIS + Redis + honua-server + Playwright) | Set `HONUA_CONSOLE_E2E_SERVER_IMAGE` to the selected image, then `make e2e-live` (or `npm run e2e:live`) |
-| Publish the deployable artifact (consumed by honua-devops) | `dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o artifacts/honua-console-web` |
+| Live end-to-end (Docker + honua-server + Playwright) | Set `HONUA_CONSOLE_E2E_SERVER_IMAGE` to the selected image, then `make e2e-live` (or `npm run e2e:live`) |
+| Publish and package the static release | Follow [Build artifact contract](docs/deployment/BUILD_ARTIFACT.md) |
 | Verify vendored browser assets | `node scripts/vendor-assets.mjs` (offline; also runs inside `npm test`) |
 | Re-vendor after a version bump | `node scripts/vendor-assets.mjs --update` |
 | Fetch or verify the locked Studio release (builds run it) | `node scripts/fetch-studio-release.mjs` |
@@ -132,7 +127,7 @@ The Console has no bundler, so third-party browser libraries are committed under
 `src/Honua.Console.Shell/wwwroot/vendor/` and served from the Console's own
 origin — never fetched from a CDN at page load (honua-console#333, #334).
 Executing third-party code pulled at runtime into this origin would give it the
-Blazor session and the admin-keyed map proxy, an air-gapped deployment would get
+operator session and access to authenticated API requests, an air-gapped deployment would get
 a broken surface, and the CSP would have to admit a script origin nothing else
 needs.
 
@@ -145,7 +140,7 @@ existing tree or fetches the exact pinned archive into the gitignored static-ass
 directory. This covers `dotnet run`, `dotnet build`, and `dotnet publish`; the
 published artifact is verified again before deployment. The viewer disables
 Cesium Ion's default base layer and loads server-owned 3D Tiles through the
-authenticated same-origin scene proxy; neither executable code nor scene assets
+authenticated Honua Server scene endpoint; neither executable code nor scene assets
 require a new CSP origin.
 
 Versions are pinned exactly in [`scripts/vendored-assets.json`](scripts/vendored-assets.json).
@@ -241,7 +236,7 @@ checkout. It skips when neither is configured or Docker is unavailable.
 | Runtime decision | [ADR-0001: Unified Honua Console Runtime](docs/adr/0001-unified-honua-console-runtime.md) |
 | Routes, RBAC, IA source of truth | [Console Route Map](docs/console-route-map.md) |
 | Binding patterns for every feature slice | [Console Patterns Charter](docs/migration/CONSOLE_PATTERNS_CHARTER.md) |
-| Authentication (API key vs operator bearer/BFF) | [Console authentication](docs/console-authentication.md) |
+| Static browser authentication and deployment | [Static SPA deployment](docs/deployment/STATIC_SPA.md) |
 | Running locally, staging, real-server smoke | [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md) |
 | Deployable artifact contract | [Build artifact contract](docs/deployment/BUILD_ARTIFACT.md) |
 | Studio information model | [Studio Information Model and Workflows](docs/architecture/studio-information-model-and-workflows.md) |
@@ -257,7 +252,7 @@ Platform-wide docs live at <https://honua.gitbook.io/honuaio/>.
 
 ## Notable route contracts
 
-A few externally visible contracts worth knowing (full detail in the
+The following app routes are relative to `/console/` (full detail in the
 [Console Route Map](docs/console-route-map.md)):
 
 - `/catalog` accepts Portal-compatible query keys (`q`, `type`, `tag`, `owner`,
@@ -268,8 +263,8 @@ A few externally visible contracts worth knowing (full detail in the
 - `/embed/maps/{mapId}` uses a shellless embed layout with `chrome`, `legend`,
   `zoom`, and `extent=W,S,E,N` options; token-authorized embeds carry the bearer
   in the `#embedToken=` fragment only — query-string tokens are rejected.
-- `/version.json` on any deployed origin returns the build-metadata block used
-  by release promotion and by the parity smoke's artifact/contract-drift check.
+- Release identity and integrity come from the companion ZIP JSON receipt.
+  The legacy test host's `/version.json` endpoint is not part of the static release.
 
 ## Related Honua repos
 
@@ -310,6 +305,11 @@ Report vulnerabilities to <security@honua.io>. See the organization
 [Apache License 2.0](LICENSE). See also [NOTICE](NOTICE).
 
 ### Shared workspace preview
+
+The following host settings describe the retained test-only host and its preview
+fixtures, not public `config.json` settings or static deployment instructions.
+Live static-workspace qualification remains a release gate; see
+[Static SPA deployment](docs/deployment/STATIC_SPA.md#migration-status).
 
 The host keeps operator and agent credentials separate. Realtime embedding uses `Studio:EmbedJsStudio`.
 Native transport requires the host-only `HONUA_AGENT_API_KEY`, a matching pinned
