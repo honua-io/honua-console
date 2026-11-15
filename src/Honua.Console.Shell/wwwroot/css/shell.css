@@ -4,12 +4,14 @@
 
 .console-topbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: .75rem;
     padding: .5rem 1rem;
     border-bottom: var(--accent-line-h) solid var(--c-accent-line);
     background: var(--c-topbar-bg);
     color: var(--c-topbar-text);
+    container: console-topbar / inline-size;
 }
 
 .console-topbar-brand {
@@ -123,8 +125,8 @@
 .console-contextbar li:last-child { display: flex; align-items: center; }
 .console-contextbar summary { white-space: normal; overflow-wrap: anywhere; }
 
-@media (max-width: 1200px) {
-    .console-topbar { flex-wrap: wrap; }
+/* 75rem follows the root font size, so doubled text collapses this bar. */
+@container console-topbar (max-width: 75rem) {
     .console-menu-toggle {
         display: inline-grid;
         place-items: center;
