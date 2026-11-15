@@ -13,8 +13,11 @@ public sealed class ApiKeyManagementLiveServerTests(ServiceLayerPublishFixture f
         using var client = new HonuaAdminOperateHttpClient(http,
             new(fixture.BaseAddress, fixture.Options.StudioAdminApiKey));
         const string binding = "fixture-admin";
-        var created = await client.CreateApiKeyAsync(new(binding,
-            new($"console-712-{Guid.NewGuid():N}", ["admin:read"])));
+        var created = await client.CreateApiKeyAsync(new(binding, new CreateAdminApiKeyRequest
+        {
+            Name = $"console-712-{Guid.NewGuid():N}",
+            Permissions = ["admin:read"]
+        }));
         Assert.Null(created.Issue);
         Assert.NotNull(created.Data);
         try

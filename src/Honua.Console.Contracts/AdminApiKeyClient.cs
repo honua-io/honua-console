@@ -1,5 +1,3 @@
-using Honua.Sdk.Admin.Models;
-
 namespace Honua.Console.Contracts;
 
 public sealed record HonuaAdminApiKeyCommand<T>(string AuthorityBinding, T Value);

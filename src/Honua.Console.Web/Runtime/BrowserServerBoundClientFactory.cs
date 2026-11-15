@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
-using Honua.Console.Contracts;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 
 namespace Honua.Console.Web.Runtime;

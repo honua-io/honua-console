@@ -6,7 +6,6 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Microsoft.Extensions.DependencyInjection;
-using Honua.Sdk.Admin.Models;
 
 namespace Honua.Console.Shell.Tests;
 
