@@ -14,7 +14,7 @@ export async function startStaticBundleServer(directory, port = 0, { configurati
   const server = createServer(async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
     const url = new URL(request.url, "http://localhost");
-    if (handleApi && (url.pathname.startsWith("/api/") || url.pathname === "/admin/auth/callback")) {
+    if (handleApi && (url.pathname.startsWith("/api/") || url.pathname === "/admin/auth/callback" || url.pathname === "/mcp")) {
       await handleApi(request, response);
       return;
     }

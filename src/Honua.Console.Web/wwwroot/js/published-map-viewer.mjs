@@ -1,3 +1,4 @@
+import { loadStudioBundle } from './studio-bundle.mjs';
 import { consoleHref } from './console-links.mjs';
 
 // Retired Console-host reader routes, kept only for the legacy regression host document.
@@ -168,7 +169,7 @@ function renderComposition({runtime, artifact, catalog, connection, transport, d
 
 /** Owns a viewer instance only. No editor, agent session, lifecycle writer or ambient credential. */
 export function createPublishedMapViewer({route, container, widgetContainer, status, title, connect = nativeViewerConnection(),
-    documentUrl, loadRenderer = () => import(new URL('../_studio/console.js', import.meta.url).href)}) {
+    documentUrl, loadRenderer = () => loadStudioBundle()}) {
     const key = publishedMapPath(route).slice('/maps/published/'.length);
     const viewerDocument = documentUrl ?? new URL(consoleHref(publishedMapPath(route)), globalThis.location.origin).href;
     let generation = 0;

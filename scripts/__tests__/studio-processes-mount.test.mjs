@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {connectStudioHost} from '../../src/Honua.Console.Web/wwwroot/js/studio-bundle.mjs';
 
 const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
@@ -16,7 +17,7 @@ async function fixture({native=true,current=true,workspace}={}) {
  const context=vm.createContext({assets:Promise.resolve({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}),
   document:{querySelector:()=>host,createElement:()=>({addEventListener(){}})},window:{honuaAgentWorkspace:workspace},
   readStudioSession:async()=>session,studioElement:async()=>({}),capturedProcessFetch:()=>()=>{},
-  processView:undefined,StudioSignInRequired:Error});
+  connectStudioHost,processView:undefined,StudioSignInRequired:Error});
  // The resolved asset promise avoids the production dynamic import in this isolated DOM.
  await vm.runInContext(mount+';mountProcesses()',context);
  return {slots,status};

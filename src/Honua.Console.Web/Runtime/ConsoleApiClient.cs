@@ -14,6 +14,9 @@ public sealed class ConsoleApiClient(HttpClient http)
     public bool UsesCookieSession { get; init; } = true;
     public bool SupportsPasswordSignIn { get; init; } = true;
 
+    // Same-origin password sign-in also requests a bearer when a separate manager is configured.
+    public bool CapturesManagementBearer { get; init; }
+
     public Uri BaseUri => http.BaseAddress ?? throw new InvalidOperationException("The Honua API address is missing.");
 
     public async Task<ConsoleApiSession> GetSessionAsync(CancellationToken cancellationToken = default)
@@ -121,6 +124,12 @@ public sealed class BrowserAuthenticationStateProvider(
                 var csrf = await api.GetCsrfAsync(cancellationToken);
                 session.Set(new ClaimsPrincipal(new ClaimsIdentity()), new ConsoleSessionCredentials(CsrfToken: csrf));
                 await api.SignInCookieAsync(password, cancellationToken);
+                if (api.CapturesManagementBearer)
+                {
+                    await PrepareCookieRequestAsync(cancellationToken);
+                    var bearer = await api.GetPasswordTokenAsync(password, cancellationToken);
+                    session.RememberManagementBearer(bearer.AccessToken!, bearer.ExpiresAt);
+                }
             }
             else
             {
@@ -139,7 +148,7 @@ public sealed class BrowserAuthenticationStateProvider(
     public async Task PrepareCookieRequestAsync(CancellationToken cancellationToken = default)
     {
         var csrf = await api.GetCsrfAsync(cancellationToken);
-        session.Set(session.Principal, new ConsoleSessionCredentials(CsrfToken: csrf, ExpiresAt: session.ExpiresAt));
+        session.ReplaceServingCredentials(session.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, session.ExpiresAt));
     }
 
     private async Task LoadAuthenticatedStateAsync()
@@ -173,7 +182,7 @@ public sealed class BrowserAuthenticationStateProvider(
         {
             expiresAt = tokenExpiry;
         }
-        session.Set(result.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, expiresAt));
+        session.ReplaceServingCredentials(result.Principal, new ConsoleSessionCredentials(csrf, session.AccessToken, expiresAt));
         var principal = session.IsAuthenticated ? result.Principal : new ClaimsPrincipal(new ClaimsIdentity());
         if (session.IsAuthenticated)
         {

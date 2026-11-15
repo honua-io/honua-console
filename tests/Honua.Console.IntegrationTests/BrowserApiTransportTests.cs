@@ -10,8 +10,8 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class BrowserApiTransportTests
 {
-    private static readonly Uri Api = new("https://honua.example/api-root/");
-    private static readonly Uri App = new("https://honua.example/console/");
+    internal static readonly Uri Api = new("https://honua.example/api-root/");
+    internal static readonly Uri App = new("https://honua.example/console/");
 
     [Theory]
     [InlineData("https://other.example/api-root/layers")]
@@ -111,6 +111,35 @@ public sealed class BrowserApiTransportTests
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         Assert.Equal(expected, JsonSerializer.Deserialize<ConsoleRuntimeConfiguration>(json, options)!.V4Enabled);
+    }
+
+    [Fact]
+    public void RuntimeConfigBindsManagementOnlyForTheConfiguredServingApi()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var omitted = JsonSerializer.Deserialize<ConsoleRuntimeConfiguration>("{\"apiBaseUrl\":\"https://honua.example/api-root/\"}", options)!;
+        Assert.Null(omitted.ResolveManagementBaseUri(App, Api));
+        var configured = new ConsoleRuntimeConfiguration { ApiBaseUrl = Api.AbsoluteUri, ManagementApiBaseUrl = "http://127.0.0.1:18082/" };
+        var management = configured.ResolveManagementBaseUri(App, Api);
+        Assert.Equal(new Uri("http://127.0.0.1:18082/"), management);
+        var endpoint = new ConfiguredConsoleManagerEndpoint(Api, management);
+        Assert.Equal(management, endpoint.Resolve(Api));
+        Assert.Null(endpoint.Resolve(new Uri("https://other.example/")));
+        Assert.Equal(new Uri("https://other.example/"), new ConfiguredConsoleManagerEndpoint(Api, null).Resolve(new Uri("https://other.example")));
+        Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "https://user:secret@manager.example/" }.ResolveManagementBaseUri(App, Api));
+        Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "http://10.1.2.3:18082/" }.ResolveManagementBaseUri(App, Api));
+        Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "http://[::1]:18082/" }.ResolveManagementBaseUri(App, Api));
+        Assert.Null(new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = Api.AbsoluteUri }.ResolveManagementBaseUri(App, Api));
+        configured.EnsureManagementSignIn(App, Api, management);
+        var oidc = new ConsoleRuntimeConfiguration
+        {
+            ApiBaseUrl = "/",
+            ManagementApiBaseUrl = "http://127.0.0.1:18082/",
+            Auth = new ConsoleBrowserAuthConfiguration { Mode = "oidc", Authority = "https://identity.example/", ClientId = "console", Scopes = ["openid"] }
+        };
+        var sameOriginApi = oidc.ResolveApiBaseUri(App);
+        var separateManager = oidc.ResolveManagementBaseUri(App, sameOriginApi);
+        Assert.Throws<InvalidOperationException>(() => oidc.EnsureManagementSignIn(App, sameOriginApi, separateManager));
     }
 
     [Fact]
@@ -314,23 +343,29 @@ public sealed class BrowserApiTransportTests
         }
     }
 
-    private static ClaimsPrincipal Principal() => new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test"));
+    internal static ClaimsPrincipal Principal() => new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test"));
 
-    private static HttpClient Client(ConsoleBrowserSession session, RecordingHandler recorder, BrowserApiOrigins? origins = null) =>
+    internal static HttpClient Client(ConsoleBrowserSession session, RecordingHandler recorder, BrowserApiOrigins? origins = null) =>
         Client(session, recorder, new BrowserTransportOptions(origins ?? new BrowserApiOrigins(Api, App), BrowserApiAccess.Authenticated));
 
-    private static HttpClient Client(ConsoleBrowserSession session, RecordingHandler recorder, BrowserTransportOptions options) => new(
+    internal static HttpClient Client(ConsoleBrowserSession session, RecordingHandler recorder, BrowserTransportOptions options) => new(
         new BrowserApiHandler(options.Origins, session, options.Access) { InnerHandler = recorder })
     { BaseAddress = Api };
 
-    private sealed record BrowserTransportOptions(BrowserApiOrigins Origins, BrowserApiAccess Access);
+    internal sealed record BrowserTransportOptions(BrowserApiOrigins Origins, BrowserApiAccess Access);
 
-    private sealed class RecordingHandler : HttpMessageHandler
+    internal sealed class RecordingHandler : HttpMessageHandler
     {
         public int Calls { get; private set; }
+        public Uri? Last { get; private set; }
+        public string? Authorization { get; private set; }
+        public bool SentCsrf { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;
+            Last = request.RequestUri;
+            Authorization = request.Headers.Authorization?.Parameter;
+            SentCsrf = request.Headers.Contains("X-Honua-CSRF");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }

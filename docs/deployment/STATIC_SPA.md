@@ -23,6 +23,7 @@ request accepts it, and `Vary: Accept-Encoding`.
 ```json
 {
   "apiBaseUrl": "/",
+  "managementApiBaseUrl": null,
   "auth": { "mode": "builtin", "authority": null, "clientId": null, "scopes": [] },
   "v4Enabled": true
 }
@@ -33,6 +34,19 @@ to roll back to the earlier Console presentation without redeploying the bundle.
 admin API key, password, client secret or operator token in this file. Tokens remain in browser memory. Cross-origin API
 access requires an operator bearer token and an explicit API CORS allowlist. Same-origin
 mutations require the API's session cookie and issued CSRF token.
+
+`managementApiBaseUrl` is optional. Omit it, or set it equal to `apiBaseUrl`, and approval,
+deployment and management health calls stay on the serving API. For a separate Compose manager,
+set it to that manager's base URL, for example `http://127.0.0.1:18082/` on a local quickstart.
+It applies only to the configured serving API. Those calls send the operator bearer and do not
+send the serving session cookie or CSRF token when the manager is another origin. The manager
+must allow the Console origin and accept that bearer. A credential, query or fragment in either
+URL is rejected. A remote manager must be HTTPS. Loopback HTTP is limited to `localhost`
+and `127.0.0.1`, which the shipped `connect-src` already allows. IPv6 literals are rejected.
+On a same-origin
+`apiBaseUrl` (`/`), builtin password sign-in also requests that bearer and keeps it in memory
+for the manager only; reload the page and sign in again after a refresh, because the bearer is
+not restored from the session cookie. Same-origin OIDC cannot call a separate manager.
 
 ## S3 and CloudFront
 
@@ -71,9 +85,10 @@ The Launch Stack delivers these headers through CloudFront response-headers poli
 the bundle behind your own CDN or web server, set the same headers on the same paths. The meta
 and header policies both apply and a request must pass each, so do not widen only one.
 
-The API origin is chosen per deployment, so `connect-src` admits `https:` and `wss:` but not
-`http:`. A separate-origin API must use HTTPS; a plain-HTTP API works only from the Console's
-own origin. Validate policy changes with the browser journeys before rollout.
+The API origin is chosen per deployment, so `connect-src` admits `https:` and `wss:`, plus
+loopback `http:` and `ws:` on `localhost` and `127.0.0.1` for a local Compose manager.
+A separate-origin API must use HTTPS. A plain-HTTP API works from the Console's own origin.
+Validate policy changes with the browser journeys before rollout.
 
 ## Migration status
 
