@@ -103,6 +103,7 @@ The current active shims are bounded to catalog/viewer/share route parity, Studi
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|
+| File-import validation issues (`HonuaAdminImportValidationIssue`: code, message, feature index and field) | .NET | file-import validation | honua-sdk-dotnet#166 | Operate | honua-console#7 replaces with the published SDK import projection |
 | Catalog search query and list request (`CatalogSearchState`, `CatalogListRequest`) | .NET | honua-console#34 | honua-sdk-dotnet#166 | Console | honua-console#7 |
 | Content summary/detail route payloads (`ConsoleContentSummary`, `ConsoleContentDetail`, versions, lineage, bindings, publication, permissions, activity, usage) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |
 | Share access and public-link fields (`ConsoleShareAccess`) | .NET | honua-console#34 | honua-sdk-dotnet#166 / honua-server#1162 | Console | honua-console#7 |

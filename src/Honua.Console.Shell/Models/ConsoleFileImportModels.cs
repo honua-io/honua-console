@@ -38,6 +38,8 @@ public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFil
     public bool? Reprojected { get; init; }
 
     public IReadOnlyList<string> ValidationErrors { get; init; } = [];
+
+    public IReadOnlyList<string> Warnings { get; init; } = [];
 }
 
 public sealed record ConsoleFileImportPreview : ConsoleOperationResult<ConsoleFileImportPreview>
