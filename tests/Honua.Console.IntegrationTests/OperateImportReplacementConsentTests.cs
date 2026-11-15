@@ -172,6 +172,33 @@ public sealed class OperateImportReplacementConsentTests
         });
     }
 
+    [Fact]
+    public async Task SourceEditDuringABatchKeepsTheSubmittedRequestsOffTheNewScreen()
+    {
+        var operation = new RecordingImportOperation(blockFirstRequest: true);
+        using var ctx = new BunitContext().AddConsoleNotifications();
+        ctx.Services.AddSingleton<IConsoleServiceImportOperation>(operation);
+        var page = ctx.Render<OperateImportServicePage>();
+        page.Find("input[placeholder^='https://']").Input("https://source.example/FeatureServer");
+        page.Find("button.console-button").Click();
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-layer-checkbox]").Count));
+        for (var index = 0; index < 2; index++)
+        {
+            page.FindAll("[data-layer-checkbox]")[index].Change(true);
+        }
+
+        var queue = page.Find("[data-import-selected]").ClickAsync();
+        Assert.Single(operation.Requests);
+        page.Find("input[placeholder^='https://']").Input("https://current.example/FeatureServer");
+        operation.CompleteFirstRequest();
+        await queue;
+
+        Assert.Equal(2, operation.Requests.Count);
+        Assert.All(operation.Requests, request => Assert.Equal("https://source.example/FeatureServer", request.ServiceUrl));
+        Assert.Empty(page.FindAll("[data-import-job]"));
+        Assert.False(page.Find("button.console-button").HasAttribute("disabled"));
+    }
+
     private sealed class RecordingImportOperation : IConsoleServiceImportOperation
     {
         private readonly TaskCompletionSource<ConsoleServiceImportRun>? _firstRequestGate;

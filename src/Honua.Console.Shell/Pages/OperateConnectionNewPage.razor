@@ -344,7 +344,7 @@
 
     private async Task TestAsync()
     {
-        if (!CanUseProvider)
+        if (_testing || _busy || !CanUseProvider)
         {
             return;
         }
@@ -375,7 +375,7 @@
 
     private async Task CreateAsync()
     {
-        if (!CanUseProvider)
+        if (_busy || _testing || !CanUseProvider)
         {
             return;
         }

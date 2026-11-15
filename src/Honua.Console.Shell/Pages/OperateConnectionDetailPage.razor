@@ -217,6 +217,11 @@
 
     private async Task TestConnectionAsync()
     {
+        if (_testing)
+        {
+            return;
+        }
+
         var connectionId = ConnectionId;
         var generation = _connectionGeneration;
         _testOutcome = null;
