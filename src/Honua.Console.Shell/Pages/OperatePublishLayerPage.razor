@@ -204,6 +204,7 @@
     private string _publicName = "";
     private string? _folderAuthority;
 
+    private long _tableGeneration;
     private bool _loadingTables;
     private bool _interactive;
     private bool _busy;
@@ -245,7 +246,11 @@
 
     private async Task OnConnectionChanged()
     {
+        var generation = ++_tableGeneration;
+        var connectionId = _connectionId;
         ClearResult();
+        _loadingTables = false;
+        _geometryTypeOverride = string.Empty;
         _tables = Array.Empty<ServiceLayerPublishTable>();
         _tableKey = string.Empty;
         _selectedTable = null;
@@ -257,11 +262,12 @@
         _loadingTables = true;
         try
         {
-            _tables = await PublishOperation.ListTablesAsync(_connectionId);
+            var tables = await PublishOperation.ListTablesAsync(connectionId);
+            if (generation == _tableGeneration) _tables = tables;
         }
         finally
         {
-            _loadingTables = false;
+            if (generation == _tableGeneration) _loadingTables = false;
         }
     }
 
