@@ -126,9 +126,18 @@
                         <a class="console-button" href="@Nav.ToConsoleHref("/operate/publishing/quick")">Publish this table</a>
                     }
                 }
+                @if (r.Warnings.Count > 0)
+                {
+                    <ul aria-label="Import warnings">
+                        @foreach (var warning in r.Warnings)
+                        {
+                            <li>@warning</li>
+                        }
+                    </ul>
+                }
                 @if (r.ValidationErrors.Count > 0)
                 {
-                    <ul>
+                    <ul aria-label="Import validation errors">
                         @foreach (var error in r.ValidationErrors)
                         {
                             <li>@error</li>

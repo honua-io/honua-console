@@ -121,6 +121,49 @@ public sealed class ImportCoordinateSystemRenderTests
     }
 
     [Fact]
+    public void CompletedImportShowsWarningsAsTextAndKeepsThePublishAction()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.Outcome = import.Outcome with { Warnings = ["<b>One feature has no optional name.</b>"] };
+        var page = context.Render<OperateImportFilePage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("projected", "projected.gpkg"));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-import-coordinate-system]")));
+
+        page.Find("button.console-button").Click();
+
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[aria-label='Import warnings'] li")));
+        Assert.Equal("<b>One feature has no optional name.</b>", page.Find("[aria-label='Import warnings'] li").TextContent);
+        Assert.Empty(page.FindAll("[aria-label='Import warnings'] b"));
+        Assert.Equal("projected", page.Find("[data-imported-table]").TextContent);
+        Assert.Contains(page.FindAll("a"), link => link.TextContent == "Publish this table");
+    }
+
+    [Fact]
+    public void RejectedImportShowsValidationAndOffersNoPublishAction()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.Outcome = new()
+        {
+            State = "Rejected",
+            Detail = "GeoJSON feature is missing geometry.",
+            ValidationErrors = ["Feature index 2, geometry — import.geometry_missing: GeoJSON feature is missing geometry."]
+        };
+        var page = context.Render<OperateImportFilePage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("projected", "projected.gpkg"));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-import-coordinate-system]")));
+
+        page.Find("button.console-button").Click();
+
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[aria-label='Import validation errors'] li")));
+        Assert.Contains("GeoJSON feature is missing geometry.", page.Find("[role='alert']").TextContent);
+        Assert.Contains("Feature index 2, geometry", page.Find("[aria-label='Import validation errors']").TextContent);
+        Assert.Empty(page.FindAll("[data-imported-table]"));
+        Assert.DoesNotContain(page.FindAll("a"), link => link.TextContent == "Publish this table");
+    }
+
+    [Fact]
     public void NewFileDropsThePreviousChoices()
     {
         using var context = new BunitContext();
