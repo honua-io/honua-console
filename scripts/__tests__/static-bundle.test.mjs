@@ -48,7 +48,7 @@ test("static release validates locked assets before packaging and limits release
   }
 });
 
-test("release ZIP contains browser files only and its receipt verifies the actual bytes", async () => {
+test("release ZIP contains browser files and license texts only and its receipt verifies the actual bytes", async () => {
   const directory = await mkdtemp(join(tmpdir(), "console-static-"));
   const source = join(directory, "publish", "wwwroot", "console");
   const output = join(directory, "release");

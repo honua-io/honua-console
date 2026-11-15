@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package only the standalone browser files for release and static hosting."""
+"""Package the standalone browser files, with the Console and .NET license texts, for release and static hosting."""
 
 import argparse
 import hashlib
