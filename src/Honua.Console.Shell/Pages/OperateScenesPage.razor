@@ -298,12 +298,17 @@
             return;
         }
 
+        var selectedFile = _selectedFile;
+        var fileName = selectedFile.Name;
+        var displayName = string.IsNullOrWhiteSpace(_displayName) ? null : _displayName;
+        var description = string.IsNullOrWhiteSpace(_description) ? null : _description;
+        var sourceCrs = _sourceCrs;
         _ingesting = true;
         _ingestResult = null;
         try
         {
             byte[] content;
-            await using (var stream = _selectedFile.OpenReadStream(MaxFileBytes))
+            await using (var stream = selectedFile.OpenReadStream(MaxFileBytes))
             {
                 using var buffer = new MemoryStream();
                 await stream.CopyToAsync(buffer).ConfigureAwait(false);
@@ -313,10 +318,10 @@
             var request = new PointCloudIngestRequest
             {
                 Content = content,
-                FileName = _selectedFile.Name,
-                DisplayName = string.IsNullOrWhiteSpace(_displayName) ? null : _displayName,
-                Description = string.IsNullOrWhiteSpace(_description) ? null : _description,
-                SourceCrs = _sourceCrs
+                FileName = fileName,
+                DisplayName = displayName,
+                Description = description,
+                SourceCrs = sourceCrs
             };
 
             _ingestResult = await Scenes.IngestPointCloudAsync(request).ConfigureAwait(false);
