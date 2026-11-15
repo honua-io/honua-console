@@ -15,25 +15,25 @@
     }
     else
     {
-        <table class="operate-table operate-event-table">
-            <thead>
-                <tr>
-                    <th scope="col">Time</th>
-                    <th scope="col">@(V4Enabled ? "Action" : "Kind")</th>
-                    <th scope="col">Severity</th>
-                    <th scope="col">@(V4Enabled ? "What" : "Message")</th>
-                    <th scope="col">@(V4Enabled ? "Reference" : "Correlation")</th>
+        <table class="operate-table operate-event-table" role="table">
+            <thead role="rowgroup">
+                <tr role="row">
+                    <th scope="col" role="columnheader">Time</th>
+                    <th scope="col" role="columnheader">@KindLabel</th>
+                    <th scope="col" role="columnheader">Severity</th>
+                    <th scope="col" role="columnheader">@MessageLabel</th>
+                    <th scope="col" role="columnheader">@CorrelationLabel</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
                 @foreach (var entry in _rendered)
                 {
-                    <tr class="@(entry.DedupeKey == SelectedEntryKey ? "operate-selected-row" : null)"
+                    <tr role="row" class="@(entry.DedupeKey == SelectedEntryKey ? "operate-selected-row" : null)"
                         data-timeline-row data-timeline-key="@entry.DedupeKey">
-                        <td>@entry.Timestamp</td>
-                        <td>@entry.Kind</td>
-                        <td><OperateStatusPill Status="@entry.SeverityStatus" /></td>
-                        <td>
+                        <td role="cell" data-label="Time">@entry.Timestamp</td>
+                        <td role="cell" data-label="@KindLabel">@entry.Kind</td>
+                        <td role="cell" data-label="Severity"><OperateStatusPill Status="@entry.SeverityStatus" /></td>
+                        <td role="cell" data-label="@MessageLabel">
                             @if (string.IsNullOrWhiteSpace(entry.DetailHref))
                             {
                                 @entry.Message
@@ -43,7 +43,7 @@
                                 <a href="@ConsoleNavigation.ToConsoleLinkHref(entry.DetailHref)">@entry.Message</a>
                             }
                         </td>
-                        <td>
+                        <td role="cell" data-label="@CorrelationLabel">
                             <CorrelationIdChip Value="@entry.CorrelationId" Kind="CorrelationIdKind.CorrelationId" />
                         </td>
                     </tr>
@@ -56,6 +56,9 @@
 @code {
     private IReadOnlyList<OperateTimelineEntry> _rendered = [];
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private string KindLabel => V4Enabled ? "Action" : "Kind";
+    private string MessageLabel => V4Enabled ? "What" : "Message";
+    private string CorrelationLabel => V4Enabled ? "Reference" : "Correlation";
 
     /// <summary>
     /// The events to render. May contain the same logical event more than once (at-least-once

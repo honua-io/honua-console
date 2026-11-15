@@ -86,7 +86,7 @@ public sealed class OperateObservabilityPageRenderTests
     public void EventTimeline_PreservesDeduplicationAndSelectedEventEvidence(bool v4Enabled)
     {
         var first = BuildEvent("evt-first", "First event", "corr-first");
-        var selected = BuildEvent("evt-selected", "Selected event", "corr-selected");
+        var selected = BuildEvent("evt-selected", "Selected event", W3cTraceparent);
         using var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
@@ -166,9 +166,13 @@ public sealed class OperateObservabilityPageRenderTests
         if (enabled) CatalogAdminPreview.Capture("activity-empty", page.Markup);
     }
 
+    private const string TraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    private const string W3cTraceparent = $"00-{TraceId}-00f067aa0ba902b7-01";
+
     private static OperateEventRow BuildEvent(string id, string message, string correlation) =>
         new(id, "2026-11-09T17:30:00Z", "info", "release", "publication", message,
-            "production", "server-1", correlation, "trace-1", "request-1", null, null, [], [], [], null);
+            "production", "server-1", correlation, TraceId, "0HN8R2K4QJ1VA:00000017",
+            null, null, [], [], [], null);
 
     [Fact]
     public void UnadvertisedInvestigationSectionPreservesThePageHeading()
