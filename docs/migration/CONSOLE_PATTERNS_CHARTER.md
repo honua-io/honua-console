@@ -134,7 +134,7 @@ Per project constraints:
 - Console emits OpenTelemetry traces and metrics from the .NET host. Telemetry attributes follow the conventions shared with `honua-server`; Console does not invent a parallel telemetry vocabulary.
 - Smoke runbooks live under `docs/runbook/` and are referenced from PR evidence.
 
-The [`honua-portal/smoke/`](https://github.com/honua-io/honua-portal/tree/main/smoke) inventory (catalog, catalog-browser, saved-maps, sharing-and-embed, open-data, publish-handoff, annotations-comments, maputnik-style-editor) is the reference set Console must preserve or replace one-for-one.
+The [`honua-portal/smoke/`](https://github.com/honua-io/honua-portal/tree/trunk/smoke) inventory (catalog, catalog-browser, saved-maps, sharing-and-embed, open-data, publish-handoff, annotations-comments, maputnik-style-editor) is the reference set Console must preserve or replace one-for-one.
 
 ### 9. Design system
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -86,13 +87,22 @@ public sealed class OperateObservabilityPageRenderTests
     public void EventTimeline_PreservesDeduplicationAndSelectedEventEvidence(bool v4Enabled)
     {
         var first = BuildEvent("evt-first", "First event", "corr-first");
-        var selected = BuildEvent("evt-selected", "Selected event", "corr-selected");
+        var selected = BuildEvent("evt-selected", "Selected event", W3cTraceparent);
+        // Live-length job values: the Jobs grid and detail card must still fit a phone viewport.
+        var liveJob = BuildJob("0f1e2d3c4b5a69788796a5b4c3d2e1f0") with
+        {
+            SubmittedBy = "apikey:api-key:00000000-0000-0000-0000-000000000001",
+            JobType = "export:csv:sample-dataset_000000:10",
+            ProgressPercent = 50,
+        };
         using var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient
         {
             Events = OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([first, selected, selected]),
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([liveJob]),
+            JobDetail = _ => OperateSectionResult<OperateJobRun>.Allowed(liveJob),
         });
 
         var page = context.Render<OperateObservabilityPage>(parameters =>
@@ -104,7 +114,12 @@ public sealed class OperateObservabilityPageRenderTests
             Assert.Equal(selected.DetailHref, page.Find(".operate-selected-row a").GetAttribute("href"));
             Assert.Equal(selected.Message, page.Find("#event-detail-heading").TextContent);
             Assert.Contains(selected.CorrelationId, page.Find("[aria-labelledby='event-detail-heading']").TextContent);
+            Assert.Equal(liveJob.JobRunId, page.Find("#jobs table tbody td a").TextContent);
+            Assert.Contains(liveJob.SubmittedBy, page.Find("[aria-labelledby='job-detail-heading']").TextContent);
         });
+        var progress = page.Find("#jobs table .operate-progress");
+        Assert.Equal("progressbar", progress.GetAttribute("role"));
+        Assert.Equal(liveJob.ProgressPercent.ToString(CultureInfo.InvariantCulture), progress.GetAttribute("aria-valuenow"));
         if (v4Enabled) CatalogAdminPreview.Capture("activity-selected", page.Markup);
     }
 
@@ -166,9 +181,13 @@ public sealed class OperateObservabilityPageRenderTests
         if (enabled) CatalogAdminPreview.Capture("activity-empty", page.Markup);
     }
 
+    private const string TraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    private const string W3cTraceparent = $"00-{TraceId}-00f067aa0ba902b7-01";
+
     private static OperateEventRow BuildEvent(string id, string message, string correlation) =>
         new(id, "2026-11-09T17:30:00Z", "info", "release", "publication", message,
-            "production", "server-1", correlation, "trace-1", "request-1", null, null, [], [], [], null);
+            "production", "server-1", correlation, TraceId, "0HN8R2K4QJ1VA:00000017",
+            null, null, [], [], [], null);
 
     [Fact]
     public void UnadvertisedInvestigationSectionPreservesThePageHeading()

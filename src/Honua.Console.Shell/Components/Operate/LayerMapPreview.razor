@@ -3,18 +3,32 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @using Microsoft.Extensions.DependencyInjection
+@using Honua.Console.Contracts
 @inject IServiceProvider Services
 
-<MapPreview Mode="MapPreviewMode.Layer"
-            StyleUrl="@LayerStyle"
-            Center="WorldCenter"
-            Zoom="1"
-            Bounds="Layer.Extent"
-            ShowLabels="false"
-            ShowHighlight="false"
-            ShowPopup="false"
-            Crs="EPSG:3857"
-            AriaLabel="@($"Map preview of layer {Layer.Name}")" />
+@implements IDisposable
+
+@if (_styleUrl is not null)
+{
+    <MapPreview Mode="MapPreviewMode.Layer"
+                StyleUrl="@_styleUrl"
+                Center="WorldCenter"
+                Zoom="1"
+                Bounds="Layer.Extent"
+                ShowLabels="false"
+                ShowHighlight="false"
+                ShowPopup="false"
+                Crs="EPSG:3857"
+                AriaLabel="@($"Map preview of layer {Layer.Name}")" />
+}
+else if (_readFailure is { } status)
+{
+    <OperateSectionStatusPanel Heading="Map preview" Status="@status" />
+}
+else
+{
+    <p class="console-muted" data-preview-unrendered>The published map style is unavailable for this layer.</p>
+}
 
 @code {
     private static readonly double[] WorldCenter = [0, 0];
@@ -23,7 +37,67 @@
 
     [Parameter] public string? EnvironmentId { get; set; }
 
-    private string? LayerStyle =>
-        Services.GetService<IConsolePreviewAddress>()?.LayerStyle(EnvironmentId, Layer.LayerId)
-        ?? ConsoleProxyRoutes.MapStyle(EnvironmentId, Layer.LayerId);
+    private IConsoleEnvironmentProfileStore? _profiles;
+    private string? _styleUrl;
+    private OperateSectionStatus? _readFailure;
+    private int _revision;
+
+    protected override void OnInitialized()
+    {
+        _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
+        if (_profiles is not null) _profiles.ActiveProfileChanged += InvalidatePreview;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var revision = ++_revision;
+        _styleUrl = null;
+        _readFailure = null;
+        var environment = EnvironmentId;
+        var layer = Layer;
+        var client = Services.GetService<IHonuaDiscoveryMetadataClient>()
+            ?? Services.GetService<IHonuaAdminOperateClient>() as IHonuaDiscoveryMetadataClient;
+        if (client is null || string.IsNullOrWhiteSpace(environment)
+            || string.IsNullOrWhiteSpace(layer.ServiceName) || layer.LayerId < 0) return;
+
+        using var read = await ConsoleEnvironmentRead.BeginAsync(_profiles, new Uri("https://unbound.invalid/"), default);
+        if (_profiles is not null && (await _profiles.GetActiveProfileAsync())?.Id != environment) return;
+        var result = await client.ReadDiscoveryAsync(DiscoveryMetadataAddress.ForLayer(layer.LayerId));
+        if (!await read.IsCurrentAsync(default) || revision != _revision) return;
+        if (result.Issue is { } issue)
+        {
+            _readFailure = issue.StatusCode switch
+            {
+                401 or 403 => OperateSectionStatus.Forbidden,
+                404 or 501 => null,
+                _ when issue.State is "Missing" or "Unsupported" => null,
+                _ when issue.State == "Forbidden" => OperateSectionStatus.Forbidden,
+                _ => OperateSectionStatus.Unavailable
+            };
+            return;
+        }
+        var publication = result.Data?.AffectedPublications
+            .Where(p => string.Equals(p.ServiceName, layer.ServiceName, StringComparison.OrdinalIgnoreCase))
+            .Select(p => p.PublicationId).Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        if (publication is not { Length: 1 }) return;
+        var address = Services.GetService<IConsolePreviewAddress>();
+        _styleUrl = address is null
+            ? ConsoleProxyRoutes.MapStyle(environment, publication[0])
+            : address.LayerStyle(environment, publication[0]);
+    }
+
+    private void InvalidatePreview()
+    {
+        ++_revision;
+        _styleUrl = null;
+        _readFailure = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ++_revision;
+        if (_profiles is not null) _profiles.ActiveProfileChanged -= InvalidatePreview;
+    }
 }

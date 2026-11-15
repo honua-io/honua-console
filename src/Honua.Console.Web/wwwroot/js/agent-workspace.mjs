@@ -1,3 +1,4 @@
+import { loadStudioBundle } from './studio-bundle.mjs';
 import {consoleHref} from './console-links.mjs';
 import {attachConsolePageContext, promptWithConsolePageContext} from './console-agent-context.mjs';
 import {hasOperatorShell} from './console-shell-context.mjs';
@@ -944,7 +945,7 @@ if (typeof document !== 'undefined') {
     new MutationObserver(mountWorkspace).observe(document.body, { childList: true, subtree: true });
 }
 
-export async function attachNativeAgent(workspace, loadAssets = () => import(new URL('../_studio/console.js', import.meta.url).href)) {
+export async function attachNativeAgent(workspace, loadAssets = () => loadStudioBundle()) {
     if (!workspace.session?.nativeAgentAvailable || workspace.agentSession) return;
     const generation=workspace.contextGeneration,workspaceId=workspace.workspaceId;
     const authority=JSON.stringify(['principalId','environmentId','releaseId','sourcePathBase'].map(key=>workspace.session[key]));

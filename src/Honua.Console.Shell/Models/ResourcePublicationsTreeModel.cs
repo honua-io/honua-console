@@ -16,7 +16,10 @@ public sealed record PublicationTreeNode(
     string ProtocolId,
     string ProtocolLabel,
     bool IsLive,
-    string? Route);
+    string? Route)
+{
+    public string? ServiceName { get; init; }
+}
 
 public static class ResourcePublicationsTreeBuilder
 {
@@ -28,7 +31,7 @@ public static class ResourcePublicationsTreeBuilder
         ArgumentNullException.ThrowIfNull(services);
 
         // Map each canonical resource id → the (serviceType, serviceName) pairs that publish it.
-        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string? ServiceName, string? FolderName)>>(StringComparer.Ordinal);
+        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string? ServiceName, string? FolderName, string ServiceIdentity)>>(StringComparer.Ordinal);
         foreach (var service in services)
         {
             foreach (var layer in service.Layers)
@@ -44,7 +47,7 @@ public static class ResourcePublicationsTreeBuilder
                     publicationsByResource[layer.CanonicalResourceId] = list;
                 }
 
-                list.Add((service.ServiceType, service.PublicServiceName, service.FolderName));
+                list.Add((service.ServiceType, service.PublicServiceName, service.FolderName, service.Name));
             }
         }
 
@@ -67,7 +70,7 @@ public static class ResourcePublicationsTreeBuilder
     }
 
     private static IReadOnlyList<PublicationTreeNode> BuildPublicationNodes(
-        List<(string ServiceType, string? ServiceName, string? FolderName)>? publications)
+        List<(string ServiceType, string? ServiceName, string? FolderName, string ServiceIdentity)>? publications)
     {
         if (publications is null || publications.Count == 0)
         {
@@ -76,7 +79,7 @@ public static class ResourcePublicationsTreeBuilder
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var nodes = new List<PublicationTreeNode>();
-        foreach (var (serviceType, serviceName, folderName) in publications)
+        foreach (var (serviceType, serviceName, folderName, serviceIdentity) in publications)
         {
             // A service's ServiceType can arrive as a metadata-v2 string (esri-feature-service), a joined
             // list of protocol names (FeatureServer, MapServer), or a display name (Feature service) depending
@@ -93,7 +96,8 @@ public static class ResourcePublicationsTreeBuilder
                     descriptor.Id,
                     descriptor.Label,
                     IsLive: true,
-                    Route: HonuaServedRoutes.PathFor(serviceName is null ? null : PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName)));
+                    Route: HonuaServedRoutes.PathFor(serviceName is null ? null : PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName))
+                { ServiceName = serviceIdentity });
             }
         }
 

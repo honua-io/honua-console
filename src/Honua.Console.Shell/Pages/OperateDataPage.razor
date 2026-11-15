@@ -104,7 +104,16 @@
 
     private IReadOnlyList<LayerPreviewCatalog.Row> _catalogRows = [];
 
-    private OperateServiceLayer? PreviewLayer => _preview is { } preview ? _servicesView?.FindLayer(preview.ResourceId) : null;
+    private OperateServiceLayer? PreviewLayer
+    {
+        get
+        {
+            if (_preview is not { ServiceName: not null } preview) return null;
+            var layer = _servicesView?.FindExposures(preview.ResourceId)
+                .FirstOrDefault(exposure => string.Equals(exposure.Service.Name, preview.ServiceName, StringComparison.OrdinalIgnoreCase))?.Layer;
+            return layer is null ? null : layer with { ServiceName = preview.ServiceName };
+        }
+    }
 
     private bool _loaded;
     private string? _loadError;

@@ -13,6 +13,7 @@ public sealed class MapProxyTileRewriteTests
     public void ProxyRoutes_PinEveryUrlToTheProducingEnvironment()
     {
         Assert.Equal("/map-proxy/env%20b/styles/7.json", ConsoleProxyRoutes.MapStyle("env b", 7));
+        Assert.Equal("/map-proxy/env%20b/styles/pub-cadastre-parcels.json", ConsoleProxyRoutes.MapStyle("env b", "pub-cadastre-parcels"));
         Assert.Equal("/map-proxy/env%20b/tiles/", ConsoleProxyRoutes.MapTileBase("env b"));
         Assert.Equal("/map-proxy/env%20b/features/parcels%2Fa/7", ConsoleProxyRoutes.MapFeatures("env b", "parcels/a", 7));
 

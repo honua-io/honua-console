@@ -17,7 +17,7 @@ This checklist is the gate the Portal freeze decision reads. It maps every Porta
 
 The checklist is the source of truth for the question "is this Portal feature already covered in Console, deferred, or intentionally not ported?". The retirement playbook treats the `Status` column as the freeze trigger: the playbook does not advance to the archive step while any row is `in-progress`.
 
-The Portal surface column mirrors the section headings in [`honua-portal/docs/features/README.md`](https://github.com/honua-io/honua-portal/blob/main/docs/features/README.md). When a Portal feature changes, update that surface row in this checklist rather than restating Portal content here.
+The Portal surface column mirrors the section headings in [`honua-portal/docs/features/README.md`](https://github.com/honua-io/honua-portal/blob/trunk/docs/features/README.md). When a Portal feature changes, update that surface row in this checklist rather than restating Portal content here.
 
 ## Status Values
 
@@ -45,7 +45,7 @@ The Portal surface column mirrors the section headings in [`honua-portal/docs/fe
 
 ## Deferred Portal Scope (informational, not parity rows)
 
-These items are called out in Portal's [Deferred Features](https://github.com/honua-io/honua-portal/blob/main/docs/features/README.md#deferred-features) section. They are not parity rows because they were never Beta scope in Portal, but they are recorded here so Console contributors do not assume the Portal archive implies they have shipped.
+These items are called out in Portal's [Deferred Features](https://github.com/honua-io/honua-portal/blob/trunk/docs/features/README.md#deferred-features) section. They are not parity rows because they were never Beta scope in Portal, but they are recorded here so Console contributors do not assume the Portal archive implies they have shipped.
 
 - **Full dashboard builder** — deferred to a future Console GA dashboard ticket (not yet filed).
 - **Broad app builder and template marketplace** — deferred to a future Console GA app-builder ticket (not yet filed). Studio (Console #5) ports the AI app-builder loop, not the full GA template marketplace.

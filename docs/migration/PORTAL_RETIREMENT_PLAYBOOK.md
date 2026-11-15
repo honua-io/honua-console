@@ -61,7 +61,7 @@ Single freeze-date note in:
 
 - The org-level roadmap entry that already references the Console migration.
 - `honua-portal/README.md` (added by step 1).
-- `honua-console/README.md` (a one-line "Portal frozen as of {date}; see [PORTAL_RETIREMENT_PLAYBOOK.md](docs/migration/PORTAL_RETIREMENT_PLAYBOOK.md)" line, added as part of step 1's coordination).
+- `honua-console/README.md` (a one-line `Portal frozen as of {date}; see [PORTAL_RETIREMENT_PLAYBOOK.md](docs/migration/PORTAL_RETIREMENT_PLAYBOOK.md)` line, added as part of step 1's coordination).
 
 No separate Slack or email channel is required for Beta. If Portal is referenced by an external partner integration that we know about at freeze time, the freeze coordinator adds that partner to the announcement list as a one-off.
 

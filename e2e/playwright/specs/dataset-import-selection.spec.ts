@@ -202,7 +202,8 @@ test('published Studio switches workflow views on one MCP session with fresh cre
     await interactiveDocument(page);
     await openInteractiveImportPanel(page);
     const result=await page.evaluate(async()=>{
-        const studio=await import('/_studio/console.js');
+        const {loadStudioBundle}=await import('/js/studio-bundle.mjs');
+        const studio=await loadStudioBundle();
         let credential=0;
         const session=studio.createWorkspaceAgentSession({
             fetchImpl:(input:RequestInfo|URL,init?:RequestInit)=>{

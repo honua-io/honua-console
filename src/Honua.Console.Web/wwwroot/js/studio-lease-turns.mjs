@@ -2,7 +2,9 @@
 // proactively rotates it. This never extends expiry or retries an action.
 const turns = new WeakMap();
 const methods = ['createRecipeDraft', 'createWorkspaceDraft', 'attachWorkspaceDraft',
-    'prepareWorkspaceTurn', 'saveWorkspaceVersion', 'reopenWorkspaceVersion', 'publishWorkspaceVersion'];
+    'prepareWorkspaceTurn', 'saveWorkspaceVersion', 'reopenWorkspaceVersion', 'publishWorkspaceVersion',
+    'createEditorDraft', 'attachEditorDraft', 'prepareEditorTurn', 'saveEditorVersion',
+    'reopenEditorVersion', 'releaseEditorVersion'];
 
 export function trackStudioLeaseTurns(app) {
     if (turns.has(app)) return;

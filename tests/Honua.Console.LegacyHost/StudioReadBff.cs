@@ -149,6 +149,10 @@ internal static class StudioReadBff
                 if (property.Name == "serviceId" && IsIdentifier(property.Value)) { continue; }
                 if (property.Name == "layerId" && property.Value.ValueKind == JsonValueKind.Number
                     && property.Value.TryGetInt32(out var layerId) && layerId >= 0) { continue; }
+                if (property.Name == "serviceLayerIndex" && property.Value.ValueKind == JsonValueKind.Number
+                    && property.Value.TryGetInt32(out var index) && index >= 0
+                    && args.TryGetProperty("layerId", out var layer) && layer.ValueKind == JsonValueKind.Number
+                    && layer.TryGetInt32(out var expectedIndex) && index == expectedIndex) { continue; }
                 return false;
             }
         }

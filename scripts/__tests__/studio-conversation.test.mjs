@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AgentWorkspace } from '../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs';
+import {adaptStudioBundle} from '../../src/Honua.Console.Web/wwwroot/js/studio-bundle.mjs';
 import {skipWithoutVendoredStudio} from './helpers/vendored-studio.mjs';
 const session = { conversationMode:'studio', environmentId:'env', environmentName:'Test', principalId:'human', csrfToken:'csrf' };
 const response = value => ({ok:true,status:200,json:async()=>value});
@@ -96,7 +97,7 @@ test('navigation during model execution cannot retarget the captured draft or ad
 
 test('the shipped SDK completes a canonical tool round trip against the trunk wire contract',{skip:skipWithoutVendoredStudio},async()=>{
  globalThis.HTMLElement ||= class {};
- const module=await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js');
+ const module=adaptStudioBundle(await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js'));
  let modelCalls=0;const toolCalls=[];
  const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
  const capabilities={enabled:true,defaultProvider:'fixture',providers:[{provider:'fixture',model:'fixture-model',configured:true,toolSupport:true,isDefault:true}]};
@@ -163,7 +164,7 @@ test('each model turn receives the captured draft identity after changing drafts
 
 test('canonical admission refusal retains its actionable message through the shipped SDK',{skip:skipWithoutVendoredStudio},async()=>{
  globalThis.HTMLElement ||= class {};
- const module=await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js');
+ const module=adaptStudioBundle(await import('../../src/Honua.Console.Web/wwwroot/_studio/console.js'));
  const {workspace}=await readyWorkspace({request:async(path,init)=>{
   if(path.endsWith('/mcp')){
    const rpc=JSON.parse(init.body);
