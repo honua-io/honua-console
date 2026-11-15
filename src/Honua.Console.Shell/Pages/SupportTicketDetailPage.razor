@@ -36,6 +36,10 @@
                           Message="@(_message ?? OperateSectionPresentation.FallbackMessage(_status))"
                           ActionHref="/support"
                           ActionLabel="Back to support" />
+        @if (_polling)
+        {
+            <p class="console-muted" role="status">Retrying every 5s...</p>
+        }
     }
     else
     {
@@ -204,8 +208,8 @@
 
     private void StartPolling(string ticketId, CancellationToken token)
     {
-        // No point polling a terminal ticket or an unreadable surface.
-        if (_ticket is null || IsTerminal(_ticket.Phase))
+        // Poll an open ticket, or retry a read that failed for a reason that may clear.
+        if (!ShouldPoll())
         {
             _polling = false;
             return;
@@ -228,9 +232,7 @@
                     {
                         return;
                     }
-                    // Unavailable (network, server error, timeout or unexpected response) may clear: keep polling so the page can recover.
-                    _polling = _status == OperateSectionStatus.Unavailable
-                        || (_ticket is not null && !IsTerminal(_ticket.Phase));
+                    _polling = ShouldPoll();
                     StateHasChanged();
                 }).ConfigureAwait(false);
 
@@ -253,6 +255,11 @@
         _cts = null;
         _polling = false;
     }
+
+    // Unavailable (network, server error, timeout or unexpected response) may clear, so it is retried;
+    // Forbidden, Missing and Unsupported will not, and a terminal ticket has nothing left to change.
+    private bool ShouldPoll() =>
+        _status == OperateSectionStatus.Unavailable || (_ticket is not null && !IsTerminal(_ticket.Phase));
 
     private static bool IsTerminal(string phase) =>
         phase is "resolved" or "cancelled" or "closed";
