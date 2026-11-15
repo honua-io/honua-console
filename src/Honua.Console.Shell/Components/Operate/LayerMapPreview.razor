@@ -21,6 +21,10 @@
                 Crs="EPSG:3857"
                 AriaLabel="@($"Map preview of layer {Layer.Name}")" />
 }
+else if (_readFailure is { } status)
+{
+    <OperateSectionStatusPanel Heading="Map preview" Status="@status" />
+}
 else
 {
     <p class="console-muted" data-preview-unrendered>The published map style is unavailable for this layer.</p>
@@ -35,6 +39,7 @@ else
 
     private IConsoleEnvironmentProfileStore? _profiles;
     private string? _styleUrl;
+    private OperateSectionStatus? _readFailure;
     private int _revision;
 
     protected override void OnInitialized()
@@ -47,6 +52,7 @@ else
     {
         var revision = ++_revision;
         _styleUrl = null;
+        _readFailure = null;
         var environment = EnvironmentId;
         var layer = Layer;
         var client = Services.GetService<IHonuaDiscoveryMetadataClient>()
@@ -57,7 +63,19 @@ else
         using var read = await ConsoleEnvironmentRead.BeginAsync(_profiles, new Uri("https://unbound.invalid/"), default);
         if (_profiles is not null && (await _profiles.GetActiveProfileAsync())?.Id != environment) return;
         var result = await client.ReadDiscoveryAsync(DiscoveryMetadataAddress.ForLayer(layer.LayerId));
-        if (result.Issue is not null || !await read.IsCurrentAsync(default) || revision != _revision) return;
+        if (!await read.IsCurrentAsync(default) || revision != _revision) return;
+        if (result.Issue is { } issue)
+        {
+            _readFailure = issue.StatusCode switch
+            {
+                401 or 403 => OperateSectionStatus.Forbidden,
+                404 or 501 => null,
+                _ when issue.State is "Missing" or "Unsupported" => null,
+                _ when issue.State == "Forbidden" => OperateSectionStatus.Forbidden,
+                _ => OperateSectionStatus.Unavailable
+            };
+            return;
+        }
         var publication = result.Data?.AffectedPublications
             .Where(p => string.Equals(p.ServiceName, layer.ServiceName, StringComparison.OrdinalIgnoreCase))
             .Select(p => p.PublicationId).Where(id => !string.IsNullOrWhiteSpace(id))
@@ -73,6 +91,7 @@ else
     {
         ++_revision;
         _styleUrl = null;
+        _readFailure = null;
         _ = InvokeAsync(StateHasChanged);
     }
 

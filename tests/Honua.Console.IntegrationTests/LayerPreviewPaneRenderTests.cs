@@ -1,5 +1,6 @@
 using Bunit;
 using Honua.Console.Contracts;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Components.Operate;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -56,8 +57,10 @@ public sealed class LayerPreviewPaneRenderTests
         Assert.Empty(preview.FindAll("figure.map-preview"));
     }
 
-    [Fact]
-    public async Task LatePublicationResponse_CannotReplaceNewSelection()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LatePublicationResponse_CannotReplaceNewSelection(bool failedRead)
     {
         using var ctx = new BunitContext();
         var pending = new TaskCompletionSource<HonuaAdminEndpointResult<DiscoveryMetadataResponse>>();
@@ -72,10 +75,13 @@ public sealed class LayerPreviewPaneRenderTests
         var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
         preview.Render(p => p.Add(x => x.Layer, Parcels with { LayerId = 8 }));
         preview.WaitForAssertion(() => Assert.Single(module.Invocations["init"]));
-        await preview.InvokeAsync(() => pending.SetResult(Publications(new DiscoveryPublicationImpact("pub-old", "cadastre", "old"))));
+        await preview.InvokeAsync(() => pending.SetResult(failedRead
+            ? HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(new("Forbidden", "discovery", "Denied", 403))
+            : Publications(new DiscoveryPublicationImpact("pub-old", "cadastre", "old"))));
         Assert.Single(module.Invocations["init"]);
         Assert.Contains("/styles/pub-new.json", System.Text.Json.JsonSerializer.Serialize(module.Invocations["init"][0].Arguments[1]), StringComparison.Ordinal);
         Assert.DoesNotContain("pub-old", preview.Markup, StringComparison.Ordinal);
+        Assert.Empty(preview.FindComponents<OperateSectionStatusPanel>());
     }
 
     [Fact]
@@ -98,16 +104,19 @@ public sealed class LayerPreviewPaneRenderTests
         Assert.NotNull(preview.Find("[data-preview-unrendered]"));
     }
 
-    [Fact]
-    public void ForbiddenMetadata_DoesNotMountAMap()
+    [Theory]
+    [InlineData(403, OperateSectionStatus.Forbidden)]
+    [InlineData(503, OperateSectionStatus.Unavailable)]
+    public void FailedMetadata_ShowsSharedStatusWithoutMountingAMap(int statusCode, OperateSectionStatus expectedStatus)
     {
         using var ctx = new BunitContext();
         ctx.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new PublicationClient
         {
-            Result = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(new("Forbidden", "discovery", "Denied", 403))
+            Result = HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromIssue(new(statusCode == 403 ? "Forbidden" : "Unavailable", "discovery", "Read failed", statusCode))
         });
         var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
-        Assert.NotNull(preview.Find("[data-preview-unrendered]"));
+        Assert.Equal(expectedStatus, preview.FindComponent<OperateSectionStatusPanel>().Instance.Status);
+        Assert.Empty(preview.FindAll("[data-preview-unrendered]"));
         Assert.Empty(preview.FindAll("figure.map-preview"));
     }
 
