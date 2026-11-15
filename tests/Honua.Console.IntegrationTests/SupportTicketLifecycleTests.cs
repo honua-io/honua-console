@@ -75,6 +75,23 @@ public sealed class SupportTicketLifecycleTests
         }, TimeSpan.FromSeconds(10));
     }
 
+    [Fact]
+    public void UnavailableRefreshKeepsPollingAndRecovers()
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "flaky"));
+        page.WaitForAssertion(() => Assert.Contains("action-flaky", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("Support API briefly unavailable", page.Markup),
+            TimeSpan.FromSeconds(10));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("action-flaky", page.Markup);
+            Assert.DoesNotContain("Support API briefly unavailable", page.Markup);
+        }, TimeSpan.FromSeconds(10));
+        Assert.Equal(3, client.Requests.Count(id => id == "flaky"));
+    }
+
     private static BunitContext Context(TicketClient client)
     {
         var context = new BunitContext();
@@ -106,6 +123,13 @@ public sealed class SupportTicketLifecycleTests
             {
                 PendingToken = cancellationToken;
                 return Pending.Task;
+            }
+            if (ticketId == "flaky")
+            {
+                var attempt = Requests.Count(id => id == "flaky");
+                return Task.FromResult(attempt == 2
+                    ? SupportTicketResult.Denied(OperateSectionStatus.Unavailable, "Support API briefly unavailable")
+                    : Ticket(ticketId, attempt == 1 ? "diagnosing" : "resolved"));
             }
             return Task.FromResult(ticketId != "polling" ? Ticket(ticketId)
                 : Requests.Count == 1 ? Ticket(ticketId, "diagnosing")
