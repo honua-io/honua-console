@@ -11,7 +11,7 @@ export default defineConfig({
   expect: { timeout: 30_000 },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'https://localhost:18083',
+    baseURL: process.env.HONUA_SHIPPING_BASE_URL ?? 'https://localhost:18083',
     ignoreHTTPSErrors: true,
     locale: 'en-US',
     // Traces can retain the password POST and session headers. Keep screenshots only.

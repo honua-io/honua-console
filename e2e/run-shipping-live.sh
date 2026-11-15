@@ -11,11 +11,22 @@ for image in "$SERVER_IMAGE" "$EXECUTOR_IMAGE"; do
   [[ "$image" =~ @sha256:[a-f0-9]{64}$ ]] || { echo 'Images must be digest pinned' >&2; exit 1; }
 done
 [[ "$CONSOLE_BUNDLE_SHA256" =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid bundle SHA-256' >&2; exit 1; }
+port=${HONUA_SHIPPING_PORT:-18083}
+[[ "$port" =~ ^[1-9][0-9]{3,4}$ ]] && (( port >= 1027 && port <= 65535 )) || {
+  echo 'HONUA_SHIPPING_PORT must be an integer from 1027 through 65535' >&2; exit 1;
+}
+if [[ -n "${COMPOSE_PROJECT_NAME:-}" && ! "$COMPOSE_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+  echo 'COMPOSE_PROJECT_NAME must be a valid Compose project name' >&2; exit 1;
+fi
 root=$(pwd)
 out="$root/artifacts/shipping-live"
 mkdir -p "$out"
 work=$(mktemp -d)
-unset COMPOSE_PROJECT_NAME
+export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-shipping-live-$(basename "$work" | tr '[:upper:].' '[:lower:]-')}
+export HONUA_SHIPPING_BASE_URL="https://localhost:$port"
+export HONUA_HTTP_PORT=$((port - 3)) HONUA_GRPC_PORT=$((port - 2))
+export HONUA_MANAGER_PORT=$((port - 1)) HONUA_CONSOLE_PORT=$port
+unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_PATH_SEPARATOR
 cleanup() {
   if [[ -f "$work/package/.env" ]]; then
     (cd "$work/package" && docker compose ps -q honua | xargs -r docker inspect \
@@ -39,10 +50,18 @@ services:
     environment:
       Security__RequestSecretReferences__AllowedEnvironmentVariables__0: ConnectionStrings__DefaultConnection
 YAML
+cat > "$work/package/.env" <<EOF
+COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME
+HONUA_HTTP_PORT=$HONUA_HTTP_PORT
+HONUA_GRPC_PORT=$HONUA_GRPC_PORT
+HONUA_MANAGER_PORT=$HONUA_MANAGER_PORT
+HONUA_CONSOLE_PORT=$HONUA_CONSOLE_PORT
+EOF
 (
   cd "$work/package"
   python3 quickstart.py --profile console --init-only > "$out/quickstart-init.log" 2>&1
   python3 - <<'PY'
+import os
 from pathlib import Path
 import quickstart
 
@@ -51,6 +70,12 @@ values = quickstart.parse_environment(env_file.read_text().splitlines())
 separator = values.get('COMPOSE_PATH_SEPARATOR', ':')
 quickstart.update_environment(env_file, {
     'COMPOSE_FILE': values['COMPOSE_FILE'] + separator + 'compose.override.yaml',
+    # Isolated project name and ports for this replay (see shipping-live-isolation test).
+    'COMPOSE_PROJECT_NAME': os.environ['COMPOSE_PROJECT_NAME'],
+    'HONUA_HTTP_PORT': os.environ['HONUA_HTTP_PORT'],
+    'HONUA_GRPC_PORT': os.environ['HONUA_GRPC_PORT'],
+    'HONUA_MANAGER_PORT': os.environ['HONUA_MANAGER_PORT'],
+    'HONUA_CONSOLE_PORT': os.environ['HONUA_CONSOLE_PORT'],
 })
 PY
   python3 quickstart.py --profile console > "$out/quickstart.log" 2>&1
@@ -65,10 +90,10 @@ python3 "$root/e2e/seed-shipping-service.py" "$SERVER_SOURCE" > "$work/seed.sql"
   docker compose restart honua
 ) > "$out/restart.log" 2>&1
 for attempt in {1..60}; do
-  if curl -kfsS https://localhost:18083/healthz/ready > /dev/null 2>&1; then break; fi
+  if curl -kfsS "$HONUA_SHIPPING_BASE_URL/healthz/ready" > /dev/null 2>&1; then break; fi
   sleep 2
 done
-curl -kfsS https://localhost:18083/healthz/ready > /dev/null
+curl -kfsS "$HONUA_SHIPPING_BASE_URL/healthz/ready" > /dev/null
 export HONUA_SHIPPING_PASSWORD_FILE="$work/package/secrets/honua_admin_password"
 cd "$root/e2e/playwright"
 npx --no-install playwright test --config playwright.shipping.config.ts
