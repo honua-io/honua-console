@@ -31,8 +31,28 @@ python3 "$SERVER_SOURCE/scripts/docker/package_quickstart.py" \
   --server-image "$SERVER_IMAGE" --executor-image "$EXECUTOR_IMAGE" \
   --worker-image "$SERVER_IMAGE" --version shipping-live --output "$work/package" \
   --console-bundle "$CONSOLE_BUNDLE" --console-bundle-sha256 "$CONSOLE_BUNDLE_SHA256"
+# Only the disposable replay may resolve the fixture's existing environment secret.
+# Persist the override in quickstart's explicit file list for every Compose command.
+cat > "$work/package/compose.override.yaml" <<'YAML'
+services:
+  honua:
+    environment:
+      Security__RequestSecretReferences__AllowedEnvironmentVariables__0: ConnectionStrings__DefaultConnection
+YAML
 (
   cd "$work/package"
+  python3 quickstart.py --profile console --init-only > "$out/quickstart-init.log" 2>&1
+  python3 - <<'PY'
+from pathlib import Path
+import quickstart
+
+env_file = Path('.env')
+values = quickstart.parse_environment(env_file.read_text().splitlines())
+separator = values.get('COMPOSE_PATH_SEPARATOR', ':')
+quickstart.update_environment(env_file, {
+    'COMPOSE_FILE': values['COMPOSE_FILE'] + separator + 'compose.override.yaml',
+})
+PY
   python3 quickstart.py --profile console > "$out/quickstart.log" 2>&1
 )
 # The stack is disposable: compile a real service fixture without exercising publication approval.
