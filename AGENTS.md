@@ -14,15 +14,17 @@ dotnet format Honua.Console.slnx --verify-no-changes
 npm ci && npm test                                 # Node tests (scripts, smoke harness, workflows)
 npm run smoke:parity                               # add -- --origin <url> for a deployed origin
 python3 scripts/check-okf-bundle.py && python3 scripts/generate-summary.py --check   # docs gates
-dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj --urls http://127.0.0.1:5174
+dotnet run --project src/Honua.Console.Web/Honua.Console.Web.csproj -- --urls http://127.0.0.1:5174 --pathbase=/console
 ```
 - Commit `packages.lock.json` changes; CI fails when restore changes a lock file.
 - Live-server and Testcontainers lanes are opt-in and skip without Docker; their env vars are
   in `README.md` "Opt-in live-server test lanes". Full Docker e2e: `make e2e-live`.
 - Smoke output goes to the ignored `smoke-evidence/`; committed samples live in
   `smoke/parity/sample-evidence/`.
-- Bind a live server with `HONUA_SERVER_BASE_URL` and `HONUA_ADMIN_API_KEY` (README "Connect
-  it to a honua-server").
+- Configure the static browser with `apiBaseUrl` in `src/Honua.Console.Web/wwwroot/config.json`
+  (or deployed `/console/config.json`); sign in through Console. Keep credentials out of this
+  public file. See README "Connect it to a honua-server" and `docs/deployment/STATIC_SPA.md`.
+  `HONUA_SERVER_BASE_URL` and `HONUA_ADMIN_API_KEY` configure legacy test hosts only.
 
 ## Rules
 - **One Console/Studio workspace.** `/studio` is the realtime editor over the bundled
