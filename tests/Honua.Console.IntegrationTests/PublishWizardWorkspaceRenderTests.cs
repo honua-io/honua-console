@@ -388,16 +388,21 @@ public sealed class PublishWizardWorkspaceRenderTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task QuickPublish_RemainsBusyDuringAuthorityCapture(bool enabled)
+    [Fact]
+    public Task QuickPublish_RemainsBusyDuringAuthorityCapture() =>
+        AssertQuickPublishRejectsASecondClickDuringAuthorityCapture(v4: false);
+
+    [Fact]
+    public Task QuickPublish_RemainsBusyDuringAuthorityCaptureWithV4() =>
+        AssertQuickPublishRejectsASecondClickDuringAuthorityCapture(v4: true);
+
+    private static async Task AssertQuickPublishRejectsASecondClickDuringAuthorityCapture(bool v4)
     {
         var pending = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var authority = new PublishingAuthority { PendingCapture = pending.Task };
         var publish = new RecordingPublishOperation();
         using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
         ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
         var cut = ctx.Render<OperatePublishLayerPage>();
         cut.Find("[data-workspace-field='connectionId']").Change("conn-a");
@@ -408,11 +413,10 @@ public sealed class PublishWizardWorkspaceRenderTests
         var busyDuringCapture = cut.Find("[data-workspace-publish]").HasAttribute("disabled");
         // Dispatch a queued click even though the rendered button should already be disabled.
         var second = cut.InvokeAsync(() => cut.Find("[data-workspace-publish]").TriggerEventAsync("onclick", new MouseEventArgs()));
-        var captures = authority.Captures;
         pending.SetResult("reviewed-environment");
         await Task.WhenAll(first, second);
         Assert.True(busyDuringCapture);
-        Assert.Equal(1, captures);
+        Assert.Equal(1, authority.Captures);
         Assert.Single(publish.Commands);
         Assert.False(cut.Find("[data-workspace-publish]").HasAttribute("disabled"));
     }
