@@ -46,6 +46,7 @@
                     {
                         <button type="button"
                             class="console-button @(string.Equals(_stateFilter, option.Value, StringComparison.Ordinal) ? "" : "console-button-secondary")"
+                            aria-pressed="@(string.Equals(_stateFilter, option.Value, StringComparison.Ordinal) ? "true" : "false")"
                             @onclick="() => SetStateFilter(option.Value)">
                             @option.Label
                             @if (option.Value.Length > 0)

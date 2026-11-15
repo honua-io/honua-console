@@ -202,9 +202,11 @@
                                             </td>
                                             <td data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType)</td>
                                             <td>
-                                                <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
-                                                <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
-                                                                   CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
+                                                <span class="approval-inbox-pills">
+                                                    <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                                    <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                                                       CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
+                                                </span>
                                             </td>
                                             <td>
                                                 @if (item.Proposal.CreatedAt != DateTimeOffset.UnixEpoch && item.Proposal.CreatedAt != DateTimeOffset.MinValue)

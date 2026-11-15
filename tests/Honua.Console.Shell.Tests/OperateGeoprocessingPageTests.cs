@@ -162,6 +162,41 @@ public sealed partial class OperateGeoprocessingPageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void StateFilterExposesTheSelectedFilterAsPressed(bool v4Enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
+        {
+            Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
+            [
+                Job("gp-run-1", "Running", "Executing", 40, "analyst.live"),
+                Job("gp-run-2", "Succeeded", "Done", 100, "analyst.live"),
+            ])
+        });
+
+        var page = ctx.Render<OperateGeoprocessingPage>();
+        page.WaitForAssertion(() => Assert.Contains("gp-run-1", page.Markup));
+
+        string Pressed(string label) => page.FindAll("[role=group][aria-label='Filter by state'] button")
+            .Single(b => b.TextContent.Trim().StartsWith(label, StringComparison.Ordinal))
+            .GetAttribute("aria-pressed")!;
+
+        Assert.Equal("true", Pressed("All"));
+        Assert.Equal("false", Pressed("Running"));
+
+        page.FindAll("[role=group][aria-label='Filter by state'] button")
+            .Single(b => b.TextContent.Trim().StartsWith("Running", StringComparison.Ordinal))
+            .Click();
+
+        Assert.Equal("false", Pressed("All"));
+        Assert.Equal("true", Pressed("Running"));
+        Assert.DoesNotContain("gp-run-2", page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void DetailModeOffersRetryOnlyForFailedOrCancelled(bool v4Enabled)
     {
         // Succeeded is terminal but not retryable: no Retry, no Cancel.
