@@ -1061,7 +1061,8 @@ public sealed class ConsoleOperateObservabilityClientTests
         Assert.Contains(rule.ValidationMessages, message => message.Contains("Rule health unavailable", StringComparison.Ordinal));
         Assert.False(rule.CanEnable);
         Assert.Equal(OperateSectionStatus.Unsupported, result.Value.ZonesStatus);
-        Assert.Contains("501", result.Value.ZonesMessage);
+        Assert.Contains("alerts.geofence", result.Value.ZonesMessage);
+        Assert.DoesNotContain("501", result.Value.ZonesMessage);
     }
 
     [Fact]
