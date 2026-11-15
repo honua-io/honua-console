@@ -81,6 +81,39 @@ public sealed class BrowserApiTransportTests
     }
 
     [Fact]
+    public async Task ManagementRequestsUseTheConfiguredEndpointAndOperatorBearer()
+    {
+        var recorder = new RecordingHandler();
+        var management = new Uri("http://127.0.0.1:18082/management/");
+        var origins = new BrowserApiOrigins(Api, new Uri("https://console.example/console/"), management);
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal());
+        using var client = Client(session, recorder, new BrowserTransportOptions(origins, BrowserApiAccess.Manager));
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("layers?status=open"));
+
+        session.Set(Principal(), new ConsoleSessionCredentials(AccessToken: "operator-token", ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(5), CsrfToken: "serving-csrf"));
+        using var response = await client.PostAsync("layers?status=open", null);
+        Assert.Equal(new Uri("http://127.0.0.1:18082/management/layers?status=open"), recorder.Last);
+        Assert.Equal("operator-token", recorder.Authorization);
+        Assert.False(recorder.SentCsrf);
+        Assert.Equal(1, recorder.Calls);
+    }
+
+    [Fact]
+    public async Task ServingRequestsStayOffTheManagementEndpoint()
+    {
+        var recorder = new RecordingHandler();
+        var origins = new BrowserApiOrigins(Api, App, new Uri("http://127.0.0.1:18082/"));
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        using var client = Client(session, recorder, new BrowserTransportOptions(origins, BrowserApiAccess.Authenticated));
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(new Uri("http://127.0.0.1:18082/layers")));
+        using var response = await client.GetAsync("layers");
+        Assert.Equal(new Uri(Api, "layers"), recorder.Last);
+        Assert.Equal(1, recorder.Calls);
+    }
+
+    [Fact]
     public void RuntimeConfigResolvesSameOriginApiOutsideTheConsolePrefix()
     {
         Assert.Equal(new Uri("https://honua.example/"), new ConsoleRuntimeConfiguration().ResolveApiBaseUri(App));
@@ -95,6 +128,23 @@ public sealed class BrowserApiTransportTests
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         Assert.Equal(expected, JsonSerializer.Deserialize<ConsoleRuntimeConfiguration>(json, options)!.V4Enabled);
+    }
+
+    [Fact]
+    public void RuntimeConfigBindsManagementOnlyForTheConfiguredServingApi()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var omitted = JsonSerializer.Deserialize<ConsoleRuntimeConfiguration>("{\"apiBaseUrl\":\"https://honua.example/api-root/\"}", options)!;
+        Assert.Null(omitted.ResolveManagementBaseUri(App, Api));
+        var configured = new ConsoleRuntimeConfiguration { ApiBaseUrl = Api.AbsoluteUri, ManagementApiBaseUrl = "http://127.0.0.1:18082/" };
+        var management = configured.ResolveManagementBaseUri(App, Api);
+        Assert.Equal(new Uri("http://127.0.0.1:18082/"), management);
+        var endpoint = new ConfiguredConsoleManagerEndpoint(Api, management);
+        Assert.Equal(management, endpoint.Resolve(Api));
+        Assert.Null(endpoint.Resolve(new Uri("https://other.example/")));
+        Assert.Equal(new Uri("https://other.example/"), new ConfiguredConsoleManagerEndpoint(Api, null).Resolve(new Uri("https://other.example")));
+        Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "https://user:secret@manager.example/" }.ResolveManagementBaseUri(App, Api));
+        Assert.Null(new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = Api.AbsoluteUri }.ResolveManagementBaseUri(App, Api));
     }
 
     [Fact]
@@ -312,9 +362,15 @@ public sealed class BrowserApiTransportTests
     private sealed class RecordingHandler : HttpMessageHandler
     {
         public int Calls { get; private set; }
+        public Uri? Last { get; private set; }
+        public string? Authorization { get; private set; }
+        public bool SentCsrf { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;
+            Last = request.RequestUri;
+            Authorization = request.Headers.Authorization?.Parameter;
+            SentCsrf = request.Headers.Contains("X-Honua-CSRF");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }

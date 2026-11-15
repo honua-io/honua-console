@@ -18,8 +18,10 @@ using var configurationClient = new HttpClient { BaseAddress = applicationBaseUr
 var configuration = await configurationClient.GetFromJsonAsync<ConsoleRuntimeConfiguration>("config.json")
     ?? throw new InvalidOperationException("Console config.json is missing.");
 var apiBaseUri = configuration.ResolveApiBaseUri(applicationBaseUri);
+var managementBaseUri = configuration.ResolveManagementBaseUri(applicationBaseUri, apiBaseUri);
 var session = new ConsoleBrowserSession();
-var clients = new BrowserServerBoundClientFactory(apiBaseUri, applicationBaseUri, session);
+var clients = new BrowserServerBoundClientFactory(new BrowserApiOrigins(apiBaseUri, applicationBaseUri, managementBaseUri), session);
+builder.Services.AddSingleton<IConsoleManagerEndpoint>(new ConfiguredConsoleManagerEndpoint(apiBaseUri, managementBaseUri));
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton(session);
 builder.Services.AddBrowserAuthorityBinding(apiBaseUri);

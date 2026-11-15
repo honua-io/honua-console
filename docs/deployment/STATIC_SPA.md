@@ -23,6 +23,7 @@ request accepts it, and `Vary: Accept-Encoding`.
 ```json
 {
   "apiBaseUrl": "/",
+  "managementApiBaseUrl": null,
   "auth": { "mode": "builtin", "authority": null, "clientId": null, "scopes": [] },
   "v4Enabled": true
 }
@@ -33,6 +34,14 @@ to roll back to the earlier Console presentation without redeploying the bundle.
 admin API key, password, client secret or operator token in this file. Tokens remain in browser memory. Cross-origin API
 access requires an operator bearer token and an explicit API CORS allowlist. Same-origin
 mutations require the API's session cookie and issued CSRF token.
+
+`managementApiBaseUrl` is optional. Omit it, or set it equal to `apiBaseUrl`, and approval,
+deployment and management health calls stay on the serving API. For a separate Compose manager,
+set it to that manager's base URL, for example `http://127.0.0.1:18082/` on a local quickstart.
+It applies only to the configured serving API. Those calls send the operator bearer and do not
+send the serving session cookie or CSRF token when the manager is another origin. The manager
+must allow the Console origin and accept that bearer. A credential, query or fragment in either
+URL is rejected. Include the management origin in the deployment CSP when it is set.
 
 ## S3 and CloudFront
 

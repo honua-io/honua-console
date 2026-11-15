@@ -302,8 +302,10 @@ permission or an Admin API parity claim. Server authorization is identical in bo
 
 For a customer Compose installation with a separate management process, set
 `HONUA_SERVER_BASE_URL` to the serving server and `HONUA_MANAGER_BASE_URL` to the trusted
-manager base URL. The manager mapping applies only to the configured serving environment;
-selecting another environment without its own mapping fails management requests closed.
+manager base URL. The static bundle has no process environment: set `apiBaseUrl` and the
+optional `managementApiBaseUrl` in `config.json` instead. The manager mapping applies only to
+the configured serving environment; selecting another environment without its own mapping
+fails management requests closed.
 The operator signs in to the serving environment, and the manager must accept that same
 operator bearer with the intended issuer and audience. Configure the manager as a trusted
 endpoint: management requests and management realtime subscriptions forward the operator's

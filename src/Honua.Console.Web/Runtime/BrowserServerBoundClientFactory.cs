@@ -7,20 +7,20 @@ namespace Honua.Console.Web.Runtime;
 
 // Existing typed Shell/SDK clients share this transport. No browser path can fall back to sockets.
 public sealed class BrowserServerBoundClientFactory(
-    Uri apiBaseUri,
-    Uri applicationBaseUri,
+    BrowserApiOrigins origins,
     ConsoleBrowserSession session) : IHonuaServerBoundClientFactory
 {
     public HttpClient CreateServerBoundClient(Uri baseUri, TimeSpan? timeout = null) => Create(baseUri, timeout, BrowserApiAccess.Authenticated);
     public HttpClient CreatePublicClient(Uri baseUri, TimeSpan? timeout = null) => Create(baseUri, timeout, BrowserApiAccess.Public);
+    public HttpClient CreateManagerBoundClient(Uri baseUri, TimeSpan? timeout = null) => Create(baseUri, timeout, BrowserApiAccess.Manager);
 
     private HttpClient Create(Uri baseUri, TimeSpan? timeout, BrowserApiAccess access) => new(
-        new BrowserApiHandler(new BrowserApiOrigins(apiBaseUri, applicationBaseUri), session, access)
+        new BrowserApiHandler(origins, session, access)
         {
             InnerHandler = new HttpClientHandler()
         })
     {
-        BaseAddress = baseUri.Host == "unbound.invalid" ? apiBaseUri : baseUri,
+        BaseAddress = baseUri.Host == "unbound.invalid" ? origins.Api : baseUri,
         Timeout = timeout ?? TimeSpan.FromSeconds(30)
     };
 }
@@ -54,25 +54,53 @@ internal sealed class BrowserApiHandler(
 
     private void PrepareRequest(HttpRequestMessage request)
     {
-        var target = request.RequestUri;
+        var target = ServingTarget(request.RequestUri);
+        if (access == BrowserApiAccess.Manager)
+        {
+            target = ManagementTarget(target);
+            request.RequestUri = target;
+        }
+
+        if (access != BrowserApiAccess.Public && !session.IsAuthenticated)
+        {
+            throw new HttpRequestException("Sign in to Honua before accessing this API.", null, System.Net.HttpStatusCode.Unauthorized);
+        }
+
+        ApplyOperatorCredentials(request, target);
+    }
+
+    private Uri ServingTarget(Uri? target)
+    {
         if (target is null || !target.IsAbsoluteUri || !origins.Api.IsBaseOf(target)
             || target.UserInfo.Length != 0 || target.Fragment.Length != 0)
         {
             throw new HttpRequestException("Console requests must target the configured Honua API.");
         }
 
-        if (access == BrowserApiAccess.Authenticated && !session.IsAuthenticated)
+        return target;
+    }
+
+    private Uri ManagementTarget(Uri target)
+    {
+        if (origins.Management is null) return target;
+        var rewritten = new Uri(origins.Management, origins.Api.MakeRelativeUri(target));
+        if (!origins.Management.IsBaseOf(rewritten) || rewritten.UserInfo.Length != 0 || rewritten.Fragment.Length != 0)
         {
-            throw new HttpRequestException("Sign in to Honua before accessing this API.", null, System.Net.HttpStatusCode.Unauthorized);
+            throw new HttpRequestException("Console requests must target the configured management API.");
         }
 
+        return rewritten;
+    }
+
+    private void ApplyOperatorCredentials(HttpRequestMessage request, Uri target)
+    {
         // Never forward keys or caller-supplied credentials from a typed client.
         request.Headers.Remove("X-API-Key");
         request.Headers.Remove("Cookie");
         request.Headers.Remove("X-CSRF-Token");
         request.Headers.Remove("X-Honua-CSRF");
         request.Headers.Authorization = null;
-        var sameOrigin = Uri.Compare(origins.Api, origins.Application, UriComponents.SchemeAndServer,
+        var sameOrigin = Uri.Compare(target, origins.Application, UriComponents.SchemeAndServer,
             UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
         if (!string.IsNullOrWhiteSpace(session.AccessToken)
             && session.ExpiresAt > DateTimeOffset.UtcNow
@@ -80,7 +108,7 @@ internal sealed class BrowserApiHandler(
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         }
-        else if (!sameOrigin && access == BrowserApiAccess.Authenticated)
+        else if (!sameOrigin && access != BrowserApiAccess.Public)
         {
             throw new HttpRequestException("Cross-origin Console access requires an operator bearer token.", null, System.Net.HttpStatusCode.Unauthorized);
         }
@@ -100,10 +128,11 @@ internal sealed class BrowserApiHandler(
     }
 }
 
-internal sealed record BrowserApiOrigins(Uri Api, Uri Application);
+public sealed record BrowserApiOrigins(Uri Api, Uri Application, Uri? Management = null);
 
 internal enum BrowserApiAccess
 {
     Authenticated,
-    Public
+    Public,
+    Manager
 }
