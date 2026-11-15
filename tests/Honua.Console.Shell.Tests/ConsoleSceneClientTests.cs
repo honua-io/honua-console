@@ -9,6 +9,7 @@ public sealed class ConsoleSceneClientTests
 {
     [Theory]
     [InlineData(HttpStatusCode.NotFound, SceneReadStatus.Unsupported)]
+    [InlineData(HttpStatusCode.NotImplemented, SceneReadStatus.Unsupported)]
     [InlineData(HttpStatusCode.Forbidden, SceneReadStatus.Forbidden)]
     [InlineData(HttpStatusCode.InternalServerError, SceneReadStatus.Unavailable)]
     public async Task DiscoveryDistinguishesAbsentFeatureFromServerErrors(HttpStatusCode status, SceneReadStatus expected)
@@ -16,7 +17,8 @@ public sealed class ConsoleSceneClientTests
         var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(status)));
         var result = await client.ListScenesAsync();
         Assert.Equal(expected, result.Status);
-        if (status == HttpStatusCode.NotFound) { Assert.Contains("Ask an administrator", result.Message); }
+        if (expected == SceneReadStatus.Unsupported) { Assert.Contains("scene.catalog", result.Message); }
+        if (expected == SceneReadStatus.Unsupported) { Assert.Contains("Ask an administrator", result.Message); }
     }
 
 

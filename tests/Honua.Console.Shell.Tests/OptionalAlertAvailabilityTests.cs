@@ -13,6 +13,7 @@ public sealed class OptionalAlertAvailabilityTests
     public void OnlyAbsentOptionalCollectionsReceiveSetupGuidance(string path)
     {
         Assert.True(OptionalAlertAvailability.IsAbsentCollection(HttpStatusCode.NotFound, path));
+        Assert.True(OptionalAlertAvailability.IsAbsentCollection(HttpStatusCode.NotImplemented, path));
         Assert.False(OptionalAlertAvailability.IsAbsentCollection(HttpStatusCode.Forbidden, path));
         Assert.False(OptionalAlertAvailability.IsAbsentCollection(HttpStatusCode.InternalServerError, path));
     }
@@ -23,5 +24,6 @@ public sealed class OptionalAlertAvailabilityTests
     public void MissingIndividualRecordsAndOtherCollectionsKeepTheirErrorState(string path)
     {
         Assert.False(OptionalAlertAvailability.IsAbsentCollection(HttpStatusCode.NotFound, path));
+        Assert.False(OptionalAlertAvailability.IsAbsentCollection(HttpStatusCode.NotImplemented, path));
     }
 }

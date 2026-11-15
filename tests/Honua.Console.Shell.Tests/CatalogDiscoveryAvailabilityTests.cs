@@ -6,10 +6,12 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class CatalogDiscoveryAvailabilityTests
 {
-    [Fact]
-    public async Task AbsentRegistryOffersSetupGuidanceWithoutReclassifyingIndividualRecords()
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.NotImplemented)]
+    public async Task AbsentRegistryOffersSetupGuidanceWithoutReclassifyingIndividualRecords(HttpStatusCode status)
     {
-        using var http = new HttpClient(new StatusHandler(HttpStatusCode.NotFound));
+        using var http = new HttpClient(new StatusHandler(status));
         using var client = new HonuaCatalogDiscoveryHttpClient(http,
             new HonuaCatalogDiscoveryClientOptions(new Uri("https://server.example")));
         var data = new HonuaServerCatalogDiscoveryDataSource(client);

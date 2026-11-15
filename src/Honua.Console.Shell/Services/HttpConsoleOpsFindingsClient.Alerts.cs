@@ -44,7 +44,8 @@ public sealed partial class HttpConsoleOpsFindingsClient
             ? OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(authority, page))
             : OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
                 result.Status == OperateSectionStatus.Missing ? OperateSectionStatus.Unsupported : result.Status,
-                result.Status == OperateSectionStatus.Missing ? OptionalAlertAvailability.Message : result.Message);
+                result.Status is OperateSectionStatus.Missing or OperateSectionStatus.Unsupported
+                    ? OptionalAlertAvailability.Message : result.Message);
     }
 
     public async Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(

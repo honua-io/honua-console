@@ -52,10 +52,10 @@ public sealed class HttpConsoleSceneClient : IConsoleSceneClient
 
             if (!response.IsSuccessStatusCode)
             {
-                if (response.StatusCode == HttpStatusCode.NotFound)
+                if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented)
                 {
                     return SceneReadResult<SceneListResponse>.Denied(SceneReadStatus.Unsupported,
-                        "Scenes are not enabled or available on this server. Ask an administrator to enable scene discovery.");
+                        "Scenes are not enabled or available on this server. Ask an administrator to enable scene discovery (scene.catalog).");
                 }
 
                 return SceneReadResult<SceneListResponse>.Denied(
