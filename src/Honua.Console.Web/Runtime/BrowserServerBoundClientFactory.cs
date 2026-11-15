@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using Honua.Console.Shell.Services;
+using Honua.Console.Contracts;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 
 namespace Honua.Console.Web.Runtime;
@@ -29,7 +30,29 @@ internal sealed class BrowserApiHandler(
     ConsoleBrowserSession session,
     BrowserApiAccess access) : DelegatingHandler
 {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var current = session.CaptureAuthority(origins.Api);
+        var pinned = request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Expected, out var expected);
+        var capture = request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Capture, out var requested) && requested;
+        if ((pinned && (current is null || !string.Equals(expected, current, StringComparison.Ordinal)))
+            || (capture && current is null))
+            throw new HttpRequestException("The Console session changed. Refresh before making another request.");
+
+        var binding = pinned || capture ? current : null;
+        PrepareRequest(request);
+        var response = await base.SendAsync(request, cancellationToken);
+        if (binding is not null && !string.Equals(binding, session.CaptureAuthority(origins.Api), StringComparison.Ordinal))
+        {
+            response.Dispose();
+            request.Options.Set(ConsoleWriteOutcome.Unverified, true);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.Conflict);
+        }
+        if (binding is not null) request.Options.Set(ConsoleAuthorityRequestOptions.Resolved, binding);
+        return response;
+    }
+
+    private void PrepareRequest(HttpRequestMessage request)
     {
         var target = request.RequestUri;
         if (target is null || !target.IsAbsoluteUri || !origins.Api.IsBaseOf(target)
@@ -74,7 +97,6 @@ internal sealed class BrowserApiHandler(
 
         request.SetBrowserRequestCredentials(sameOrigin ? BrowserRequestCredentials.SameOrigin : BrowserRequestCredentials.Omit);
         request.SetBrowserRequestOption("redirect", "error");
-        return base.SendAsync(request, cancellationToken);
     }
 }
 
