@@ -169,7 +169,8 @@ public sealed class OperateConnectionV4RenderTests
         page.Find("input[type=password]").Input("fixture-password");
         var pending = page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").ClickAsync(new());
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
-        Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.True(page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").HasAttribute("disabled"));
 
         page.Find(editedInput).Input("changed-settings");
         await page.InvokeAsync(() => operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Obsolete test result")));
