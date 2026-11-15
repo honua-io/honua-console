@@ -42,7 +42,9 @@ public sealed partial class HttpConsoleOpsFindingsClient
 
         return result.IsAllowed && result.Value is { } page
             ? OperateSectionResult<ConsoleAlertInboxSnapshot>.Allowed(new(authority, page))
-            : OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(result.Status, result.Message);
+            : OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
+                result.Status == OperateSectionStatus.Missing ? OperateSectionStatus.Unsupported : result.Status,
+                result.Status == OperateSectionStatus.Missing ? OptionalAlertAvailability.Message : result.Message);
     }
 
     public async Task<OperateSectionResult<ObservabilityAlertEventResponse>> AcknowledgeAlertAsync(

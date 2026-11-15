@@ -172,9 +172,7 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
 
             if (!response.IsSuccessStatusCode)
             {
-                return SensorThingsReadResult<T>.Denied(
-                    MapStatus(response.StatusCode),
-                    $"The honua-server SensorThings API returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+                return ReadFailure<T>(response, relativePath);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -195,6 +193,21 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
                 SensorThingsReadStatus.Unavailable,
                 "The honua-server SensorThings API is unreachable or returned an unreadable response.");
         }
+    }
+
+    private static SensorThingsReadResult<T> ReadFailure<T>(HttpResponseMessage response, string relativePath)
+    {
+        if (response.StatusCode == HttpStatusCode.NotFound &&
+            (relativePath.StartsWith($"{BasePath}/Things?", StringComparison.Ordinal) ||
+             relativePath.StartsWith($"{BasePath}/Datastreams?", StringComparison.Ordinal)))
+        {
+            return SensorThingsReadResult<T>.Denied(SensorThingsReadStatus.Unsupported,
+                "Sensors are not enabled or available on this server. Ask an administrator to enable SensorThings.");
+        }
+
+        return SensorThingsReadResult<T>.Denied(
+            MapStatus(response.StatusCode),
+            $"The honua-server SensorThings API returned {(int)response.StatusCode} {response.ReasonPhrase}.");
     }
 
     private Task<string?> ResolveTokenAsync(ConsoleEnvironmentProfile profile, CancellationToken cancellationToken) =>

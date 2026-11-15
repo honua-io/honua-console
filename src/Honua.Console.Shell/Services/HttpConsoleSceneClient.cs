@@ -52,6 +52,12 @@ public sealed class HttpConsoleSceneClient : IConsoleSceneClient
 
             if (!response.IsSuccessStatusCode)
             {
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return SceneReadResult<SceneListResponse>.Denied(SceneReadStatus.Unsupported,
+                        "Scenes are not enabled or available on this server. Ask an administrator to enable scene discovery.");
+                }
+
                 return SceneReadResult<SceneListResponse>.Denied(
                     MapStatus(response.StatusCode),
                     $"The honua-server scene API returned {(int)response.StatusCode} {response.ReasonPhrase}.");

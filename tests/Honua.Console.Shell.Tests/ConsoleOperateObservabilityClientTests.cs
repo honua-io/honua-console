@@ -17,6 +17,23 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class ConsoleOperateObservabilityClientTests
 {
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, OperateSectionStatus.Unsupported)]
+    [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError, OperateSectionStatus.Unavailable)]
+    public async Task OptionalAlertCollectionsPreserveErrorsAndExplainAbsentRoutes(HttpStatusCode status, OperateSectionStatus expected)
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath == "/api/v1/admin/services/"
+            ? ServicesResponse("svc-live")
+            : new HttpResponseMessage(status));
+        var client = CreateClient(handler);
+        var alerts = await client.GetAlertsAsync();
+        var rules = await client.GetRulesAsync();
+        Assert.Equal(expected, alerts.Status);
+        Assert.Equal(expected, rules.Status);
+        if (status == HttpStatusCode.NotFound) { Assert.Contains("enable geofence alerts", rules.Message); }
+    }
+
     [Fact]
     public async Task OverviewUsesAdminStatusEndpointsAndServerMetadata()
     {

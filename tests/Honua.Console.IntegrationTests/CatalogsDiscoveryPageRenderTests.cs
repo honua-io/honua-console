@@ -15,6 +15,23 @@ public sealed class CatalogsDiscoveryPageRenderTests
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl so the Catalogs surface can bind the catalog discovery-endpoints registry (honua-server#1279).");
 
+    [Fact]
+    public void List_WhenWorkspaceUnconfigured_RendersNeutralSetupGuidance()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            RegistryLoad = new CatalogDiscoveryRegistryLoad(null,
+                [new CatalogDiscoveryCapabilityState("Catalogs", "Not configured", "GET registry",
+                    "Ask an administrator to configure catalog endpoints.")])
+        };
+        var page = RenderList(data);
+        page.WaitForAssertion(() => Assert.Contains("Catalogs are not configured", page.Markup, StringComparison.Ordinal));
+        Assert.Contains("console-state-missing", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Ask an administrator", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("console-state-denied", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("GET registry", page.Markup, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
