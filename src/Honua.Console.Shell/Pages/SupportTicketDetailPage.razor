@@ -133,9 +133,9 @@
     private bool _loaded;
     private bool _polling;
 
-    private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
     private string? _polledTicketId;
+    private bool _disposed;
 
     private string StateKind => _status switch
     {
@@ -152,7 +152,7 @@
     protected override async Task OnParametersSetAsync()
     {
         // Restart the poll loop when navigating between ticket ids.
-        if (string.Equals(_polledTicketId, TicketId, StringComparison.Ordinal))
+        if (_disposed || string.Equals(_polledTicketId, TicketId, StringComparison.Ordinal))
         {
             return;
         }
@@ -170,28 +170,39 @@
             return;
         }
 
-        await RefreshAsync();
-        StartPolling();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+        var ticketId = TicketId;
+        if (await RefreshAsync(ticketId, token))
+        {
+            StartPolling(ticketId, token);
+        }
     }
 
-    private async Task RefreshAsync()
+    private async Task<bool> RefreshAsync(string ticketId, CancellationToken token)
     {
-        var result = await SupportClient.GetTicketAsync(TicketId);
+        SupportTicketResult result;
+        try
+        {
+            result = await SupportClient.GetTicketAsync(ticketId, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return false;
+        }
+        if (token.IsCancellationRequested)
+        {
+            return false;
+        }
+
         _loaded = true;
-        if (result.IsAllowed)
-        {
-            _ticket = result.Value;
-            _status = OperateSectionStatus.Allowed;
-            _message = null;
-        }
-        else
-        {
-            _status = result.Status;
-            _message = result.Message;
-        }
+        _ticket = result.IsAllowed ? result.Value : null;
+        _status = result.Status;
+        _message = result.IsAllowed ? null : result.Message;
+        return true;
     }
 
-    private void StartPolling()
+    private void StartPolling(string ticketId, CancellationToken token)
     {
         // No point polling a terminal ticket or an unreadable surface.
         if (_ticket is null || IsTerminal(_ticket.Phase))
@@ -201,30 +212,33 @@
         }
 
         _polling = true;
-        _cts = new CancellationTokenSource();
-        _timer = new PeriodicTimer(PollInterval);
-        var token = _cts.Token;
-        _ = PollAsync(token);
+        _ = PollAsync(ticketId, token);
     }
 
-    private async Task PollAsync(CancellationToken token)
+    private async Task PollAsync(string ticketId, CancellationToken token)
     {
+        using var timer = new PeriodicTimer(PollInterval);
         try
         {
-            while (await _timer!.WaitForNextTickAsync(token).ConfigureAwait(false))
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
             {
-                await RefreshAsync().ConfigureAwait(false);
-                await InvokeAsync(StateHasChanged).ConfigureAwait(false);
-
-                if (_ticket is not null && IsTerminal(_ticket.Phase))
+                await InvokeAsync(async () =>
                 {
-                    _polling = false;
-                    await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+                    if (token.IsCancellationRequested || !await RefreshAsync(ticketId, token))
+                    {
+                        return;
+                    }
+                    _polling = _ticket is not null && !IsTerminal(_ticket.Phase);
+                    StateHasChanged();
+                }).ConfigureAwait(false);
+
+                if (token.IsCancellationRequested || !_polling)
+                {
                     return;
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             // Disposed or navigated away; stop quietly.
         }
@@ -233,9 +247,7 @@
     private void StopPolling()
     {
         _cts?.Cancel();
-        _timer?.Dispose();
         _cts?.Dispose();
-        _timer = null;
         _cts = null;
         _polling = false;
     }
@@ -243,5 +255,9 @@
     private static bool IsTerminal(string phase) =>
         phase is "resolved" or "cancelled" or "closed";
 
-    public void Dispose() => StopPolling();
+    public void Dispose()
+    {
+        _disposed = true;
+        StopPolling();
+    }
 }
