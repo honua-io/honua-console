@@ -37,7 +37,9 @@ public sealed class LayerPreviewPaneRenderTests
     private static HonuaAdminEndpointResult<DiscoveryMetadataResponse> Publications(params DiscoveryPublicationImpact[] publications) =>
         HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(new()
         {
-            Etag = "test", EntityId = "resource-parcels", AffectedPublications = publications
+            Etag = "test",
+            EntityId = "resource-parcels",
+            AffectedPublications = publications
         });
 
     [Theory]

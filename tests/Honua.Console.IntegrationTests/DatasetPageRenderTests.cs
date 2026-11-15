@@ -205,10 +205,13 @@ public sealed class DatasetPageRenderTests
         {
             var workspace = await _inner.GetWorkspaceAsync(cancellationToken);
             var service = workspace.Services[0];
-            return workspace with { Services = [
+            return workspace with
+            {
+                Services = [
                 service with { Name = "alpha", ServiceType = "FeatureServer" },
                 service with { Name = "zeta", ServiceType = "MapServer" }
-            ] };
+            ]
+            };
         }
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => _inner.FindConnectionAsync(connectionId, cancellationToken);
         public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) => _inner.FindResourceEditAsync(resourceId, cancellationToken);

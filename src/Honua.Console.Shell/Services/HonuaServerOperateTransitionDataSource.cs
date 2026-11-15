@@ -302,7 +302,8 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                         normalizedLayer.Extent is { } ext
                             ? new[] { ext.MinX, ext.MinY, ext.MaxX, ext.MaxY }
                             : null,
-                        normalizedLayer.Enabled ?? true) { ServiceName = normalizedLayer.ServiceName }));
+                        normalizedLayer.Enabled ?? true)
+                    { ServiceName = normalizedLayer.ServiceName }));
             }
         }
 

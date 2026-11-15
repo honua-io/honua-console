@@ -96,7 +96,8 @@ public static class ResourcePublicationsTreeBuilder
                     descriptor.Id,
                     descriptor.Label,
                     IsLive: true,
-                    Route: HonuaServedRoutes.PathFor(serviceName is null ? null : PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName)) { ServiceName = serviceIdentity });
+                    Route: HonuaServedRoutes.PathFor(serviceName is null ? null : PublishProtocolCatalog.ServiceNameFor(serviceName), descriptor.Id, folderName))
+                { ServiceName = serviceIdentity });
             }
         }
 
