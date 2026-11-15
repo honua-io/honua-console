@@ -1030,35 +1030,6 @@ public sealed record HonuaAdminUpdateMapServerSettingsRequest
     public int? MaxFeaturesPerLayer { get; init; }
 }
 
-public sealed record HonuaAdminPublishedLayerSummary
-{
-    [JsonPropertyName("storageLayerId")]
-    public int LayerId { get; init; }
-
-    public string? LayerName { get; init; }
-
-    public string? Schema { get; init; }
-
-    public string? Table { get; init; }
-
-    public string? Description { get; init; }
-
-    public string? GeometryType { get; init; }
-
-    public int? Srid { get; init; }
-
-    public string? PrimaryKey { get; init; }
-
-    public int? FieldCount { get; init; }
-
-    public bool? Enabled { get; init; }
-
-    public string? ServiceName { get; init; }
-
-    // Stored extent in EPSG:4326, or null when the layer has none.
-    public HonuaAdminLayerExtent? Extent { get; init; }
-}
-
 public sealed record HonuaAdminLayerExtent
 {
     public double MinX { get; init; }
