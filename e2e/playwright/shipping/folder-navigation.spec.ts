@@ -34,11 +34,16 @@ test('shipping Folder → Service → Layer navigation survives reload', async (
 
 async function checkMembership(page: Page) {
   const reads = await page.evaluate(async () => {
+    const connections = await fetch('/api/v1/admin/connections');
     const folders = await fetch('/api/v1/admin/folders');
     const services = await fetch('/api/v1/admin/services?folderId=shipping-folder');
-    return { folders: { status: folders.status, body: await folders.json() },
+    return { connections: { status: connections.status, body: await connections.json() }, folders: { status: folders.status, body: await folders.json() },
       services: { status: services.status, body: await services.json() } };
   });
+  expect(reads.connections.status).toBe(200);
+  expect(reads.connections.body.data).toEqual(expect.arrayContaining([
+    expect.objectContaining({ connectionId: '94680100-0000-4000-8000-000000000001', name: 'shipping-folder-source' }),
+  ]));
   expect(reads.folders.status).toBe(200);
   expect(reads.folders.body.data).toEqual(expect.arrayContaining([
     expect.objectContaining({ metadata: expect.objectContaining({ id: 'shipping-folder', name: 'ShippingFolder' }) }),

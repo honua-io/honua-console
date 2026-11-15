@@ -1,4 +1,11 @@
 BEGIN;
+-- The tree browses the secure connection registry, not metadata snapshot connections.
+-- Reuse the disposable quickstart's existing environment reference; never copy credentials.
+INSERT INTO honua.data_connections(connection_id,name,host,port,database_name,username,
+    provider_name,ssl_required,ssl_mode,secret_ref,secret_type)
+VALUES ('94680100-0000-4000-8000-000000000001','shipping-folder-source','postgres',5432,
+    'honua_dev','honua_user','postgis',false,'prefer',
+    'env:ConnectionStrings__DefaultConnection','env');
 INSERT INTO honua.services(service_name) VALUES ('public-endpoint-check'), ('folder-navigation-check');
 CREATE TABLE honua_data.endpoint_check (
     objectid SERIAL PRIMARY KEY,
@@ -18,6 +25,8 @@ VALUES (946800,'objectid','Integer',0,false),(946800,'geometry','Geometry',1,tru
 INSERT INTO honua.layers(layer_id,layer_name,table_schema,table_name,geometry_type,srid,extent,storage_options)
 SELECT 946801,'Folder navigation layer',table_schema,table_name,geometry_type,srid,extent,storage_options
 FROM honua.layers WHERE layer_id = 946800;
+UPDATE honua.services SET connection_id = '94680100-0000-4000-8000-000000000001'
+WHERE service_name = 'folder-navigation-check';
 INSERT INTO honua.service_layers(service_name,layer_id,layer_order)
 VALUES ('folder-navigation-check',946801,0);
 INSERT INTO honua.layer_fields(layer_id,field_name,field_type,field_order,nullable)
