@@ -67,6 +67,30 @@ public sealed class OperateConnectionV4RenderTests
     }
 
     [Theory]
+    [InlineData(false, "Untested", false)]
+    [InlineData(true, "Untested", false)]
+    [InlineData(false, "Unknown", false)]
+    [InlineData(true, "Unknown", false)]
+    [InlineData(false, "Passed", true)]
+    [InlineData(true, "Passed", true)]
+    [InlineData(false, "Healthy", true)]
+    [InlineData(true, "Healthy", true)]
+    public void EmptyDiagnosticReportsSuccessOnlyForPassedTests(bool enabled, string status, bool passed)
+    {
+        using var context = Context(enabled);
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new Source
+        {
+            Connections = [Connection with { Status = status }]
+        });
+        var page = context.Render<OperateConnectionDetailPage>(parameters => parameters.Add(p => p.ConnectionId, Connection.Id));
+
+        const string success = "The latest connection test passed without an operator action.";
+        const string unavailable = "No connection test result is available. Test the connection to check its health.";
+        Assert.Contains(passed ? success : unavailable, page.Markup);
+        Assert.DoesNotContain(passed ? unavailable : success, page.Markup);
+    }
+
+    [Theory]
     [InlineData("/")]
     [InlineData("/console/")]
     public void DiagnosticsContextPreservesDeepLinkRoute(string mount)
