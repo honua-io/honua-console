@@ -27,8 +27,9 @@ for (const [language, expected] of [
   });
 }
 
-function startWith(fetchResponses, { delays = [] } = {}) {
+function startWith(fetchResponses) {
   const calls = [];
+  const delays = [];
   let options;
   runInNewContext(startup, {
     navigator: { languages: ['en-US'], language: 'en-US' },
@@ -36,6 +37,7 @@ function startWith(fetchResponses, { delays = [] } = {}) {
     console: { warn() {} },
     fetch: (url, init) => {
       calls.push({ url, init });
+      assert.ok(fetchResponses.length > 0, `unexpected extra fetch of ${url}`);
       const next = fetchResponses.shift();
       return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
     },
