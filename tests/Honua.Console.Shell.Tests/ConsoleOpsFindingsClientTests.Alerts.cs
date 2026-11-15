@@ -7,6 +7,20 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed partial class ConsoleOpsFindingsClientTests
 {
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, OperateSectionStatus.Unsupported)]
+    [InlineData(HttpStatusCode.NotImplemented, OperateSectionStatus.Unsupported)]
+    [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError, OperateSectionStatus.Unavailable)]
+    public async Task AlertCollectionDistinguishesAbsentFeatureFromServerErrors(HttpStatusCode status, OperateSectionStatus expected)
+    {
+        var result = await CreateClient(new RecordingHandler(_ => new HttpResponseMessage(status))).ListAlertsAsync();
+        Assert.Equal(expected, result.Status);
+        if (expected == OperateSectionStatus.Unsupported) { Assert.Contains("alerts.geofence", result.Message); }
+        if (expected == OperateSectionStatus.Unsupported) { Assert.Contains("enable geofence alerts", result.Message); }
+    }
+
+
     private static ConsoleAlertAuthority AlertAuthority(string profileId = "live") =>
         new(profileId, new Uri("https://server.example"), "", ConsoleAccountAuthMode.AccountRbac,
             "operator.live", "", "", "", null);

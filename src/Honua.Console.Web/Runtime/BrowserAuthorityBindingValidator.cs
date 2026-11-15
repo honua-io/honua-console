@@ -26,7 +26,8 @@ internal sealed class BrowserAuthorityBindingValidator : IConsoleAuthorityBindin
         Task.FromResult(_session.CaptureAuthority(_apiBaseUri));
 
     public Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default) =>
-        Task.FromResult(string.Equals(binding, _session.CaptureAuthority(_apiBaseUri), StringComparison.Ordinal));
+        Task.FromResult(!string.IsNullOrWhiteSpace(binding)
+            && string.Equals(binding, _session.CaptureAuthority(_apiBaseUri), StringComparison.Ordinal));
 
     private void SessionChanged(ConsoleBrowserSessionSnapshot snapshot)
     {

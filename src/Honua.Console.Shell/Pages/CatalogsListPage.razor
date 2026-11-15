@@ -44,8 +44,8 @@
     {
         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="missing"
                           Kicker="@_bindingState.State"
-                          Title="Catalog discovery endpoints are not bound"
-                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+                          Title="@(_bindingState.State == "Not configured" ? "Catalogs are not configured" : "Catalog discovery endpoints are not bound")"
+                          Message="@_bindingState.Detail" />
     }
     else if (_registry is { } registry)
     {

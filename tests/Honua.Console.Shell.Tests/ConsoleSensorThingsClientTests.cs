@@ -8,6 +8,26 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class ConsoleSensorThingsClientTests
 {
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, SensorThingsReadStatus.Missing)]
+    [InlineData(HttpStatusCode.NotImplemented, SensorThingsReadStatus.Unsupported)]
+    public async Task AbsentCollectionsOfferSetupGuidanceButIndividualRecordsRetainDiagnostics(
+        HttpStatusCode status, SensorThingsReadStatus individualStatus)
+    {
+        var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(status)));
+        var things = await client.ListThingsAsync();
+        var streams = await client.ListDatastreamsAsync();
+        Assert.Equal(SensorThingsReadStatus.Unsupported, things.Status);
+        Assert.Equal(SensorThingsReadStatus.Unsupported, streams.Status);
+        Assert.Contains("enable SensorThings", things.Message);
+        Assert.Contains("serve.sensorthings", things.Message);
+        var individual = await client.GetDatastreamAsync(99);
+        Assert.Equal(individualStatus, individual.Status);
+        Assert.Contains($"{(int)status}", individual.Message);
+        Assert.Equal(individualStatus, (await client.ListDatastreamObservationsAsync(99)).Status);
+    }
+
+
     [Fact]
     public async Task ListDatastreams_ReadsStaCollectionEndpoint()
     {

@@ -1208,6 +1208,11 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
 
             if (!response.IsSuccessStatusCode)
             {
+                if (OptionalAlertAvailability.IsAbsentCollection(response.StatusCode, relativePath))
+                {
+                    return FetchResult<T>.Failed(OperateSectionStatus.Unsupported, OptionalAlertAvailability.Message, profile);
+                }
+
                 var problem = await ConsoleServerHttp.ReadProblemAsync(
                     response,
                     $"The honua-server admin API returned {(int)response.StatusCode} {response.ReasonPhrase}.",

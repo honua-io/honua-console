@@ -52,7 +52,10 @@ public sealed class OperateSectionStatusPanelTests : ConsoleComponentTestBase
             .Add(c => c.Heading, "Events")
             .Add(c => c.Status, status));
 
-        Assert.Contains("operate-status-denied", cut.Find(".operate-status-panel").ClassList);
+        Assert.Contains(status == OperateSectionStatus.Unsupported ? "operate-status-missing" : "operate-status-denied",
+            cut.Find(".operate-status-panel").ClassList);
+        Assert.Equal(status == OperateSectionStatus.Unsupported,
+            cut.Find(".console-state").ClassList.Contains("console-state-informational"));
         cut.Find("h3").TextContent.MarkupMatches(expectedTitle);
     }
 

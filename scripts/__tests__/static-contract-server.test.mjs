@@ -124,3 +124,19 @@ test("OIDC callback consumes server correlation and redirects only to the stored
   assert.match(response.headers.get("set-cookie"), /console-fixture-session=issued/);
   assert.equal((await fetch(callback, { headers, redirect: "manual" })).status, 403);
 });
+
+for (const crossOrigin of [false, true]) {
+  test(`folder collection fixture preserves ${crossOrigin ? "bearer" : "cookie"} authorization`, async t => {
+    const allowedOrigin = "http://console.test";
+    const origin = await start(t, { allowedOrigin, crossOrigin });
+    const path = `${origin}/api/v1/admin/folders`;
+    assert.equal((await fetch(path, { headers: { Origin: allowedOrigin } })).status, 401);
+    const headers = crossOrigin
+      ? { Origin: allowedOrigin, Authorization: `Bearer ${fixtureBearer}` }
+      : { Cookie: fixtureCookie };
+    const response = await fetch(path, { headers });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { success: true, data: [] });
+    assert.equal((await fetch(path, { method: "POST", headers })).status, 405);
+  });
+}

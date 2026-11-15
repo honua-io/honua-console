@@ -47,7 +47,7 @@ public sealed class BrowserAuthorityBindingTests
     }
 
     [Fact]
-    public async Task ResponseFromAnEarlierSessionCannotExposeItsSecret()
+    public async Task ResponseFromAnEarlierSessionCannotExposeItsContent()
     {
         var session = new ConsoleBrowserSession();
         SignIn(session);
@@ -59,11 +59,56 @@ public sealed class BrowserAuthorityBindingTests
         var send = client.SendAsync(request);
         Assert.Equal(1, handler.Calls);
         session.Clear();
-        completion.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("stale-secret") });
+        completion.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("stale-content") });
         using var response = await send;
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.True(ConsoleWriteOutcome.IsUnverified(request));
-        Assert.DoesNotContain("stale-secret", await response.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("stale-content", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task StaleBindingNeverReachesTheServer()
+    {
+        var session = new ConsoleBrowserSession();
+        SignIn(session);
+        var handler = new ResponseHandler();
+        using var client = Client(session, handler);
+        using var request = PinnedRequest("stale-binding");
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(request));
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task CapturedBindingIsScopedToTheTabAndExpiresWithTheSession()
+    {
+        var session = new ConsoleBrowserSession();
+        SignIn(session);
+        var authority = new BrowserAuthorityBindingValidator(session, Api);
+        var binding = Assert.IsType<string>(await authority.CaptureAsync());
+        var otherTab = new ConsoleBrowserSession();
+        SignIn(otherTab);
+        Assert.False(await new BrowserAuthorityBindingValidator(otherTab, Api).IsCurrentAsync(binding));
+        session.Set(session.Principal, new ConsoleSessionCredentials(ExpiresAt: DateTimeOffset.UtcNow.AddSeconds(-1)));
+        Assert.Null(await authority.CaptureAsync());
+        Assert.False(await authority.IsCurrentAsync(binding));
+    }
+
+    [Fact]
+    public async Task CaptureRequestRecordsTheCurrentBinding()
+    {
+        var session = new ConsoleBrowserSession();
+        SignIn(session);
+        var authority = new BrowserAuthorityBindingValidator(session, Api);
+        using var client = Client(session, new ResponseHandler());
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(Api, "api/v1/admin/folders"));
+        request.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out var resolved));
+        Assert.Equal(await authority.CaptureAsync(), resolved);
+        session.Clear();
+        Assert.Null(await authority.CaptureAsync());
+        Assert.False(await authority.IsCurrentAsync(resolved));
     }
 
     private static void SignIn(ConsoleBrowserSession session) => session.Set(
@@ -75,7 +120,7 @@ public sealed class BrowserAuthorityBindingTests
 
     private static HttpRequestMessage PinnedRequest(string binding)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, new Uri(Api, "api/v1/admin/api-keys/"));
+        var request = new HttpRequestMessage(HttpMethod.Post, new Uri(Api, "api/v1/admin/folders"));
         request.Options.Set(ConsoleAuthorityRequestOptions.Expected, binding);
         return request;
     }
