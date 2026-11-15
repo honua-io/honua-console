@@ -23,8 +23,8 @@ under "Pass the cross-surface smoke."
 > it, and emits evidence recording the server image, the seed profile, and
 > `sourceHydrated: true`. The fast in-memory harness here stays as a cheap
 > contract-shape check but no longer satisfies the gate on its own. See
-> [Console end-to-end smoke against a real honua-server](../deployment/LOCAL_AND_STAGING.md#console-end-to-end-smoke-against-a-real-honua-server-issue-59)
-> for how to run it.
+> [Checks and legacy integration fixtures](../deployment/LOCAL_AND_STAGING.md#checks-and-legacy-integration-fixtures)
+> for fixture commands and the separate browser qualification requirements.
 
 ## Running the smoke
 
