@@ -13,7 +13,6 @@ gated on a configured server base URL, else the missing-binding state).
 Decision sources:
 
 - [ADR-0001: Unified Honua Console Runtime](./adr/0001-unified-honua-console-runtime.md)
-- [Honua Console Migration Backlog](./roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md)
 
 This document fixes the Honua Console information architecture before any
 feature ports start. Migration tickets `honua-console#4`, `#5`, `#6`, `#7`,

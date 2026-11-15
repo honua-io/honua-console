@@ -662,8 +662,7 @@ teaches resource→publish→expose (B5); determinate ingest progress everywhere
 - Current console: `Layout/ConsoleLayout.razor`, `Pages/Operate{Resources,Layers,
   Services,ResourceNew,ImportFile,ImportService,PublishLayer}Page.razor`,
   `Components/{EsriImportIntake,StudioAiConversation}.razor`,
-  `Pages/StudioStyleEditorPage.razor`, `docs/console-route-map.md`,
-  `docs/design-handoff/`.
+  `Pages/StudioStyleEditorPage.razor`, `docs/console-route-map.md`.
 - **Resource-first model (metadata-v2, honua-server):**
   `Honua.Core.Abstractions/Features/Metadata/Domain/V2/MetadataReleaseEnums.cs`
   (`MetadataSemanticArtifactKind`: Resource / Service / Publication),

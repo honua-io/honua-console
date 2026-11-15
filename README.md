@@ -248,7 +248,7 @@ checkout. It skips when neither is configured or Docker is unavailable.
 | Shared Razor component APIs | [Shared Component API Reference](docs/reference/SHARED_COMPONENT_API.md) |
 | Parity smoke CLI, evidence format, triage | [Console Parity Smoke](docs/smoke/parity.md) |
 | Driving the UI with agents (Playwright MCP) | [Agent Browser Testing](docs/testing/AGENT_BROWSER_TESTING.md) |
-| Migration backlog and freeze policy | [Migration Backlog](docs/roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md) · [Portal Freeze Policy](docs/migration/PORTAL_FREEZE_POLICY.md) |
+| Portal freeze policy | [Portal Freeze Policy](docs/migration/PORTAL_FREEZE_POLICY.md) |
 
 Platform-wide docs live at <https://honua.gitbook.io/honuaio/>.
 

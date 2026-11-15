@@ -3,8 +3,6 @@
 Status: filed 2026-05-23, reconciled with ADR-0001 .NET-first amendment; amended 2026-05-24 with the real-server integration policy (section 11).
 
 Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-honua-console-runtime.md).
-Backlog source: [Honua Console Migration Backlog](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md).
-Design source: [Honua Console Design Handoff](../design-handoff/README.md).
 
 ## Purpose
 
@@ -177,9 +175,7 @@ src/
 docs/
   adr/                           # Architecture decisions.
   migration/                     # This charter, freeze policy, SDK shim policy.
-  roadmap/                       # Migration backlog and per-area roadmaps.
   runbook/                       # Per-ticket smoke runbooks attached to PR evidence.
-  design-handoff/                # Information model, workflow catalog, surface briefs.
 ```
 
 The `Honua.Console.Components` project is the same one a future MAUI Blazor Hybrid host would reference - the shell project is the only swap.

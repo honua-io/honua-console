@@ -186,7 +186,7 @@ public sealed class OperateTemporalPageRenderTests
         Assert.Contains("No retention policy is declared", page.Markup, StringComparison.Ordinal);
     }
 
-    // ---- Design alignment (console-canvas/screens-gitops-temporal-sync.jsx): the as-of header, time
+    // ---- Design alignment: the as-of header, time
     //      scrubber axis, now-vs-as-of split, replica auto-resolution rules, three-way merge columns,
     //      and AI advisory strip must be present in the rendered structure, not just the data.
 

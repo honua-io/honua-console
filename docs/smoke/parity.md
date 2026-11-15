@@ -8,9 +8,8 @@ cross-surface chain Honua Console must own end-to-end before
 
 > publish → catalog → Studio → share/embed
 
-It is the acceptance gate called out in the migration backlog
-([HONUA_CONSOLE_MIGRATION_BACKLOG.md](../roadmap/HONUA_CONSOLE_MIGRATION_BACKLOG.md))
-under "Pass the cross-surface smoke."
+It is the acceptance gate of
+[`honua-console#9`](https://github.com/honua-io/honua-console/issues/9).
 
 > **Real-server end-to-end smoke (`honua-console#59`).** This `npm`
 > harness runs against in-memory adapters (`sourceHydrated: false`), so it
