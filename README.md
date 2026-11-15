@@ -240,7 +240,7 @@ checkout. It skips when neither is configured or Docker is unavailable.
 | Running locally, staging, real-server smoke | [Local and staging startup](docs/deployment/LOCAL_AND_STAGING.md) |
 | Deployable artifact contract | [Build artifact contract](docs/deployment/BUILD_ARTIFACT.md) |
 | Studio information model | [Studio Information Model and Workflows](docs/architecture/studio-information-model-and-workflows.md) |
-| Studio editor routes and backend boundaries | [Studio Package Editor Routes](docs/studio/package-editor-routes.md) |
+| Studio workspace composition and credential boundaries | [Unified agent workspace host](docs/agent-workspace.md) |
 | Operate observability model | [Operate Observability Information Model](docs/architecture/operate-observability-information-model.md) |
 | Adding a new route/feature slice | [Route Implementation Checklist](docs/reference/ROUTE_IMPLEMENTATION_CHECKLIST.md) |
 | Shared Razor component APIs | [Shared Component API Reference](docs/reference/SHARED_COMPONENT_API.md) |
