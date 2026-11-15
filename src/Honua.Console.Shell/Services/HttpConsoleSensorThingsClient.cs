@@ -197,12 +197,12 @@ public sealed class HttpConsoleSensorThingsClient : IConsoleSensorThingsClient
 
     private static SensorThingsReadResult<T> ReadFailure<T>(HttpResponseMessage response, string relativePath)
     {
-        if (response.StatusCode == HttpStatusCode.NotFound &&
+        if ((response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NotImplemented) &&
             (relativePath.StartsWith($"{BasePath}/Things?", StringComparison.Ordinal) ||
              relativePath.StartsWith($"{BasePath}/Datastreams?", StringComparison.Ordinal)))
         {
             return SensorThingsReadResult<T>.Denied(SensorThingsReadStatus.Unsupported,
-                "Sensors are not enabled or available on this server. Ask an administrator to enable SensorThings.");
+                "Sensors are not enabled or available on this server. Ask an administrator to enable SensorThings (serve.sensorthings).");
         }
 
         return SensorThingsReadResult<T>.Denied(
