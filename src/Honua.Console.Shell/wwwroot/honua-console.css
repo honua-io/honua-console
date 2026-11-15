@@ -333,6 +333,12 @@ p {
     text-decoration: none;
 }
 
+/* The display above would otherwise override the hidden attribute on script-toggled buttons. */
+.console-button[hidden],
+.console-button-link[hidden] {
+    display: none;
+}
+
 .console-toolbar {
     display: flex;
     justify-content: flex-end;

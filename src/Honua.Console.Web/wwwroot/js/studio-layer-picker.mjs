@@ -83,6 +83,7 @@ export function mountStudioLayerPicker({ app, host, status }) {
     section.setAttribute('aria-label', 'Add published layers');
     const open = document.createElement('button');
     open.type = 'button'; open.textContent = 'Choose published layer'; open.setAttribute('aria-expanded', 'false');
+    open.className = 'console-button console-button-secondary';
     const message = document.createElement('p'); message.setAttribute('role', 'status');
     const list = document.createElement('ul'); list.hidden = true;
     section.append(open, message, list);
@@ -95,6 +96,7 @@ export function mountStudioLayerPicker({ app, host, status }) {
             for (const choice of choices) {
                 const row = document.createElement('li'); const button = document.createElement('button');
                 button.type = 'button'; button.textContent = `Add ${choice.title} to map`;
+                button.className = 'console-button console-button-secondary console-button-small';
                 button.addEventListener('click', async () => {
                     button.disabled = true; open.disabled = true; message.textContent = 'Adding layer…';
                     try {

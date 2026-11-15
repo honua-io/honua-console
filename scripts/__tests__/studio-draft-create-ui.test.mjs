@@ -90,3 +90,22 @@ test('the approval handoff link stays inside the static Console base', () => {
         mounted.dispose();
     } finally { globalThis.document = original; }
 });
+
+test('the New map controls use the Console input and button styles', () => {
+    const original = globalThis.document;
+    globalThis.document = { createElement: element };
+    try {
+        let form;
+        const host = { isConnected: true, querySelector: () => ({ before: value => { form = value; } }) };
+        const app = { isConnected: true, workspaceCookieBinding: undefined,
+            workspace: { workspaceId: 'workspace', storage: { getItem: () => null } } };
+        const mounted = mountStudioDraftCreate({ app, host });
+        assert.equal(form.className, 'console-action-row');
+        assert.equal(form.children.find(child => child.tagName === 'input').className, 'console-input');
+        assert.equal(form.children.find(child => child.type === 'submit').className, 'console-button');
+        for (const child of form.children.filter(child => child.tagName === 'button' && child.type === 'button')) {
+            assert.equal(child.className, 'console-button console-button-secondary');
+        }
+        mounted.dispose();
+    } finally { globalThis.document = original; }
+});
