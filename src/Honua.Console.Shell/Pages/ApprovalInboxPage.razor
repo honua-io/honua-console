@@ -180,9 +180,10 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    @{ var keyRows = RowIdsAreUnique; }
                                     @foreach (var item in VisibleItems)
                                     {
-                                        <tr @key="item.ProposalId" class="@(IsSelected(item) ? "is-selected" : null)">
+                                        <tr @key="(keyRows ? item.ProposalId : null)" class="@(IsSelected(item) ? "is-selected" : null)">
                                             <td>
                                                 <button type="button" class="approval-inbox-select"
                                                         aria-pressed="@(IsSelected(item) ? "true" : "false")"
@@ -229,9 +230,10 @@
                     else
                     {
                         <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
+                            @{ var keyRows = RowIdsAreUnique; }
                             @foreach (var item in VisibleItems)
                             {
-                                <li @key="item.ProposalId" class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
+                                <li @key="(keyRows ? item.ProposalId : null)" class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
                                     <button type="button"
                                             class="approval-inbox-select"
                                             aria-pressed="@(IsSelected(item) ? "true" : "false")"
@@ -452,9 +454,9 @@
         else if (_focusRowPendingId is { } rowId)
         {
             _focusRowPendingId = null;
-            // Rows are keyed by proposal id, so a listed row's captured button is its own. A row the
-            // filter or a resolution removed falls back to the review heading in v4.
-            if (VisibleItems.Any(item => string.Equals(item.ProposalId, rowId, StringComparison.Ordinal))
+            // A captured button belongs to its row only while rows are keyed by proposal id.
+            if (RowIdsAreUnique
+                && VisibleItems.Any(item => string.Equals(item.ProposalId, rowId, StringComparison.Ordinal))
                 && _rowButtons.TryGetValue(rowId, out var row))
             {
                 await TryFocusAsync(row);
@@ -585,6 +587,10 @@
     }
 
     private void SetFilter(ApprovalTicketType? type) => _filter = type;
+
+    // Merged sources do not guarantee distinct ids, and a duplicate @key would fail the render.
+    private bool RowIdsAreUnique =>
+        VisibleItems.Select(item => item.ProposalId).Distinct(StringComparer.Ordinal).Count() == VisibleItems.Count;
 
     private bool IsSelected(ApprovalInboxItem item) =>
         string.Equals(item.ProposalId, _selectedProposalId, StringComparison.Ordinal);

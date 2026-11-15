@@ -42,6 +42,28 @@ public sealed class DeployApprovalMapperTests
         Assert.Null(GitOpsReleaseMapper.MapOperation(response).PrUrl);
     }
 
+    [Theory]
+    [InlineData("javascript:void(0)", null)]
+    [InlineData("/operate/events?jobId=7", "/operate/events?jobId=7")]
+    [InlineData("https://server.example/plan/77", "https://server.example/plan/77")]
+    public void EvidenceLink_KeepsOnlyWebUrlsAndAppRoutes(string uri, string? expected)
+    {
+        var response = new DeployOperationResponse
+        {
+            OperationId = "op-79",
+            Status = "AwaitingApproval",
+            MetadataRelease = new MetadataReleaseContextResponse
+            {
+                PackageId = "pkg-3",
+                EvidenceRefs = [new MetadataEvidenceRefResponse { Kind = "deploy-plan", RefId = "plan:79", Uri = uri }],
+            },
+        };
+
+        var evidence = Assert.Single(DeployApprovalMapper.MapProposal(response).Evidence);
+        Assert.Equal("plan:79", evidence.RefId);
+        Assert.Equal(expected, evidence.Uri);
+    }
+
     [Fact]
     public void MapProposal_ProjectsCoreFieldsAndRollbackPlan()
     {

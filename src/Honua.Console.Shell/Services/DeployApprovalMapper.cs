@@ -29,7 +29,7 @@ public static class DeployApprovalMapper
         var currentRevision = target?.CurrentRevision;
 
         var evidence = release?.EvidenceRefs is { Count: > 0 } refs
-            ? refs.Select(r => new DeployOperationEvidenceLink(r.Kind, r.RefId, r.Uri)).ToArray()
+            ? refs.Select(r => new DeployOperationEvidenceLink(r.Kind, r.RefId, UrlRule.WebOrRootRelativeOrNull(r.Uri))).ToArray()
             : [];
 
         DeployOperationRollbackSummary? rollback = release?.RollbackPlan is { } plan

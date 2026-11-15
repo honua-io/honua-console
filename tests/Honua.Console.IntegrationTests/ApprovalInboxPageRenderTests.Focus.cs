@@ -87,6 +87,32 @@ public sealed partial class ApprovalInboxPageRenderTests
         Assert.Empty(page.FindAll("[data-proposal-approve]"));
     }
 
+    [Fact]
+    public void DuplicateProposalIds_RenderAndCloseReviewFallsBackToTheHeading()
+    {
+        var server = FakeProposalFactory.Summary("dup-1", ConsoleProposalKind.Deploy, summary: "Upgrade the server");
+        var devOps = server with { Source = ConsoleProposalSource.DevOps };
+        var inbox = new ScriptedApprovalInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(FakeProposalFactory.Snapshot(server, devOps)),
+        };
+        using var ctx = NewContextWithInbox(inbox, registerServices: context =>
+        {
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+            context.Services.AddSingleton<IConsoleProposalsClient>(new FakeConsoleProposalsClient(
+                proposals: [server], details: [FakeProposalFactory.Detail("dup-1", ConsoleProposalKind.Deploy)]));
+        });
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id='dup-1']").Count));
+
+        page.FindAll("[data-proposal-id='dup-1']")[0].Click();
+        page.WaitForAssertion(() => Assert.Single(FocusCalls(ctx)));
+        page.FindAll("[data-approval-review] button").Single(button => button.TextContent == "Close review").Click();
+
+        page.WaitForAssertion(() => Assert.Equal(2, FocusCalls(ctx).Count));
+        FocusCalls(ctx)[1].Arguments[0].ShouldBeElementReferenceTo(page.Find("[data-approval-review-heading]"));
+    }
+
     private static BunitContext NewFocusContext(ConsolePresentationMode presentation)
     {
         var proposals = new FakeConsoleProposalsClient(
