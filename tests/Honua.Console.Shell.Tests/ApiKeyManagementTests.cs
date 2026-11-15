@@ -160,8 +160,12 @@ public sealed class ApiKeyManagementTests
                     success = true,
                     data = new AdminApiKeyResponse
                     {
-                        Id = Key.Id, Name = Key.Name, KeyPrefix = Key.KeyPrefix,
-                        Permissions = Key.Permissions, Status = "revoked", RevokedAt = DateTimeOffset.UtcNow
+                        Id = Key.Id,
+                        Name = Key.Name,
+                        KeyPrefix = Key.KeyPrefix,
+                        Permissions = Key.Permissions,
+                        Status = "revoked",
+                        RevokedAt = DateTimeOffset.UtcNow
                     }
                 })
                 : Json(new { success = true, data = new { apiKey = Key, key = "one-time-secret" } });
