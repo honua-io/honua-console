@@ -291,7 +291,7 @@
 
     private async Task PublishAsync()
     {
-        if (_requiresCatalogRead) return;
+        if (_busy || _requiresCatalogRead) return;
         _clientError = Validate();
         if (_clientError is not null) return;
 
@@ -312,20 +312,20 @@
             Enabled = true
         };
 
-        var target = await ConsolePublishAuthority.CaptureAsync(Services, command.FolderId, _folderAuthority);
-        if (target.Error is { } error)
-        {
-            _clientError = error;
-            return;
-        }
-        command = command with { AuthorityBinding = target.Binding };
-
+        var folderAuthority = _folderAuthority;
         _unverifiedCommand = null;
         _publishAttempt++;
         _result = null;
         await Notifications.RunGuardedAsync(
             async () =>
             {
+                var target = await ConsolePublishAuthority.CaptureAsync(Services, command.FolderId, folderAuthority);
+                if (target.Error is { } error)
+                {
+                    _clientError = error;
+                    return;
+                }
+                command = command with { AuthorityBinding = target.Binding };
                 _result = await PublishOperation.PublishAsync(command);
                 _requiresCatalogRead = _result.State == ConsoleWriteOutcome.UnverifiedState;
                 _unverifiedCommand = _requiresCatalogRead ? command : null;

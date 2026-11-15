@@ -117,7 +117,7 @@
         }
 
         <div class="console-action-row">
-            <button class="console-button" type="button" disabled="@_busy" @onclick="DiscoverAsync">
+            <button class="console-button" type="button" disabled="@(_busy || _importing)" @onclick="DiscoverAsync">
                 @(_busy ? "Discovering…" : "Discover service")
             </button>
             <a href="@ConsoleNavigation.ToConsoleHref("/operate/connections")">Cancel</a>
@@ -306,6 +306,7 @@
     private string _clientSecret = string.Empty;
     private string _referer = string.Empty;
 
+    private long _sourceRevision;
     private bool _busy;
     private string? _clientError;
     private ConsoleServiceImportResult? _result;
@@ -323,6 +324,7 @@
     private Timer? _pollTimer;
     private bool _polling;
     private int _pollFailureCount;
+    private long _pollRevision;
 
     // Stop the live poll after this many consecutive transient failures so a sustained server outage
     // doesn't spin a failing background timer forever (honua-console#212).
@@ -330,6 +332,7 @@
 
     private void ClearResult()
     {
+        _sourceRevision++;
         _clientError = null;
         _importError = null;
         _result = null;
@@ -367,9 +370,16 @@
         }
 
         _busy = true;
+        var revision = _sourceRevision;
         try
         {
-            _result = await ServiceImport.DiscoverAsync(url, auth);
+            var result = await ServiceImport.DiscoverAsync(url, auth);
+            if (revision != _sourceRevision)
+            {
+                return;
+            }
+
+            _result = result;
             if (_result.Succeeded)
             {
                 BuildTree(_result);
@@ -637,6 +647,8 @@
         }
 
         _importing = true;
+        var revision = _sourceRevision;
+        var autoPublish = _autoPublish;
         var auth = TryBuildAuth(out var built, out _) ? built : null;
         try
         {
@@ -644,8 +656,15 @@
             foreach (var (service, layer) in importable)
             {
                 var table = BuildTableName(service.Name, layer.LayerId!.Value, layer.RawName);
-                var row = new ImportJobRow { LayerName = $"{service.Name} · {layer.Display}", TableName = table };
-                _jobs.Add(row);
+                // A source edit or disposal clears the jobs table. Keep sending this submitted batch,
+                // and leave the replacement screen alone.
+                var current = revision == _sourceRevision;
+                ImportJobRow? row = null;
+                if (current)
+                {
+                    row = new ImportJobRow { LayerName = $"{service.Name} · {layer.Display}", TableName = table };
+                    _jobs.Add(row);
+                }
 
                 // Guard EACH item independently: a thrown error queuing one layer must not abort the whole
                 // batch (it previously did — one bad layer threw out of the loop and the remaining selected
@@ -659,10 +678,15 @@
                         TableName = table,
                         TargetSchema = ImportTargetSchema,
                         OverwriteExisting = authorizedReplacementTargets.Contains(layer.Key),
-                        AutoPublish = _autoPublish,
-                        ServiceName = _autoPublish ? BuildServiceName(service.Name) : null,
+                        AutoPublish = autoPublish,
+                        ServiceName = autoPublish ? BuildServiceName(service.Name) : null,
                         Auth = auth,
                     });
+
+                    if (row is null || revision != _sourceRevision)
+                    {
+                        continue;
+                    }
 
                     if (run.Succeeded && !string.IsNullOrWhiteSpace(run.JobId))
                     {
@@ -680,12 +704,22 @@
                 }
                 catch (Exception ex)
                 {
+                    if (row is null || revision != _sourceRevision)
+                    {
+                        continue;
+                    }
+
                     row.Terminal = true;
                     row.Succeeded = false;
                     row.Status = "Failed to queue";
                     row.Detail = ex.Message;
                     queueFailures++;
                 }
+            }
+
+            if (revision != _sourceRevision)
+            {
+                return;
             }
 
             if (skipped > 0)
@@ -713,9 +747,12 @@
         finally
         {
             _importing = false;
-            // Replacement consent is scoped to this queue action. A retry or later import must
-            // collect fresh per-target authorization, including after a queue failure.
-            _replaceTargets.Clear();
+            if (revision == _sourceRevision)
+            {
+                // Replacement consent is scoped to this queue action. A retry or later import must
+                // collect fresh per-target authorization, including after a queue failure.
+                _replaceTargets.Clear();
+            }
         }
     }
 
@@ -758,13 +795,15 @@
         }
 
         _pollFailureCount = 0;
+        _pollRevision = _sourceRevision;
         _pollTimer = new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
     }
 
     private async Task PollAsync()
     {
-        if (_polling)
+        if (_polling || _sourceRevision != _pollRevision)
         {
+            if (_sourceRevision != _pollRevision) StopPolling();
             return;
         }
 
@@ -784,6 +823,12 @@
                 foreach (var row in active)
                 {
                     var job = await ServiceImport.GetImportJobAsync(row.JobId!);
+                    if (_sourceRevision != _pollRevision)
+                    {
+                        StopPolling();
+                        return;
+                    }
+
                     if (job.TransientFailure)
                     {
                         // The reading failed but the server import may still be running. Keep the row active
@@ -837,6 +882,12 @@
                 return;
             }
 
+            if (_sourceRevision != _pollRevision)
+            {
+                StopPolling();
+                return;
+            }
+
             await InvokeAsync(StateHasChanged);
 
             if (_jobs.All(j => j.Terminal))
@@ -856,7 +907,11 @@
         _pollTimer = null;
     }
 
-    public void Dispose() => StopPolling();
+    public void Dispose()
+    {
+        _sourceRevision++;
+        StopPolling();
+    }
 
     private static string JobStatusClass(ImportJobRow job) =>
         job.Terminal && !job.Succeeded ? "console-status console-status-danger" : "console-status";

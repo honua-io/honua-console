@@ -4,6 +4,7 @@ using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -152,6 +153,72 @@ public sealed class OperateConnectionV4RenderTests
     }
 
     [Theory]
+    [InlineData(false, "input[placeholder='db-prod.honua.internal']")]
+    [InlineData(true, "input[placeholder='db-prod.honua.internal']")]
+    [InlineData(false, "input[type=password]")]
+    [InlineData(true, "input[type=password]")]
+    public async Task EditingConnectionSettingsDiscardsAnInFlightTestResult(bool enabled, string editedInput)
+    {
+        using var context = Context(enabled);
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        var operations = new Operations();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(operations);
+        var page = context.Render<OperateConnectionNewPage>();
+        page.Find("input[placeholder='db-prod.honua.internal']").Input("original.example");
+        page.Find("input[placeholder='honua_geo']").Input("spatial");
+        page.Find("input[placeholder='honua_reader']").Input("reader");
+        page.Find("input[type=password]").Input("fixture-password");
+        var pending = page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").ClickAsync(new());
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.True(page.FindAll("button").Single(b => b.TextContent.Trim() == "Testing…").HasAttribute("disabled"));
+
+        page.Find(editedInput).Input("changed-settings");
+        await page.InvokeAsync(() => operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Obsolete test result")));
+        await pending;
+
+        Assert.DoesNotContain("Obsolete test result", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("changed-settings", page.Find(editedInput).GetAttribute("value"));
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.False(page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public async Task QueuedTestClickDoesNotStartASecondTest()
+    {
+        using var context = Context(true);
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        var operations = new Operations();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(operations);
+        var page = context.Render<OperateConnectionNewPage>();
+        page.Find("input[placeholder='db-prod.honua.internal']").Input("original.example");
+        page.Find("input[placeholder='honua_geo']").Input("spatial");
+        page.Find("input[placeholder='honua_reader']").Input("reader");
+        page.Find("input[type=password]").Input("fixture-password");
+        var first = page.InvokeAsync(() => page.FindAll("button").Single(b => b.TextContent.Trim() == "Test connection").ClickAsync(new MouseEventArgs()));
+        page.WaitForAssertion(() => Assert.Equal(1, operations.TestCalls));
+        var second = page.InvokeAsync(() => page.FindAll("button").Single(b => b.TextContent.Contains("Test", StringComparison.Ordinal)).TriggerEventAsync("onclick", new MouseEventArgs()));
+        operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Fixture"));
+        await Task.WhenAll(first, second);
+        Assert.Equal(1, operations.TestCalls);
+    }
+
+    [Fact]
+    public async Task QueuedDetailTestDoesNotPersistASecondHealthCheck()
+    {
+        using var context = Context(true);
+        var operations = new Operations();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(operations);
+        var page = context.Render<OperateConnectionDetailPage>(parameters => parameters.Add(component => component.ConnectionId, Connection.Id));
+        var first = page.InvokeAsync(() => page.Find("button").ClickAsync(new MouseEventArgs()));
+        page.WaitForAssertion(() => Assert.Single(operations.TestedConnections));
+        var second = page.InvokeAsync(() => page.Find("button").TriggerEventAsync("onclick", new MouseEventArgs()));
+        operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Fixture"));
+        await Task.WhenAll(first, second);
+        Assert.Single(operations.TestedConnections);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void NavigationClearsThePreviousConnectionsTestOutcome(bool enabled)
@@ -219,7 +286,12 @@ public sealed class OperateConnectionV4RenderTests
         public List<string> TestedConnections { get; } = [];
         public TaskCompletionSource<ConsoleConnectionCreateResult> Create { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<ConsoleConnectionProviderAvailability> GetProviderAvailabilityAsync(CancellationToken cancellationToken = default) => Providers?.Task ?? Task.FromResult(new ConsoleConnectionProviderAvailability());
-        public Task<ConsoleConnectionTestOutcome> TestAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Test.Task;
+        public int TestCalls { get; private set; }
+        public Task<ConsoleConnectionTestOutcome> TestAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default)
+        {
+            TestCalls++;
+            return Test.Task;
+        }
         public Task<ConsoleConnectionTestOutcome> TestExistingAsync(string connectionId, CancellationToken cancellationToken = default)
         {
             TestedConnections.Add(connectionId);
