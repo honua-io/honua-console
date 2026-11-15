@@ -308,6 +308,9 @@ the configured serving environment; selecting another environment without its ow
 fails management requests closed.
 The operator signs in to the serving environment, and the manager must accept that same
 operator bearer with the intended issuer and audience. Configure the manager as a trusted
-endpoint: management requests and management realtime subscriptions forward the operator's
-bearer to it. No shared admin key is used as a fallback. If the manager URL is omitted,
-management clients continue to use the active serving endpoint.
+endpoint: management requests forward the operator's bearer to it. No shared admin key is
+used as a fallback. If the manager URL is omitted, management clients continue to use the
+active serving endpoint. With a same-origin `apiBaseUrl`, builtin password sign-in requests
+the bearer and holds it in memory for the manager; a refreshed page must sign in again.
+Same-origin OIDC has no bearer and cannot use a separate manager. A remote manager URL must
+be HTTPS. Loopback HTTP is limited to the hosts the shipped Content-Security-Policy allows.

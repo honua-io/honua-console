@@ -31,7 +31,40 @@ public sealed record ConsoleRuntimeConfiguration
         ArgumentNullException.ThrowIfNull(apiBaseUri);
         if (ManagementApiBaseUrl is null) return null;
         var management = RequireBase(applicationBaseUri, ManagementApiBaseUrl, "managementApiBaseUrl");
-        return management == apiBaseUri ? null : management;
+        if (management == apiBaseUri) return null;
+        if (!AdmittedByShippedConnectPolicy(management))
+        {
+            throw new InvalidOperationException("managementApiBaseUrl must be HTTPS, or loopback HTTP on localhost, 127.0.0.1 or [::1]. The shipped Content-Security-Policy blocks every other HTTP origin.");
+        }
+
+        return management;
+    }
+
+    // A manager on another origin needs an operator bearer. Cross-origin apiBaseUrl already signs in with one.
+    // Same-origin builtin sign-in can request one. Same-origin OIDC has only the session cookie.
+    public void EnsureManagementSignIn(Uri applicationBaseUri, Uri apiBaseUri, Uri? managementBaseUri)
+    {
+        ArgumentNullException.ThrowIfNull(applicationBaseUri);
+        ArgumentNullException.ThrowIfNull(apiBaseUri);
+        if (managementBaseUri is null || SameOrigin(managementBaseUri, applicationBaseUri) || !SameOrigin(apiBaseUri, applicationBaseUri))
+        {
+            return;
+        }
+
+        if (Auth.Mode == "builtin") return;
+        throw new InvalidOperationException("A separate managementApiBaseUrl needs builtin password sign-in on this origin, which issues an operator bearer for the manager. Same-origin OIDC has no bearer to send.");
+    }
+
+    internal static bool SameOrigin(Uri left, Uri right) =>
+        Uri.Compare(left, right, UriComponents.SchemeAndServer, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
+
+    private static bool AdmittedByShippedConnectPolicy(Uri uri)
+    {
+        if (uri.Scheme == Uri.UriSchemeHttps) return true;
+        if (uri.Scheme != Uri.UriSchemeHttp) return false;
+        return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || uri.IdnHost.Equals("::1", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Uri RequireBase(Uri applicationBaseUri, string value, string name)

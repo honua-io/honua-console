@@ -87,9 +87,10 @@ public sealed class BrowserApiTransportTests
         var management = new Uri("http://127.0.0.1:18082/management/");
         var origins = new BrowserApiOrigins(Api, new Uri("https://console.example/console/"), management);
         var session = new ConsoleBrowserSession();
-        session.Set(Principal());
+        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "serving-csrf"));
         using var client = Client(session, recorder, new BrowserTransportOptions(origins, BrowserApiAccess.Manager));
-        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("layers?status=open"));
+        var missing = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("layers?status=open"));
+        Assert.Contains("management endpoint", missing.Message, StringComparison.Ordinal);
 
         session.Set(Principal(), new ConsoleSessionCredentials(AccessToken: "operator-token", ExpiresAt: DateTimeOffset.UtcNow.AddMinutes(5), CsrfToken: "serving-csrf"));
         using var response = await client.PostAsync("layers?status=open", null);
@@ -105,12 +106,33 @@ public sealed class BrowserApiTransportTests
         var recorder = new RecordingHandler();
         var origins = new BrowserApiOrigins(Api, App, new Uri("http://127.0.0.1:18082/"));
         var session = new ConsoleBrowserSession();
-        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf", ManagementAccessToken: "manager-token", ManagementExpiresAt: DateTimeOffset.UtcNow.AddMinutes(5)));
         using var client = Client(session, recorder, new BrowserTransportOptions(origins, BrowserApiAccess.Authenticated));
         await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(new Uri("http://127.0.0.1:18082/layers")));
-        using var response = await client.GetAsync("layers");
+        using var response = await client.PostAsync("layers", null);
         Assert.Equal(new Uri(Api, "layers"), recorder.Last);
+        Assert.Null(recorder.Authorization);
+        Assert.True(recorder.SentCsrf);
         Assert.Equal(1, recorder.Calls);
+    }
+
+    [Fact]
+    public async Task CookieSignInCapturesAManagerBearerWithoutAttachingItToServingCalls()
+    {
+        var session = new ConsoleBrowserSession();
+        var handler = new SignInHandler(crossOrigin: false, captureManagementBearer: true);
+        using var http = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(Api, App), session, BrowserApiAccess.Public) { InnerHandler = handler }) { BaseAddress = Api };
+        var provider = new BrowserAuthenticationStateProvider(
+            new ConsoleApiClient(http) { UsesCookieSession = true, CapturesManagementBearer = true },
+            session, new InMemoryConsoleAccountSessionStore());
+
+        await provider.SignInAsync("fixture-password");
+
+        Assert.True((await provider.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated);
+        Assert.Null(session.AccessToken);
+        Assert.Equal("issued-bearer", session.ManagementAccessToken);
+        Assert.Equal("identified-csrf", session.CsrfToken);
+        Assert.Equal(["csrf", "session", "password-token", "session", "csrf"], handler.Paths);
     }
 
     [Fact]
@@ -144,7 +166,18 @@ public sealed class BrowserApiTransportTests
         Assert.Null(endpoint.Resolve(new Uri("https://other.example/")));
         Assert.Equal(new Uri("https://other.example/"), new ConfiguredConsoleManagerEndpoint(Api, null).Resolve(new Uri("https://other.example")));
         Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "https://user:secret@manager.example/" }.ResolveManagementBaseUri(App, Api));
+        Assert.Throws<InvalidOperationException>(() => new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = "http://10.1.2.3:18082/" }.ResolveManagementBaseUri(App, Api));
         Assert.Null(new ConsoleRuntimeConfiguration { ManagementApiBaseUrl = Api.AbsoluteUri }.ResolveManagementBaseUri(App, Api));
+        configured.EnsureManagementSignIn(App, Api, management);
+        var oidc = new ConsoleRuntimeConfiguration
+        {
+            ApiBaseUrl = "/",
+            ManagementApiBaseUrl = "http://127.0.0.1:18082/",
+            Auth = new ConsoleBrowserAuthConfiguration { Mode = "oidc", Authority = "https://identity.example/", ClientId = "console", Scopes = ["openid"] }
+        };
+        var sameOriginApi = oidc.ResolveApiBaseUri(App);
+        var separateManager = oidc.ResolveManagementBaseUri(App, sameOriginApi);
+        Assert.Throws<InvalidOperationException>(() => oidc.EnsureManagementSignIn(App, sameOriginApi, separateManager));
     }
 
     [Fact]
@@ -286,7 +319,7 @@ public sealed class BrowserApiTransportTests
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
     }
 
-    private sealed class SignInHandler(bool crossOrigin) : HttpMessageHandler
+    private sealed class SignInHandler(bool crossOrigin, bool captureManagementBearer = false) : HttpMessageHandler
     {
         private bool _signedIn;
         public List<string> Paths { get; } = [];
@@ -297,7 +330,7 @@ public sealed class BrowserApiTransportTests
             Paths.Add(path);
             if (request.Method == HttpMethod.Post)
             {
-                Assert.Equal(crossOrigin ? "password-token" : "session", path);
+                Assert.Equal(crossOrigin || (captureManagementBearer && _signedIn) ? "password-token" : "session", path);
                 using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>(cancellationToken);
                 Assert.Equal("fixture-password", body!.RootElement.GetProperty("password").GetString());
                 Assert.Null(request.Headers.Authorization);
@@ -305,8 +338,9 @@ public sealed class BrowserApiTransportTests
                 {
                     Assert.Equal("anonymous-csrf", Assert.Single(request.Headers.GetValues("X-Honua-CSRF")));
                 }
+                var tokenRequest = path == "password-token";
                 _signedIn = true;
-                return crossOrigin ? Json(new { accessToken = "issued-bearer", tokenType = "Bearer", expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) })
+                return tokenRequest ? Json(new { accessToken = "issued-bearer", tokenType = "Bearer", expiresAt = DateTimeOffset.UtcNow.AddMinutes(5) })
                     : new HttpResponseMessage(HttpStatusCode.NoContent);
             }
             if (path == "csrf")

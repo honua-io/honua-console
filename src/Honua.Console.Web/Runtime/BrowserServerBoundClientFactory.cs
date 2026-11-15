@@ -100,17 +100,26 @@ internal sealed class BrowserApiHandler(
         request.Headers.Remove("X-CSRF-Token");
         request.Headers.Remove("X-Honua-CSRF");
         request.Headers.Authorization = null;
-        var sameOrigin = Uri.Compare(target, origins.Application, UriComponents.SchemeAndServer,
-            UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
-        if (!string.IsNullOrWhiteSpace(session.AccessToken)
-            && session.ExpiresAt > DateTimeOffset.UtcNow
+        var sameOrigin = ConsoleRuntimeConfiguration.SameOrigin(target, origins.Application);
+        var managementCall = origins.Management is not null && ConsoleRuntimeConfiguration.SameOrigin(target, origins.Management);
+        var bearer = managementCall ? session.ManagementAccessToken ?? session.AccessToken : session.AccessToken;
+        var bearerExpiry = managementCall && session.ManagementAccessToken is not null
+            ? session.ManagementExpiresAt
+            : session.ExpiresAt;
+        if (!sameOrigin
+            && !string.IsNullOrWhiteSpace(bearer)
+            && bearerExpiry > DateTimeOffset.UtcNow
             && (session.IsAuthenticated || access == BrowserApiAccess.Public))
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
         }
         else if (!sameOrigin && access != BrowserApiAccess.Public)
         {
-            throw new HttpRequestException("Cross-origin Console access requires an operator bearer token.", null, System.Net.HttpStatusCode.Unauthorized);
+            throw new HttpRequestException(
+                managementCall
+                    ? "Sign in with the deployment password before using the management endpoint."
+                    : "Cross-origin Console access requires an operator bearer token.",
+                null, System.Net.HttpStatusCode.Unauthorized);
         }
 
         if (sameOrigin && request.Method != HttpMethod.Get && request.Method != HttpMethod.Head
