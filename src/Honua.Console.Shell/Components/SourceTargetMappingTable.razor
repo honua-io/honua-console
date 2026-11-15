@@ -43,13 +43,13 @@ else
         <div class="esri-mapping__filters console-chip-row">
             <button type="button"
                     class="esri-mapping__filter @(IssuesOnly ? string.Empty : "esri-mapping__filter--on")"
-                    aria-pressed="@(!IssuesOnly)"
+                    aria-pressed="@(IssuesOnly ? "false" : "true")"
                     @onclick="ShowAll">
                 show: all
             </button>
             <button type="button"
                     class="esri-mapping__filter @(IssuesOnly ? "esri-mapping__filter--on" : string.Empty)"
-                    aria-pressed="@IssuesOnly"
+                    aria-pressed="@(IssuesOnly ? "true" : "false")"
                     @onclick="ShowIssuesOnly">
                 issues only
             </button>

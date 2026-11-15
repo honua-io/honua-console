@@ -44,6 +44,15 @@ public sealed class PublishWizardWorkspaceRenderTests
         Assert.Contains("FeatureServer", rows[0].TextContent, StringComparison.Ordinal);
         Assert.Contains("2 layers", rows[0].TextContent, StringComparison.Ordinal);
         Assert.Contains("basemaps-ms", rows[1].TextContent, StringComparison.Ordinal);
+        Assert.All(rows, row => Assert.Equal("false", row.GetAttribute("aria-pressed")));
+        rows[0].Click();
+        Assert.Equal(new string?[] { "true", "false" }, cut.FindAll("[data-publish-tree-row]").Select(r => r.GetAttribute("aria-pressed")).ToArray());
+
+        // Mode and service-mode toggles carry explicit true/false, never an empty aria-pressed.
+        Assert.Equal(new string?[] { "true", "false" }, cut.FindAll(".publish-mode-option").Select(b => b.GetAttribute("aria-pressed")).ToArray());
+        Assert.Equal(new string?[] { "true", "false" }, cut.FindAll("button.publish-segment-option").Select(b => b.GetAttribute("aria-pressed")).ToArray());
+        cut.FindAll("button.publish-segment-option")[1].Click();
+        Assert.Equal(new string?[] { "false", "true" }, cut.FindAll("button.publish-segment-option").Select(b => b.GetAttribute("aria-pressed")).ToArray());
     }
 
     [Fact]

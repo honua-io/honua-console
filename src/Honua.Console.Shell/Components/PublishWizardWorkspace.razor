@@ -288,13 +288,13 @@ else
                 <div class="publish-segment" role="group" aria-label="Service mode">
                     <button type="button"
                             class="publish-segment-option @(_createNewService ? null : "publish-segment-active")"
-                            aria-pressed="@(!_createNewService)"
+                            aria-pressed="@(_createNewService ? "false" : "true")"
                             @onclick="() => _createNewService = false">
                         Use existing service
                     </button>
                     <button type="button"
                             class="publish-segment-option @(_createNewService ? "publish-segment-active" : null)"
-                            aria-pressed="@_createNewService"
+                            aria-pressed="@(_createNewService ? "true" : "false")"
                             @onclick="() => _createNewService = true">
                         Create new service
                     </button>
@@ -376,7 +376,7 @@ else
                     <button type="button"
                             class="publish-tree-row @(selected ? "publish-tree-row-selected" : null)"
                             data-publish-tree-row="@service.Name"
-                            aria-pressed="@selected"
+                            aria-pressed="@(selected ? "true" : "false")"
                             @onclick="() => _selectedServiceName = service.Name">
                         <span class="publish-tree-name">@service.DisplayName</span>
                         @if (!string.Equals(service.DisplayName, service.Name, StringComparison.Ordinal)

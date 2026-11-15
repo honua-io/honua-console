@@ -23,6 +23,9 @@ public sealed class UploadFileEntryTests
         context.Services.AddSingleton<IStudioMapStyleCatalogDataSource>(new UnsupportedStudioMapStyleCatalogDataSource());
         var page = context.Render<DataToPublishFlow>(parameters => parameters.Add(flow => flow.InitialSource, "file"));
         page.WaitForAssertion(() => Assert.Equal(expected, page.Find("a.console-button").GetAttribute("href")));
+        var tabs = page.FindAll("[data-add-data-intake] [role='tab']");
+        Assert.Equal("true", page.Find("[data-add-data-intake] [data-intake-mode='File']").GetAttribute("aria-selected"));
+        Assert.All(tabs.Where(t => t.GetAttribute("data-intake-mode") != "File"), t => Assert.Equal("false", t.GetAttribute("aria-selected")));
     }
 
     [Theory]

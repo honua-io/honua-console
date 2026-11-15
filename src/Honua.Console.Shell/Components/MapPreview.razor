@@ -189,7 +189,7 @@
                 var active = string.Equals(basemap.Id, _activeBasemapId, StringComparison.Ordinal);
                 <button type="button"
                         class="map-preview-basemap-chip @(active ? "map-preview-basemap-chip-active" : null)"
-                        aria-pressed="@active"
+                        aria-pressed="@(active ? "true" : "false")"
                         @onclick="() => SelectBasemap(basemap)">
                     @basemap.Label
                 </button>

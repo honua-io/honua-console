@@ -178,6 +178,8 @@ public sealed class MapPreviewRenderTests
         Assert.Equal("satellite", selected!.Id);
         // The newly selected chip carries the active state.
         Assert.True(cut.FindAll(".map-preview-basemap-chip")[1].ClassList.Contains("map-preview-basemap-chip-active"));
+        // Toggle state is an explicit ARIA token on every chip; a bare bool renders aria-pressed="" or drops it.
+        Assert.Equal(new string?[] { "false", "true" }, cut.FindAll(".map-preview-basemap-chip").Select(c => c.GetAttribute("aria-pressed")).ToArray());
     }
 
     [Fact]

@@ -5,13 +5,13 @@
     <div class="publish-mode-toggle">
         <button type="button"
                 class="publish-mode-option @(Mode == PublishMode.Quick ? "publish-mode-option-active" : null)"
-                aria-pressed="@(Mode == PublishMode.Quick)"
+                aria-pressed="@(Mode == PublishMode.Quick ? "true" : "false")"
                 @onclick="() => SelectAsync(PublishMode.Quick)">
             Quick publish
         </button>
         <button type="button"
                 class="publish-mode-option @(Mode == PublishMode.AuthorFirst ? "publish-mode-option-active" : null)"
-                aria-pressed="@(Mode == PublishMode.AuthorFirst)"
+                aria-pressed="@(Mode == PublishMode.AuthorFirst ? "true" : "false")"
                 @onclick="() => SelectAsync(PublishMode.AuthorFirst)">
             Author dataset first (advanced)
         </button>

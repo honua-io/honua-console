@@ -10,7 +10,7 @@
                 <button type="button"
                         role="tab"
                         class="add-data-intake__mode @(option.Mode == _mode ? "add-data-intake__mode--on" : string.Empty)"
-                        aria-selected="@(option.Mode == _mode)"
+                        aria-selected="@(option.Mode == _mode ? "true" : "false")"
                         data-intake-mode="@option.Mode.ToString()"
                         @onclick="() => SetMode(option.Mode)">
                     @option.Label
