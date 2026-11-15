@@ -45,7 +45,8 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.Use(async (context, next) =>
 {
     if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy")
-        || context.Request.Path.StartsWithSegments("/api/studio/viewer"))
+        || context.Request.Path.StartsWithSegments("/api/studio/viewer")
+        || context.Request.Path.StartsWithSegments("/api/studio/catalog-mcp"))
         && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
     {
         // Fetch clients must receive the original 401/403, never a rendered not-found page.
