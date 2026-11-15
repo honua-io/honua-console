@@ -145,9 +145,9 @@ public sealed class OperateImportReplacementConsentTests
         page.Find("input[placeholder^='https://']").Input("https://source.example/FeatureServer");
         page.Find("button.console-button").Click();
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-layer-checkbox]").Count));
-        foreach (var checkbox in page.FindAll("[data-layer-checkbox]"))
+        for (var index = 0; index < 2; index++)
         {
-            checkbox.Change(true);
+            page.FindAll("[data-layer-checkbox]")[index].Change(true);
         }
 
         var queue = page.Find("[data-import-selected]").ClickAsync();
