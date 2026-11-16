@@ -59,8 +59,40 @@ public sealed partial class OperateObservabilityPageRenderTests
         page.WaitForAssertion(() => Assert.Equal("earlier", page.Find("#job-detail-heading").TextContent));
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, false)]
+    [InlineData(ConsolePresentationMode.Legacy, true)]
+    [InlineData(ConsolePresentationMode.V4, false)]
+    [InlineData(ConsolePresentationMode.V4, true)]
+    public async Task CorrelationQueryCannotDelayJobSelectionChange(ConsolePresentationMode mode, bool earlierLoaded)
+    {
+        var earlier = new TaskCompletionSource<OperateSectionResult<OperateJobRun>>();
+        var events = new TaskCompletionSource<OperateSectionResult<IReadOnlyList<OperateEventRow>>>();
+        if (earlierLoaded)
+        {
+            earlier.SetResult(JobResult("earlier"));
+        }
+        using var context = JobNavigationContext(mode, earlier, query => query.CorrelationId == "current-correlation"
+            ? events.Task
+            : Task.FromResult(OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([])));
+        var page = context.Render<OperateObservabilityPage>(p => p.Add(x => x.SelectedJobRunId, "earlier"));
+
+        page.Render(p => p.Add(x => x.SelectedJobRunId, "current")
+            .Add(x => x.CorrelationId, "current-correlation"));
+        if (!earlierLoaded)
+        {
+            await page.InvokeAsync(() => earlier.SetResult(JobResult("earlier")));
+        }
+
+        page.WaitForAssertion(() => Assert.Equal("current", page.Find("#job-detail-heading").TextContent));
+        Assert.False(events.Task.IsCompleted);
+        await page.InvokeAsync(() => events.SetResult(OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([])));
+        page.WaitForAssertion(() => Assert.Equal("current", page.Find("#job-detail-heading").TextContent));
+    }
+
     private static BunitContext JobNavigationContext(ConsolePresentationMode mode,
-        TaskCompletionSource<OperateSectionResult<OperateJobRun>> earlier)
+        TaskCompletionSource<OperateSectionResult<OperateJobRun>> earlier,
+        Func<OperateEventQuery, Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>>>? eventQuery = null)
     {
         var context = new BunitContext();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
@@ -68,7 +100,8 @@ public sealed partial class OperateObservabilityPageRenderTests
         context.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubOperateClient
         {
-            AsyncJobDetail = id => id == "earlier" ? earlier.Task : Task.FromResult(JobResult(id))
+            AsyncJobDetail = id => id == "earlier" ? earlier.Task : Task.FromResult(JobResult(id)),
+            AsyncEventQuery = eventQuery
         });
         return context;
     }

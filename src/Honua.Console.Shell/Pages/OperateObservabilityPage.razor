@@ -981,6 +981,7 @@
     {
         if (_loaded)
         {
+            var selectedJobTask = ResolveSelectedJobAsync();
             var correlationFilter = CorrelationId?.Trim() ?? string.Empty;
             if (!string.Equals(correlationFilter, _routeCorrelationFilter, StringComparison.Ordinal))
             {
@@ -988,7 +989,7 @@
                 _pendingCorrelationFilter = correlationFilter;
                 await LoadEventsAsync(_activeEventQuery with { CorrelationId = correlationFilter });
             }
-            await ResolveSelectedJobAsync();
+            await selectedJobTask;
         }
     }
 
