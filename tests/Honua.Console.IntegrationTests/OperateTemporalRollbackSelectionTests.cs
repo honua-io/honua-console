@@ -8,11 +8,11 @@ namespace Honua.Console.IntegrationTests;
 public sealed partial class OperateTemporalPageRenderTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task Rollback_RejectsPendingPlanAfterTargetOrScopeEdits(bool enabled, bool scope)
+    [InlineData(false, RollbackSelection.Target)]
+    [InlineData(false, RollbackSelection.Scope)]
+    [InlineData(true, RollbackSelection.Target)]
+    [InlineData(true, RollbackSelection.Scope)]
+    public async Task Rollback_RejectsPendingPlanAfterTargetOrScopeEdits(bool enabled, RollbackSelection selection)
     {
         var client = SelectionClient();
         var pending = new TaskCompletionSource<TemporalRollbackPlan>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -22,7 +22,7 @@ public sealed partial class OperateTemporalPageRenderTests
         InspectFirstSource(page);
         var request = Action(page, "Plan Rollback").ClickAsync(new MouseEventArgs());
         page.WaitForAssertion(() => Assert.True(Action(page, "Plan Rollback").HasAttribute("disabled")));
-        EditRollbackSelection(page, scope);
+        EditRollbackSelection(page, selection);
         pending.SetResult(SelectionPlan);
         await request;
         Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
@@ -30,11 +30,11 @@ public sealed partial class OperateTemporalPageRenderTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void Rollback_TargetOrScopeEditClearsPlanAndConfirmation(bool enabled, bool scope)
+    [InlineData(false, RollbackSelection.Target)]
+    [InlineData(false, RollbackSelection.Scope)]
+    [InlineData(true, RollbackSelection.Target)]
+    [InlineData(true, RollbackSelection.Scope)]
+    public void Rollback_TargetOrScopeEditClearsPlanAndConfirmation(bool enabled, RollbackSelection selection)
     {
         var client = SelectionClient();
         client.RollbackPlan = SelectionPlan;
@@ -44,7 +44,7 @@ public sealed partial class OperateTemporalPageRenderTests
         Action(page, "Plan Rollback").Click();
         Action(page, "Execute Rollback Job").Click();
         Assert.Single(page.FindAll("[data-console-confirm-accept]"));
-        EditRollbackSelection(page, scope);
+        EditRollbackSelection(page, selection);
         Assert.Empty(page.FindAll("[data-console-confirm-accept]"));
         Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
         Assert.Equal(0, client.ExecuteRollbackCalls);
@@ -103,9 +103,11 @@ public sealed partial class OperateTemporalPageRenderTests
         Assert.Equal(0, client.ExecuteRollbackCalls);
     }
 
-    private static void EditRollbackSelection(IRenderedComponent<OperateTemporalPage> page, bool scope)
+    public enum RollbackSelection { Target, Scope }
+
+    private static void EditRollbackSelection(IRenderedComponent<OperateTemporalPage> page, RollbackSelection selection)
     {
-        if (scope) page.Find("select[aria-label='Rollback scope']").Change("Layer");
+        if (selection == RollbackSelection.Scope) page.Find("select[aria-label='Rollback scope']").Change("Layer");
         else page.Find("select[aria-label='From checkpoint']").Change("cp-now");
     }
 
