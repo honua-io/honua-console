@@ -7273,7 +7273,7 @@ p {
    palette). Rendered by Components/FieldStateRow.razor. */
 .console-field-state {
     display: grid;
-    grid-template-columns: 22px minmax(140px, 200px) 1fr auto;
+    grid-template-columns: 22px minmax(140px, 200px) minmax(0, 1fr) auto;
     align-items: start;
     column-gap: 12px;
     padding: 8px 0;
@@ -7297,6 +7297,8 @@ p {
 
 .console-field-state__label {
     display: grid;
+    min-width: 0;
+    overflow-wrap: anywhere;
     gap: 2px;
     padding-top: 4px;
 }
@@ -7327,6 +7329,9 @@ p {
 .console-field-state__readonly,
 .console-field-state__derived {
     color: var(--honua-muted);
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .console-field-state__derived-from {
@@ -7365,6 +7370,34 @@ p {
     gap: 6px;
     padding-top: 4px;
     text-align: right;
+    grid-column: 4;
+    grid-row: 1;
+}
+
+/* Keep the label, full value and ownership hint readable on narrow screens. */
+@media (max-width: 720px) {
+    .console-field-state {
+        grid-template-columns: 22px minmax(0, 1fr);
+        row-gap: 6px;
+    }
+
+    .console-field-state__label {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .console-field-state__value {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .console-field-state__meta {
+        grid-column: 2;
+        grid-row: 3;
+        justify-content: flex-start;
+        text-align: left;
+        overflow-wrap: anywhere;
+    }
 }
 
 .console-field-state__hint {
