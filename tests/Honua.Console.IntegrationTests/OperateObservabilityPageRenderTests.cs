@@ -154,11 +154,11 @@ public sealed class OperateObservabilityPageRenderTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void CorrelationNavigationReloadsEventsWithoutReloadingThePage(bool v4Enabled, bool startWithDeepLink)
+    [InlineData(ConsolePresentationMode.Legacy, "")]
+    [InlineData(ConsolePresentationMode.Legacy, "corr-first")]
+    [InlineData(ConsolePresentationMode.V4, "")]
+    [InlineData(ConsolePresentationMode.V4, "corr-first")]
+    public void CorrelationNavigationReloadsEventsWithoutReloadingThePage(ConsolePresentationMode presentation, string initialCorrelationId)
     {
         var rows = new[]
         {
@@ -171,14 +171,14 @@ public sealed class OperateObservabilityPageRenderTests
                 rows.Where(row => string.IsNullOrEmpty(query.CorrelationId) || row.CorrelationId == query.CorrelationId).ToArray())
         };
         using var context = new BunitContext();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
         var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-        navigation.NavigateTo("/operate/observability" + (startWithDeepLink ? "?correlationId=corr-first#events" : "#events"));
+        navigation.NavigateTo("/operate/observability" + (string.IsNullOrEmpty(initialCorrelationId) ? "#events" : $"?correlationId={initialCorrelationId}#events"));
         var page = context.Render<OperateObservabilityPage>();
         var original = page.Instance;
-        page.WaitForAssertion(() => Assert.Equal(startWithDeepLink ? 1 : 2, page.FindAll("[data-timeline-row]").Count));
+        page.WaitForAssertion(() => Assert.Equal(string.IsNullOrEmpty(initialCorrelationId) ? 2 : 1, page.FindAll("[data-timeline-row]").Count));
         Assert.Single(client.EventQueries);
 
         navigation.NavigateTo("/operate/observability?correlationId=corr-next#events");
@@ -202,13 +202,13 @@ public sealed class OperateObservabilityPageRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CorrelationNavigationPreservesOtherAppliedFiltersAndIgnoresUnchangedQuery(bool v4Enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void CorrelationNavigationPreservesOtherAppliedFiltersAndIgnoresUnchangedQuery(ConsolePresentationMode presentation)
     {
         var client = new StubOperateClient();
         using var context = new BunitContext();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
         context.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
