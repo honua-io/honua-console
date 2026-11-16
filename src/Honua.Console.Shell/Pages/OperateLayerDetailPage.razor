@@ -356,7 +356,7 @@
     private ConsoleSetDomainResult? _domainResult;
 
     // Per-field alias/hidden edit state, keyed by field name and seeded from the last server read so the inputs
-    // reflect persisted values (and round-trip after a save). Rebuilt on every LoadFieldsAsync.
+    // reflect persisted values while retaining local drafts across a save read-back.
     private readonly Dictionary<string, FieldEdit> _fieldEdits = new(StringComparer.Ordinal);
     private bool _savingField;
     private ConsoleSetDomainResult? _fieldResult;
@@ -429,23 +429,40 @@
         _fieldResult = _domainResult = null;
     }
 
-    private async Task LoadFieldsAsync(long generation)
+    private async Task LoadFieldsAsync(long generation, string? savedFieldName = null, FieldEdit? submitted = null)
     {
         var fields = await LayerFields.GetFieldsAsync(_exposures[0].Layer.LayerId);
         if (generation != _layerGeneration) return;
+        // Compare with the last persisted values (or this save's submitted snapshot) at read completion,
+        // so edits made during either the write or its read-back remain in the form.
+        var nextEdits = new Dictionary<string, FieldEdit>(StringComparer.Ordinal);
+        foreach (var layerField in fields.Fields)
+        {
+            var previous = _fields.Fields.FirstOrDefault(field => field.Name == layerField.Name);
+            var baseline = layerField.Name == savedFieldName ? submitted : previous is null
+                ? null : new FieldEdit { Alias = previous.Alias, Hidden = previous.Hidden };
+            if (_fieldEdits.TryGetValue(layerField.Name, out var edit) && baseline is not null)
+            {
+                nextEdits[layerField.Name] = new FieldEdit
+                {
+                    Alias = edit.Alias == baseline.Alias ? layerField.Alias : edit.Alias,
+                    Hidden = edit.Hidden == baseline.Hidden ? layerField.Hidden : edit.Hidden
+                };
+            }
+            else
+            {
+                nextEdits[layerField.Name] = new FieldEdit { Alias = layerField.Alias, Hidden = layerField.Hidden };
+            }
+        }
+
         _fields = fields;
         if (_fields.Bound && _fields.Fields.Count > 0 && string.IsNullOrEmpty(_domainField))
         {
             _domainField = _fields.Fields[0].Name;
         }
 
-        // Reseed the editable alias/hidden state from the server read so the inputs (and any re-read after a
-        // save) reflect what is actually persisted.
         _fieldEdits.Clear();
-        foreach (var layerField in _fields.Fields)
-        {
-            _fieldEdits[layerField.Name] = new FieldEdit { Alias = layerField.Alias, Hidden = layerField.Hidden };
-        }
+        foreach (var (name, edit) in nextEdits) _fieldEdits[name] = edit;
     }
 
     private Task SaveFieldAsync(string fieldName)
@@ -457,6 +474,7 @@
 
         var generation = _layerGeneration;
         var layerId = _exposures[0].Layer.LayerId;
+        var submitted = new FieldEdit { Alias = edit.Alias, Hidden = edit.Hidden };
         _fieldResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
@@ -464,13 +482,13 @@
                 var result = await LayerFields.SetFieldConfigurationAsync(
                     layerId,
                     fieldName,
-                    edit.Alias,
-                    edit.Hidden);
+                    submitted.Alias,
+                    submitted.Hidden);
                 if (generation != _layerGeneration) return;
                 _fieldResult = result;
                 if (result.Succeeded)
                 {
-                    await LoadFieldsAsync(generation);
+                    await LoadFieldsAsync(generation, fieldName, submitted);
                 }
             },
             setBusy: busy => { if (generation == _layerGeneration) { _savingField = busy; StateHasChanged(); } },
