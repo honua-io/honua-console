@@ -110,7 +110,7 @@ public partial class OperateServiceDetailPage
         }
     }
 
-    private async Task LoadSettingsAsync(string serviceName, int generation)
+    private async Task LoadSettingsAsync(string serviceName, int generation, ServiceSettingsView? expected = null)
     {
         var request = ++_settingsGeneration;
         var settings = await ServiceConfig.GetSettingsAsync(serviceName);
@@ -119,20 +119,38 @@ public partial class OperateServiceDetailPage
             return;
         }
 
-        _settings = settings;
-        _availableProtocols = _settings.AvailableProtocols.Count > 0
-            ? _settings.AvailableProtocols
-            : FallbackProtocols;
-        _selectedProtocols.Clear();
-        foreach (var protocol in _settings.EnabledProtocols)
+        ApplySettings(settings, expected);
+    }
+
+    private void ApplySettings(ServiceSettingsView settings, ServiceSettingsView? expected)
+    {
+        if (expected is null || _selectedProtocols.SetEquals(expected.EnabledProtocols))
         {
-            _selectedProtocols.Add(protocol);
+            _selectedProtocols.Clear();
+            _selectedProtocols.UnionWith(settings.EnabledProtocols);
         }
 
-        _allowAnonymous = _settings.AllowAnonymous;
-        _allowAnonymousWrite = _settings.AllowAnonymousWrite;
-        _allowedRoles = string.Join(", ", _settings.AllowedRoles);
-        _allowedWriteRoles = string.Join(", ", _settings.AllowedWriteRoles);
+        if (expected is null || _allowAnonymous == expected.AllowAnonymous)
+        {
+            _allowAnonymous = settings.AllowAnonymous;
+        }
+        if (expected is null || _allowAnonymousWrite == expected.AllowAnonymousWrite)
+        {
+            _allowAnonymousWrite = settings.AllowAnonymousWrite;
+        }
+        if (expected is null || RolesMatch(_allowedRoles, expected.AllowedRoles))
+        {
+            _allowedRoles = string.Join(", ", settings.AllowedRoles);
+        }
+        if (expected is null || RolesMatch(_allowedWriteRoles, expected.AllowedWriteRoles))
+        {
+            _allowedWriteRoles = string.Join(", ", settings.AllowedWriteRoles);
+        }
+
+        _settings = settings;
+        _availableProtocols = settings.AvailableProtocols.Count > 0
+            ? settings.AvailableProtocols
+            : FallbackProtocols;
     }
 
     private static string RuntimeSettingScope(OperateRuntimeSetting setting) =>
@@ -160,9 +178,15 @@ public partial class OperateServiceDetailPage
 
     private Task SaveProtocolsAsync()
     {
+        if (_savingProtocols || _savingAccess)
+        {
+            return Task.CompletedTask;
+        }
+
         var serviceName = ServiceName;
         var generation = _serviceGeneration;
         var protocols = _selectedProtocols.ToArray();
+        var expected = _settings with { EnabledProtocols = protocols };
         _configResult = null;
         return Notifications.RunGuardedAsync(
             async () =>
@@ -180,7 +204,7 @@ public partial class OperateServiceDetailPage
                 _configResult = result;
                 if (result.Succeeded)
                 {
-                    await LoadSettingsAsync(serviceName, generation);
+                    await LoadSettingsAsync(serviceName, generation, expected);
                 }
             },
             setBusy: busy =>
@@ -196,6 +220,11 @@ public partial class OperateServiceDetailPage
 
     private Task SaveAccessAsync()
     {
+        if (_savingProtocols || _savingAccess)
+        {
+            return Task.CompletedTask;
+        }
+
         var serviceName = ServiceName;
         var generation = _serviceGeneration;
         var command = new ServiceAccessPolicyCommand
@@ -205,6 +234,13 @@ public partial class OperateServiceDetailPage
             AllowAnonymousWrite = _allowAnonymousWrite,
             AllowedRoles = ParseRoles(_allowedRoles),
             AllowedWriteRoles = ParseRoles(_allowedWriteRoles)
+        };
+        var expected = _settings with
+        {
+            AllowAnonymous = _allowAnonymous,
+            AllowAnonymousWrite = _allowAnonymousWrite,
+            AllowedRoles = command.AllowedRoles,
+            AllowedWriteRoles = command.AllowedWriteRoles
         };
         _configResult = null;
         return Notifications.RunGuardedAsync(
@@ -219,7 +255,7 @@ public partial class OperateServiceDetailPage
                 _configResult = result;
                 if (result.Succeeded)
                 {
-                    await LoadSettingsAsync(serviceName, generation);
+                    await LoadSettingsAsync(serviceName, generation, expected);
                 }
             },
             setBusy: busy =>
