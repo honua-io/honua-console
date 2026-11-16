@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const origin = 'http://127.0.0.1:5186';
+const origin = 'http://127.0.0.1:5185';
 const item = {
   id: 'reflow-item', name: 'reflow-item', itemType: 'layer', visibility: 'public', actions: ['view'],
   title: 'CoastalFloodResource'.repeat(12), description: 'Description'.repeat(30),
@@ -32,9 +32,10 @@ for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${origin}/console/share/public/items/reflow-item`);
       await expect(page.locator('[data-share-opendata-landing]')).toBeVisible();
-      await page.addStyleTag({ content: `html { font-size: ${fontSize}px !important; }` });
+      await page.addStyleTag({ content: `html { font-size: ${fontSize}px !important; } .share-opendata-intro { font-size: ${14 * fontSize / 16}px !important; }` });
       await expect(page.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
       await expect(page.locator('.share-opendata-intro')).toHaveText(item.description);
+      await expect(page.locator('.share-opendata-intro')).toHaveCSS('font-size', `${14 * fontSize / 16}px`);
       await expect(page.locator('.share-opendata-v4 .console-chip-row span')).toHaveText(`#${item.tags[0]}`);
       await expect(page.locator('[data-share-opendata-footer]')).toContainText(item.ownerId);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
