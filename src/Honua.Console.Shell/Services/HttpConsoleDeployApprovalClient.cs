@@ -15,6 +15,7 @@ public sealed partial class HttpConsoleDeployApprovalClient : IConsoleDeployAppr
         "No active environment profile is selected. Connect an environment to review deploy approvals.";
 
     private readonly HttpClient _http;
+    private readonly IConsoleAuthorityBindingValidator? _authority;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
@@ -27,7 +28,8 @@ public sealed partial class HttpConsoleDeployApprovalClient : IConsoleDeployAppr
         IConsoleAccountSessionStore sessionStore,
         string? adminApiKey = null,
         IConsoleOperatorBearerProvider? operatorBearerProvider = null,
-        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
+        IConsoleAuthorityBindingValidator? authority = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
@@ -39,6 +41,7 @@ public sealed partial class HttpConsoleDeployApprovalClient : IConsoleDeployAppr
                 new UnavailableConsoleOperatorBearerExchange(),
                 TimeProvider.System);
         _credentialMode = credentialMode;
+        _authority = authority;
     }
 
     public async Task<OperateSectionResult<DeployOperationProposal>> GetOperationAsync(

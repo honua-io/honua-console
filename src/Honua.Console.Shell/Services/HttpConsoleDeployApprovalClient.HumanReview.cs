@@ -28,7 +28,7 @@ public sealed partial class HttpConsoleDeployApprovalClient
             BuildUri(profile!.ServerBaseUri, DeployControlAdminRoutes.Operation(operationId.Trim()) + "/approval-review/submit"));
         request.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
         var result = await ExchangeHumanAsync(request, DeployHumanReviewJsonContext.Default.DeployHumanReviewResponse,
-            cancellationToken).ConfigureAwait(false);
+            profile!, cancellationToken).ConfigureAwait(false);
         if (!result.IsAllowed || result.Value is not { } response)
         {
             return OperateSectionResult<ConsoleDeployApprovalReview>.Denied(result.Status, result.Message);
@@ -79,7 +79,7 @@ public sealed partial class HttpConsoleDeployApprovalClient
             new SubmitDeployOperationRequest { Reason = NormalizeReason(reason) },
             DeployControlJsonContext.Default.SubmitDeployOperationRequest), Encoding.UTF8, "application/json");
         var result = await ExchangeHumanAsync(request, MetadataReleaseJsonContext.Default.DeployOperationResponse,
-            cancellationToken).ConfigureAwait(false);
+            profile, cancellationToken).ConfigureAwait(false);
         return result.IsAllowed && result.Value is { } operation
             ? OperateSectionResult<DeployOperationProposal>.Allowed(DeployApprovalMapper.MapProposal(operation))
             : OperateSectionResult<DeployOperationProposal>.Denied(result.Status, result.Message);
@@ -87,13 +87,13 @@ public sealed partial class HttpConsoleDeployApprovalClient
 
     private async Task<bool> HasHumanTransportAsync(ConsoleEnvironmentProfile? profile, CancellationToken cancellationToken)
     {
-        if (profile is null || _credentialMode != ConsoleServerCredentialMode.Interactive) return false;
+        if (_authority is null || profile is null || _credentialMode != ConsoleServerCredentialMode.Interactive) return false;
         var authority = await _operatorBearerProvider.ResolveAsync(profile, cancellationToken).ConfigureAwait(false);
         return authority.HasInteractiveSession && authority.UsesBrowserTransport;
     }
 
     private async Task<OperateSectionResult<T>> ExchangeHumanAsync<T>(
-        HttpRequestMessage request, JsonTypeInfo<T> type, CancellationToken cancellationToken)
+        HttpRequestMessage request, JsonTypeInfo<T> type, ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
     {
         try
         {
@@ -106,7 +106,11 @@ public sealed partial class HttpConsoleDeployApprovalClient
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             var value = await JsonSerializer.DeserializeAsync(stream, type, cancellationToken).ConfigureAwait(false);
-            return value is null
+            var active = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+            var current = active?.Id == profile.Id && active.ServerBaseUri == profile.ServerBaseUri
+                && request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out var binding)
+                && _authority is not null && await _authority.IsCurrentAsync(binding, cancellationToken).ConfigureAwait(false);
+            return value is null || !current
                 ? OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable, ReviewAgainMessage)
                 : OperateSectionResult<T>.Allowed(value);
         }

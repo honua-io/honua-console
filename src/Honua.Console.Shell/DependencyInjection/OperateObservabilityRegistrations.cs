@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -54,7 +55,8 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 adminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                credentialMode));
+                credentialMode,
+                serviceProvider.GetService<IConsoleAuthorityBindingValidator>()));
         services.TryAddSingleton<IConsoleDeployOperationsClient>(serviceProvider =>
             new HttpConsoleDeployOperationsClient(
                 ShellHttpClients.ManagerBound(serviceProvider),

@@ -13,7 +13,7 @@ public sealed class DeployHumanReviewResponse
 // Shared operation grant; capability is transient and must never be persisted or logged.
 public sealed class OperationHumanReviewGrant
 {
-    public Guid? TenantId { get; init; }
+    public string? TenantId { get; init; }
     public required string ProposalId { get; init; }
     public long ProposalVersion { get; init; }
     public required string PlanHash { get; init; }

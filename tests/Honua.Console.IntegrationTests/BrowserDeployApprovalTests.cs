@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Honua.Console.Shell.Components;
 using System.Net;
@@ -108,15 +109,53 @@ public sealed class BrowserDeployApprovalTests
 
     private static ClaimsPrincipal Principal(string id) => new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id)], "test"));
 
-    private static HttpConsoleDeployApprovalClient Client(ConsoleBrowserSession session, ReviewServer server)
+    private static HttpConsoleDeployApprovalClient Client(ConsoleBrowserSession session, ReviewServer server, InMemoryConsoleEnvironmentProfileStore? profiles = null)
     {
         var http = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(Api, App), session, BrowserApiAccess.Authenticated)
         { InnerHandler = server })
         { BaseAddress = Api };
-        var profiles = new InMemoryConsoleEnvironmentProfileStore(
+        profiles ??= new InMemoryConsoleEnvironmentProfileStore(
             [new ConsoleEnvironmentProfile { Id = "live", ServerBaseUri = Api }], activeProfileId: "live");
         return new(http, profiles, new InMemoryConsoleAccountSessionStore(), "unused-admin-key",
-            new BrowserOperatorBearerProvider(session, Api));
+            new BrowserOperatorBearerProvider(session, Api), authority: new BrowserAuthorityBindingValidator(session, Api));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task AuthorityChangedWhileReadingBodyCannotCompleteReviewOrDecision(bool deciding, bool changeProfile)
+    {
+        var session = Session();
+        var server = new ReviewServer();
+        var profiles = new InMemoryConsoleEnvironmentProfileStore(
+            [new ConsoleEnvironmentProfile { Id = "live", ServerBaseUri = Api },
+             new ConsoleEnvironmentProfile { Id = "other", ServerBaseUri = Api }], activeProfileId: "live");
+        var client = Client(session, server, profiles);
+        var review = deciding ? (await client.OpenSubmitReviewAsync("deploy-1")).Value : null;
+        server.BeforeBody = () =>
+        {
+            if (changeProfile) profiles.ActivateProfileAsync("other").GetAwaiter().GetResult();
+            else session.Set(Principal("another-human"), new ConsoleSessionCredentials(CsrfToken: "other-csrf"));
+        };
+        var allowed = deciding
+            ? (await client.SubmitAsync(review!, null)).IsAllowed
+            : (await client.OpenSubmitReviewAsync("deploy-1")).IsAllowed;
+        Assert.False(allowed);
+        Assert.Equal(deciding ? 2 : 1, server.Requests.Count);
+    }
+
+    // Delay until deserialization starts, after the transport has checked response headers.
+    private sealed class DelayedContent(string json, Action beforeBody) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            beforeBody();
+            return stream.WriteAsync(Encoding.UTF8.GetBytes(json)).AsTask();
+        }
+
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
     }
 
     private sealed record Seen(string Line, string? Capability, string? Csrf, string? Authorization, string? ApiKey);
@@ -125,6 +164,7 @@ public sealed class BrowserDeployApprovalTests
     {
         public List<Seen> Requests { get; } = [];
         public int LifetimeMinutes { get; init; } = 5;
+        public Action? BeforeBody { get; set; }
         public HttpStatusCode ReviewStatus { get; init; } = HttpStatusCode.OK;
         public HttpStatusCode DecisionStatus { get; init; } = HttpStatusCode.OK;
 
@@ -148,6 +188,7 @@ public sealed class BrowserDeployApprovalTests
                 action = "submit",
                 review = new
                 {
+                    tenantId = "tenant-a",
                     proposalId = "deploy-1",
                     proposalVersion = 3,
                     planHash = "plan-3",
@@ -156,7 +197,7 @@ public sealed class BrowserDeployApprovalTests
                 }
             } : operation;
             return Task.FromResult(new HttpResponseMessage(reviewing ? ReviewStatus : DecisionStatus)
-            { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") });
+            { Content = new DelayedContent(JsonSerializer.Serialize(body), () => BeforeBody?.Invoke()) });
         }
     }
 }
