@@ -47,9 +47,20 @@ for (const v4Enabled of [false, true]) {
     await expect(map).toHaveAttribute('data-map-bound', 'true');
     await expect(map.locator('canvas.maplibregl-canvas')).toHaveCount(1);
     expect(styleRequests).toBe(1);
-    await page.goto('http://127.0.0.1:5185/console/operate/connections');
+    await page.evaluate(async () => {
+      const modulePath = './_content/Honua.Console.Shell/map-preview.js';
+      const preview = await import(new URL(modulePath, document.baseURI).href);
+      const container = document.querySelector('[data-map-preview-canvas]');
+      Object.assign(window, { oldMapIsReleased: () => !preview.zoomIn(container) });
+    });
+    await page.locator('[data-layer-style-link]').click();
+    await expect(page).toHaveURL(/\/style$/);
     await expect(map).toHaveCount(0);
-    await page.goto(`http://127.0.0.1:5185/console/operate/layers/${connection}-layer-7`);
+    await expect.poll(() => page.evaluate(() => {
+      const probe = (window as unknown as { oldMapIsReleased: () => boolean }).oldMapIsReleased;
+      return typeof probe === 'function' && probe();
+    })).toBe(true);
+    await page.goBack();
     await expect(map).toHaveAttribute('data-map-bound', 'true');
     await expect(map.locator('canvas.maplibregl-canvas')).toHaveCount(1);
     expect(errors).toEqual([]);

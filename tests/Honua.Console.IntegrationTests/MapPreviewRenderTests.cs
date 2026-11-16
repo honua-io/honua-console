@@ -337,6 +337,66 @@ public sealed class MapPreviewRenderTests
         Assert.Equal(1, module.Initializations);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MapPreview_ReplacingPendingStyle_OnlyLatestCompletionControlsBinding(bool latestCompletesFirst)
+    {
+        using var ctx = new BunitContext();
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
+        var first = module.Setup<bool>("init", invocation =>
+            System.Text.Json.JsonSerializer.SerializeToElement(invocation.Arguments[1])
+                .GetProperty("styleUrl").GetString() == "/first.json");
+        var latest = module.Setup<bool>("init", invocation =>
+            System.Text.Json.JsonSerializer.SerializeToElement(invocation.Arguments[1])
+                .GetProperty("styleUrl").GetString() == "/latest.json");
+        module.SetupVoid("dispose", _ => true).SetVoidResult();
+        var cut = ctx.Render<MapPreview>(p => p.Add(x => x.StyleUrl, "/first.json"));
+
+        cut.Render(p => p.Add(x => x.StyleUrl, "/latest.json"));
+
+        Assert.Equal(2, module.Invocations["init"].Count);
+        Assert.Single(module.Invocations["dispose"]);
+        if (latestCompletesFirst)
+        {
+            await ctx.Renderer.Dispatcher.InvokeAsync(() => latest.SetResult(true));
+            cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+            await ctx.Renderer.Dispatcher.InvokeAsync(() => first.SetResult(false));
+        }
+        else
+        {
+            await ctx.Renderer.Dispatcher.InvokeAsync(() => first.SetResult(true));
+            Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
+            await ctx.Renderer.Dispatcher.InvokeAsync(() => latest.SetResult(true));
+        }
+
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.False(button.HasAttribute("disabled")));
+        Assert.Single(module.Invocations["dispose"]);
+    }
+
+    [Fact]
+    public void MapPreview_FailedImport_CanRetryTheSameStyle()
+    {
+        using var ctx = new BunitContext();
+        var runtime = new DeferredMapRuntime();
+        runtime.Import.SetException(new JSException("Module unavailable"));
+        ctx.Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = ctx.Render<MapPreview>(p => p.Add(x => x.StyleUrl, "/style.json"));
+
+        Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.True(button.HasAttribute("disabled")));
+        runtime.Import = new();
+        var module = new MapModule();
+        runtime.Import.SetResult(module);
+        cut.Render(p => p.Add(x => x.AriaLabel, "Retry after module recovery"));
+
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.Equal(2, runtime.Imports);
+        Assert.Equal(1, module.Initializations);
+        Assert.Equal("/style.json", module.LastStyleUrl);
+    }
+
     private sealed class DeferredMapRuntime : IJSRuntime
     {
         public TaskCompletionSource<IJSObjectReference> Import { get; set; } = new();
