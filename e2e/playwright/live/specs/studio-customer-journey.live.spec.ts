@@ -443,7 +443,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     await test.step('customer publication and signed-out audience', async () => {
       await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
       await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
-      const publication = page.getByRole('region', { name: 'Map publication', exact: true });
+      const publication = page.getByRole('region', { name: 'Map release', exact: true });
       const route = `/customer-${nonce()}`;
       await publication.getByRole('textbox', { name: 'Publication route' }).fill(route);
       await publication.getByRole('combobox', { name: 'Publication audience' }).selectOption('public');
@@ -500,7 +500,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
       } finally { await approverContext.close(); }
       // Refresh is hidden once the receipt is terminal and disabled while a refresh is in flight.
       const openPublishedMap = publication.getByRole('link', { name: 'Open published map', exact: true });
-      const refreshPublication = publication.getByRole('button', { name: 'Refresh publication status', disabled: false });
+      const refreshPublication = publication.getByRole('button', { name: 'Refresh release status', disabled: false });
       await expect.poll(async () => {
         if (await openPublishedMap.isVisible()) return true;
         if (await refreshPublication.isVisible()) await refreshPublication.click();

@@ -288,7 +288,7 @@ test('installed workspace: visual and prompted styling persist on the same rende
     expect(handoffPath).toBeTruthy();
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
     await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
-    const publication = page.getByRole('region', { name: 'Map publication', exact: true });
+    const publication = page.getByRole('region', { name: 'Map release', exact: true });
     await expect(publication).toBeVisible();
     await expect(publication).toContainText(`Publish saved version 1 of ${packageKey}`);
     await publication.getByRole('textbox', { name: 'Publication route' }).fill(publicationRoute!);

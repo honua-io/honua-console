@@ -13,6 +13,9 @@ async function mount(page: Page) {
         status.dataset.versionTestStatus = '';
         host.append(app, status); document.body.append(host);
         const calls: string[] = [];
+        app.reviewWorkspacePublication = async () => ({});
+        app.publishWorkspaceVersion = async () => ({});
+        app.readWorkspacePublication = async () => ({});
         app.workspaceCookieBinding = { principalId: 'human', environmentId: 'local' };
         app.saveWorkspaceVersion = async () => { calls.push('save'); return { versionNumber: 1 }; };
         app.listWorkspaceVersions = async () => {
@@ -33,7 +36,7 @@ test('version actions require a draft and explicitly save, list and reopen it', 
     const save = page.getByRole('button', { name: 'Save version', exact: true });
     const browse = page.getByRole('button', { name: 'Saved versions', exact: true });
     await expect(save).toBeDisabled(); await expect(browse).toBeDisabled();
-    await expect(page.getByRole('region', { name: 'Map publication' })).toBeHidden();
+    await expect(page.getByRole('region', { name: 'Map release' })).toBeHidden();
     await page.evaluate(() => (window as any).versionFixture.select('original'));
     await save.click();
     await expect(page.locator('[data-version-test-status]')).toHaveText('Saved version 1.');
