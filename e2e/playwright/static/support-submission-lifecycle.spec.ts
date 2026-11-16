@@ -33,6 +33,27 @@ for (const v4Enabled of [false, true]) {
       if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
       await page.goto(`http://127.0.0.1:${address.port}/console/support`);
       await expect(page.locator('.support-context-list')).toBeVisible();
+      for (const mode of ['normal', 'spacing', 'enlarged', 'combined']) {
+        const enlarged = mode === 'enlarged' || mode === 'combined';
+        const spaced = mode === 'spacing' || mode === 'combined';
+        const style = await page.addStyleTag({ content: `
+          html { font-size: ${enlarged ? 32 : 16}px !important; }
+          ${spaced ? '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }' : ''}
+        ` });
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+        expect(await page.locator('.support-context-panel').evaluate(panel => {
+          const bounds = panel.getBoundingClientRect();
+          return [...panel.querySelectorAll('h2, p, dt, dd')].flatMap(element => {
+            const rect = element.getBoundingClientRect();
+            return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 ? [] : [{ text: element.textContent, left: rect.left, right: rect.right, bounds }];
+          });
+        }), mode).toEqual([]);
+        await expect(page.getByRole('button', { name: 'Submit ticket', exact: true })).toBeDisabled();
+        await testInfo.attach(`support-${mode}-v4-${v4Enabled}`, {
+          body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
+        });
+        await style.evaluate(element => element.remove());
+      }
       await page.getByLabel('Requested action', { exact: true }).fill('Diagnose synthetic errors');
       await page.getByLabel('Symptoms', { exact: true }).fill('Synthetic failure');
       await page.getByLabel('Symptoms', { exact: true }).blur();
