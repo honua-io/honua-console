@@ -5,6 +5,7 @@ using System.Text.Json;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.WebAssembly.Http;
 
 namespace Honua.Console.Web.Runtime;
 
@@ -21,7 +22,9 @@ public sealed class ConsoleApiClient(HttpClient http)
 
     public async Task<ConsoleApiSession> GetSessionAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync("api/v1/admin/auth/session", cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/admin/auth/session");
+        request.SetBrowserRequestOption("cache", "no-store");
+        using var response = await http.SendAsync(request, cancellationToken);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             return new ConsoleApiSession(new ClaimsPrincipal(new ClaimsIdentity()));

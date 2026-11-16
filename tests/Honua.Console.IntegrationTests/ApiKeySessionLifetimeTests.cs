@@ -42,11 +42,28 @@ public sealed class ApiKeySessionLifetimeTests
         AssertCleared(page);
     }
 
-    private static ConsoleBrowserSession Register(BunitContext context, DateTimeOffset? expiry = null)
+    [Theory]
+    [InlineData(HttpStatusCode.OK, false, "operator")]
+    [InlineData(HttpStatusCode.OK, true, "another-operator")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true, "operator")]
+    public void UnverifiedSessionDoesNotRevealTheCreatedCredential(HttpStatusCode status, bool authenticated, string account)
+    {
+        using var context = new BunitContext();
+        Register(context, sessionHandler: new SessionHandler(status, authenticated, account));
+        var page = context.Render<OperateApiKeysPage>();
+        page.Find("#api-key-name").Change("Reporting app");
+        page.Find("#api-key-permissions").Change("admin:read");
+        page.Find("form").Submit();
+        AssertCleared(page);
+        Assert.DoesNotContain("sensitive-key", page.Markup);
+    }
+
+    private static ConsoleBrowserSession Register(BunitContext context, DateTimeOffset? expiry = null, HttpMessageHandler? sessionHandler = null)
     {
         var api = new Uri("https://console.example/");
         var session = new ConsoleBrowserSession();
         SignIn(session, expiry);
+        context.Services.AddSingleton(new ConsoleApiClient(new HttpClient(sessionHandler ?? new SessionHandler(HttpStatusCode.OK, true, "operator")) { BaseAddress = api }));
         context.Services.AddSingleton(session).AddBrowserAuthorityBinding(api);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         context.Services.AddSingleton<IHonuaAdminOperateClient>(new HonuaAdminOperateHttpClient(new HttpClient(new ApiHandler()), new(api)));
@@ -74,6 +91,19 @@ public sealed class ApiKeySessionLifetimeTests
     private static void SignIn(ConsoleBrowserSession session, DateTimeOffset? expiry) => session.Set(
         new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test")),
         new ConsoleSessionCredentials(CsrfToken: "csrf", ExpiresAt: expiry));
+
+    private sealed class SessionHandler(HttpStatusCode status, bool authenticated, string account) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    isAuthenticated = authenticated,
+                    claims = new[] { new { type = ClaimTypes.NameIdentifier, value = account } }
+                }), Encoding.UTF8, "application/json")
+            });
+    }
 
     private sealed class ApiHandler : HttpMessageHandler
     {
