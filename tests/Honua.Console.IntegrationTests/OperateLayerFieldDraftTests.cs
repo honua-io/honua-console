@@ -10,18 +10,18 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateLayerFieldDraftTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task SuccessfulSavePreservesEditsMadeDuringWrite(bool enabled, bool domain)
+    [InlineData(false, SaveOperation.Field)]
+    [InlineData(false, SaveOperation.Domain)]
+    [InlineData(true, SaveOperation.Field)]
+    [InlineData(true, SaveOperation.Domain)]
+    public async Task SuccessfulSavePreservesEditsMadeDuringWrite(bool enabled, SaveOperation operation)
     {
         var fields = new DraftFields { DelayWrite = true };
         using var context = CreateContext(fields, enabled);
         var page = Render(context);
         page.Find("[data-field-alias]").Change("Submitted alias");
-        if (domain) page.Find("[data-domain-name]").Change("codes");
-        var save = page.Find(domain ? "[data-domain-save]" : "[data-field-save]").ClickAsync(new());
+        if (operation == SaveOperation.Domain) page.Find("[data-domain-name]").Change("codes");
+        var save = page.Find(operation == SaveOperation.Domain ? "[data-domain-save]" : "[data-field-save]").ClickAsync(new());
         page.WaitForAssertion(() => Assert.Equal(1, fields.Writes));
         page.Find("[data-field-alias]").Change("Newer alias");
         page.Find("[data-field-hidden]").Change(true);
@@ -31,22 +31,22 @@ public sealed class OperateLayerFieldDraftTests
 
         AssertDraft(page, "Newer alias", true);
         Assert.Equal(enabled ? 2 : 0, ChangedFields(context));
-        if (!domain) Assert.Equal(("first_field", "Submitted alias", false), fields.Submitted);
+        if (operation == SaveOperation.Field) Assert.Equal(("first_field", "Submitted alias", false), fields.Submitted);
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task SuccessfulSavePreservesEditsMadeDuringReadBack(bool enabled, bool domain)
+    [InlineData(false, SaveOperation.Field)]
+    [InlineData(false, SaveOperation.Domain)]
+    [InlineData(true, SaveOperation.Field)]
+    [InlineData(true, SaveOperation.Domain)]
+    public async Task SuccessfulSavePreservesEditsMadeDuringReadBack(bool enabled, SaveOperation operation)
     {
         var fields = new DraftFields { DelayReadBack = true };
         using var context = CreateContext(fields, enabled);
         var page = Render(context);
         page.Find("[data-field-alias]").Change("Submitted alias");
-        if (domain) page.Find("[data-domain-name]").Change("codes");
-        var save = page.Find(domain ? "[data-domain-save]" : "[data-field-save]").ClickAsync(new());
+        if (operation == SaveOperation.Domain) page.Find("[data-domain-name]").Change("codes");
+        var save = page.Find(operation == SaveOperation.Domain ? "[data-domain-save]" : "[data-field-save]").ClickAsync(new());
         page.WaitForAssertion(() => Assert.Equal(2, fields.Reads));
         page.Find("[data-field-alias]").Change("Read-back draft");
         page.Find("[data-field-hidden]").Change(true);
@@ -59,11 +59,11 @@ public sealed class OperateLayerFieldDraftTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void SuccessfulSavePreservesAnotherFieldsDraft(bool enabled, bool domain)
+    [InlineData(false, SaveOperation.Field)]
+    [InlineData(false, SaveOperation.Domain)]
+    [InlineData(true, SaveOperation.Field)]
+    [InlineData(true, SaveOperation.Domain)]
+    public void SuccessfulSavePreservesAnotherFieldsDraft(bool enabled, SaveOperation operation)
     {
         var fields = new DraftFields();
         using var context = CreateContext(fields, enabled);
@@ -71,38 +71,38 @@ public sealed class OperateLayerFieldDraftTests
         var other = page.Find("[data-field-name='other_field']");
         other.QuerySelector("[data-field-alias]")!.Change("Other draft");
         other.QuerySelector("[data-field-hidden]")!.Change(true);
-        if (domain) page.Find("[data-domain-name]").Change("codes");
+        if (operation == SaveOperation.Domain) page.Find("[data-domain-name]").Change("codes");
         else page.Find("[data-field-alias]").Change("Saved alias");
 
-        page.Find(domain ? "[data-domain-save]" : "[data-field-save]").Click();
+        page.Find(operation == SaveOperation.Domain ? "[data-domain-save]" : "[data-field-save]").Click();
 
-        AssertDraft(page, domain ? "Original alias" : "Saved alias", false);
+        AssertDraft(page, operation == SaveOperation.Domain ? "Original alias" : "Saved alias", false);
         Assert.Equal("Other draft", page.Find("[data-field-name='other_field'] [data-field-alias]").GetAttribute("value"));
         Assert.True(page.Find("[data-field-name='other_field'] [data-field-hidden]").HasAttribute("checked"));
         Assert.Equal(enabled ? 2 : 0, ChangedFields(context));
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task UnchangedInputsAcceptServerValuesIndependently(bool enabled, bool editAlias)
+    [InlineData(false, EditedProperty.Hidden)]
+    [InlineData(false, EditedProperty.Alias)]
+    [InlineData(true, EditedProperty.Hidden)]
+    [InlineData(true, EditedProperty.Alias)]
+    public async Task UnchangedInputsAcceptServerValuesIndependently(bool enabled, EditedProperty editedProperty)
     {
         var fields = new DraftFields { DelayWrite = true, Canonicalize = true };
         using var context = CreateContext(fields, enabled);
         var page = Render(context);
         page.Find("[data-field-alias]").Change("Submitted alias");
-        if (!editAlias) page.Find("[data-field-hidden]").Change(true);
+        if (editedProperty == EditedProperty.Hidden) page.Find("[data-field-hidden]").Change(true);
         var save = page.Find("[data-field-save]").ClickAsync(new());
         page.WaitForAssertion(() => Assert.Equal(1, fields.Writes));
-        if (editAlias) page.Find("[data-field-alias]").Change("Newer alias");
+        if (editedProperty == EditedProperty.Alias) page.Find("[data-field-alias]").Change("Newer alias");
         else page.Find("[data-field-hidden]").Change(false);
 
         await page.InvokeAsync(() => fields.WriteGate.SetResult(Success()));
         await save;
 
-        AssertDraft(page, editAlias ? "Newer alias" : "Canonical alias", editAlias);
+        AssertDraft(page, editedProperty == EditedProperty.Alias ? "Newer alias" : "Canonical alias", editedProperty == EditedProperty.Alias);
         Assert.Equal(enabled ? 1 : 0, ChangedFields(context));
     }
 
@@ -165,6 +165,18 @@ public sealed class OperateLayerFieldDraftTests
         Assert.Equal(("first_field", "Original alias", false), fields.Submitted);
         Assert.Equal(2, fields.Writes);
         Assert.Equal(0, ChangedFields(context));
+    }
+
+    public enum SaveOperation
+    {
+        Field,
+        Domain
+    }
+
+    public enum EditedProperty
+    {
+        Alias,
+        Hidden
     }
 
     private static ConsoleSetDomainResult Success() => new() { Succeeded = true, State = "Updated" };
