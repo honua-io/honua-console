@@ -12,7 +12,11 @@
 <ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-layer-resource-id="@ResourceId" data-layer-loaded="@(_exposures.Count > 0)">
-    @if (_ambiguousResourceIds.Count > 1)
+    @if (_loading)
+    {
+        <ConsoleStateView Kind="loading" HeadingLevel="2" Kicker="Operate / Layers" Title="Loading layer" Message="Reading layer details from honua-server." />
+    }
+    else if (_ambiguousResourceIds.Count > 1)
     {
         <div class="console-page-heading" data-layer-ambiguous>
             <p class="console-kicker">Operate / Layers</p>
@@ -387,7 +391,7 @@
         // Pin proxy URLs to the environment this view renders, so a later switch elsewhere fails them closed.
         var environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
             ServiceProvider.GetService<IConsoleEnvironmentProfileStore>());
-        var view = await OperateData.GetLayersViewAsync();
+        var view = await OperateData.GetLayerViewAsync(ResourceId);
         if (generation != _layerGeneration) return;
         _environmentId = environmentId;
         _exposures = view.FindExposures(resourceId);

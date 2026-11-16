@@ -90,6 +90,41 @@ public sealed class OperateLayerLookupTests
         return ctx;
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DetailPage_ShowsLoadingUntilTheLayerReadCompletes(bool exists)
+    {
+        using var ctx = RenderContext();
+        var source = new DelayedLayersDataSource();
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(source);
+
+        var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, "conn-a-layer-1"));
+
+        Assert.Contains("Loading layer", page.Markup);
+        Assert.DoesNotContain("Layer Not Found", page.Markup);
+        await page.InvokeAsync(() => source.Complete(exists ? [Service("cadastre", ParcelsOnConnA)] : []));
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Loading layer", page.Markup);
+            Assert.Contains(exists ? "Parcels" : "Layer Not Found", page.Markup);
+        });
+    }
+
+    private sealed class DelayedLayersDataSource : IOperateTransitionDataSource
+    {
+        private readonly TaskCompletionSource<OperateServicesView> _read = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly FixedServicesDataSource _fallback = new();
+
+        public void Complete(OperateServiceDetail[] services) => _read.SetResult(new(services, []));
+        public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) => _read.Task;
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) => _fallback.GetWorkspaceAsync(cancellationToken);
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => _fallback.FindConnectionAsync(connectionId, cancellationToken);
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) => _fallback.FindResourceEditAsync(resourceId, cancellationToken);
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => _fallback.FindServiceAsync(serviceName, cancellationToken);
+    }
+
     [Fact]
     public void GeometryByCanonicalResourceId_MatchesFindLayerForEveryServedResource()
     {

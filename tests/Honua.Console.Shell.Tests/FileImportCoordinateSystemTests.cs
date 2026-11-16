@@ -80,11 +80,11 @@ public sealed class FileImportCoordinateSystemTests
     [Theory]
     [InlineData("[\"One feature has no optional name.\"]", "One feature has no optional name.")]
     [InlineData("null", null)]
-    public async Task CompletedImportPreservesWarnings(string warnings, string? expected)
+    public async Task CompletedImportPreservesWarningsAndPhysicalTable(string warnings, string? expected)
     {
         using var handler = new ImportHandler
         {
-            RawResponse = "{\"success\":true,\"sourceSrid\":2193,\"storedSrid\":2193,\"reprojected\":false,\"featureCount\":1,\"tableName\":\"projected\",\"warnings\":" + warnings + "}"
+            RawResponse = "{\"success\":true,\"sourceSrid\":2193,\"storedSrid\":2193,\"reprojected\":false,\"featureCount\":1,\"tableName\":\"projected\",\"physicalTableName\":\"physical_projected\",\"schema\":\"imports\",\"warnings\":" + warnings + "}"
         };
         using var http = new HttpClient(handler);
         using var client = Client(http);
@@ -94,6 +94,8 @@ public sealed class FileImportCoordinateSystemTests
         Assert.True(result.Succeeded, result.Detail);
         Assert.Equal("Imported", result.State);
         Assert.Equal(1, result.FeatureCount);
+        Assert.Equal("physical_projected", result.PhysicalTableName);
+        Assert.Equal("imports", result.Schema);
         if (expected is null) Assert.Empty(result.Warnings);
         else Assert.Equal(expected, Assert.Single(result.Warnings));
     }
