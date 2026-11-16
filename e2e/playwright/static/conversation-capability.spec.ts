@@ -11,7 +11,8 @@ test('unsupported conversation stays explicit and never starts a legacy workspac
   });
   page.on('pageerror', error => errors.push(error.message));
   await signInWithFixturePassword(page, 'http://127.0.0.1:5185', '/operate/connections');
-  await expect(page.locator('[data-console-location]')).toBeAttached();
+  await expect(page).toHaveURL('http://127.0.0.1:5185/console/operate/connections');
+  await expect(page.locator('[data-console-location]')).toHaveAttribute('data-console-location', '/console/operate/connections');
   const toggle = page.locator('[data-conversation-toggle]');
   await expect(toggle).toBeVisible();
   await toggle.focus();
