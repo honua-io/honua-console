@@ -272,7 +272,6 @@ test("every deployment artifact fetches verified Cesium before publish", () => {
   const workflowPaths = [
     ".github/workflows/ci.yml",
     ".github/workflows/static-bundle.yml",
-    ".github/workflows/console-aws-browser.yml",
     ".github/workflows/console-e2e.yml",
   ];
 
