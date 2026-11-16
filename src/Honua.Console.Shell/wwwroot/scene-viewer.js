@@ -58,6 +58,9 @@ function loadCesium() {
         } catch {
             resolve(null);
         }
+    }).then((runtime) => {
+        if (!runtime) cesiumPromise = null;
+        return runtime;
     });
 
     return cesiumPromise;
