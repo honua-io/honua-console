@@ -6,8 +6,15 @@
     let lastAuthorityRevision;
     const modal = honuaModalSurface.create({
         surface: () => host,
-        backgrounds: () => [...document.body.children].filter(element => element !== host
-            && !element.matches('[data-conversation-backdrop], script')),
+        backgrounds: () => {
+            const backgrounds = [];
+            for (let foreground = host; foreground?.parentElement; foreground = foreground.parentElement) {
+                backgrounds.push(...[...foreground.parentElement.children].filter(element => element !== foreground
+                    && !element.matches('[data-conversation-backdrop], script')));
+                if (foreground.parentElement === document.body) break;
+            }
+            return backgrounds;
+        },
         returnFocus: toggle,
         onDismiss: close
     });
