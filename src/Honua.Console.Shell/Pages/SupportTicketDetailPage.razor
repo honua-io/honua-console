@@ -36,6 +36,10 @@
                           Message="@(_message ?? OperateSectionPresentation.FallbackMessage(_status))"
                           ActionHref="/support"
                           ActionLabel="Back to support" />
+        @if (_polling)
+        {
+            <p class="console-muted" role="status">Retrying automatically...</p>
+        }
     }
     else
     {
@@ -126,6 +130,7 @@
     public string TicketId { get; set; } = string.Empty;
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxRetryInterval = TimeSpan.FromSeconds(60);
 
     private SupportTicketResponse? _ticket;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
@@ -204,8 +209,8 @@
 
     private void StartPolling(string ticketId, CancellationToken token)
     {
-        // No point polling a terminal ticket or an unreadable surface.
-        if (_ticket is null || IsTerminal(_ticket.Phase))
+        // Poll an open ticket, or retry a read that failed for a reason that may clear.
+        if (!ShouldPoll())
         {
             _polling = false;
             return;
@@ -217,20 +222,19 @@
 
     private async Task PollAsync(string ticketId, CancellationToken token)
     {
-        using var timer = new PeriodicTimer(PollInterval);
+        var delay = PollInterval;
         try
         {
-            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            while (true)
             {
+                await Task.Delay(delay, token).ConfigureAwait(false);
                 await InvokeAsync(async () =>
                 {
                     if (token.IsCancellationRequested || !await RefreshAsync(ticketId, token))
                     {
                         return;
                     }
-                    // Unavailable (network, server error, timeout or unexpected response) may clear: keep polling so the page can recover.
-                    _polling = _status == OperateSectionStatus.Unavailable
-                        || (_ticket is not null && !IsTerminal(_ticket.Phase));
+                    _polling = ShouldPoll();
                     StateHasChanged();
                 }).ConfigureAwait(false);
 
@@ -238,6 +242,11 @@
                 {
                     return;
                 }
+
+                // Back off while the read keeps failing, so a misconfigured endpoint is not hit every 5s forever.
+                delay = _status == OperateSectionStatus.Unavailable
+                    ? TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxRetryInterval.Ticks))
+                    : PollInterval;
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -253,6 +262,11 @@
         _cts = null;
         _polling = false;
     }
+
+    // Unavailable (network, server error, timeout or unexpected response) may clear, so it is retried with
+    // backoff; every other status will not, and a terminal ticket has nothing left to change.
+    private bool ShouldPoll() =>
+        _status == OperateSectionStatus.Unavailable || (_ticket is not null && !IsTerminal(_ticket.Phase));
 
     private static bool IsTerminal(string phase) =>
         phase is "resolved" or "cancelled" or "closed";

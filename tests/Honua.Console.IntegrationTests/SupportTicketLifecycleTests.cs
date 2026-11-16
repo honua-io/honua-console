@@ -76,7 +76,7 @@ public sealed class SupportTicketLifecycleTests
     }
 
     [Fact]
-    public void UnavailableRefreshKeepsPollingAndRecovers()
+    public async Task UnavailableRefreshBacksOffKeepsPollingAndRecovers()
     {
         var client = new TicketClient();
         using var context = Context(client);
@@ -84,12 +84,51 @@ public sealed class SupportTicketLifecycleTests
         page.WaitForAssertion(() => Assert.Contains("action-flaky", page.Markup));
         page.WaitForAssertion(() => Assert.Contains("Support API briefly unavailable", page.Markup),
             TimeSpan.FromSeconds(10));
+
+        // The retry after a failure waits 10s, not 5s.
+        await Task.Delay(TimeSpan.FromSeconds(7));
+        Assert.Equal(2, client.Requests.Count(id => id == "flaky"));
+
         page.WaitForAssertion(() =>
         {
             Assert.Contains("action-flaky", page.Markup);
             Assert.DoesNotContain("Support API briefly unavailable", page.Markup);
         }, TimeSpan.FromSeconds(10));
         Assert.Equal(3, client.Requests.Count(id => id == "flaky"));
+    }
+
+    [Fact]
+    public void UnavailableFirstLoadRetriesAndRecovers()
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "down-first"));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Support API briefly unavailable", page.Markup);
+            Assert.Contains("Retrying automatically", page.Markup);
+        });
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("action-down-first", page.Markup);
+            Assert.DoesNotContain("Retrying automatically", page.Markup);
+        }, TimeSpan.FromSeconds(10));
+        Assert.Equal(2, client.Requests.Count(id => id == "down-first"));
+    }
+
+    [Theory]
+    [InlineData(OperateSectionStatus.Forbidden)]
+    [InlineData(OperateSectionStatus.Missing)]
+    [InlineData(OperateSectionStatus.Unsupported)]
+    public async Task PermanentFirstLoadFailureIsNotRetried(OperateSectionStatus status)
+    {
+        var client = new TicketClient { RefreshStatus = status };
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "denied"));
+        page.WaitForAssertion(() => Assert.Contains("Ticket no longer readable", page.Markup));
+        Assert.DoesNotContain("Retrying automatically", page.Markup);
+        await Task.Delay(TimeSpan.FromSeconds(6));
+        Assert.Single(client.Requests, id => id == "denied");
     }
 
     private static BunitContext Context(TicketClient client)
@@ -123,6 +162,16 @@ public sealed class SupportTicketLifecycleTests
             {
                 PendingToken = cancellationToken;
                 return Pending.Task;
+            }
+            if (ticketId == "down-first")
+            {
+                return Task.FromResult(Requests.Count(id => id == "down-first") == 1
+                    ? SupportTicketResult.Denied(OperateSectionStatus.Unavailable, "Support API briefly unavailable")
+                    : Ticket(ticketId));
+            }
+            if (ticketId == "denied")
+            {
+                return Task.FromResult(SupportTicketResult.Denied(RefreshStatus, "Ticket no longer readable"));
             }
             if (ticketId == "flaky")
             {
