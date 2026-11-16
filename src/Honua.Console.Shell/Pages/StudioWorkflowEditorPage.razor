@@ -654,6 +654,7 @@
     private StudioWorkflowBindingState? _binding;
     private IReadOnlyList<StudioWorkflowNodeDefinition> _nodeDefinitions = [];
     private string? _activeDraftRouteId;
+    private long _pageGeneration;
     private string? _selectedNodeId;
     private StudioWorkflowSaveResult? _lastSave;
     private StudioWorkflowDryRunResult? _lastDryRun;
@@ -753,7 +754,9 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var generation = ++_pageGeneration;
         _loading = true;
+        _draft = null;
         var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
         if (!string.Equals(_activeDraftRouteId, draftRouteId, StringComparison.Ordinal))
         {
@@ -764,6 +767,7 @@
         // Single bound/blocked load: the server-backed client returns the node palette and the draft, or a
         // missing-binding state when workflow data cannot bind to honua-server (#1185).
         var context = await Workflows.OpenEditorAsync(DraftId);
+        if (generation != _pageGeneration) return;
         _binding = context.BindingState;
         _nodeDefinitions = context.NodeDefinitions;
         _draft = context.Draft;
@@ -792,20 +796,26 @@
             return;
         }
 
-        _runHistory = await Workflows.ListRunHistoryAsync(_draft.ContentItemId);
+        var generation = _pageGeneration;
+        var history = await Workflows.ListRunHistoryAsync(_draft.ContentItemId);
+        if (generation == _pageGeneration) _runHistory = history;
     }
 
     private async Task SaveAsync()
     {
-        if (_draft is null)
+        if (_draft is null || _busy)
         {
             return;
         }
 
+        var generation = _pageGeneration;
+        var draft = _draft;
         _busy = true;
         try
         {
-            _lastSave = await Workflows.SaveVersionAsync(_draft, "Saved from Studio workflow editor.");
+            var save = await Workflows.SaveVersionAsync(draft, "Saved from Studio workflow editor.");
+            if (generation != _pageGeneration) return;
+            _lastSave = save;
             if (_lastSave.BindingState is not null)
             {
                 _binding = _lastSave.BindingState;
@@ -835,22 +845,26 @@
 
     private async Task DryRunAsync()
     {
-        if (_draft is null)
+        if (_draft is null || _busy)
         {
             return;
         }
 
+        var generation = _pageGeneration;
+        var draft = _draft;
         _busy = true;
         try
         {
             // Dry-run/publish operate on an immutable server version; snapshot dirty edits first so the run
             // reflects the current draft and reuses that version instead of creating a redundant one.
-            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync("Saved before workflow dry-run."))
+            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync(generation, "Saved before workflow dry-run."))
             {
                 return;
             }
 
-            _lastDryRun = await Workflows.DryRunAsync(_draft);
+            var result = await Workflows.DryRunAsync(draft);
+            if (generation != _pageGeneration) return;
+            _lastDryRun = result;
             BindServerErrors(_lastDryRun.ValidationIssues);
             if (_lastDryRun.BindingState is not null)
             {
@@ -868,20 +882,24 @@
 
     private async Task PublishAsync()
     {
-        if (_draft is null)
+        if (_draft is null || _busy)
         {
             return;
         }
 
+        var generation = _pageGeneration;
+        var draft = _draft;
         _busy = true;
         try
         {
-            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync("Saved before workflow publication."))
+            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync(generation, "Saved before workflow publication."))
             {
                 return;
             }
 
-            _lastPublish = await Workflows.PublishAsync(_draft);
+            var result = await Workflows.PublishAsync(draft);
+            if (generation != _pageGeneration) return;
+            _lastPublish = result;
             if (_lastPublish.BindingState is not null)
             {
                 _binding = _lastPublish.BindingState;
@@ -909,9 +927,11 @@
     // Saves a version before a dry-run/publish. Returns false when the save could not bind (surfaces the
     // blocked state) or failed server validation (no version created), so the caller stops before issuing
     // the dependent server call against a stale or non-existent version.
-    private async Task<bool> EnsureSavedAsync(string changeNote)
+    private async Task<bool> EnsureSavedAsync(long generation, string changeNote)
     {
-        _lastSave = await Workflows.SaveVersionAsync(_draft!, changeNote);
+        var save = await Workflows.SaveVersionAsync(_draft!, changeNote);
+        if (generation != _pageGeneration) return false;
+        _lastSave = save;
         if (_lastSave.BindingState is not null)
         {
             _binding = _lastSave.BindingState;
