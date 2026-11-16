@@ -55,7 +55,7 @@
                     <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="() => ChangeLifecycleAsync(alert.EventId, ConsoleAlertLifecycleAction.Resolve)" data-resolve-alert>Mark resolved</button>
                 }
                 <ConsoleDiagnostics Summary="Technical details"
-                                    Detail="@($"Alert {alert.EventId}; rule {alert.RuleId}; severity {alert.Severity}; state {alert.LifecycleStatus}; resource {alert.ResourceRef}")" />
+                                    Detail="@($"Alert {alert.EventId}; rule {alert.RuleId}; severity {alert.Severity}; state {alert.LifecycleStatus}; object {alert.ResourceRef}")" />
                 <a href="@Honua.Console.Shell.Models.OperateObservabilityRoutes.AlertDetail(alert.EventId.ToString(System.Globalization.CultureInfo.InvariantCulture))">Review alert evidence</a>
             </article>
         }

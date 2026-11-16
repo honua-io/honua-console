@@ -69,7 +69,7 @@
                 </dl>
                 <p class="esri-callout esri-callout--warn" data-esri-summary>
                     <strong>@result.MappedCount of @result.Rows.Count layers convert.</strong>
-                    @result.ManualCount need@(result.ManualCount == 1 ? "s" : string.Empty) a resource binding ·
+                    @result.ManualCount need@(result.ManualCount == 1 ? "s" : string.Empty) a Dataset binding ·
                     @result.DropCount dropped. You can finish in Studio after import.
                 </p>
                 </ChildContent>
@@ -82,10 +82,10 @@
                 <span class="console-status console-state-info">binding required</span>
                 <span class="esri-binding-banner__text">
                     Layer <strong>@unbound.SourceName</strong> has no matching Dataset. Bind one, import
-                    the data first, or create the package as a draft with the layer disabled.
+                    the data first, or create the Map as a draft with the layer disabled.
                 </span>
                 <div class="console-button-row">
-                    <button type="button" class="console-button console-button-sm" @onclick="CreatePackage">Pick resource…</button>
+                    <button type="button" class="console-button console-button-sm" @onclick="CreatePackage">Pick Dataset…</button>
                     <a class="console-button-ghost console-button-sm" href="@ConsoleNavigation.ToConsoleHref("/operate/resources/new")">Import data first</a>
                 </div>
             </div>

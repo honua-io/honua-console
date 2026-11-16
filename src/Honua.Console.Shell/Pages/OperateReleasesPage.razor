@@ -22,7 +22,7 @@
         <h1>GitOps Metadata Releases</h1>
         <p>
             Visualize governed metadata/service/layer releases across environments without reading raw manifests:
-            the release proposal and semantic resource diff, the environment matrix and drift state, the Git PR
+            the release proposal and semantic object diff, the environment matrix and drift state, the Git PR
             preview, the CI/GitOps timeline, and rollback readiness. Bound to the connected honua-server GitOps
             metadata release contracts (release package + GitOps manifest and the release-operation lifecycle).
         </p>
@@ -239,7 +239,7 @@
     RenderFragment SemanticDiffContent = @<text>
             @if (V4Enabled)
             {
-<p class="console-muted">Grouped by resource type &middot; what is being promoted, not raw manifests.</p>
+<p class="console-muted">Grouped by object kind &middot; what is being promoted, not raw manifests.</p>
 <ConsoleMetricTile Label="Changes" Value="@changeCount" />
             }
             else
@@ -247,13 +247,13 @@
 <div class="console-panel-heading operate-release-card-head">
                         <div>
                             <h3 id="semantic-diff-heading">Semantic diff &middot; @changeCount change@(changeCount == 1 ? "" : "s")</h3>
-                            <p class="console-muted">Grouped by resource type &middot; what is being promoted, not raw manifests.</p>
+                            <p class="console-muted">Grouped by object kind &middot; what is being promoted, not raw manifests.</p>
                         </div>
                     </div>
             }
 @if (changeCount == 0)
                     {
-                        <p class="console-muted operate-release-empty">No semantic resources are changed by this proposal.</p>
+                        <p class="console-muted operate-release-empty">No semantic objects are changed by this proposal.</p>
                     }
                     else
                     {
@@ -849,7 +849,7 @@
 <h3 id="release-facts-heading">Release</h3>
             }
 <dl class="console-definition-list">
-                        <dt>Package id</dt>
+                        <dt>Release id</dt>
                         <dd class="console-mono">@proposal.ReleasePackageId</dd>
                         <dt>Source</dt>
                         <dd>@proposal.SourceEnvironmentId</dd>

@@ -26,9 +26,12 @@ public sealed class StudioReportBuilderRenderTests
         var page = ctx.Render<StudioReportBuilderPage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("Report publication registry is not bound", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Report release registry is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-report-publication", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Release id", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Open report release", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Publication id", page.Markup, StringComparison.Ordinal);
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
         if (presentation == ConsolePresentationMode.V4)

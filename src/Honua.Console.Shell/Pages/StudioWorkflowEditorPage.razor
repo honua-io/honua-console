@@ -356,7 +356,7 @@
             <aside class="workflow-inspector" aria-label="Publish and dry-run review">
                 <section class="console-panel">
                     <div class="workflow-section-heading">
-                        <p class="console-kicker">Publication intent</p>
+                        <p class="console-kicker">Release intent</p>
                         <h2>Review</h2>
                     </div>
                     <div class="workflow-form-grid workflow-form-grid-compact">
@@ -491,7 +491,7 @@
                     </div>
                     @if (_lastPublish is null)
                     {
-                        <p class="console-muted">Publish after review to queue the server-owned job runner and publication record.</p>
+                        <p class="console-muted">Publish after review to queue the server-owned job runner and release record.</p>
                     }
                     else
                     {
@@ -892,7 +892,7 @@
         _busy = true;
         try
         {
-            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync(generation, "Saved before workflow publication."))
+            if (NeedsSaveBeforePublish() && !await EnsureSavedAsync(generation, "Saved before workflow release."))
             {
                 return;
             }

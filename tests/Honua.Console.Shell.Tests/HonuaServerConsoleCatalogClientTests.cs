@@ -10,6 +10,32 @@ public sealed class HonuaServerConsoleCatalogClientTests
 {
     private static readonly Uri BaseUri = new("https://console.honua.test");
 
+    [Theory]
+    [InlineData("dataset")]
+    [InlineData("form")]
+    [InlineData("workflow")]
+    [InlineData("unknown-kind")]
+    public async Task Search_UnsupportedKind_DoesNotFetchUnfilteredItems(string kind)
+    {
+        var calls = 0;
+        var handler = new RecordingHandler(_ =>
+        {
+            calls++;
+            return Envelope(new HonuaConsoleContentListResponse());
+        });
+        var catalog = CreateCatalog(handler);
+        var request = new CatalogListRequest { Type = kind };
+
+        var result = await catalog.SearchAsync(request, CatalogReadContext.Authenticated);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(CatalogReadStatus.UnsupportedContentBinding, result.Status);
+        Assert.Contains(kind, result.FailureMessage, StringComparison.Ordinal);
+        Assert.Same(request, result.Request);
+        Assert.Empty(result.Items);
+        Assert.Equal(0, calls);
+    }
+
     [Fact]
     public async Task Search_SendsAdminAuthAndProjectedFilters_AndMapsRbacBackedSummaries()
     {

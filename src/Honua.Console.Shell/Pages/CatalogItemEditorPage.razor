@@ -87,7 +87,7 @@
 
         <div class="catalogs-field-legend" data-catalog-field-legend>
             <span class="catalogs-field-legend__item" data-catalog-field-state="system"><span class="console-status console-state-neutral">system</span> server-assigned</span>
-            <span class="catalogs-field-legend__item" data-catalog-field-state="calculated"><span class="console-status console-state-info">calculated</span> derived from resource / service</span>
+            <span class="catalogs-field-legend__item" data-catalog-field-state="calculated"><span class="console-status console-state-info">calculated</span> derived from Dataset / Service</span>
             <span class="catalogs-field-legend__item" data-catalog-field-state="input"><span class="console-status console-state-success">catalog-only</span> editable here</span>
         </div>
 
@@ -96,7 +96,7 @@
                 <p class="@(V4Enabled ? "console-muted" : "console-status console-state-info catalogs-card__callout")" data-catalog-auto-mirror-note>
                     <strong>Auto-mirror.</strong> Most fields below come straight from the underlying Dataset. The
                     catalog adds a thin layer of presentation — tags, thumbnail, featured flag, related items. Edit the
-                    canonical fields in the resource and they propagate here.
+                    canonical fields in the Dataset and they propagate here.
                 </p>
 
                 @foreach (var (group, groupIndex) in item.Groups.Select((group, index) => (group, index)))
@@ -180,7 +180,7 @@
                 {
                     <p class="console-status console-state-warning catalogs-card__callout" data-catalog-standards-issue>
                         <strong>@item.IssueCount standards issue@(item.IssueCount > 1 ? "s" : string.Empty).</strong>
-                        Resolve on the backing resource so the catalog standards mappings validate.
+                        Resolve on the backing Dataset so the catalog standards mappings validate.
                     </p>
                 }
 

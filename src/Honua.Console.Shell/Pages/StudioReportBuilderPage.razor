@@ -13,7 +13,7 @@
         <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-builders-v4.css" />
         <ConsolePageHeading Title="Report builder">
-            <p>Edit report content and review publication history.</p>
+            <p>Edit report content and review release history.</p>
         </ConsolePageHeading>
     }
     else
@@ -21,7 +21,7 @@
         <div class="console-page-heading">
             <p class="console-kicker">Builder workflow</p>
             <h1>Report builder</h1>
-            <p>Author a server-owned report — narrative, data bindings, Vega-Lite charts, map panels, tables, filters, version pinning, and responsive preview — then publish, share, and embed through the honua-server content publication registry. Open an existing report to inspect its server-owned route, manage visibility/embed, and pin (roll back) to an immutable version.</p>
+            <p>Author a server-owned report — narrative, data bindings, Vega-Lite charts, map panels, tables, filters, version pinning, and responsive preview — then publish, share, and embed through the honua-server report release registry. Open an existing report to inspect its server-owned route, manage visibility/embed, and pin (roll back) to an immutable version.</p>
         </div>
     }
 
@@ -29,10 +29,10 @@
         <button class="console-button" type="button" disabled="@_busy" @onclick="NewReport">New report</button>
         <form class="console-toolbar-inline" @onsubmit="OpenPublication" @formname="open-report-publication">
             <label class="studio-form-label">
-                <span>Publication id</span>
+                <span>Release id</span>
                 <input disabled="@_busy" class="console-input" @bind="_publicationIdInput" placeholder="pub-report-..." />
             </label>
-            <button class="console-button console-button-secondary" type="submit" disabled="@_busy">Open report publication</button>
+            <button class="console-button console-button-secondary" type="submit" disabled="@_busy">Open report release</button>
         </form>
     </div>
 
@@ -41,15 +41,15 @@
         <ConsoleStateView Kind="loading"
                           HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="Report builder"
-                          Title="Loading report publication"
-                          Message="Reading the content publication registry from honua-server." />
+                          Title="Loading report release"
+                          Message="Reading the report release registry from honua-server." />
     }
     else if (_bindingState is not null)
     {
         <ConsoleStateView Kind="error"
                           HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
                           Kicker="@_bindingState.State"
-                          Title="Report publication registry is not bound"
+                          Title="Report release registry is not bound"
                           Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
     }
     else
@@ -327,7 +327,7 @@
                                     <p class="console-kicker">Details</p>
                                     @if (editor.IsPublished && !string.IsNullOrWhiteSpace(editor.PublicationId))
                                     {
-                                        <FieldStateRow State="FieldState.System" Label="Publication id" Value="@editor.PublicationId" Hint="@($"r{editor.ActiveRevision}")" />
+                                        <FieldStateRow State="FieldState.System" Label="Release id" Value="@editor.PublicationId" Hint="@($"r{editor.ActiveRevision}")" />
                                     }
                                     <FieldStateRow State="FieldState.Input" Label="Title" Errors="_validation.Errors(StudioReportFieldKeys.Title)">
                                         <input disabled="@_busy" class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Monthly infrastructure report" />
