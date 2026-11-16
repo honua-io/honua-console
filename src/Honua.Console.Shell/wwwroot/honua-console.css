@@ -9274,6 +9274,9 @@ button.console-chip:focus-visible {
     box-shadow: 0 18px 48px rgb(0 0 0 / 30%);
     padding: 1.25rem 1.4rem;
     width: min(440px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    overflow-wrap: anywhere;
 }
 
 .console-confirm-title {
@@ -9289,6 +9292,7 @@ button.console-chip:focus-visible {
 
 .console-confirm-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.6rem;
 }
