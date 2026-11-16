@@ -116,6 +116,18 @@
     color: var(--c-text);
 }
 
+/* Stack status and risk as whole pills: inline pills are taller than the line box and overlap when they wrap. */
+.approval-inbox-v4 .approval-inbox-pills {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.approval-inbox-v4 .approval-inbox-pills .console-status {
+    white-space: nowrap;
+}
+
 .approval-inbox-v4 time {
     white-space: nowrap;
     font-variant-numeric: tabular-nums;

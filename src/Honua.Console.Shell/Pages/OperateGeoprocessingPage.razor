@@ -44,8 +44,10 @@
                 <div class="operate-action-row" role="group" aria-label="Filter by state">
                     @foreach (var option in StateFilters)
                     {
+                        var active = string.Equals(_stateFilter, option.Value, StringComparison.Ordinal);
                         <button type="button"
-                            class="console-button @(string.Equals(_stateFilter, option.Value, StringComparison.Ordinal) ? "" : "console-button-secondary")"
+                            class="console-button @(active ? "" : "console-button-secondary")"
+                            aria-pressed="@(active ? "true" : "false")"
                             @onclick="() => SetStateFilter(option.Value)">
                             @option.Label
                             @if (option.Value.Length > 0)

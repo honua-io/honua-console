@@ -338,6 +338,21 @@ public static class UrlRule
             && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase));
     }
+
+    // Server-supplied links render as anchors; anything but an absolute web URL is dropped.
+    public static string? AbsoluteHttpOrNull(string? value) =>
+        IsAbsoluteHttp(value) ? value!.Trim() : null;
+
+    // Evidence may also point at a Console or server route; other schemes are dropped.
+    public static string? WebOrRootRelativeOrNull(string? value)
+    {
+        if (AbsoluteHttpOrNull(value) is { } absolute) return absolute;
+        var trimmed = value?.Trim();
+        return trimmed is { Length: > 1 } && trimmed[0] == '/' && trimmed[1] != '/'
+            && !trimmed.Contains('\\') && !trimmed.Any(char.IsControl)
+            ? trimmed
+            : null;
+    }
 }
 
 public static class IdentifierRule

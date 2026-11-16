@@ -117,6 +117,11 @@ public sealed partial class ApprovalInboxPageRenderTests
         Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll("section > link[rel='stylesheet'][href$='approval-inbox-v4.css']").Count == 1);
         Assert.Equal(presentation == ConsolePresentationMode.V4, page.FindAll(".approval-inbox-table").Count == 1);
         Assert.Equal(presentation == ConsolePresentationMode.Legacy, page.FindAll(".approval-inbox-list").Count == 1);
+        if (presentation == ConsolePresentationMode.V4)
+        {
+            Assert.All(page.FindAll(".approval-inbox-table tbody tr"), row =>
+                Assert.Equal(2, row.QuerySelectorAll(".approval-inbox-pills > .console-status").Length));
+        }
         page.Find("[data-filter='ServerUpgrade']").Click();
         Assert.Equal("deploy-1", Assert.Single(page.FindAll("[data-proposal-id]")).GetAttribute("data-proposal-id"));
         page.Find("[data-proposal-id='deploy-1']").Click();
