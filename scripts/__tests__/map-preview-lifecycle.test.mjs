@@ -16,31 +16,31 @@ function restoreGlobals(names, previous) {
 
 function mapRuntime(phase, maps, onConstruct) {
     return class {
-            constructor(options) {
-                this.style = options.style;
-                this.removed = 0;
-                this.events = new Map();
-                this.center = options.center;
-                this.zoom = options.zoom;
-                maps.push(this);
-                if (phase === 'constructed') queueMicrotask(onConstruct);
-            }
-            addControl() { if (phase === 'control-error') throw new Error('control failed'); }
-            on(name, callback) { this.events.set(name, callback); }
-            off(name) { this.events.delete(name); }
-            fire(name) { this.events.get(name)?.(); }
-            getStyle() { return { sources: { base: { type: 'raster' } }, layers: [{ id: 'data', type: 'fill' }] }; }
-            queryRenderedFeatures() { return this.features ?? []; }
-            fitBounds(bounds) {
-                this.center = bounds[0].map((value, index) => (value + bounds[1][index]) / 2);
-                this.zoom = 16;
-            }
-            getCenter() { return { toArray: () => this.center }; }
-            getZoom() { return this.zoom; }
-            easeTo(camera) { this.center = camera.center; this.zoom = camera.zoom; }
-            remove() { this.removed++; }
-            zoomIn() {}
-        };
+        constructor(options) {
+            this.style = options.style;
+            this.removed = 0;
+            this.events = new Map();
+            this.center = options.center;
+            this.zoom = options.zoom;
+            maps.push(this);
+            if (phase === 'constructed') queueMicrotask(onConstruct);
+        }
+        addControl() { if (phase === 'control-error') throw new Error('control failed'); }
+        on(name, callback) { this.events.set(name, callback); }
+        off(name) { this.events.delete(name); }
+        fire(name) { this.events.get(name)?.(); }
+        getStyle() { return { sources: { base: { type: 'raster' } }, layers: [{ id: 'data', type: 'fill' }] }; }
+        queryRenderedFeatures() { return this.features ?? []; }
+        fitBounds(bounds) {
+            this.center = bounds[0].map((value, index) => (value + bounds[1][index]) / 2);
+            this.zoom = 16;
+        }
+        getCenter() { return { toArray: () => this.center }; }
+        getZoom() { return this.zoom; }
+        easeTo(camera) { this.center = camera.center; this.zoom = camera.zoom; }
+        remove() { this.removed++; }
+        zoomIn() {}
+    };
 }
 
 async function fixture(phase, run) {
