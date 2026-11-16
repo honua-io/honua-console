@@ -97,8 +97,26 @@ public sealed class ConsoleConnectionNoticeRenderTests
         Assert.Equal(2, host.Instance.Calls);
     }
 
+    [Fact]
+    public async Task RetryWithoutBusyParameterStillShowsReading()
+    {
+        using var context = new BunitContext();
+        var host = context.Render<ClearingRetryHost>(p => p.Add(h => h.PassBusy, false));
+        host.Find("button").Click();
+        Assert.Equal("true", host.Find("button").GetAttribute("aria-disabled"));
+        Assert.Equal("Reading…", host.Find("button").TextContent);
+        host.Find("button").Click();
+        Assert.Equal(1, host.Instance.Calls);
+
+        await host.InvokeAsync(() => host.Instance.Complete(succeeded: false));
+        host.WaitForAssertion(() => Assert.Equal("Try again", host.Find("button").TextContent));
+        Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
+    }
+
     private sealed class ClearingRetryHost : ComponentBase
     {
+        [Parameter] public bool PassBusy { get; set; } = true;
+
         private TaskCompletionSource<bool>? _pending;
         private string? _error = "Read failed";
         private bool _loading;
@@ -122,7 +140,7 @@ public sealed class ConsoleConnectionNoticeRenderTests
         {
             builder.OpenComponent<ConsoleConnectionNotice>(0);
             builder.AddAttribute(1, nameof(ConsoleConnectionNotice.Error), _error);
-            builder.AddAttribute(2, nameof(ConsoleConnectionNotice.Busy), _loading);
+            builder.AddAttribute(2, nameof(ConsoleConnectionNotice.Busy), PassBusy && _loading);
             builder.AddAttribute(3, nameof(ConsoleConnectionNotice.OnRetry), EventCallback.Factory.Create(this, LoadAsync));
             builder.CloseComponent();
         }

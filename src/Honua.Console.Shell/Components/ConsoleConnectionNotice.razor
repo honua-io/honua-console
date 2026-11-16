@@ -13,7 +13,7 @@
             {
                 @* aria-disabled, not disabled: a disabled button drops keyboard focus to the page body. *@
                 <button type="button" class="console-button console-button-secondary" @onclick="RetryAsync"
-                        aria-disabled="@(Busy ? "true" : null)">@(Busy ? "Reading…" : "Try again")</button>
+                        aria-disabled="@(Reading ? "true" : null)">@(Reading ? "Reading…" : "Try again")</button>
             }
         </div>
         <details><summary>Environment details</summary>
@@ -38,8 +38,11 @@
     private bool _retrying;
 
     private bool Showing => _states.Count > 0 || !string.IsNullOrWhiteSpace(_error);
+    private bool Reading => Busy || _retrying;
 
-    protected override void OnParametersSet()
+    protected override void OnParametersSet() => CaptureFailure();
+
+    private void CaptureFailure()
     {
         if (States.Count > 0 || !string.IsNullOrWhiteSpace(Error))
         {
@@ -57,7 +60,7 @@
 
     private async Task RetryAsync()
     {
-        if (Busy || _retrying)
+        if (Reading)
         {
             return;
         }
@@ -73,8 +76,9 @@
             _retrying = false;
         }
 
-        OnParametersSet();
-        if (Showing)
+        CaptureFailure();
+        // Still Busy means a newer read replaced this one; it has not failed yet.
+        if (Showing && !Busy)
         {
             _failedRetries++;
             _retryAnnouncement = $"Attempt {_failedRetries + 1} did not complete. {StatusHeading}.";
