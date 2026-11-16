@@ -825,12 +825,6 @@
     [Parameter]
     public string? SelectedJobRunId { get; set; }
 
-    /// <summary>
-    /// A correlation id to pre-filter the evidence timeline to (console#292 correlation-id chip
-    /// deep link, e.g. <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, id)</c>).
-    /// Seeds both the pending and active filter on first load so the timeline opens already
-    /// scoped to the correlated events, with no further operator action required.
-    /// </summary>
     [SupplyParameterFromQuery(Name = "correlationId")]
     public string? CorrelationId { get; set; }
 
@@ -859,6 +853,7 @@
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loaded;
+    private string _routeCorrelationFilter = string.Empty;
     private OperateSectionResult<OperateFleetOverview>? _overview;
     private OperateSectionResult<IReadOnlyList<OperateEventRow>>? _events;
     private OperateSectionResult<OperateLogsView>? _logs;
@@ -938,12 +933,8 @@
     protected override async Task OnInitializedAsync()
     {
         await Capabilities.RefreshAsync();
-        // A correlation-id chip deep link (console#292) seeds the filter so the timeline opens
-        // already scoped to the correlated events — no extra operator action required.
-        if (!string.IsNullOrWhiteSpace(CorrelationId))
-        {
-            _pendingCorrelationFilter = CorrelationId.Trim();
-        }
+        _routeCorrelationFilter = CorrelationId?.Trim() ?? string.Empty;
+        _pendingCorrelationFilter = _routeCorrelationFilter;
 
         // Load each independently permissioned section in parallel rather than
         // through a single blocking aggregate, protecting the Operate path from
@@ -982,6 +973,13 @@
     {
         if (_loaded)
         {
+            var correlationFilter = CorrelationId?.Trim() ?? string.Empty;
+            if (!string.Equals(correlationFilter, _routeCorrelationFilter, StringComparison.Ordinal))
+            {
+                _routeCorrelationFilter = correlationFilter;
+                _pendingCorrelationFilter = correlationFilter;
+                await LoadEventsAsync(_activeEventQuery with { CorrelationId = correlationFilter });
+            }
             await ResolveSelectedJobAsync();
         }
     }
@@ -1016,8 +1014,17 @@
             EventType = _pendingEventTypeFilter,
             CorrelationId = _pendingCorrelationFilter
         };
-        _events = await OperateClient.QueryEventsAsync(query);
+        await LoadEventsAsync(query);
+    }
+
+    private async Task LoadEventsAsync(OperateEventQuery query)
+    {
         _activeEventQuery = query;
+        var events = await OperateClient.QueryEventsAsync(query);
+        if (ReferenceEquals(_activeEventQuery, query))
+        {
+            _events = events;
+        }
     }
 
     private void ApplyLogFilter()
