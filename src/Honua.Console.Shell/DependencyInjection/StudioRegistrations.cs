@@ -76,7 +76,7 @@ internal static class StudioRegistrations
         }
 
         services.TryAddSingleton<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>(serviceProvider =>
-            new Honua.Sdk.Studio.Capabilities.HonuaCapabilityManifestClient(HonuaServerClientFactory.Create(serviceProvider, baseUri)));
+            new Honua.Sdk.Studio.Capabilities.HonuaCapabilityManifestClient(HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri)));
         services.TryAddSingleton<ICapabilityRegistryClient>(serviceProvider =>
             new HonuaServerCapabilityRegistryClient(serviceProvider.GetRequiredService<Honua.Sdk.Studio.Capabilities.IHonuaCapabilityManifestClient>()));
         services.TryAddSingleton<IStudioIntentResolver>(serviceProvider =>

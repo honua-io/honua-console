@@ -30,7 +30,7 @@
         <form class="console-toolbar-inline" @onsubmit="OpenPublication" @formname="open-report-publication">
             <label class="studio-form-label">
                 <span>Publication id</span>
-                <input class="console-input" @bind="_publicationIdInput" placeholder="pub-report-..." />
+                <input disabled="@_busy" class="console-input" @bind="_publicationIdInput" placeholder="pub-report-..." />
             </label>
             <button class="console-button console-button-secondary" type="submit" disabled="@_busy">Open report publication</button>
         </form>
@@ -105,6 +105,7 @@
                     <span class="studio-report-bar-icon" aria-hidden="true">&#9249;</span>
                     <input class="console-input studio-report-name"
                            @bind="editor.Title"
+                           disabled="@_busy"
                            @bind:event="oninput"
                            @bind:after="OnEdit"
                            placeholder="q3-public-works-overview"
@@ -112,7 +113,7 @@
                     <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")" data-report-status-badge="@(editor.IsPublished ? "published" : "draft")">@(editor.IsPublished ? $"published · r{editor.ActiveRevision}" : "draft")</span>
                     <span class="studio-report-bar-meta console-muted">@editor.Panels.Count panel(s) · @editor.Bindings.Count binding(s) · @editor.PreviewBreakpoint preview</span>
                     <span class="studio-report-bar-spacer"></span>
-                    <select class="console-input studio-report-breakpoint" @bind="editor.PreviewBreakpoint" aria-label="Preview breakpoint">
+                    <select disabled="@_busy" class="console-input studio-report-breakpoint" @bind="editor.PreviewBreakpoint" aria-label="Preview breakpoint">
                         @foreach (var breakpoint in StudioReportBreakpoints.All)
                         {
                             <option value="@breakpoint">@breakpoint preview</option>
@@ -281,10 +282,10 @@
                                 <section class="studio-report-fieldgroup">
                                     <p class="console-kicker">Source binding</p>
                                     <FieldStateRow State="FieldState.Input" Label="Title">
-                                        <input class="console-input" @bind="sel.Title" @bind:after="OnEdit" placeholder="Parcels overview" />
+                                        <input disabled="@_busy" class="console-input" @bind="sel.Title" @bind:after="OnEdit" placeholder="Parcels overview" />
                                     </FieldStateRow>
                                     <FieldStateRow State="FieldState.Input" Label="Kind">
-                                        <select class="console-input" @bind="sel.Kind" @bind:after="OnEdit">
+                                        <select disabled="@_busy" class="console-input" @bind="sel.Kind" @bind:after="OnEdit">
                                             @foreach (var kind in StudioReportPanelKinds.All)
                                             {
                                                 <option value="@kind">@kind</option>
@@ -295,7 +296,7 @@
                                                    Label="Binding alias"
                                                    Hint="@(string.IsNullOrWhiteSpace(sel.BindingAlias) ? null : "resolved from data bindings")"
                                                    Errors="_validation.Errors(StudioReportFieldKeys.PanelBindingAlias(editor.Panels.IndexOf(sel)))">
-                                        <input class="console-input" @bind="sel.BindingAlias" @bind:after="OnEdit" placeholder="incidents" />
+                                        <input disabled="@_busy" class="console-input" @bind="sel.BindingAlias" @bind:after="OnEdit" placeholder="incidents" />
                                     </FieldStateRow>
                                 </section>
                                 @if (sel.IsChart)
@@ -304,7 +305,7 @@
                                         <p class="console-kicker">Vega-Lite spec</p>
                                         <label class="studio-form-label">
                                             <span>Spec (JSON)</span>
-                                            <textarea class="console-input studio-code" rows="8" @bind="sel.VegaLiteSpec" @bind:after="OnEdit"></textarea>
+                                            <textarea disabled="@_busy" class="console-input studio-code" rows="8" @bind="sel.VegaLiteSpec" @bind:after="OnEdit"></textarea>
                                         </label>
                                         <ValidationMessageInline FieldKey="@StudioReportFieldKeys.PanelVegaLiteSpec(editor.Panels.IndexOf(sel))" State="_validation" />
                                     </section>
@@ -329,16 +330,16 @@
                                         <FieldStateRow State="FieldState.System" Label="Publication id" Value="@editor.PublicationId" Hint="@($"r{editor.ActiveRevision}")" />
                                     }
                                     <FieldStateRow State="FieldState.Input" Label="Title" Errors="_validation.Errors(StudioReportFieldKeys.Title)">
-                                        <input class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Monthly infrastructure report" />
+                                        <input disabled="@_busy" class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Monthly infrastructure report" />
                                     </FieldStateRow>
                                     <FieldStateRow State="FieldState.Input" Label="Route slug" Hint="@(editor.IsPublished ? "locked after publish" : null)" Errors="_validation.Errors(StudioReportFieldKeys.RouteSlug)">
-                                        <input class="console-input" @bind="editor.RouteSlug" @bind:after="OnEdit" placeholder="monthly-infrastructure" disabled="@editor.IsPublished" />
+                                        <input class="console-input" @bind="editor.RouteSlug" @bind:after="OnEdit" placeholder="monthly-infrastructure" disabled="@(_busy || editor.IsPublished)" />
                                     </FieldStateRow>
                                     <FieldStateRow State="FieldState.Input" Label="Description">
-                                        <textarea class="console-input" rows="2" @bind="editor.Description"></textarea>
+                                        <textarea disabled="@_busy" class="console-input" rows="2" @bind="editor.Description"></textarea>
                                     </FieldStateRow>
                                     <FieldStateRow State="FieldState.Input" Label="Narrative">
-                                        <textarea class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea>
+                                        <textarea disabled="@_busy" class="console-input" rows="3" @bind="editor.Narrative" placeholder="Context shown above the layout."></textarea>
                                     </FieldStateRow>
                                 </section>
 
@@ -346,7 +347,7 @@
                                     <p class="console-kicker">Presentation</p>
                                     <label class="studio-form-label">
                                         <span>Visibility</span>
-                                        <select class="console-input" @bind="editor.Visibility" @bind:after="OnEdit">
+                                        <select disabled="@_busy" class="console-input" @bind="editor.Visibility" @bind:after="OnEdit">
                                             @foreach (var visibility in StudioReportVisibilities.All)
                                             {
                                                 <option value="@visibility">@visibility</option>
@@ -355,12 +356,12 @@
                                     </label>
                                     <ValidationMessageInline FieldKey="@StudioReportFieldKeys.Visibility" State="_validation" />
                                     <label class="studio-form-label-inline">
-                                        <input type="checkbox" @bind="editor.Embeddable" />
+                                        <input disabled="@_busy" type="checkbox" @bind="editor.Embeddable" />
                                         <span>Allow embedding</span>
                                     </label>
                                     <label class="studio-form-label">
                                         <span>Preview breakpoint</span>
-                                        <select class="console-input" @bind="editor.PreviewBreakpoint">
+                                        <select disabled="@_busy" class="console-input" @bind="editor.PreviewBreakpoint">
                                             @foreach (var breakpoint in StudioReportBreakpoints.All)
                                             {
                                                 <option value="@breakpoint">@breakpoint</option>
@@ -385,15 +386,15 @@
                                         var bindingIndex = editor.Bindings.IndexOf(binding);
                                         <div class="studio-report-binding" @key="binding">
                                             <FieldStateRow State="FieldState.Input" Label="Alias" Errors="_validation.Errors(StudioReportFieldKeys.BindingAlias(bindingIndex))">
-                                                <input class="console-input" @bind="binding.Alias" @bind:after="OnEdit" placeholder="incidents" />
+                                                <input disabled="@_busy" class="console-input" @bind="binding.Alias" @bind:after="OnEdit" placeholder="incidents" />
                                             </FieldStateRow>
                                             <FieldStateRow State="FieldState.Input" Label="Content ref" Errors="_validation.Errors(StudioReportFieldKeys.BindingContentRef(bindingIndex))">
-                                                <input class="console-input" @bind="binding.ContentRef" @bind:after="OnEdit" placeholder="content:incidents" />
+                                                <input disabled="@_busy" class="console-input" @bind="binding.ContentRef" @bind:after="OnEdit" placeholder="content:incidents" />
                                             </FieldStateRow>
                                             <FieldStateRow State="@(string.IsNullOrWhiteSpace(binding.VersionPin) ? FieldState.Discovered : FieldState.Input)"
                                                            Label="Version pin"
                                                            Hint="@(string.IsNullOrWhiteSpace(binding.VersionPin) ? "tracks latest publish" : "pinned")">
-                                                <input class="console-input" @bind="binding.VersionPin" @bind:after="OnEdit" placeholder="latest" />
+                                                <input disabled="@_busy" class="console-input" @bind="binding.VersionPin" @bind:after="OnEdit" placeholder="latest" />
                                             </FieldStateRow>
                                             <div class="console-action-row">
                                                 <button class="console-button console-button-secondary console-button-small" type="button" disabled="@_busy" @onclick="() => RemoveBinding(binding)">Remove</button>
