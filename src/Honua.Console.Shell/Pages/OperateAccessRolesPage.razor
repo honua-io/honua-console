@@ -59,7 +59,7 @@
                     <label class="rbac-create-grant">
                         <input type="checkbox"
                                checked="@_newRoleGrants.Contains(permission.Key)"
-                               @onchange="e => ToggleGrant(permission.Key, (bool)(e.Value ?? false))" />
+                               @onchange="e => OnGrantChanged(permission.Key, e)" />
                         <span>@permission.Label</span>
                     </label>
                 }

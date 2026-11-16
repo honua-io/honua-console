@@ -83,10 +83,10 @@ public partial class OperateAccessRolesPage
         }
     }
 
-    private void ToggleGrant(string permissionKey, bool granted)
+    private void OnGrantChanged(string permissionKey, ChangeEventArgs change)
     {
         if (_saving) return;
-        if (granted)
+        if (change.Value is true)
         {
             _newRoleGrants.Add(permissionKey);
         }
