@@ -1851,7 +1851,12 @@ p {
 
 .operate-summary-tile {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 5px;
+}
+
+.operate-summary-tile span {
+    overflow-wrap: anywhere;
 }
 
 .operate-summary-tile strong {
@@ -2221,6 +2226,7 @@ p {
 
 .operate-filter-bar label {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     color: var(--honua-muted);
     font-weight: 800;
@@ -4186,7 +4192,7 @@ p {
     .operate-summary-grid,
     .operate-detail-grid,
     .operate-filter-bar {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .operate-section-heading {

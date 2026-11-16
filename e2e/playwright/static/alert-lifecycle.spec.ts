@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
 import { createContractApi } from '../static-contract-server.mjs';
+import { signInWithFixturePassword } from './fixture-sign-in';
 
 const origin = 'http://127.0.0.1:5196';
 const prefix = '/api/v1/admin/observability/alerts';
@@ -46,9 +47,7 @@ test('inbox retains snooze retry identity and confirms resolution', async ({ pag
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(`${origin}/console/auth/signin?returnTo=%2Finbox`);
-    await page.getByLabel('Password', { exact: true }).fill('fixture-password');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await signInWithFixturePassword(page, origin, '/inbox');
     const panel = page.locator('[data-operations-alerts]');
     await expect(panel.getByRole('heading', { name: initial.ruleName })).toBeVisible();
     const failedSnooze = page.waitForResponse(response =>

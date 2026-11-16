@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { signInWithFixturePassword } from './fixture-sign-in';
 
 for (const crossOrigin of [false, true]) {
   test.describe(crossOrigin ? 'Studio bearer transport' : 'Studio cookie transport', () => {
@@ -8,9 +9,7 @@ for (const crossOrigin of [false, true]) {
         'Released Studio mounted through the published Console transport; live server qualification is separate.' });
       const origin = `http://127.0.0.1:${crossOrigin ? 5186 : 5185}`;
       const apiOrigin = crossOrigin ? 'http://127.0.0.1:5187' : origin;
-      await page.goto(`${origin}/console/auth/signin?returnTo=%2Foperate%2Fconnections`);
-      await page.getByLabel('Password', { exact: true }).fill('fixture-password');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
+      await signInWithFixturePassword(page, origin, '/operate/connections');
       await expect(page.getByRole('heading', { name: /^Data connections$/i })).toBeVisible();
       const bootstrap = page.waitForResponse(`${apiOrigin}/api/v1/studio/session`);
       await page.evaluate(async () => {

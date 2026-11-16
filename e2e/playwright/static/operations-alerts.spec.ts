@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
 import { createContractApi } from '../static-contract-server.mjs';
+import { signInWithFixturePassword } from './fixture-sign-in';
 
 const origin = 'http://127.0.0.1:5195';
 const prefix = '/api/v1/admin/observability/alerts';
@@ -48,9 +49,7 @@ test('inbox confirms acknowledgment, retains retry identity and follows paginati
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(`${origin}/console/auth/signin?returnTo=%2Finbox`);
-    await page.getByLabel('Password', { exact: true }).fill('fixture-password');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await signInWithFixturePassword(page, origin, '/inbox');
     const panel = page.locator('[data-operations-alerts]');
     await expect(panel.getByRole('heading', { name: alert.ruleName })).toBeVisible();
     await panel.locator('[data-acknowledge-alert]').click();
