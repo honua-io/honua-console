@@ -173,6 +173,38 @@ public sealed class OperateServiceNavigationTests
             context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
     }
 
+    [Theory]
+    [InlineData(false, "protocols")]
+    [InlineData(true, "protocols")]
+    [InlineData(false, "access")]
+    [InlineData(true, "access")]
+    public async Task BothPanelSavesStayDisabledUntilReadBackCompletes(bool enabled, string editor)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        if (enabled) page.Find($"#service-{editor}-tab").Click();
+        var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
+
+        Assert.All(page.FindAll("[data-save-protocols], [data-save-access]"),
+            button => Assert.True(button.HasAttribute("disabled")));
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new() { Succeeded = true, State = "Updated" }));
+        await operation.RefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.All(page.FindAll("[data-save-protocols], [data-save-access]"),
+            button => Assert.True(button.HasAttribute("disabled")));
+
+        page.Find("[data-protocol='Wms']").Change(true);
+        page.Find("[data-allowed-roles]").Change("newer-role");
+        await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first")));
+        await save;
+
+        Assert.All(page.FindAll("[data-save-protocols], [data-save-access]"),
+            button => Assert.False(button.HasAttribute("disabled")));
+        Assert.True(page.Find("[data-protocol='Wms']").HasAttribute("checked"));
+        Assert.Equal("newer-role", page.Find("[data-allowed-roles]").GetAttribute("value"));
+    }
+
     private static BunitContext Context(bool enabled)
     {
         var context = new BunitContext();

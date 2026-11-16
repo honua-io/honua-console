@@ -237,7 +237,7 @@
             }
         </div>
         <div class="console-action-row">
-            <button class="console-button" type="button" disabled="@(_savingProtocols || _selectedProtocols.Count == 0)"
+            <button class="console-button" type="button" disabled="@(_savingProtocols || _savingAccess || _selectedProtocols.Count == 0)"
                     @onclick="SaveProtocolsAsync" data-save-protocols>
                 @(_savingProtocols ? "Saving…" : "Save protocols")
             </button>
@@ -283,7 +283,7 @@
             <small>Comma- or newline-separated role names granted write access. Leave blank to clear.</small>
         </label>
         <div class="console-action-row">
-            <button class="console-button" type="button" disabled="@_savingAccess"
+            <button class="console-button" type="button" disabled="@(_savingProtocols || _savingAccess)"
                     @onclick="SaveAccessAsync" data-save-access>
                 @(_savingAccess ? "Saving…" : "Save access policy")
             </button>

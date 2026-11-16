@@ -178,6 +178,11 @@ public partial class OperateServiceDetailPage
 
     private Task SaveProtocolsAsync()
     {
+        if (_savingProtocols || _savingAccess)
+        {
+            return Task.CompletedTask;
+        }
+
         var serviceName = ServiceName;
         var generation = _serviceGeneration;
         var protocols = _selectedProtocols.ToArray();
@@ -215,6 +220,11 @@ public partial class OperateServiceDetailPage
 
     private Task SaveAccessAsync()
     {
+        if (_savingProtocols || _savingAccess)
+        {
+            return Task.CompletedTask;
+        }
+
         var serviceName = ServiceName;
         var generation = _serviceGeneration;
         var command = new ServiceAccessPolicyCommand
