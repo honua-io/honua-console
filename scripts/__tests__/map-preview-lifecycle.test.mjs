@@ -7,6 +7,13 @@ function deferred() {
     return { promise, resolve };
 }
 
+function restoreGlobals(names, previous) {
+    names.forEach((name, i) => {
+        if (previous[i]) Object.defineProperty(globalThis, name, previous[i]);
+        else delete globalThis[name];
+    });
+}
+
 async function fixture(phase, run) {
     const names = ['window', 'document', 'honuaConsoleCaptureResourceAuthorization', 'honuaConsoleSubscribeSession'];
     const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
@@ -62,10 +69,7 @@ async function fixture(phase, run) {
             onConstruct(callback) { onConstruct = callback; },
         });
     } finally {
-        names.forEach((name, i) => {
-            if (previous[i]) Object.defineProperty(globalThis, name, previous[i]);
-            else delete globalThis[name];
-        });
+        restoreGlobals(names, previous);
     }
 }
 
