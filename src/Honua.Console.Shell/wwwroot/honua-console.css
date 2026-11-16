@@ -6471,10 +6471,14 @@ p {
     border: 1px solid var(--honua-text);
     border-radius: 7px;
     overflow: hidden;
-    width: max-content;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .publish-segment-option {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
     border: 0;
     border-right: 1px solid var(--honua-border);
     padding: 6px 14px;
@@ -6538,6 +6542,7 @@ p {
 
 .publish-tree-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -6549,6 +6554,7 @@ p {
     background: var(--honua-surface);
     font: inherit;
     cursor: pointer;
+    overflow-wrap: anywhere;
 }
 
 .publish-tree-row:hover {
@@ -6581,9 +6587,8 @@ p {
 .publish-tree-name {
     font-size: 0.86rem;
     font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .publish-tree-meta {
