@@ -22,7 +22,7 @@ export function audienceCatalog(catalog, dataBase) {
         if (typeof source?.id !== 'string' || ids.has(source.id)
             || source.protocol !== 'geoservices-feature-service' || !Number.isSafeInteger(source.locator?.layerId)
             || source.locator.layerId < 0 || typeof source.locator.url !== 'string')
-            throw new Error('The published map has incompatible source metadata.');
+            throw new Error('The released map has incompatible source metadata.');
         ids.add(source.id);
         const target = new URL(source.locator.url, dataBase);
         const match = target.pathname.match(/\/rest\/services\/((?:[A-Za-z0-9_-][A-Za-z0-9_.-]*\/)+FeatureServer)$/);
@@ -88,7 +88,7 @@ export function legacyViewerConnection({ origin = globalThis.location.origin, fe
 function responseError(response) {
     return new Error(({401: 'Sign in to view this map, then reload it.',
         403: 'Your account cannot view this map or its data.',
-        404: 'This published map is no longer available.',
+        404: 'This released map is no longer available.',
         409: 'Your account or environment changed. Reload the map.'})[response.status]
         ?? 'The map service is unavailable. Try reloading the map.');
 }
@@ -101,7 +101,7 @@ function canvasMessage(view) {
 
 const VIEW_CHANGED = 'The map view changed. Reload the map.';
 const SESSION_CHANGED = 'Your Console session changed. Reload the map.';
-const DEFAULT_TITLE = 'Published map';
+const DEFAULT_TITLE = 'Released map';
 
 function requireCurrent(isCurrent) {
     if (!isCurrent()) throw new Error(VIEW_CHANGED);

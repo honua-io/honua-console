@@ -81,7 +81,7 @@ public sealed class PublishedMapPageRenderTests
         var page = context.Render<PublishedMapPage>(p => p.Add(c => c.Route, route));
 
         Assert.Empty(page.FindAll("[data-published-map]"));
-        Assert.Contains("Published map not found", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Released map not found", page.Markup, StringComparison.Ordinal);
         Assert.Empty(context.JSInterop.Invocations);
     }
 

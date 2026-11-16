@@ -483,7 +483,7 @@ test('a session change removes a rendered native view and explains why', async (
     assert.equal(h.disposedCanvases, 1, 'the protected canvas is not left on screen');
     assert.equal(h.container.dataset.renderedFeatureCount, '0');
     assert.match(h.status.textContent, /session changed/);
-    assert.equal(h.title.textContent, 'Published map', 'the protected title is not left on screen');
+    assert.equal(h.title.textContent, 'Released map', 'the protected title is not left on screen');
     assert.equal(h.listeners.size, 0);
 });
 

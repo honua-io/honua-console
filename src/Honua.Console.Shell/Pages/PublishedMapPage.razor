@@ -9,7 +9,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<PageTitle>Published map · Honua</PageTitle>
+<PageTitle>Released map · Honua</PageTitle>
 <HeadContent>
     <link rel="stylesheet" href="_studio/style.css" />
     <link rel="stylesheet" href="css/published-map-viewer.css" />
@@ -17,18 +17,18 @@
 
 @if (PublishedRoute is null)
 {
-    <ConsoleStateView Kind="missing" Kicker="Missing map" Title="Published map not found"
-                      Message="This published map address is not valid." />
+    <ConsoleStateView Kind="missing" Kicker="Missing map" Title="Released map not found"
+                      Message="This released map address is not valid." />
 }
 else
 {
     <section data-published-map data-published-route="@PublishedRoute" @ref="_host" @key="PublishedRoute">
         <header class="published-map-header">
-            <h1 data-map-title>Published map</h1>
+            <h1 data-map-title>Released map</h1>
             <button type="button" data-map-reload>Reload map</button>
         </header>
         <p role="status" aria-live="polite" data-map-status>@(_startFailed ? "The map viewer could not start. Reload the page." : "Loading map…")</p>
-        <div class="published-map-canvas" data-map-canvas aria-label="Published map"></div>
+        <div class="published-map-canvas" data-map-canvas aria-label="Released map"></div>
         <div class="published-map-widgets" data-map-widgets aria-label="Map controls and data"></div>
     </section>
 }
