@@ -97,3 +97,36 @@ test('top navigation keeps its default layout at normal text size', async ({ pag
     await close();
   }
 });
+
+
+test('selected job detail and unavailable workflow evidence fit the viewport', async ({ page }, testInfo) => {
+  const jobId = '79ecd964b5094e3ca13d7f61529f0c18';
+  const close = await startSignedInConsole(page);
+  try {
+    await page.route('**/api/v1/admin/jobs**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      const body = path.endsWith(`/${jobId}`) ? {
+        jobId, kind: 'export', backend: 'csv', status: 'Running',
+        workloadName: 'Export in progress', requestedBy: 'apikey:api-key:00000000-0000-0000-0000-000000000001',
+        createdAt: '2026-11-16T02:00:00Z', percentComplete: 50,
+      } : { items: [] };
+      await route.fulfill({ json: body });
+    });
+    await page.goto(`${origin}/console/operate/jobs/${jobId}`);
+    await expect(page.locator('#job-detail-heading')).toHaveText(jobId);
+    await expect(page.getByRole('heading', { name: 'Workflow evidence unavailable' })).toBeVisible();
+    for (const grid of await page.locator('.operate-detail-grid').all()) {
+      await expect(grid).not.toContainText('honua-server#');
+    }
+    const dimensions = await page.locator('.operate-detail-grid > *').evaluateAll(elements => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth,
+      rightEdges: elements.map(element => element.getBoundingClientRect().right),
+    }));
+    expect(dimensions.scrollWidth, 'selected-job page width').toBeLessThanOrEqual(dimensions.innerWidth + 1);
+    expect(Math.max(...dimensions.rightEdges), 'job grid panels').toBeLessThanOrEqual(dimensions.innerWidth + 1);
+    await testInfo.attach('selected-job-reflow', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+  } finally {
+    await close();
+  }
+});
