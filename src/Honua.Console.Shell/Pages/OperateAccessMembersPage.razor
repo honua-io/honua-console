@@ -3,6 +3,7 @@
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
 @using Microsoft.Extensions.DependencyInjection
+@implements IDisposable
 @inject IRbacAccessDataSource RbacData
 @inject IServiceProvider Services
 
@@ -293,76 +294,4 @@
 
     </text>;
 
-    private TeamMembershipView? _membership;
-    private RbacOverviewView? _overview;
-    private RbacCapabilityState? _bindingState;
-    private bool _loading = true;
-    private bool _inviteOpen;
-
-    private string? _inviteEmail;
-    private string _inviteSendVia = "Email · OIDC sign-in link";
-    private string? _inviteRoleId;
-    private bool _scopeDev = true;
-    private bool _scopeStaging;
-    private bool _scopeProd;
-    private string _inviteExpires = "in 30 days · renew required";
-    private bool _inviteMfaRequired = true;
-    private string? _inviteIpAllowlist;
-
-    // Client-side validation for the scoped-invite drawer. There is no server body-validator for invite
-    // (catalog: "RBAC / share: no dedicated body validators"), so this is purely client-side and surfaced inline.
-    private readonly ValidationState _inviteValidation = new();
-
-    private RbacInviteState BuildInviteState() =>
-        new(_inviteEmail, _scopeDev, _scopeStaging, _scopeProd, _inviteIpAllowlist);
-
-    /// <summary>Re-runs the invite validator on every bound edit (cheap and synchronous).</summary>
-    private void OnInviteEdit() =>
-        _inviteValidation.SetClientErrors(RbacInviteValidator.Instance.Evaluate(BuildInviteState()));
-
-    [SupplyParameterFromQuery(Name = "workspace")]
-    private string? Workspace { get; set; }
-
-    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
-
-    private RbacRoleView? SelectedRole =>
-        _overview?.Roles.FirstOrDefault(role => string.Equals(role.Id, _inviteRoleId, StringComparison.Ordinal))
-        ?? _overview?.Roles.FirstOrDefault();
-
-    protected override async Task OnParametersSetAsync()
-    {
-        _loading = true;
-        _bindingState = null;
-        _membership = null;
-
-        var load = await RbacData.LoadMembershipAsync(WorkspaceId);
-        if (load.HasMembership)
-        {
-            _membership = load.Membership;
-
-            // The invite drawer's "what this grants" preview reads from the role definitions, so pull the
-            // overview too. A missing overview just leaves the preview empty; it never blocks the roster.
-            var overviewLoad = await RbacData.LoadOverviewAsync(WorkspaceId);
-            _overview = overviewLoad.Overview;
-            _inviteRoleId ??= _overview?.Roles.FirstOrDefault()?.Id;
-        }
-        else
-        {
-            _bindingState = load.CapabilityStates.FirstOrDefault();
-        }
-
-        _loading = false;
-    }
-
-    private void OpenInvite()
-    {
-        _inviteOpen = true;
-        // Seed findings so the form gates from first render (e.g. no scope / missing email).
-        OnInviteEdit();
-    }
-
-    private void CloseInvite() => _inviteOpen = false;
-
-    private string PermissionLabel(string key) =>
-        _overview?.Permissions.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.Ordinal))?.Label ?? key;
 }
