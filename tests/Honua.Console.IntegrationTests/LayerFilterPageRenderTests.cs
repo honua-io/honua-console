@@ -24,6 +24,7 @@ public sealed class LayerFilterPageRenderTests
 
         await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
 
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-filter-save]").HasAttribute("disabled")));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
         Assert.Equal("status = 'active'", filter.SavedExpression);
         Assert.Equal("status = 'pending'", page.Find("[data-filter-expression]").GetAttribute("value"));
@@ -43,6 +44,7 @@ public sealed class LayerFilterPageRenderTests
 
         await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
 
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-filter-save]").HasAttribute("disabled")));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
         Assert.Equal("status = 'active'", page.Find("[data-filter-expression]").GetAttribute("value"));
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
@@ -82,6 +84,7 @@ public sealed class LayerFilterPageRenderTests
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
         page.Find("[data-filter-expression]").Input("private_field = 2");
         await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-filter-save]").HasAttribute("disabled")));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
         Assert.Equal("private_field = 1", filter.SavedExpression);
         Assert.Equal("private_field = 2", page.Find("[data-filter-expression]").GetAttribute("value"));
