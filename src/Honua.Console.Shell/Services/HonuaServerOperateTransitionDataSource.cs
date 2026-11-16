@@ -92,6 +92,19 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
         BuildServicesViewAsync(includeRuntimeSettings: false, cancellationToken);
 
+    public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default)
+    {
+        const string separator = "-layer-";
+        var split = resourceId.LastIndexOf(separator, StringComparison.OrdinalIgnoreCase);
+        if (split < 0 || !Guid.TryParseExact(resourceId[..split], "D", out var connectionId)
+            || !int.TryParse(resourceId[(split + separator.Length)..], NumberStyles.None, CultureInfo.InvariantCulture, out var layerId))
+        {
+            return GetLayersViewAsync(cancellationToken);
+        }
+
+        return BuildServicesViewAsync(false, cancellationToken, new LayerScope(connectionId, layerId));
+    }
+
     public async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
     {
         var (settingsChanges, states) = await LoadSettingsChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -103,16 +116,22 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     // so it skips those calls.
     private async Task<OperateServicesView> BuildServicesViewAsync(
         bool includeRuntimeSettings,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        LayerScope? scope = null)
     {
         using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
-        var summariesTask = LoadServiceSummariesAsync(cancellationToken);
+        var summariesTask = LoadServiceSummariesAsync(cancellationToken, scope);
         await Task.WhenAll(connectionsTask, summariesTask).ConfigureAwait(false);
         var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
         var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
 
-        var layerRowsTask = LoadLayerRowsAsync(connections, summaries, cancellationToken);
+        if (scope is not null)
+        {
+            connections = connections.Where(connection => string.Equals(
+                connection.Id, scope.ConnectionId.ToString("D"), StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+        var layerRowsTask = LoadLayerRowsAsync(new LayerRead(connections, summaries, scope?.StorageLayerId), cancellationToken);
         var serviceSettingsTask = includeRuntimeSettings
             ? LoadServiceSettingsAsync(summaries, cancellationToken)
             : null;
@@ -185,11 +204,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     private async Task<(Honua.Sdk.Admin.Models.ServiceSummary[] Summaries, List<OperateCapabilityState> States)>
-        LoadServiceSummariesAsync(CancellationToken cancellationToken)
+        LoadServiceSummariesAsync(CancellationToken cancellationToken, LayerScope? scope = null)
     {
         var states = new List<OperateCapabilityState>();
         var serviceResult = await HonuaAdminCatalogReader.ReadAllAsync(
-            (query, token) => _client.ListServicesAsync(query, token),
+            (query, token) => _client.ListServicesAsync(query with { ConnectionId = scope?.ConnectionId, StorageLayerId = scope?.StorageLayerId }, token),
             page => page.Items,
             page => page.Total,
             cancellationToken).ConfigureAwait(false);
@@ -235,18 +254,32 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         }
     }
 
-    private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
+    private sealed record LayerScope(Guid ConnectionId, int StorageLayerId);
+
+    private sealed record LayerRead(
+        IReadOnlyList<OperateConnectionSummary> Connections,
+        IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> Services,
+        int? StorageLayerId = null);
+
+    private Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
         IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        LoadLayerRowsAsync(new LayerRead(connections, services), cancellationToken);
+
+    private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
+        LayerRead read, CancellationToken cancellationToken)
     {
+        var (connections, services, storageLayerId) = read;
         var states = new List<OperateCapabilityState>();
         if (connections.Count == 0)
         {
             return ([], states);
         }
 
-        var serviceScopes = CreateLayerServiceScopes(services);
+        var serviceScopes = storageLayerId is null
+            ? CreateLayerServiceScopes(services)
+            : services.Select(service => string.Equals(service.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : service.ServiceName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var layerScopes = connections
             .SelectMany(connection => serviceScopes.Select(serviceName => (Connection: connection, ServiceName: serviceName)))
             .ToArray();
@@ -276,6 +309,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
 
             foreach (var layer in result.Data ?? [])
             {
+                if (storageLayerId is { } selectedLayer && layer.LayerId != selectedLayer)
+                {
+                    continue;
+                }
                 var effectiveServiceName = Coalesce(layer.ServiceName, serviceName, "default");
                 var rowKey = string.Join(
                     '\u001f',
