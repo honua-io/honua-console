@@ -42,7 +42,7 @@ public partial class SupportPage
 
     private void OnSelfServiceContextChanged(SupportSelfServiceContext context)
     {
-        if (!_disposed && !_busy)
+        if (!_disposed)
         {
             _selfService = context;
         }
@@ -78,6 +78,7 @@ public partial class SupportPage
 
         _busy = true;
         _error = string.Empty;
+        var symptoms = SubmissionSymptoms();
         try
         {
             var context = await CaptureContextAsync();
@@ -87,7 +88,7 @@ public partial class SupportPage
             }
 
             _context = context;
-            var result = await SupportClient.CreateTicketAsync(CreateRequest(context), _lifetime.Token);
+            var result = await SupportClient.CreateTicketAsync(CreateRequest(context, symptoms), _lifetime.Token);
             if (!_disposed)
             {
                 CompleteSubmission(result);
@@ -102,7 +103,7 @@ public partial class SupportPage
         }
     }
 
-    private CreateSupportTicketRequest CreateRequest(ConsoleSupportContext capturedContext)
+    private CreateSupportTicketRequest CreateRequest(ConsoleSupportContext capturedContext, string symptoms)
     {
         // The scoped key is a secret carried only on the structured context block
         // (context.scopedKey) for the auto-bundle telemetry pull — never folded
@@ -114,7 +115,7 @@ public partial class SupportPage
             Severity = _severity,
             Environment = string.IsNullOrWhiteSpace(capturedContext.EnvironmentKind) ? "production" : capturedContext.EnvironmentKind,
             Service = string.IsNullOrWhiteSpace(_service) ? "honua-server" : _service.Trim(),
-            Symptoms = SubmissionSymptoms(),
+            Symptoms = symptoms,
             RequestedAction = _requestedAction.Trim(),
             AllowedAccessMode = _allowedAccessMode,
             TtlMinutes = _ttlMinutes < 5 ? 5 : _ttlMinutes,

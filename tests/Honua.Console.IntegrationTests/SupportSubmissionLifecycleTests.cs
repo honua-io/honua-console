@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.TestDoubles;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
@@ -80,6 +81,32 @@ public sealed class SupportSubmissionLifecycleTests
         await context.Renderer.Dispatcher.InvokeAsync(() => Task.CompletedTask);
         Assert.True(client.Token.IsCancellationRequested);
         Assert.Single(client.Requests);
+    }
+
+    [Fact]
+    public async Task SelfServiceActivityDuringSubmissionIsRetainedForRetry()
+    {
+        using var context = Context(new ConsoleV4Options());
+        var profiles = context.Services.GetRequiredService<DeferredProfiles>();
+        var client = context.Services.GetRequiredService<DeferredClient>();
+        var page = context.Render<SupportPage>();
+        profiles.DelayNextCapture = true;
+        Submit(page);
+        await page.InvokeAsync(() => page.FindComponent<Stub<SupportSelfServicePanel>>().Instance.Parameters
+            .Get(p => p.OnContextChanged).InvokeAsync(new SupportSelfServiceContext
+            {
+                ViewedKb = [new SupportKbRecord { Id = "later-article", Title = "Later advice" }]
+            }));
+        profiles.DelayNextCapture = false;
+        await page.InvokeAsync(() => profiles.Pending.SetResult(null));
+        page.WaitForAssertion(() => Assert.Single(client.Requests));
+        Assert.DoesNotContain("Later advice", client.Requests[0].Symptoms);
+        await page.InvokeAsync(() => client.Pending.SetResult(
+            SupportTicketResult.Denied(OperateSectionStatus.Unavailable, "Support is unavailable.")));
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[role=alert]")));
+        page.Find("article button").Click();
+        Assert.Equal(2, client.Requests.Count);
+        Assert.Contains("Later advice", client.Requests[1].Symptoms);
     }
 
     private static void Submit(IRenderedComponent<SupportPage> page)
