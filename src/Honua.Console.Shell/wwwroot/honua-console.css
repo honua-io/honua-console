@@ -6964,6 +6964,16 @@ p {
     min-width: 0;
 }
 
+.rbac-members-main > .console-toolbar {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.rbac-members-main > .console-toolbar > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .rbac-avatar {
     display: inline-grid;
     place-items: center;

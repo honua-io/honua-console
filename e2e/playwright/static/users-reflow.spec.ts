@@ -34,7 +34,7 @@ async function checkUsersReflow(page: Page, context: { v4Enabled: boolean; testI
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth))
         .toBeLessThanOrEqual(page.viewportSize()!.width);
     }
-    await context.testInfo.attach(`users-reflow-${mode}-v4-${context.v4Enabled}`, {
+    await context.testInfo.attach(`users-reflow-${page.viewportSize()!.width}-${mode}-v4-${context.v4Enabled}`, {
       body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
     });
     await style.evaluate(element => element.remove());
@@ -57,6 +57,10 @@ for (const v4Enabled of [false, true]) {
       await expect(page.locator('[data-rbac-invite-drawer]')).toBeVisible();
       await expect(page.getByRole('region', { name: 'Pending invitations', exact: true })).toContainText('synthetic-invitation');
       await checkUsersReflow(page, { v4Enabled, testInfo });
+      if (page.viewportSize()!.width < 400) {
+        await page.setViewportSize({ width: 320, height: 844 });
+        await checkUsersReflow(page, { v4Enabled, testInfo });
+      }
       expect(fixture.requests, 'roster preview does not mutate users').toEqual([]);
       expect(errors).toEqual([]);
     } finally {
