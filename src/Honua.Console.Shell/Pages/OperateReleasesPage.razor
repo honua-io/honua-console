@@ -5,6 +5,7 @@
 @inject IConsoleCapabilityManifest Capabilities
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <ConsoleAgentContext Context="@AgentContext" />
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.CrossEnvironmentPromotion"
@@ -1004,7 +1005,8 @@
 
     private bool _listLoaded;
     private bool _detailLoaded;
-    private int _detailGeneration;
+    private int _viewGeneration;
+    private int _approvalGeneration;
     private OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>? _proposals;
     private OperateSectionResult<GitOpsReleaseDetail>? _detail;
 
@@ -1034,10 +1036,15 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        var generation = ++_detailGeneration;
+        var generation = ++_viewGeneration;
         _detailLoaded = false;
         _detail = null;
         _coordinated = null;
+        _listLoaded = false;
+        _proposals = null;
+        _pendingApprovalsLoaded = false;
+        _pendingApprovals = OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed([]);
+        _selectedApprovalOperationId = null;
 
         // Capability-gated: when cross-environment promotion is not advertised the page renders the
         // first-class unsupported state (via ConsoleCapabilityGate), so skip the server reads entirely.
@@ -1050,35 +1057,46 @@
         {
             var releaseId = SelectedReleaseId!.Trim();
             var detail = await ReleaseClient.GetReleaseDetailAsync(releaseId);
-            if (generation != _detailGeneration)
+            if (generation != _viewGeneration)
             {
                 return;
             }
 
             // Independent sub-read: a missing coordinated op surfaces its own state.
             var coordinated = await ReleaseClient.GetCoordinatedReleaseAsync(releaseId);
-            if (generation == _detailGeneration)
+            if (generation == _viewGeneration)
             {
                 _detail = detail;
                 _coordinated = coordinated;
                 _detailLoaded = true;
             }
         }
-        else if (!_listLoaded)
+        else
         {
-            _proposals = await ReleaseClient.GetReleaseProposalsAsync();
-            _listLoaded = true;
-            await LoadPendingApprovalsAsync();
+            await LoadReleaseListAsync(generation);
         }
     }
 
-    // Projects the deploy-approval queue from the deploy operation ids discovered on the
-    // release operations in the list. The list-view release proposals are lightweight and do
-    // not carry deploy operation ids, so this resolves each proposal's detail to harvest the
-    // deploy-control operation id, then asks the approval client to project the pending set.
-    // This keeps the queue honest (server-owned, no list endpoint) without fabricating ids.
-    private async Task LoadPendingApprovalsAsync()
+    private bool IsCurrentList(int generation) =>
+        generation == _viewGeneration && !HasSelectedReleaseRoute;
+
+    private async Task LoadReleaseListAsync(int generation)
     {
+        var proposals = await ReleaseClient.GetReleaseProposalsAsync();
+        if (!IsCurrentList(generation))
+        {
+            return;
+        }
+
+        _proposals = proposals;
+        _listLoaded = true;
+        await LoadPendingApprovalsAsync(generation);
+    }
+
+    private async Task LoadPendingApprovalsAsync(int viewGeneration)
+    {
+        var approvalGeneration = ++_approvalGeneration;
+        _pendingApprovalsLoaded = false;
         try
         {
             if (_proposals is not { IsAllowed: true })
@@ -1087,12 +1105,13 @@
                 return;
             }
 
-            // Bound the per-release detail fan-out (server-driven proposal count, no upstream
-            // clamp) so a single page load cannot open an unbounded number of concurrent admin
-            // sockets against honua-server.
             var details = await BoundedFanOut.RunAsync(
                 Proposals,
                 (p, ct) => ReleaseClient.GetReleaseDetailAsync(p.ReleasePackageId, ct));
+            if (!IsCurrentList(viewGeneration) || approvalGeneration != _approvalGeneration)
+            {
+                return;
+            }
 
             var operationIds = details
                 .Where(d => d.IsAllowed && d.Value?.Operation is not null)
@@ -1102,11 +1121,18 @@
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
-            _pendingApprovals = await ApprovalClient.ListPendingAsync(operationIds);
+            var approvals = await ApprovalClient.ListPendingAsync(operationIds);
+            if (IsCurrentList(viewGeneration) && approvalGeneration == _approvalGeneration)
+            {
+                _pendingApprovals = approvals;
+            }
         }
         finally
         {
-            _pendingApprovalsLoaded = true;
+            if (IsCurrentList(viewGeneration) && approvalGeneration == _approvalGeneration)
+            {
+                _pendingApprovalsLoaded = true;
+            }
         }
     }
 
@@ -1115,13 +1141,15 @@
         _selectedApprovalOperationId = proposal.OperationId;
     }
 
+    public void Dispose() => ++_viewGeneration;
+
     private async Task OnApprovalActioned(DeployOperationProposal proposal)
     {
         // After an approve/reject/rollback, refresh the queue so a now-terminal/submitted
         // operation drops out of the pending list.
         if (!HasSelectedReleaseRoute)
         {
-            await LoadPendingApprovalsAsync();
+            await LoadPendingApprovalsAsync(_viewGeneration);
         }
     }
 }
