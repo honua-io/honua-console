@@ -213,6 +213,79 @@ public sealed class StudioReportBuilderRenderTests
         Assert.Contains("Edit / republish", page.Markup, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, "Republish…", "success")]
+    [InlineData(ConsolePresentationMode.Legacy, "Republish…", "failure")]
+    [InlineData(ConsolePresentationMode.Legacy, "Update policy", "success")]
+    [InlineData(ConsolePresentationMode.Legacy, "Update policy", "failure")]
+    [InlineData(ConsolePresentationMode.V4, "Republish…", "success")]
+    [InlineData(ConsolePresentationMode.V4, "Republish…", "failure")]
+    [InlineData(ConsolePresentationMode.V4, "Update policy", "success")]
+    [InlineData(ConsolePresentationMode.V4, "Update policy", "failure")]
+    public async Task ReportBuilder_PendingCommand_DisablesEditsUntilCompletion(
+        ConsolePresentationMode presentation, string command, string outcome)
+    {
+        var publication = new StudioReportPublicationView(
+            "pub-report-1", "monthly-infrastructure", "/published/monthly-infrastructure",
+            "report", "active", "organization", true, "Monthly infrastructure report",
+            "ver-2", 2, "ver-1", null, DateTimeOffset.UtcNow, []);
+        var completion = new TaskCompletionSource<StudioReportCommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var data = new FakeReportDataSource
+        {
+            Load = new StudioReportPublicationLoad(publication, []),
+            PendingCommand = completion.Task
+        };
+        using var ctx = new BunitContext();
+        var page = PrepareEditableReport(ctx, presentation, data);
+        var button = page.FindAll(".studio-report-bar button").Single(button => button.TextContent == command);
+        Assert.False(button.HasAttribute("disabled"));
+        var pending = button.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        try
+        {
+            page.WaitForAssertion(() => AssertInputsDisabled(page));
+            page.Find(".studio-report-outline-row--item").Click();
+            page.WaitForAssertion(() => AssertInputsDisabled(page));
+            Assert.True(page.FindAll(".studio-report-bar button").Single(button => button.TextContent == "Close").HasAttribute("disabled"));
+        }
+        finally
+        {
+            completion.SetResult(new StudioReportCommandResult(outcome == "success", "Command finished.", publication));
+            await pending;
+        }
+
+        Assert.False(page.Find(".studio-report-name").HasAttribute("disabled"));
+        page.Find(".studio-report-outline-row--section").Click();
+        Assert.True(page.Find("input[placeholder='monthly-infrastructure']").HasAttribute("disabled"));
+        Assert.False(page.FindAll(".studio-report-bar button").Single(button => button.TextContent == "Close").HasAttribute("disabled"));
+        page.Find(".studio-report-name").Input("Edited after completion");
+        Assert.True(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
+    private static IRenderedComponent<StudioReportBuilderPage> PrepareEditableReport(
+        BunitContext ctx, ConsolePresentationMode presentation, FakeReportDataSource data)
+    {
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        ctx.Services.AddSingleton<IStudioReportPublicationDataSource>(data);
+        NavigateWithPublicationId(ctx, data.Load.Publication!.PublicationId);
+        var page = ctx.Render<StudioReportBuilderPage>();
+        page.FindAll("button").Single(button => button.TextContent == "Edit / republish").Click();
+        page.FindAll("button").Single(button => button.TextContent == "Add binding").Click();
+        page.Find("[data-report-bindings] input[placeholder='incidents']").Change("incidents");
+        page.Find("[data-report-bindings] input[placeholder='content:incidents']").Change("content:incidents");
+        page.FindAll("button").Single(button => button.TextContent == "+ Panel").Click();
+        page.Find("[data-report-inspector='panel'] input[placeholder='incidents']").Change("incidents");
+        page.Find(".studio-report-outline-row--section").Click();
+        return page;
+    }
+
+    private static void AssertInputsDisabled(IRenderedComponent<StudioReportBuilderPage> page)
+    {
+        var inputs = page.FindAll("[data-report-builder] input, [data-report-builder] textarea, [data-report-builder] select");
+        Assert.NotEmpty(inputs);
+        Assert.All(inputs, input => Assert.True(input.HasAttribute("disabled"), input.OuterHtml));
+    }
+
     private static void NavigateWithPublicationId(Bunit.BunitContext ctx, string publicationId)
     {
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
@@ -230,18 +303,20 @@ public sealed class StudioReportBuilderRenderTests
 
         public StudioReportPublicationLoad Load { get; set; } = new(null, []);
 
+        public Task<StudioReportCommandResult>? PendingCommand { get; set; }
+
         public StudioReportCommandResult Command { get; set; } = new(true, "ok");
 
         public Task<StudioReportPublicationLoad> LoadAsync(string publicationId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Load);
 
         public Task<StudioReportCommandResult> PublishAsync(StudioReportEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Command);
+            PendingCommand ?? Task.FromResult(Command);
 
         public Task<StudioReportCommandResult> RollbackAsync(string publicationId, string targetVersionId, string? expectedEtag = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Command);
+            PendingCommand ?? Task.FromResult(Command);
 
         public Task<StudioReportCommandResult> UpdatePolicyAsync(string publicationId, string visibility, bool embeddable, string? expectedEtag = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Command);
+            PendingCommand ?? Task.FromResult(Command);
     }
 }
