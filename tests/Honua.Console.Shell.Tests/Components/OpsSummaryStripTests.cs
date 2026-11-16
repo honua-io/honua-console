@@ -10,6 +10,54 @@ namespace Honua.Console.Shell.Tests.Components;
 public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
 {
     [Fact]
+    public async Task ReplayReset_WaitsForOlderReadThenReconcilesFreshInbox()
+    {
+        var inbox = new StubInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty)
+        };
+        var realtime = new StubRealtimeClient();
+        Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
+        Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
+        var cut = Render<OpsSummaryStrip>();
+        var older = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        inbox.Read = _ => older.Task;
+        var live = cut.InvokeAsync(() => realtime.RaiseProposalChanged(new ConsoleProposalEvent(
+            ConsoleProposalEventKind.Pending, "p-9", ConsoleProposalKind.MetadataRelease,
+            ConsoleProposalStatus.AwaitingApproval, "tester", ConsoleProposalRisk.Low, DateTimeOffset.UtcNow)));
+        cut.WaitForAssertion(() => Assert.Equal(2, inbox.Reads));
+        inbox.Read = null;
+        inbox.Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(new ApprovalInboxSnapshot(
+            [new ApprovalInboxItem(ApprovalTicketType.PublishData, Proposal("p-9", ConsoleProposalStatus.AwaitingApproval))]));
+        var reset = cut.InvokeAsync(realtime.RaiseResetAsync);
+        Assert.False(reset.IsCompleted);
+        Assert.Equal(2, inbox.Reads);
+        older.SetResult(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty));
+        await Task.WhenAll(live, reset).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(3, inbox.Reads);
+        Assert.Equal("1", cut.Find("[data-summary-value='approvals']").TextContent.Trim());
+    }
+
+    [Fact]
+    public async Task ReplayReset_FailedReadRejectsAcknowledgement_AndDisposeUnsubscribes()
+    {
+        var inbox = new StubInboxClient
+        {
+            Result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty)
+        };
+        var realtime = new StubRealtimeClient();
+        Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);
+        Services.AddSingleton<IConsoleProposalRealtimeClient>(realtime);
+        var cut = Render<OpsSummaryStrip>();
+        inbox.Result = OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Unavailable, "Unavailable");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cut.InvokeAsync(realtime.RaiseResetAsync));
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        var reads = inbox.Reads;
+        await realtime.RaiseResetAsync();
+        Assert.Equal(reads, inbox.Reads);
+    }
+
+    [Fact]
     public void SnapshotFreshness_UsesServerGenerationTime_AndDoesNotLetOtherReadsRefreshIt()
     {
         const string generatedAt = "2020-01-01 01:02 UTC";
@@ -315,12 +363,17 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
         public OperateSectionResult<ApprovalInboxSnapshot> Result { get; set; } =
             OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Unavailable, "n/a");
 
+        public Func<CancellationToken, Task<OperateSectionResult<ApprovalInboxSnapshot>>>? Read { get; set; }
+        public int Reads { get; private set; }
         public Task<OperateSectionResult<ApprovalInboxSnapshot>> GetInboxAsync(
-            string? status = null, string? kind = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Result);
+            string? status = null, string? kind = null, CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return Read?.Invoke(cancellationToken) ?? Task.FromResult(Result);
+        }
     }
 
-    private sealed class StubRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient
+    private sealed class StubRealtimeClient : IConsoleProposalRealtimeClient, IConsoleRealtimeCapabilityClient, IConsoleRealtimeRefreshClient
     {
         private ConsoleRealtimeConnectionState _state = ConsoleRealtimeConnectionState.NotConfigured;
 
@@ -335,6 +388,12 @@ public sealed class OpsSummaryStripTests : ConsoleComponentTestBase
         public bool IsConnected => _state == ConsoleRealtimeConnectionState.Connected;
 
         public event Action<ConsoleProposalEvent>? ProposalChanged;
+        public event Func<Task>? RefreshRequired;
+        public async Task RaiseResetAsync()
+        {
+            if (RefreshRequired is { } handlers)
+                foreach (Func<Task> handler in handlers.GetInvocationList()) await handler();
+        }
 
         public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged;
 

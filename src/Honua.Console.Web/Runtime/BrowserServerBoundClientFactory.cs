@@ -42,6 +42,8 @@ internal sealed class BrowserApiHandler(
         var binding = pinned || capture ? current : null;
         var sessionRevision = session.Revision;
         PrepareRequest(request);
+        if (request.Headers.Accept.Any(value => value.MediaType == "text/event-stream"))
+            request.SetBrowserResponseStreamingEnabled(true);
         var response = await base.SendAsync(request, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized
             && access == BrowserApiAccess.Authenticated && session.Revision == sessionRevision)

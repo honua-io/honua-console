@@ -82,6 +82,28 @@ public sealed class BrowserApiTransportTests
     }
 
     [Fact]
+    public async Task AdminStreamEnablesBrowserStreamingAndRetainsCursorWithoutCallerCredentials()
+    {
+        var recorder = new RecordingHandler();
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal());
+        using var client = Client(session, recorder);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/admin/live?topics=proposals");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        request.Headers.Add("Last-Event-ID", "admin:42");
+        request.Headers.Add("Cookie", "caller-cookie");
+        request.Headers.Authorization = new("Bearer", "caller-token");
+
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+        Assert.True(request.Options.TryGetValue(new HttpRequestOptionsKey<bool>("WebAssemblyEnableStreamingResponse"), out var streaming) && streaming);
+        Assert.Equal("admin:42", Assert.Single(request.Headers.GetValues("Last-Event-ID")));
+        Assert.False(request.Headers.Contains("Cookie"));
+        Assert.Null(request.Headers.Authorization);
+        Assert.Equal(1, recorder.Calls);
+    }
+
+    [Fact]
     public async Task PinnedRequestRejectsAnUnknownAuthorityBeforeSending()
     {
         var recorder = new RecordingHandler();

@@ -123,7 +123,7 @@
         await ResolveServerNameAsync();
         if (_disposed) return;
         _updates = new ConsoleProposalSubscription(ServiceProvider.GetService<IConsoleProposalRealtimeClient>(),
-            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
         await RefreshAsync();
         if (_disposed) return;
         await _updates.StartAsync(_lifetimeToken);
@@ -173,7 +173,19 @@
         if (result.IsAllowed) _lastFindingsReadUtc = _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    private async Task ReadInboxAsync()
+    private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
+    {
+        await ReadInboxAsync();
+        if (_disposed || _inbox is null || _inboxStatus != OperateSectionStatus.Allowed || _inboxPartial)
+            throw new InvalidOperationException("The approval summary could not be reconciled.");
+        StateHasChanged();
+    });
+
+    private readonly ConsoleRefreshCoalescer _inboxReadGate = new();
+
+    private Task ReadInboxAsync() => _inboxReadGate.RunAsync(ReadInboxCoreAsync);
+
+    private async Task ReadInboxCoreAsync()
     {
         if (_disposed || _inbox is null) return;
         var revision = ++_inboxRevision;

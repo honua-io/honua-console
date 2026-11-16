@@ -411,14 +411,8 @@
                 </span>
             </div>
 
-            @* Reconnect seam (console#288 addendum item 3, pinned choice): the history read
-               (honua-server PR #2576) is the sole gap-fill contract. Live pushes from the
-               ops-health hub group (PR #2591) are held in a SEPARATE live band at their native
-               30-60s cadence rather than appended onto the downsampled 5-min/hourly window; a
-               chart marks the boundary with a dashed rule instead of blending the two silently.
-               The live band is idempotent-appended (OpsHealthLiveBand.Append, keyed on the flush
-               timestamp) and cleared whenever a fresh history fetch subsumes it
-               (OpsHealthLiveBand.TrimToAfter). *@
+            @* History reads fill gaps. Keep live snapshots separate from the downsampled history
+               window, and trim the live band when refreshed history subsumes it. *@
             <form class="console-panel operate-filter-bar" aria-label="Ops health trend controls"
                   @onsubmit="ApplyTrendRangeAsync" @onsubmit:preventDefault="true">
                 <label>
@@ -527,6 +521,9 @@
 
     private bool _loaded;
     private bool _busy;
+    private bool _disposed;
+    private readonly SemaphoreSlim _snapshotGate = new(1, 1);
+    private readonly SemaphoreSlim _historyGate = new(1, 1);
     private OpsHealthView? _view;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
     private string _message = string.Empty;
@@ -549,6 +546,7 @@
         if (_realtimeClient is not null)
         {
             _realtimeClient.SnapshotReceived += OnSnapshotReceived;
+            if (_realtimeClient is IConsoleRealtimeRefreshClient refresh) refresh.RefreshRequired += OnRefreshRequiredAsync;
             if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
             {
                 capability.ConnectionStateChanged += OnRealtimeConnectionStateChanged;
@@ -570,12 +568,18 @@
         await LoadAsync();
     }
 
+    private bool _snapshotComplete;
+
     private async Task LoadAsync()
     {
+        await _snapshotGate.WaitAsync();
         _busy = true;
         try
         {
+            if (_disposed) return;
             var result = await HealthData.GetSnapshotAsync();
+            if (_disposed) return;
+            _snapshotComplete = result.IsAllowed && !result.PartialResult;
             if (result.IsAllowed)
             {
                 _view = result.Value;
@@ -591,6 +595,7 @@
         {
             _loaded = true;
             _busy = false;
+            _snapshotGate.Release();
         }
     }
 
@@ -663,21 +668,37 @@
 
     private async Task LoadTrendAsync()
     {
-        var selection = CurrentRangeSelection;
-        var result = await HealthData.GetHistoryAsync(selection);
-        _trendResult = result;
-
-        if (result is { IsAllowed: true, Value: { } trend })
+        await _historyGate.WaitAsync();
+        try
         {
-            // The history read just re-confirmed everything up to trend.To: drop any live-band
-            // point it now covers so nothing renders twice across the refresh (the pinned
-            // reconnect-seam contract, console#288 addendum item 3).
-            _historyCutoff = trend.To;
-            _liveBand = OpsHealthLiveBand.TrimToAfter(_liveBand, _historyCutoff);
-        }
+            if (_disposed) return;
+            var selection = CurrentRangeSelection;
+            var result = await HealthData.GetHistoryAsync(selection);
+            if (_disposed) return;
+            _trendResult = result;
 
-        await InvokeAsync(StateHasChanged);
+            if (result is { IsAllowed: true, Value: { } trend })
+            {
+                // The history read just re-confirmed everything up to trend.To: drop any live-band
+                // point it now covers so nothing renders twice across the refresh (the pinned
+                // reconnect-seam contract, console#288 addendum item 3).
+                _historyCutoff = trend.To;
+                _liveBand = OpsHealthLiveBand.TrimToAfter(_liveBand, _historyCutoff);
+            }
+
+            if (!_disposed) await InvokeAsync(StateHasChanged);
+        }
+        finally { _historyGate.Release(); }
     }
+
+    private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
+    {
+        await Task.WhenAll(LoadAsync(), LoadTrendAsync());
+        if (_disposed || !_snapshotComplete || _view is null || _trendResult is not { IsAllowed: true, PartialResult: false })
+            throw new InvalidOperationException("The health projection could not be reconciled.");
+        _liveBand = [];
+        StateHasChanged();
+    });
 
     private void OnSnapshotReceived(OpsHealthSnapshotResponse snapshot)
     {
@@ -730,15 +751,16 @@
 
     private string TrendRealtimeStateTitle => TrendRealtimeConnectionState switch
     {
-        ConsoleRealtimeConnectionState.Connected => "Live ops-health updates via the admin realtime hub.",
-        ConsoleRealtimeConnectionState.Connecting => "Connecting to the admin realtime hub.",
+        ConsoleRealtimeConnectionState.Connected => "Live health updates.",
+        ConsoleRealtimeConnectionState.Connecting => "Connecting to live updates.",
         ConsoleRealtimeConnectionState.FallbackEngaged =>
-            "The ops-health realtime group is unavailable (honua-server PR #2591 not on this server, or no Redis backplane); trend charts refresh every 5 minutes.",
+            "Live updates are unavailable; trend charts refresh every 5 minutes.",
         _ => "No environment is bound; trend charts refresh every 5 minutes.",
     };
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         _trendRefreshCts?.Cancel();
         _trendRefreshCts?.Dispose();
         _trendRefreshTimer?.Dispose();
@@ -748,6 +770,7 @@
         if (_realtimeClient is not null)
         {
             _realtimeClient.SnapshotReceived -= OnSnapshotReceived;
+            if (_realtimeClient is IConsoleRealtimeRefreshClient refresh) refresh.RefreshRequired -= OnRefreshRequiredAsync;
             if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
             {
                 capability.ConnectionStateChanged -= OnRealtimeConnectionStateChanged;
