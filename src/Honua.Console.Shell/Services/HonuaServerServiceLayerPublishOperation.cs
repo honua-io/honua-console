@@ -96,6 +96,12 @@ public sealed class HonuaServerServiceLayerPublishOperation : IServiceLayerPubli
         var result = await _client.ListConnectionTablesAsync(connectionId, cancellationToken).ConfigureAwait(false);
         if (result.Data is not { } tables)
         {
+            // A failed read is not an empty connection: report it so the picker can offer a retry.
+            if (result.Issue is { } issue)
+            {
+                throw new ServiceLayerTableReadException(OperateCapabilityState.FromIssue("Connections", issue));
+            }
+
             return [];
         }
 

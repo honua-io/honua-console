@@ -287,6 +287,24 @@ public sealed class EsriImportSurfaceRenderTests
     }
 
     [Fact]
+    public void WizardPage_SelectStep_ItemCheckboxesCarryTheItemName()
+    {
+        using var ctx = NewContext();
+        ctx.Services.AddSingleton<IEsriMigrationRunDataSource>(new StubMigrationRunDataSource());
+
+        var page = RenderWizardAtStep(ctx, 1);
+
+        // A bare checkbox reads as "checkbox, checked, dimmed" with no item; each one names what it includes.
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-wizard-step='select'] li")), TimeSpan.FromSeconds(5));
+        var labels = page.FindAll("[data-wizard-step='select'] li input[type='checkbox']")
+            .Select(box => box.GetAttribute("aria-label"))
+            .ToArray();
+        Assert.Equal(
+            new string?[] { "Include Storm Drains Web Map", "Include Ops Dashboard", "Include Culverts Web Map", "Include Terrain Scene" },
+            labels);
+    }
+
+    [Fact]
     public void WizardPage_RunStep_WhenRunEngineUnbound_RendersMissingBinding()
     {
         using var ctx = NewContext();

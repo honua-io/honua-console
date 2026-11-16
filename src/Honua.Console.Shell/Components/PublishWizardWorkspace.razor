@@ -49,7 +49,7 @@
 }
 else if (_loadFailure is not null || _loadStates.Count > 0)
 {
-    <ConsoleConnectionNotice States="_loadStates" Error="_loadFailure" OnRetry="LoadWorkspaceAsync" Busy="_loading" />
+    <ConsoleConnectionNotice States="_loadStates" Error="@_loadFailure" OnRetry="LoadWorkspaceAsync" Busy="_loading" />
 }
 else
 {
@@ -73,9 +73,8 @@ else
     // ---- Server-owned reads. Empty until loaded; never seeded. ----
     private IReadOnlyList<OperateServiceDetail> _services = [];
     private IReadOnlyList<OperateConnectionSummary> _connections = [];
-    private IReadOnlyList<ServiceLayerPublishTable> _tables = [];
+    private readonly ServiceLayerTableLoad _tableLoad = new();
     private bool _loading = true;
-    private bool _loadingTables;
     private string? _loadFailure;
     private IReadOnlyList<OperateCapabilityState> _loadStates = [];
 
@@ -100,7 +99,7 @@ else
     private string? _publishedServiceUrl;
 
     private ServiceLayerPublishTable? SelectedTable =>
-        _tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _tableKey, StringComparison.Ordinal));
+        _tableLoad.Tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _tableKey, StringComparison.Ordinal));
 
     private OperateServiceDetail? SelectedService =>
         _services.FirstOrDefault(s => string.Equals(s.Name, _selectedServiceName, StringComparison.Ordinal));
@@ -119,8 +118,7 @@ else
         _connections = [];
         _selectedServiceName = null;
         _connectionId = null;
-        _tables = [];
-        _tableKey = null;
+        ResetTables();
         try
         {
             var services = await OperateData.GetServicesViewAsync();
@@ -148,27 +146,40 @@ else
 
     private void OnQuickCurrentChanged(int next) => _quickCurrent = next;
 
-    private async Task OnConnectionChanged(ChangeEventArgs args)
+    private string TablePlaceholder =>
+        _tableLoad.Loading ? "Loading tables…"
+        : _tableLoad.Unavailable ? "Tables could not be read"
+        : !string.IsNullOrWhiteSpace(_connectionId) && _tableLoad.Tables.Count == 0 ? "No publishable tables"
+        : "Select a table…";
+
+    private Task OnConnectionChanged(ChangeEventArgs args)
     {
         _connectionId = args.Value?.ToString();
-        _tables = [];
-        _tableKey = null;
         _publishResult = null;
+        return LoadTablesAsync();
+    }
 
-        if (string.IsNullOrWhiteSpace(_connectionId))
-        {
-            return;
-        }
+    private void ResetTables()
+    {
+        _tableLoad.Reset();
+        ClearTableChoice();
+    }
 
-        _loadingTables = true;
-        try
-        {
-            _tables = await PublishOperation.ListTablesAsync(_connectionId);
-        }
-        finally
-        {
-            _loadingTables = false;
-        }
+    private Task LoadTablesAsync()
+    {
+        ClearTableChoice();
+        return _tableLoad.LoadAsync(PublishOperation, _connectionId);
+    }
+
+    private Task RetryTablesAsync()
+    {
+        ClearTableChoice();
+        return _tableLoad.RetryAsync(PublishOperation, _connectionId);
+    }
+
+    private void ClearTableChoice()
+    {
+        _tableKey = null;
     }
 
     private void OnTableChanged(ChangeEventArgs args)
@@ -420,9 +431,9 @@ else
                         <label class="publish-field">
                             <span>Table</span>
                             <select class="console-input" data-table-picker value="@_tableKey" @onchange="OnTableChanged"
-                                    disabled="@(_tables.Count == 0)">
-                                <option value="">@(_loadingTables ? "Loading tables…" : "Select a table…")</option>
-                                @foreach (var candidate in _tables)
+                                    disabled="@(_tableLoad.Tables.Count == 0)">
+                                <option value="">@TablePlaceholder</option>
+                                @foreach (var candidate in _tableLoad.Tables)
                                 {
                                     <option value="@candidate.QualifiedName">@candidate.QualifiedName</option>
                                 }
@@ -436,6 +447,12 @@ else
                     @if (_connections.Count == 0 && !_loading)
                     {
                         <p class="console-muted" data-no-connections>No connections are registered on this server. Add one under Operate → Connections before publishing.</p>
+                    }
+                    @if (_tableLoad.Unavailable)
+                    {
+                        <div data-table-load-failure>
+                            <ConsoleConnectionNotice Heading="Could not read this connection's tables" States="_tableLoad.States" Error="@_tableLoad.Failure" OnRetry="RetryTablesAsync" />
+                        </div>
                     }
                 </article>
             </div>
