@@ -115,7 +115,9 @@ test('selected job detail and unavailable workflow evidence fit the viewport', a
     await page.goto(`${origin}/console/operate/jobs/${jobId}`);
     await expect(page.locator('#job-detail-heading')).toHaveText(jobId);
     await expect(page.getByRole('heading', { name: 'Workflow evidence unavailable' })).toBeVisible();
-    await expect(page.locator('.operate-detail-grid')).not.toContainText('honua-server#');
+    for (const grid of await page.locator('.operate-detail-grid').all()) {
+      await expect(grid).not.toContainText('honua-server#');
+    }
     const dimensions = await page.locator('.operate-detail-grid > *').evaluateAll(elements => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth,
