@@ -71,12 +71,8 @@ else
     [Parameter]
     public string JobId { get; set; } = string.Empty;
 
-    private StudioWorkflowJobEvidence? _evidence;
+    private readonly WorkflowJobEvidenceRead _evidenceRead = new();
+    private StudioWorkflowJobEvidence? _evidence => _evidenceRead.Evidence;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        _evidence = string.IsNullOrWhiteSpace(JobId)
-            ? null
-            : await Workflows.GetJobEvidenceAsync(JobId);
-    }
+    protected override Task OnParametersSetAsync() => _evidenceRead.LoadAsync(Workflows, JobId);
 }
