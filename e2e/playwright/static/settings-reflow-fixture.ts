@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
+import { respondToSharedAdminApi } from './shared-admin-fixture';
 
 function settingsData(path: string) {
   if (path.endsWith('/api-keys')) return [{
@@ -19,18 +20,10 @@ function respondToSettingsApi(request: IncomingMessage, response: ServerResponse
   response.setHeader('Content-Type', 'application/json');
   if (request.method !== 'GET') mutations.push(`${request.method} ${request.url}`);
   const path = new URL(request.url!, 'http://localhost').pathname.replace(/\/$/, '');
-  if (path.endsWith('/auth/session')) {
-    response.end(JSON.stringify({ isAuthenticated: true, claims: [
-      { type: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier', value: 'fixture-operator' },
-      { type: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role', value: 'admin' },
-    ] }));
-  } else if (path.endsWith('/auth/csrf')) {
-    response.end(JSON.stringify({ requestToken: 'fixture-only' }));
-  } else {
-    const data = settingsData(path);
-    if (data !== null) response.end(JSON.stringify({ success: true, data }));
-    else response.writeHead(404).end('{}');
-  }
+  if (respondToSharedAdminApi(request, response)) return;
+  const data = settingsData(path);
+  if (data !== null) response.end(JSON.stringify({ success: true, data }));
+  else response.writeHead(404).end('{}');
 }
 
 export async function settingsFixture(options: { v4Enabled: boolean }) {

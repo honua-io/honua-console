@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
+import { respondToSharedAdminApi } from './shared-admin-fixture';
 
 export async function populatedMembersFixture(v4Enabled: boolean) {
   const requests: string[] = [];
@@ -10,13 +11,8 @@ export async function populatedMembersFixture(v4Enabled: boolean) {
     if (!['GET', 'HEAD'].includes(request.method ?? 'GET')) {
       requests.push(`${request.method} ${path}`);
       response.writeHead(405).end('{}');
-    } else if (path.endsWith('/auth/session')) {
-      response.end(JSON.stringify({ isAuthenticated: true, claims: [
-        { type: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier', value: 'fixture-operator' },
-        { type: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role', value: 'admin' },
-      ] }));
-    } else if (path.endsWith('/auth/csrf')) {
-      response.end(JSON.stringify({ requestToken: 'fixture-only' }));
+    } else if (respondToSharedAdminApi(request, response)) {
+      return;
     } else if (path.endsWith('/access/first/members') && request.method === 'GET') {
       response.end(JSON.stringify({ success: true, data: {
         workspaceId: 'first', workspaceName: 'RegionalOperationsAndInfrastructurePlanningWorkspace',
@@ -24,10 +20,6 @@ export async function populatedMembersFixture(v4Enabled: boolean) {
         invitations: [{ id: 'invite', identity: 'synthetic-invitation@example.invalid', roleName: 'Operator', scope: 'RegionalOperationsAndInfrastructurePlanningWorkspace', status: 'pending' }],
         activeCount: 1, pendingCount: 1, deactivatedCount: 0, canInvite: true,
       } }));
-    } else if (path.endsWith('/access/first/roles') && request.method === 'GET') {
-      response.end(JSON.stringify({ success: true, data: { workspaceId: 'first', workspaceName: 'Synthetic workspace',
-        permissions: [{ key: 'view', label: 'View' }], roles: [{ id: 'custom', name: 'Synthetic role', isCustom: true, grants: [] }],
-        customRoleCount: 1, canManageRoles: true } }));
     } else {
       response.writeHead(404).end('{}');
     }
