@@ -922,34 +922,6 @@ public sealed record HonuaAdminExternalLayerCandidate
     public string? ServiceUrl { get; init; }
 }
 
-// SHIM(honua-sdk-dotnet#166): Synchronous file-import receipts are not projected by the consumed SDK.
-public sealed record HonuaAdminImportResult
-{
-    public string? PhysicalTableName { get; init; }
-
-    public string? Schema { get; init; }
-
-    public int? SourceSrid { get; init; }
-
-    public int? StoredSrid { get; init; }
-
-    public bool? Reprojected { get; init; }
-
-    public bool Success { get; init; }
-
-    public long FeatureCount { get; init; }
-
-    public string? TableName { get; init; }
-
-    public string? Format { get; init; }
-
-    public string? ErrorMessage { get; init; }
-
-    public IReadOnlyList<HonuaAdminImportValidationIssue> ValidationErrors { get; init; } = [];
-
-    public IReadOnlyList<string> Warnings { get; init; } = [];
-}
-
 // SHIM(honua-sdk-dotnet#166): File-import validation details are not projected by the consumed SDK.
 public sealed record HonuaAdminImportValidationIssue
 {
