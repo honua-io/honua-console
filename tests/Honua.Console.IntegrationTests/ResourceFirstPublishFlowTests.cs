@@ -548,8 +548,8 @@ public sealed class ResourceFirstPublishFlowTests
         private readonly OperateConnectionSummary _connection =
             new(connectionId, name, "PostGIS", "db", "principal", "Connected", "now", null);
 
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([_connection], [], [], [], []));
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateEnvironmentSnapshot([_connection], [], [], [], []));
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(_connection);
@@ -603,8 +603,8 @@ public sealed class ResourceFirstPublishFlowTests
         private readonly OperateServiceDetail _service =
             Service("parcels", "FeatureServer, MapServer", new OperateServiceLayer(1, name, "Polygon", resourceId, name));
 
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([], [EditPreview(resourceId, name)], [_service], [], []));
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateEnvironmentSnapshot([], [EditPreview(resourceId, name)], [_service], [], []));
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(null);

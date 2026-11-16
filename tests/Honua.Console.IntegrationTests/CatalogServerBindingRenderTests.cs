@@ -128,7 +128,7 @@ public sealed class CatalogServerBindingRenderTests
 
         // Side rail surfaces Quick facts + Publication cards and the usage callout.
         Assert.Contains("Quick facts", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Publication", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Release", page.Markup, StringComparison.Ordinal);
         Assert.NotEmpty(page.FindAll(".console-usage-callout"));
 
         // Tab counts reflect the live detail collections.
@@ -306,7 +306,7 @@ public sealed class CatalogServerBindingRenderTests
     // load-bearing; the default IOperateTransitionDataSource.GetDatasetsViewAsync derives from the workspace.
     private sealed class StubOperateData(int resourceCount, bool throwOnRead = false) : IOperateTransitionDataSource
     {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default)
         {
             if (throwOnRead)
             {
@@ -324,7 +324,7 @@ public sealed class CatalogServerBindingRenderTests
                     [],
                     []))
                 .ToArray();
-            return Task.FromResult(new OperateTransitionWorkspace([], edits, [], [], []));
+            return Task.FromResult(new OperateEnvironmentSnapshot([], edits, [], [], []));
         }
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>

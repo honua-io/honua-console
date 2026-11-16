@@ -5,7 +5,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-public sealed record OperateTransitionWorkspace(
+public sealed record OperateEnvironmentSnapshot(
     IReadOnlyList<OperateConnectionSummary> Connections,
     IReadOnlyList<OperateDatasetEditPreview> DatasetEdits,
     IReadOnlyList<OperateServiceDetail> Services,

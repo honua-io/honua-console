@@ -188,7 +188,7 @@ public sealed class OperateServicesPageTests
     {
         public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) => load();
 
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>

@@ -22,7 +22,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         _profiles = profiles;
     }
 
-    public async Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+    public async Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default)
     {
         using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         // The landing page is the only surface that needs the whole workspace; fan out the
@@ -53,7 +53,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var resources = BuildDatasetEdits(layerRows);
         var services = new ServiceProjection(serviceSettings, layerRows, new OperateServiceEndpointResolver(environment.ServerBaseUri)).Map(summaries);
 
-        return new OperateTransitionWorkspace(
+        return new OperateEnvironmentSnapshot(
             connections,
             resources,
             services,
@@ -92,12 +92,12 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
         BuildServicesViewAsync(includeRuntimeSettings: false, cancellationToken);
 
-    public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default)
+    public Task<OperateServicesView> GetLayerViewAsync(string datasetId, CancellationToken cancellationToken = default)
     {
         const string separator = "-layer-";
-        var split = resourceId.LastIndexOf(separator, StringComparison.OrdinalIgnoreCase);
-        if (split < 0 || !Guid.TryParseExact(resourceId[..split], "D", out var connectionId)
-            || !int.TryParse(resourceId[(split + separator.Length)..], NumberStyles.None, CultureInfo.InvariantCulture, out var layerId))
+        var split = datasetId.LastIndexOf(separator, StringComparison.OrdinalIgnoreCase);
+        if (split < 0 || !Guid.TryParseExact(datasetId[..split], "D", out var connectionId)
+            || !int.TryParse(datasetId[(split + separator.Length)..], NumberStyles.None, CultureInfo.InvariantCulture, out var layerId))
         {
             return GetLayersViewAsync(cancellationToken);
         }
@@ -173,12 +173,12 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     public async Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
-        string resourceId,
+        string datasetId,
         CancellationToken cancellationToken = default)
     {
         var view = await GetDatasetsViewAsync(cancellationToken).ConfigureAwait(false);
         return view.DatasetEdits.FirstOrDefault(
-            resource => string.Equals(resource.DatasetId, resourceId, StringComparison.OrdinalIgnoreCase));
+            resource => string.Equals(resource.DatasetId, datasetId, StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<OperateServiceDetail?> FindServiceAsync(
@@ -585,11 +585,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var source = string.IsNullOrWhiteSpace(layer.Schema) && string.IsNullOrWhiteSpace(layer.Table)
             ? connection.Name
             : $"{connection.Name} / {Coalesce(layer.Schema, "schema")}.{Coalesce(layer.Table, "table")}";
-        var resourceId = OperateDatasetIdentity.ForPublishedLayer(connection.Id, layer.LayerId);
+        var datasetId = OperateDatasetIdentity.ForPublishedLayer(connection.Id, layer.LayerId);
         var serviceName = Coalesce(layer.ServiceName, "default");
 
         return new OperateDatasetEditPreview(
-            resourceId,
+            datasetId,
             layerName,
             source,
             "Server-backed published layer metadata; draft edit preview is waiting on the Metadata v2 resource edit contract.",

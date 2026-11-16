@@ -220,11 +220,11 @@
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
-    private OperateTransitionWorkspace? _workspace;
+    private OperateEnvironmentSnapshot? _workspace;
 
     protected override async Task OnInitializedAsync()
     {
         await Capabilities.RefreshAsync();
-        _workspace = await OperateData.GetWorkspaceAsync();
+        _workspace = await OperateData.GetEnvironmentAsync();
     }
 }

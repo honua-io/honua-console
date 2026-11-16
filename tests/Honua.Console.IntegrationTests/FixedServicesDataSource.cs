@@ -8,8 +8,8 @@ internal sealed class FixedServicesDataSource(params OperateServiceDetail[] serv
     public static FixedServicesDataSource WithLayer(OperateServiceLayer layer) =>
         new(new OperateServiceDetail("svc", "Service", "FeatureServer", "running", "server", [layer], [], []));
 
-    public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new OperateTransitionWorkspace([], [], services, [], []));
+    public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new OperateEnvironmentSnapshot([], [], services, [], []));
 
     public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
         Task.FromResult<OperateConnectionSummary?>(null);

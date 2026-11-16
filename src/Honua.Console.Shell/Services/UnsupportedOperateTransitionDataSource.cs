@@ -4,7 +4,7 @@ namespace Honua.Console.Shell.Services;
 
 public sealed class UnsupportedOperateTransitionDataSource : IOperateTransitionDataSource
 {
-    private static readonly OperateTransitionWorkspace Workspace = new(
+    private static readonly OperateEnvironmentSnapshot Workspace = new(
         Connections: [],
         DatasetEdits: [],
         Services: [],
@@ -18,7 +18,7 @@ public sealed class UnsupportedOperateTransitionDataSource : IOperateTransitionD
                 "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Operate can read server-owned admin data from honua-server.")
         ]);
 
-    public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+    public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(Workspace);
 
     public Task<OperateConnectionSummary?> FindConnectionAsync(
@@ -27,7 +27,7 @@ public sealed class UnsupportedOperateTransitionDataSource : IOperateTransitionD
         Task.FromResult<OperateConnectionSummary?>(null);
 
     public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
-        string resourceId,
+        string datasetId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<OperateDatasetEditPreview?>(null);
 

@@ -160,7 +160,7 @@ public sealed class OperateEnvironmentEndpointTests
     {
         if (surface == "workspace")
         {
-            var workspace = await source.GetWorkspaceAsync();
+            var workspace = await source.GetEnvironmentAsync();
             return (workspace.Services, workspace.CapabilityStates);
         }
         var view = surface == "layers" ? await source.GetLayersViewAsync() : await source.GetServicesViewAsync();

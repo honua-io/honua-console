@@ -36,7 +36,7 @@ internal static class ConsolePublicationRenderFixture
 
     private sealed class LayerPageDataSource(PublicationNavigationSource source) : IOperateTransitionDataSource
     {
-        public async Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        public async Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default)
         {
             source.LayerPageReads++;
             var read = await (source.PendingLayers?.Task ?? Task.FromResult(source.LayerResult));

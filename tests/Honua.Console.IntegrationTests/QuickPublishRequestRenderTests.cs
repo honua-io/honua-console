@@ -75,8 +75,8 @@ public sealed class QuickPublishRequestRenderTests
 
     private sealed class Connections : IOperateTransitionDataSource
     {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace(
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateEnvironmentSnapshot(
                 [new("conn-a", "A", "postgis", "a.db", "svc", "Connected", "now", null),
                  new("conn-b", "B", "postgis", "b.db", "svc", "Connected", "now", null)], [], [], [], []));
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => Task.FromResult<OperateConnectionSummary?>(null);

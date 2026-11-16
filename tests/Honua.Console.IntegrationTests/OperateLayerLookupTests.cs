@@ -119,7 +119,7 @@ public sealed class OperateLayerLookupTests
 
         public void Complete(OperateServiceDetail[] services) => _read.SetResult(new(services, []));
         public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) => _read.Task;
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) => _fallback.GetWorkspaceAsync(cancellationToken);
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) => _fallback.GetEnvironmentAsync(cancellationToken);
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => _fallback.FindConnectionAsync(connectionId, cancellationToken);
         public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) => _fallback.FindDatasetEditAsync(resourceId, cancellationToken);
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => _fallback.FindServiceAsync(serviceName, cancellationToken);

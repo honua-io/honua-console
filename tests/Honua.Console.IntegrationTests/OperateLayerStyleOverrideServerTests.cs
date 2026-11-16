@@ -199,7 +199,7 @@ public sealed class OperateLayerStyleOverrideServerTests
             return Task.FromResult(new OperateServicesView([service], []));
         }
 
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>

@@ -298,8 +298,8 @@ public sealed class OperateSyncPageRenderTests
 
     private sealed class FailingLayerDataSource : IOperateTransitionDataSource
     {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromException<OperateTransitionWorkspace>(new HttpRequestException("layers unavailable"));
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromException<OperateEnvironmentSnapshot>(new HttpRequestException("layers unavailable"));
         public Task<OperateConnectionSummary?> FindConnectionAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -319,8 +319,8 @@ public sealed class OperateSyncPageRenderTests
 
     private sealed class SyncLayerDataSource : IOperateTransitionDataSource
     {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateTransitionWorkspace([], [],
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateEnvironmentSnapshot([], [],
             [
                 new("cadastre", "Cadastre", "FeatureServer", "Running", "honua-server",
                     [new(0, "Parcels", "Polygon", "conn-a-layer-0", "parcels")], [], []),
@@ -398,7 +398,7 @@ public sealed class OperateSyncPageRenderTests
 
         private bool _resolved;
 
-        public Task<TemporalViewerWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+        public Task<TemporalViewerWorkspace> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Workspace);
 
         public Task<TemporalCheckpointList> GetCheckpointsAsync(string sourceId, CancellationToken cancellationToken = default) =>

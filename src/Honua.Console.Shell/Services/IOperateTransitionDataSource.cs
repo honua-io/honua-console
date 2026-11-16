@@ -4,14 +4,14 @@ namespace Honua.Console.Shell.Services;
 
 public interface IOperateTransitionDataSource
 {
-    Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default);
+    Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default);
 
     Task<OperateConnectionSummary?> FindConnectionAsync(
         string connectionId,
         CancellationToken cancellationToken = default);
 
     Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
-        string resourceId,
+        string datasetId,
         CancellationToken cancellationToken = default);
 
     Task<OperateServiceDetail?> FindServiceAsync(
@@ -24,34 +24,34 @@ public interface IOperateTransitionDataSource
 
     async Task<OperateConnectionsView> GetConnectionsViewAsync(CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
+        var workspace = await GetEnvironmentAsync(cancellationToken).ConfigureAwait(false);
         return new OperateConnectionsView(workspace.Connections, workspace.CapabilityStates);
     }
 
     async Task<OperateDatasetsView> GetDatasetsViewAsync(CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
+        var workspace = await GetEnvironmentAsync(cancellationToken).ConfigureAwait(false);
         return new OperateDatasetsView(workspace.DatasetEdits, workspace.CapabilityStates);
     }
 
     async Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
+        var workspace = await GetEnvironmentAsync(cancellationToken).ConfigureAwait(false);
         return new OperateServicesView(workspace.Services, workspace.CapabilityStates);
     }
 
     async Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
+        var workspace = await GetEnvironmentAsync(cancellationToken).ConfigureAwait(false);
         return new OperateServicesView(workspace.Services, workspace.CapabilityStates);
     }
 
-    Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default) =>
+    Task<OperateServicesView> GetLayerViewAsync(string datasetId, CancellationToken cancellationToken = default) =>
         GetLayersViewAsync(cancellationToken);
 
     async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
     {
-        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
+        var workspace = await GetEnvironmentAsync(cancellationToken).ConfigureAwait(false);
         return new OperateSettingsView(workspace.SettingsChanges, workspace.CapabilityStates);
     }
 }

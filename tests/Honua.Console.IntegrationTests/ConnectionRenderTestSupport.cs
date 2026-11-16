@@ -53,16 +53,16 @@ internal static class ConnectionRenderTestSupport
 
     internal sealed class Source : IOperateTransitionDataSource
     {
-        public TaskCompletionSource<OperateTransitionWorkspace>? Load { get; init; }
+        public TaskCompletionSource<OperateEnvironmentSnapshot>? Load { get; init; }
         public TaskCompletionSource Requested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _loads;
         public IReadOnlyList<OperateConnectionSummary> Connections { get; init; } = [Connection];
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default)
         {
             Requested.TrySetResult();
             return ++_loads == 1 && Load is { } load
                 ? load.Task
-                : Task.FromResult(new OperateTransitionWorkspace(Connections, [], [], [], []));
+                : Task.FromResult(new OperateEnvironmentSnapshot(Connections, [], [], [], []));
         }
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult(connectionId == Connection.Id ? Connection : null);

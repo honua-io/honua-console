@@ -590,7 +590,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
 
     private sealed class StubOperateData : IOperateTransitionDataSource
     {
-        private readonly OperateTransitionWorkspace _workspace;
+        private readonly OperateEnvironmentSnapshot _workspace;
         public Action? OnServicesRead { get; set; }
         public Func<Task<OperateServicesView>>? OnServicesReadAsync { get; set; }
         public StubOperateData WithFolder(string? id, string? name) => new(_workspace with
@@ -610,9 +610,9 @@ public sealed partial class PublishWizardWorkspaceRenderTests
             return OnServicesReadAsync?.Invoke() ?? Task.FromResult(new OperateServicesView(_workspace.Services, _workspace.CapabilityStates));
         }
 
-        private StubOperateData(OperateTransitionWorkspace workspace) => _workspace = workspace;
+        private StubOperateData(OperateEnvironmentSnapshot workspace) => _workspace = workspace;
 
-        public static StubOperateData Empty() => new(new OperateTransitionWorkspace([], [], [], [], []));
+        public static StubOperateData Empty() => new(new OperateEnvironmentSnapshot([], [], [], [], []));
 
         public static StubOperateData WithFixtures()
         {
@@ -641,7 +641,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
                 new OperateConnectionSummary("conn-b", "warehouse", "duckdb", "wh.db", "svc", "Connected", "just now", null),
             };
 
-            return new StubOperateData(new OperateTransitionWorkspace(
+            return new StubOperateData(new OperateEnvironmentSnapshot(
                 connections,
                 [],
                 [Service("hydrology-fs", "FeatureServer", "running", 2), Service("basemaps-ms", "MapServer", "running", 1)],
@@ -649,7 +649,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
                 []));
         }
 
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace);
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>

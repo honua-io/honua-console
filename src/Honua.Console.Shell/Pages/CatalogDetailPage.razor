@@ -123,7 +123,7 @@
                     </dl>
                     break;
                 case "publication":
-                    @if (!V4Enabled) { <h2>Publication And Share</h2> }
+                    @if (!V4Enabled) { <h2>Release and share</h2> }
                     <dl class="console-definition-list">
                         <dt>Canonical share link</dt>
                         <dd>@ConsoleShareLinkBuilder.BuildRelativeShareLink(summary)</dd>
@@ -308,7 +308,7 @@
                             </article>
 
                             <article class="@(V4Enabled ? "console-section" : "console-overview-card")">
-                                <header><h3>Publication</h3></header>
+                                <header><h3>Release</h3></header>
                                 <div class="@(V4Enabled ? "console-section" : "console-overview-card-body")">
                                     <dl class="console-definition-list">
                                         <dt>Visibility</dt>
@@ -358,7 +358,7 @@
         new("versions", "Versions"),
         new("lineage", "Lineage"),
         new("bindings", "Bindings"),
-        new("publication", "Publication"),
+        new("publication", "Release"),
         new("permissions", "Permissions"),
         new("activity", "Activity"),
         new("usage", "Usage")

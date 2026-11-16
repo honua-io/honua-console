@@ -201,9 +201,9 @@ public sealed class DatasetPageRenderTests
     private sealed class SharedResourceDataSource : IOperateTransitionDataSource
     {
         private readonly DatasetDataSource _inner = new();
-        public async Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
+        public async Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default)
         {
-            var workspace = await _inner.GetWorkspaceAsync(cancellationToken);
+            var workspace = await _inner.GetEnvironmentAsync(cancellationToken);
             var service = workspace.Services[0];
             return workspace with
             {

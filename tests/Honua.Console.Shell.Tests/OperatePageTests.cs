@@ -16,7 +16,7 @@ public sealed class OperatePageTests
     [Fact]
     public async Task EmptyOperatorActions_RendersFallbackInsteadOfThrowing()
     {
-        var workspace = new OperateTransitionWorkspace(
+        var workspace = new OperateEnvironmentSnapshot(
             Connections:
             [
                 new OperateConnectionSummary(
@@ -44,7 +44,7 @@ public sealed class OperatePageTests
     [Fact]
     public async Task NonEmptyOperatorActions_StillRendersTheFirstAction()
     {
-        var workspace = new OperateTransitionWorkspace(
+        var workspace = new OperateEnvironmentSnapshot(
             Connections:
             [
                 new OperateConnectionSummary(
@@ -68,7 +68,7 @@ public sealed class OperatePageTests
         Assert.DoesNotContain("No operator action recorded.", html);
     }
 
-    private static async Task<string> RenderAsync(OperateTransitionWorkspace workspace)
+    private static async Task<string> RenderAsync(OperateEnvironmentSnapshot workspace)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
@@ -94,9 +94,9 @@ public sealed class OperatePageTests
         });
     }
 
-    private sealed class StubOperateTransitionDataSource(OperateTransitionWorkspace workspace) : IOperateTransitionDataSource
+    private sealed class StubOperateTransitionDataSource(OperateEnvironmentSnapshot workspace) : IOperateTransitionDataSource
     {
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(workspace);
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>

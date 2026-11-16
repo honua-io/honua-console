@@ -4,9 +4,9 @@ namespace Honua.Console.Shell.Services;
 
 public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionDataSource
 {
-    private readonly OperateTransitionWorkspace _workspace;
+    private readonly OperateEnvironmentSnapshot _workspace;
 
-    private InMemoryOperateTransitionDataSource(OperateTransitionWorkspace workspace)
+    private InMemoryOperateTransitionDataSource(OperateEnvironmentSnapshot workspace)
     {
         _workspace = workspace;
     }
@@ -14,7 +14,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
     public static InMemoryOperateTransitionDataSource CreateSeeded() =>
         new(CreateSafeWorkspace());
 
-    public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+    public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(_workspace);
 
     public Task<OperateConnectionSummary?> FindConnectionAsync(
@@ -24,10 +24,10 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
             connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase)));
 
     public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
-        string resourceId,
+        string datasetId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(
-            resource => string.Equals(resource.DatasetId, resourceId, StringComparison.OrdinalIgnoreCase)));
+            resource => string.Equals(resource.DatasetId, datasetId, StringComparison.OrdinalIgnoreCase)));
 
     public Task<OperateServiceDetail?> FindServiceAsync(
         string serviceName,
@@ -35,7 +35,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
         Task.FromResult(_workspace.Services.FirstOrDefault(
             service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase)));
 
-    private static OperateTransitionWorkspace CreateSafeWorkspace()
+    private static OperateEnvironmentSnapshot CreateSafeWorkspace()
     {
         var workspace = CreateWorkspace();
 
@@ -50,7 +50,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
         };
     }
 
-    private static OperateTransitionWorkspace CreateWorkspace() =>
+    private static OperateEnvironmentSnapshot CreateWorkspace() =>
         new(
             Connections:
             [

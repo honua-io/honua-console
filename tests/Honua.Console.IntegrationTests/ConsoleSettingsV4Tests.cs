@@ -106,7 +106,7 @@ public sealed class ConsoleSettingsV4Tests
             Reads++;
             return Task.FromResult(view);
         }
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => throw new NotSupportedException();

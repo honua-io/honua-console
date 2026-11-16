@@ -80,7 +80,7 @@
                     <p class="console-kicker">Canonical Metadata</p>
                     <h2>Dataset</h2>
                     <dl class="console-definition-list">
-                        <dt>Resource</dt>
+                        <dt>Dataset</dt>
                         <dd><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(DatasetId)}")">@_exposures[0].Layer.DatasetName</a></dd>
                         <dt>Console layer reference</dt>
                         <dd>@_exposures[0].Layer.DatasetId</dd>
@@ -297,7 +297,7 @@
             }
             <ConsolePanel Title="Dataset" HeadingId="layer-resource-heading">
                 <dl class="console-definition-list">
-                    <dt>Resource</dt><dd><ConsoleNameIdentifier Name="@_exposures[0].Layer.DatasetName" Identifier="@DatasetId"
+                    <dt>Dataset</dt><dd><ConsoleNameIdentifier Name="@_exposures[0].Layer.DatasetName" Identifier="@DatasetId"
                         Href="@($"/operate/resources/{Uri.EscapeDataString(DatasetId)}")" /></dd>
                     <dt>Ownership</dt><dd>@_exposures[0].Service.MetadataOwnership</dd>
                 </dl>

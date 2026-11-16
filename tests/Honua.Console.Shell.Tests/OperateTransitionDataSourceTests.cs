@@ -48,7 +48,7 @@ public sealed partial class OperateTransitionDataSourceTests
     {
         var dataSource = new UnsupportedOperateTransitionDataSource();
 
-        var workspace = await dataSource.GetWorkspaceAsync();
+        var workspace = await dataSource.GetEnvironmentAsync();
 
         Assert.Empty(workspace.Connections);
         Assert.Contains(
@@ -109,7 +109,7 @@ public sealed partial class OperateTransitionDataSourceTests
             new HonuaAdminOperateClientOptions(new Uri("https://server.example"), "test-api-key"));
         var dataSource = new HonuaServerOperateTransitionDataSource(client);
 
-        var workspace = await dataSource.GetWorkspaceAsync();
+        var workspace = await dataSource.GetEnvironmentAsync();
 
         Assert.Contains(workspace.Connections, connection => connection.Name == "Live PostGIS" && connection.Status == "Passed");
         var resource = Assert.Single(workspace.DatasetEdits, candidate => candidate.Name == "Console Parcels");
@@ -248,7 +248,7 @@ public sealed partial class OperateTransitionDataSourceTests
 
         var layersView = await dataSource.GetLayersViewAsync();
         var servicesView = await dataSource.GetServicesViewAsync();
-        var workspace = await dataSource.GetWorkspaceAsync();
+        var workspace = await dataSource.GetEnvironmentAsync();
 
         foreach (var services in new[] { layersView.Services, servicesView.Services, workspace.Services })
         {
@@ -268,7 +268,7 @@ public sealed partial class OperateTransitionDataSourceTests
     [Fact]
     public async Task DetailPagesRenderMissingItemAndCapabilityState()
     {
-        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace(
+        var dataSource = new StubOperateTransitionDataSource(new OperateEnvironmentSnapshot(
             Connections: [],
             DatasetEdits: [],
             Services: [],
@@ -505,7 +505,7 @@ public sealed partial class OperateTransitionDataSourceTests
     {
         var dataSource = InMemoryOperateTransitionDataSource.CreateSeeded();
 
-        var workspace = await dataSource.GetWorkspaceAsync();
+        var workspace = await dataSource.GetEnvironmentAsync();
         var connection = await dataSource.FindConnectionAsync("prod-postgres");
 
         Assert.NotNull(connection);
@@ -609,7 +609,7 @@ public sealed partial class OperateTransitionDataSourceTests
     public async Task SettingsChangesAlwaysShowApplyScopeAndRestartRequirement()
     {
         var dataSource = InMemoryOperateTransitionDataSource.CreateSeeded();
-        var workspace = await dataSource.GetWorkspaceAsync();
+        var workspace = await dataSource.GetEnvironmentAsync();
 
         Assert.All(workspace.SettingsChanges, change =>
         {
@@ -645,7 +645,7 @@ public sealed partial class OperateTransitionDataSourceTests
     public async Task ServiceMutationControlsAreDisabledInPrerenderedMarkup()
     {
         var service = new OperateServiceDetail("sample", "Sample", "FeatureServer", "Ready", "server", [], [], []);
-        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace([], [], [service], [], []));
+        var dataSource = new StubOperateTransitionDataSource(new OperateEnvironmentSnapshot([], [], [service], [], []));
         var html = await RenderPageAsync<OperateServiceDetailPage>(dataSource,
             ParameterView.FromDictionary(new Dictionary<string, object?> { ["ServiceName"] = "sample" }),
             new BoundServiceConfiguration());
@@ -661,7 +661,7 @@ public sealed partial class OperateTransitionDataSourceTests
             new OperateServiceEndpoint("FeatureServer", "https://server.example/rest/services/sample/FeatureServer", "Exposed by honua-server"),
             new OperateServiceEndpoint("Terrain", null, "Exposed by honua-server"),
         ]);
-        var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace([], [], [service], [], []));
+        var dataSource = new StubOperateTransitionDataSource(new OperateEnvironmentSnapshot([], [], [service], [], []));
         var html = await RenderPageAsync<OperateServiceDetailPage>(dataSource,
             ParameterView.FromDictionary(new Dictionary<string, object?> { ["ServiceName"] = "sample" }),
             new BoundServiceConfiguration());
@@ -720,14 +720,14 @@ public sealed partial class OperateTransitionDataSourceTests
 
     private sealed class StubOperateTransitionDataSource : IOperateTransitionDataSource
     {
-        private readonly OperateTransitionWorkspace _workspace;
+        private readonly OperateEnvironmentSnapshot _workspace;
 
-        public StubOperateTransitionDataSource(OperateTransitionWorkspace workspace)
+        public StubOperateTransitionDataSource(OperateEnvironmentSnapshot workspace)
         {
             _workspace = workspace;
         }
 
-        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+        public Task<OperateEnvironmentSnapshot> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace);
 
         public Task<OperateConnectionSummary?> FindConnectionAsync(
