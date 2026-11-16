@@ -105,11 +105,29 @@ public sealed class ConsoleApiClient(HttpClient http)
 
 public sealed record ConsoleApiSession(ClaimsPrincipal Principal, ConsoleSessionCredentials? Credentials = null);
 
-public sealed class BrowserAuthenticationStateProvider(
-    ConsoleApiClient api,
-    ConsoleBrowserSession session,
-    IConsoleAccountSessionStore sessions) : AuthenticationStateProvider, IConsoleBrowserAuthentication
+public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProvider, IConsoleBrowserAuthentication, IDisposable
 {
+    private readonly ConsoleApiClient api;
+    private readonly ConsoleBrowserSession session;
+    private readonly IConsoleAccountSessionStore sessions;
+
+    public BrowserAuthenticationStateProvider(ConsoleApiClient api, ConsoleBrowserSession session, IConsoleAccountSessionStore sessions)
+    {
+        this.api = api;
+        this.session = session;
+        this.sessions = sessions;
+        session.Changed += SessionChanged;
+    }
+
+    private void SessionChanged(ConsoleBrowserSessionSnapshot snapshot)
+    {
+        if (snapshot.IsAuthenticated) return;
+        _state = Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
+        NotifyAuthenticationStateChanged(_state);
+    }
+
+    public void Dispose() => session.Changed -= SessionChanged;
+
     private Task<AuthenticationState>? _state;
     public bool SupportsPasswordSignIn => api.SupportsPasswordSignIn;
 
@@ -169,17 +187,18 @@ public sealed class BrowserAuthenticationStateProvider(
     {
         session.Clear();
         await sessions.ClearSessionAsync("configured-api", CancellationToken.None);
-        _state = Task.FromResult(new AuthenticationState(session.Principal));
-        NotifyAuthenticationStateChanged(_state);
     }
 
     public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state ??= LoadAsync();
 
     private async Task<AuthenticationState> LoadAsync()
     {
+        var revision = session.Revision;
         var result = await api.GetSessionAsync();
         var csrf = result.Principal.Identity?.IsAuthenticated == true && api.UsesCookieSession
             ? await api.GetCsrfAsync() : null;
+        if (revision != session.Revision)
+            return new AuthenticationState(session.IsAuthenticated ? session.Principal : new ClaimsPrincipal(new ClaimsIdentity()));
         var expiresAt = result.Credentials?.ExpiresAt;
         if (session.ExpiresAt is { } tokenExpiry && (expiresAt is null || tokenExpiry < expiresAt))
         {
