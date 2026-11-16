@@ -88,7 +88,7 @@
                 <div class="console-field">
                     <label class="console-label" for="filter-expression">Filter expression</label>
                     <textarea id="filter-expression" class="console-input console-textarea" rows="5"
-                              @bind="_editExpression" aria-label="Filter expression" data-filter-expression
+                              @bind="_editExpression" @bind:event="oninput" aria-label="Filter expression" data-filter-expression
                               placeholder="status = 'active'"></textarea>
                     <p class="console-muted">Max 4096 characters. Validated server-side against the layer schema.</p>
                 </div>

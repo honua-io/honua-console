@@ -13,6 +13,44 @@ public sealed class LayerFilterPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Filter_SavePreservesTypingBeforeBlur(bool enabled)
+    {
+        var (context, registry, filter) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
+        var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.Find("[data-filter-expression]").Input("  status = 'active'  ");
+        page.Find("[data-filter-save]").Click();
+        page.Find("[data-filter-expression]").Input("status = 'pending'");
+
+        await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
+
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal("status = 'active'", filter.SavedExpression);
+        Assert.Equal("status = 'pending'", page.Find("[data-filter-expression]").GetAttribute("value"));
+        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Filter_SaveShowsNormalizedExpressionWithoutNewerTyping(bool enabled)
+    {
+        var (context, registry, filter) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
+        var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
+        page.Find("[data-filter-expression]").Input("  status = 'active'  ");
+        page.Find("[data-filter-save]").Click();
+
+        await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
+
+        page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
+        Assert.Equal("status = 'active'", page.Find("[data-filter-expression]").GetAttribute("value"));
+        Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Filter_SavePreservesNewerDraftAndPublishesCountsOnly(bool enabled)
     {
         using var ctx = new BunitContext();
@@ -35,14 +73,14 @@ public sealed class LayerFilterPageRenderTests
             Assert.Equal("1", Assert.Single(registry.Current.Entities).Id);
         }
         if (enabled) CatalogAdminPreview.Capture("data-layer-filter", page.Markup);
-        page.Find("[data-filter-expression]").Change("private_field = 1");
+        page.Find("[data-filter-expression]").Input("private_field = 1");
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.DoesNotContain("private_field", System.Text.Json.JsonSerializer.Serialize(registry.Current));
         page.Render(p => p.Add(x => x.ResourceId, ResourceId));
         Assert.Equal("private_field = 1", page.Find("[data-filter-expression]").GetAttribute("value"));
         page.Find("[data-filter-save]").Click();
         Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
-        page.Find("[data-filter-expression]").Change("private_field = 2");
+        page.Find("[data-filter-expression]").Input("private_field = 2");
         await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
         Assert.Equal("private_field = 1", filter.SavedExpression);
@@ -78,7 +116,7 @@ public sealed class LayerFilterPageRenderTests
         using var ctx = context;
         filter.Completion.SetResult(new() { Succeeded = false, State = "Rejected", Detail = "Unknown field." });
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
-        page.Find("[data-filter-expression]").Change("private_field = 1");
+        page.Find("[data-filter-expression]").Input("private_field = 1");
         page.Find("[data-filter-save]").Click();
         page.WaitForAssertion(() => Assert.Contains("Unknown field.", page.Find("[data-filter-result]").TextContent));
         Assert.Equal("private_field = 1", page.Find("[data-filter-expression]").GetAttribute("value"));
@@ -94,11 +132,11 @@ public sealed class LayerFilterPageRenderTests
         var (context, registry, filter) = CreateContext(new ConsoleV4Options { Enabled = enabled });
         using var ctx = context;
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
-        page.Find("[data-filter-expression]").Change("private_field = 1");
+        page.Find("[data-filter-expression]").Input("private_field = 1");
         page.Find("[data-filter-save]").Click();
         page.Render(p => p.Add(x => x.ResourceId, "roads"));
         page.WaitForAssertion(() => Assert.Contains("Roads", page.Find("h1").TextContent));
-        page.Find("[data-filter-expression]").Change("road_class = 2");
+        page.Find("[data-filter-expression]").Input("road_class = 2");
         await page.InvokeAsync(() => filter.Completion.SetResult(new() { Succeeded = true, State = "Saved" }));
         page.WaitForAssertion(() => Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount));
         Assert.Equal("road_class = 2", page.Find("[data-filter-expression]").GetAttribute("value"));
@@ -133,7 +171,7 @@ public sealed class LayerFilterPageRenderTests
             Task.FromResult(new ConsoleLayerFilter { Bound = true, LayerId = layerId, HasFilter = SavedExpression is not null, Expression = layerId == 1 ? SavedExpression ?? string.Empty : string.Empty });
         public Task<ConsoleSetLayerFilterResult> SaveFilterAsync(int layerId, string expression, string language, CancellationToken cancellationToken = default)
         {
-            SavedExpression = expression;
+            SavedExpression = expression.Trim();
             return Completion.Task;
         }
         public Task<ConsoleSetLayerFilterResult> ClearFilterAsync(int layerId, CancellationToken cancellationToken = default)
