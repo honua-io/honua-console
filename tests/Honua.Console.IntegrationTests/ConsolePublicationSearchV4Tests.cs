@@ -11,6 +11,47 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class ConsolePublicationSearchV4Tests
 {
+    [Theory]
+    [InlineData(201)]
+    [InlineData(4800)]
+    public void OverlongSearchExplainsTheLimitAndRecoversWhenEditedOrCleared(int length)
+    {
+        var source = new PublicationNavigationSource();
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        var query = new string('x', length);
+        tree.Find("input").Input(query);
+        tree.WaitForAssertion(() => Assert.Contains("200 characters", tree.Find("[role='alert']").TextContent));
+        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(query, tree.Find("input").GetAttribute("value"));
+        Assert.Equal("true", tree.Find("input").GetAttribute("aria-invalid"));
+        Assert.False(tree.Find("input").HasAttribute("disabled"));
+        Assert.DoesNotContain("Temporarily unavailable", tree.Markup);
+        tree.Find("input").Input(" service ");
+        tree.WaitForAssertion(() => Assert.Equal("service", source.LastQuery.NameQuery));
+        Assert.Empty(tree.FindAll("[role='alert']"));
+        tree.Find("input").Input(query);
+        tree.Find("input").Input("");
+        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        Assert.Null(source.LastQuery.NameQuery);
+        Assert.Empty(tree.FindAll("[role='alert']"));
+    }
+
+    [Fact]
+    public void SearchAcceptsTheTrimmedLengthBoundaryWithoutChangingTheLiteralQuery()
+    {
+        var source = new PublicationNavigationSource();
+        using var context = PublicationLayoutContext(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(1, source.ServiceReads));
+        var query = string.Concat(Enumerable.Repeat("é.*[", 50));
+        tree.Find("input").Input(" " + query + " ");
+        tree.WaitForAssertion(() => Assert.Equal(query, source.LastQuery.NameQuery));
+        Assert.Empty(tree.FindAll("[role='alert']"));
+    }
+
     [Fact]
     public void GroupedSearchPagesServicesWithoutReadingLayersAndClearsBackToTree()
     {

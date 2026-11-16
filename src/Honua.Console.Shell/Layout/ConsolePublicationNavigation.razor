@@ -11,6 +11,7 @@
             <div class="console-tree-toolbar">
                 <label for="console-tree-filter">@(V4Enabled ? "Search services" : "Filter services")</label>
                 <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
+                       aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : null)"
                        placeholder="@(V4Enabled ? "Search service names…" : null)" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
                 @if (Source is not UnsupportedConsolePublicationNavigationSource)
                 {
@@ -20,7 +21,14 @@
                 <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
             </div>
             <div class="console-tree-catalog">
-                <ConsolePublicationNavigationContent ReadState="ReadState" />
+                @if (FilterTooLong)
+                {
+                    <p id="console-tree-filter-error" role="alert" class="console-tree-message">Search supports up to @MaxNameQueryLength characters. Shorten or clear your search.</p>
+                }
+                else
+                {
+                    <ConsolePublicationNavigationContent ReadState="ReadState" />
+                }
             </div>
         </section>
     </div>
@@ -33,6 +41,8 @@
     private IReadOnlyList<ConsolePublicationNode> _resolvedPath = [];
     private PathAttempt? _pathAttempt;
     private const int ConcurrentServiceExpansions = 4;
+    private const int MaxNameQueryLength = 200;
+    private bool FilterTooLong => _tree.Filter.Trim().Length > MaxNameQueryLength;
     private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
     private readonly ConsolePublicationTree _tree = new();
     private CancellationTokenSource _authorityLifetime = new();
@@ -319,6 +329,13 @@
         var filterRevision = ++_filterRevision;
         _tree.SetFilter(filter);
         var nameQuery = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
+        if (nameQuery is { Length: > MaxNameQueryLength })
+        {
+            _inflight = null;
+            _failed = null;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
         if (_disposed || revision != _authorityRevision || filterRevision != _filterRevision) return;
         var attempt = BeginCatalog(HonuaAdminCatalogQuery.First with { NameQuery = nameQuery }, CatalogApply.Replace);
         var outcome = await FinishCatalogAsync(attempt);
