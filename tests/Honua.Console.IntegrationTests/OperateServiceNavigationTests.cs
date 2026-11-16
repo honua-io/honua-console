@@ -76,6 +76,166 @@ public sealed class OperateServiceNavigationTests
         Assert.Contains("Current service saved", page.Markup);
     }
 
+    [Theory]
+    [InlineData(false, "protocols")]
+    [InlineData(true, "protocols")]
+    [InlineData(false, "access")]
+    [InlineData(true, "access")]
+    public async Task SuccessfulSavePreservesEditsInBothPanels(bool enabled, string editor)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        page.Find("[data-allowed-roles]").Input("unsaved-role");
+        page.Find("[data-protocol='Wms']").Change(true);
+        if (enabled) page.Find($"#service-{editor}-tab").Click();
+        var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
+
+        page.Find("[data-allowed-roles]").Input("newer-role");
+        page.Find("[data-protocol='FeatureServer']").Change(false);
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new()
+        {
+            Succeeded = true,
+            State = "Updated"
+        }));
+        await save;
+
+        Assert.Equal("newer-role", page.Find("[data-allowed-roles]").GetAttribute("value"));
+        Assert.False(page.Find("[data-protocol='FeatureServer']").HasAttribute("checked"));
+        Assert.True(page.Find("[data-protocol='Wms']").HasAttribute("checked"));
+        Assert.Equal(enabled ? 2 : 0,
+            context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false, "protocols")]
+    [InlineData(true, "protocols")]
+    [InlineData(false, "access")]
+    [InlineData(true, "access")]
+    public async Task SettingsReadBackPreservesEditsMadeWhileReading(bool enabled, string editor)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        if (enabled) page.Find($"#service-{editor}-tab").Click();
+        var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new() { Succeeded = true, State = "Updated" }));
+        await operation.RefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        page.Find("[data-allow-anonymous]").Change(true);
+        page.Find("[data-allow-anonymous-write]").Change(true);
+        page.Find("[data-allowed-roles]").Input("draft-reader");
+        page.Find("[data-allowed-write-roles]").Input("draft-writer");
+        page.Find("[data-protocol='Wms']").Change(true);
+        await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first")));
+        await save;
+
+        Assert.True(page.Find("[data-allow-anonymous]").HasAttribute("checked"));
+        Assert.True(page.Find("[data-allow-anonymous-write]").HasAttribute("checked"));
+        Assert.Equal("draft-reader", page.Find("[data-allowed-roles]").GetAttribute("value"));
+        Assert.Equal("draft-writer", page.Find("[data-allowed-write-roles]").GetAttribute("value"));
+        Assert.True(page.Find("[data-protocol='Wms']").HasAttribute("checked"));
+        Assert.Equal(enabled ? 5 : 0,
+            context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AccessReadBackPreservesRoleTypingBeforeBlur(bool enabled)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        if (enabled) page.Find("#service-access-tab").Click();
+        page.Find("[data-allowed-roles]").Input("reader,writer");
+        page.Find("[data-allowed-write-roles]").Input("editor,admin");
+        var save = page.Find("[data-save-access]").ClickAsync(new());
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new() { Succeeded = true, State = "Updated" }));
+        await operation.RefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        page.Find("[data-allowed-roles]").Input("reader,writer,newer");
+        page.Find("[data-allowed-write-roles]").Input("editor,admin,newer");
+        await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first") with
+        {
+            AllowedRoles = ["reader", "writer"],
+            AllowedWriteRoles = ["editor", "admin"]
+        }));
+        await save;
+
+        Assert.Equal("reader,writer,newer", page.Find("[data-allowed-roles]").GetAttribute("value"));
+        Assert.Equal("editor,admin,newer", page.Find("[data-allowed-write-roles]").GetAttribute("value"));
+        Assert.Equal(enabled ? 2 : 0,
+            context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false, "protocols")]
+    [InlineData(true, "protocols")]
+    [InlineData(false, "access")]
+    [InlineData(true, "access")]
+    public async Task ReadBackUpdatesSavedPanelAndPreservesOtherPanelDraft(bool enabled, string editor)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        page.Find("[data-allowed-roles]").Input("submitted-role");
+        page.Find("[data-protocol='Wms']").Change(true);
+        if (enabled) page.Find($"#service-{editor}-tab").Click();
+        var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new() { Succeeded = true, State = "Updated" }));
+        await operation.RefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var persisted = editor == "protocols"
+            ? Settings("first") with { EnabledProtocols = ["Wms"] }
+            : Settings("first") with { AllowedRoles = ["canonical-role"], AllowAnonymous = true };
+        await page.InvokeAsync(() => operation.Refresh.SetResult(persisted));
+        await save;
+
+        Assert.Equal(editor == "protocols" ? "submitted-role" : "canonical-role",
+            page.Find("[data-allowed-roles]").GetAttribute("value"));
+        Assert.Equal(editor == "access", page.Find("[data-allow-anonymous]").HasAttribute("checked"));
+        Assert.Equal(editor == "access", page.Find("[data-protocol='FeatureServer']").HasAttribute("checked"));
+        Assert.True(page.Find("[data-protocol='Wms']").HasAttribute("checked"));
+        Assert.Equal(enabled ? 1 : 0,
+            context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
+    [InlineData(false, "protocols")]
+    [InlineData(true, "protocols")]
+    [InlineData(false, "access")]
+    [InlineData(true, "access")]
+    public async Task BothPanelSavesStayDisabledUntilReadBackCompletes(bool enabled, string editor)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        if (enabled) page.Find($"#service-{editor}-tab").Click();
+        var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
+
+        Assert.All(page.FindAll("[data-save-protocols], [data-save-access]"),
+            button => Assert.True(button.HasAttribute("disabled")));
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new() { Succeeded = true, State = "Updated" }));
+        await operation.RefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.All(page.FindAll("[data-save-protocols], [data-save-access]"),
+            button => Assert.True(button.HasAttribute("disabled")));
+
+        page.Find("[data-protocol='Wms']").Change(true);
+        page.Find("[data-allowed-roles]").Input("newer-role");
+        await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first")));
+        await save;
+
+        Assert.All(page.FindAll("[data-save-protocols], [data-save-access]"),
+            button => Assert.False(button.HasAttribute("disabled")));
+        Assert.True(page.Find("[data-protocol='Wms']").HasAttribute("checked"));
+        Assert.Equal("newer-role", page.Find("[data-allowed-roles]").GetAttribute("value"));
+    }
+
     private static BunitContext Context(bool enabled)
     {
         var context = new BunitContext();
@@ -93,7 +253,7 @@ public sealed class OperateServiceNavigationTests
     {
         Bound = true,
         ServiceName = serviceName,
-        AvailableProtocols = ["FeatureServer"],
+        AvailableProtocols = ["FeatureServer", "Wms"],
         EnabledProtocols = ["FeatureServer"],
         AllowedRoles = [$"{serviceName}-role"]
     };
@@ -102,11 +262,22 @@ public sealed class OperateServiceNavigationTests
     {
         private readonly UnsupportedServiceConfigurationOperation _unsupported = new();
         public bool DelayFirstSettings { get; init; } = true;
+        public bool DelayRefresh { get; init; }
+        private int _settingsReads;
+        public TaskCompletionSource RefreshStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<ServiceSettingsView> Refresh { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<ServiceSettingsView> First { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<ServiceConfigurationResult> FirstSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<ServiceConfigurationResult> SecondSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<ServiceSettingsView> GetSettingsAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            serviceName == "first" && DelayFirstSettings ? First.Task : Task.FromResult(Settings(serviceName));
+        public Task<ServiceSettingsView> GetSettingsAsync(string serviceName, CancellationToken cancellationToken = default)
+        {
+            if (++_settingsReads > 1 && DelayRefresh)
+            {
+                RefreshStarted.SetResult();
+                return Refresh.Task;
+            }
+            return serviceName == "first" && DelayFirstSettings ? First.Task : Task.FromResult(Settings(serviceName));
+        }
         public Task<ServiceConfigurationResult> SetLayerEnabledAsync(ServiceLayerEnableCommand command, CancellationToken cancellationToken = default) =>
             _unsupported.SetLayerEnabledAsync(command, cancellationToken);
         public Task<ServiceConfigurationResult> UpdateProtocolsAsync(ServiceProtocolsCommand command, CancellationToken cancellationToken = default) =>

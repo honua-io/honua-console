@@ -5,6 +5,7 @@
     const chromeSelector = '.console-topbar, .console-contextbar';
     let controls = new Map();
     let focused;
+    let observedChrome = [];
     let startupFocus;
     let hydrated = false;
     let initialHeadingFocused = false;
@@ -45,6 +46,23 @@
         }
         hydrated = true;
     }
+    function restoreResponsiveFocus() {
+        if (!focused?.isConnected || focused.checkVisibility() || !focused.closest('.console-topbar')) return;
+        if (document.activeElement !== document.body && document.activeElement !== focused) return;
+        const toggle = controls.get('toggle');
+        const target = focused === toggle
+            ? document.querySelector('#console-primary a[aria-current="page"], #console-primary > a')
+            : toggle;
+        if (target?.checkVisibility()) target.focus({preventScroll: true});
+    }
+    const chromeResize = new ResizeObserver(restoreResponsiveFocus);
+    function observeResponsiveChrome() {
+        const chrome = [...document.querySelectorAll('.console-topbar, #console-primary, [data-navigation-toggle]')];
+        if (chrome.length === observedChrome.length && chrome.every((element, index) => element === observedChrome[index])) return;
+        chromeResize.disconnect();
+        observedChrome = chrome;
+        for (const element of chrome) chromeResize.observe(element);
+    }
     function collectControls() {
         const next = new Map([...document.querySelectorAll(menuSelector)].map(element => [element.dataset.navigationMenu, element]));
         const toggle = document.querySelector(toggleSelector);
@@ -53,6 +71,7 @@
             for (const [key, control] of next) transferControl(key, control);
         } finally {
             controls = next;
+            observeResponsiveChrome();
         }
     }
     const isStartupHeading = element => !initialHeadingFocused && element.matches('h1') && location.href === startupUrl;

@@ -62,6 +62,9 @@ function loadMapLibre() {
         } catch {
             resolve(null);
         }
+    }).then(runtime => {
+        if (!runtime) maplibrePromise = null;
+        return runtime;
     });
     return maplibrePromise;
 }
