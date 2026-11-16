@@ -36,11 +36,16 @@
     private int _failedRetries;
     private string? _retryAnnouncement;
     private bool _retrying;
+    private bool _retryCompletionPending;
 
     private bool Showing => _states.Count > 0 || !string.IsNullOrWhiteSpace(_error);
     private bool Reading => Busy || _retrying;
 
-    protected override void OnParametersSet() => CaptureFailure();
+    protected override void OnParametersSet()
+    {
+        CaptureFailure();
+        CompleteRetry();
+    }
 
     private void CaptureFailure()
     {
@@ -76,9 +81,21 @@
             _retrying = false;
         }
 
+        _retryCompletionPending = true;
         CaptureFailure();
-        // Still Busy means a newer read replaced this one; it has not failed yet.
-        if (Showing && !Busy)
+        CompleteRetry();
+    }
+
+    private void CompleteRetry()
+    {
+        // A newer read can outlive the retry callback; announce only after that read settles.
+        if (!_retryCompletionPending || Reading)
+        {
+            return;
+        }
+
+        _retryCompletionPending = false;
+        if (Showing)
         {
             _failedRetries++;
             _retryAnnouncement = $"Attempt {_failedRetries + 1} did not complete. {StatusHeading}.";

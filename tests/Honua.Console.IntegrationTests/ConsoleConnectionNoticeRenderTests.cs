@@ -113,9 +113,44 @@ public sealed class ConsoleConnectionNoticeRenderTests
         Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupersedingReadAnnouncesOnlyItsSettledFailure(bool succeeded)
+    {
+        using var context = new BunitContext();
+        var host = context.Render<ClearingRetryHost>(p => p.Add(h => h.KeepReading, true));
+        host.Find("button").Click();
+        await host.InvokeAsync(() => host.Instance.Complete(succeeded: false));
+        host.WaitForAssertion(() => Assert.True(host.Instance.RetryReturned));
+        Assert.Equal("Reading…", host.Find("button").TextContent);
+        Assert.Equal("", host.Find("[role=status]").TextContent);
+
+        await host.InvokeAsync(() => host.Instance.SettleRead(succeeded));
+        if (succeeded)
+        {
+            Assert.Empty(host.FindAll("[data-connection-notice]"));
+        }
+        else
+        {
+            Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
+            await host.InvokeAsync(() => host.Instance.SettleRead(succeeded: false));
+            Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
+        }
+    }
+
     private sealed class ClearingRetryHost : ComponentBase
     {
         [Parameter] public bool PassBusy { get; set; } = true;
+        [Parameter] public bool KeepReading { get; set; }
+        public bool RetryReturned { get; private set; }
+
+        public void SettleRead(bool succeeded)
+        {
+            _error = succeeded ? null : "Read failed again";
+            _loading = false;
+            StateHasChanged();
+        }
 
         private TaskCompletionSource<bool>? _pending;
         private string? _error = "Read failed";
@@ -133,7 +168,8 @@ public sealed class ConsoleConnectionNoticeRenderTests
             _pending = new TaskCompletionSource<bool>();
             var succeeded = await _pending.Task;
             _error = succeeded ? null : "Read failed again";
-            _loading = false;
+            _loading = KeepReading;
+            RetryReturned = true;
         }
 
         protected override void BuildRenderTree(RenderTreeBuilder builder)
