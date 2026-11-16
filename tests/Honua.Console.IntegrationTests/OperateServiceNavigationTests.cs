@@ -87,12 +87,12 @@ public sealed class OperateServiceNavigationTests
         var operation = new DelayedSettingsOperation { DelayFirstSettings = false };
         context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
         var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
-        page.Find("[data-allowed-roles]").Change("unsaved-role");
+        page.Find("[data-allowed-roles]").Input("unsaved-role");
         page.Find("[data-protocol='Wms']").Change(true);
         if (enabled) page.Find($"#service-{editor}-tab").Click();
         var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
 
-        page.Find("[data-allowed-roles]").Change("newer-role");
+        page.Find("[data-allowed-roles]").Input("newer-role");
         page.Find("[data-protocol='FeatureServer']").Change(false);
         await page.InvokeAsync(() => operation.FirstSave.SetResult(new()
         {
@@ -126,8 +126,8 @@ public sealed class OperateServiceNavigationTests
 
         page.Find("[data-allow-anonymous]").Change(true);
         page.Find("[data-allow-anonymous-write]").Change(true);
-        page.Find("[data-allowed-roles]").Change("draft-reader");
-        page.Find("[data-allowed-write-roles]").Change("draft-writer");
+        page.Find("[data-allowed-roles]").Input("draft-reader");
+        page.Find("[data-allowed-write-roles]").Input("draft-writer");
         page.Find("[data-protocol='Wms']").Change(true);
         await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first")));
         await save;
@@ -142,6 +142,37 @@ public sealed class OperateServiceNavigationTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AccessReadBackPreservesRoleTypingBeforeBlur(bool enabled)
+    {
+        using var context = Context(enabled);
+        var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
+        context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
+        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
+        if (enabled) page.Find("#service-access-tab").Click();
+        page.Find("[data-allowed-roles]").Input("reader,writer");
+        page.Find("[data-allowed-write-roles]").Input("editor,admin");
+        var save = page.Find("[data-save-access]").ClickAsync(new());
+        await page.InvokeAsync(() => operation.FirstSave.SetResult(new() { Succeeded = true, State = "Updated" }));
+        await operation.RefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        page.Find("[data-allowed-roles]").Input("reader,writer,newer");
+        page.Find("[data-allowed-write-roles]").Input("editor,admin,newer");
+        await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first") with
+        {
+            AllowedRoles = ["reader", "writer"],
+            AllowedWriteRoles = ["editor", "admin"]
+        }));
+        await save;
+
+        Assert.Equal("reader,writer,newer", page.Find("[data-allowed-roles]").GetAttribute("value"));
+        Assert.Equal("editor,admin,newer", page.Find("[data-allowed-write-roles]").GetAttribute("value"));
+        Assert.Equal(enabled ? 2 : 0,
+            context.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount);
+    }
+
+    [Theory]
     [InlineData(false, "protocols")]
     [InlineData(true, "protocols")]
     [InlineData(false, "access")]
@@ -152,7 +183,7 @@ public sealed class OperateServiceNavigationTests
         var operation = new DelayedSettingsOperation { DelayFirstSettings = false, DelayRefresh = true };
         context.Services.AddSingleton<IServiceConfigurationOperation>(operation);
         var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "first"));
-        page.Find("[data-allowed-roles]").Change("submitted-role");
+        page.Find("[data-allowed-roles]").Input("submitted-role");
         page.Find("[data-protocol='Wms']").Change(true);
         if (enabled) page.Find($"#service-{editor}-tab").Click();
         var save = page.Find($"[data-save-{editor}]").ClickAsync(new());
@@ -195,7 +226,7 @@ public sealed class OperateServiceNavigationTests
             button => Assert.True(button.HasAttribute("disabled")));
 
         page.Find("[data-protocol='Wms']").Change(true);
-        page.Find("[data-allowed-roles]").Change("newer-role");
+        page.Find("[data-allowed-roles]").Input("newer-role");
         await page.InvokeAsync(() => operation.Refresh.SetResult(Settings("first")));
         await save;
 

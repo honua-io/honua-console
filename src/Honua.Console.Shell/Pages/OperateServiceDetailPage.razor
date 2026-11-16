@@ -272,13 +272,13 @@
         </label>
         <label class="console-field">
             <span>Allowed read roles</span>
-            <input type="text" @bind="_allowedRoles" data-allowed-roles
+            <input type="text" @bind="_allowedRoles" @bind:event="oninput" data-allowed-roles
                    placeholder="viewer, editor" />
             <small>Comma- or newline-separated role names granted read access. Leave blank to clear.</small>
         </label>
         <label class="console-field">
             <span>Allowed write roles</span>
-            <input type="text" @bind="_allowedWriteRoles" data-allowed-write-roles
+            <input type="text" @bind="_allowedWriteRoles" @bind:event="oninput" data-allowed-write-roles
                    placeholder="editor, admin" />
             <small>Comma- or newline-separated role names granted write access. Leave blank to clear.</small>
         </label>
