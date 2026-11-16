@@ -189,6 +189,47 @@ public sealed class StudioAutomationEditorPageTests
         Assert.False(SaveButton(page).HasAttribute("disabled"));
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, true)]
+    [InlineData(ConsolePresentationMode.Legacy, false)]
+    [InlineData(ConsolePresentationMode.V4, true)]
+    [InlineData(ConsolePresentationMode.V4, false)]
+    public async Task PendingSave_DisablesEditsUntilCompletion(ConsolePresentationMode presentation, bool succeeds)
+    {
+        var completion = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingAutomationClient { PendingSave = completion.Task };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioAutomationEditorPage>(p => p.Add(x => x.DraftId, "current"));
+        var saving = SaveButton(page).ClickAsync(new());
+        try
+        {
+            page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+            AssertAutomationInputsDisabled(page);
+            page.FindAll("nav.automation-tab-row button").Single(button => button.TextContent.Trim() == "Settings").Click();
+            AssertAutomationInputsDisabled(page);
+        }
+        finally
+        {
+            completion.SetResult(new CollectAutomationSaveResult
+            {
+                ContentItemId = "automation-current",
+                VersionId = succeeds ? "saved-version" : null
+            });
+            await saving;
+        }
+
+        Assert.False(page.Find("input[aria-label='Automation name']").HasAttribute("disabled"));
+        page.Find("input[aria-label='Automation name']").Input("Edited after completion");
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
+    private static void AssertAutomationInputsDisabled(IRenderedComponent<StudioAutomationEditorPage> page)
+    {
+        var inputs = page.FindAll(".automation-editor-page input, .automation-editor-page textarea, .automation-editor-page select");
+        Assert.NotEmpty(inputs);
+        Assert.All(inputs, input => Assert.True(input.HasAttribute("disabled"), input.OuterHtml));
+    }
+
     private static BunitContext EditorContext(RecordingAutomationClient client, ConsolePresentationMode presentation)
     {
         var ctx = new BunitContext();

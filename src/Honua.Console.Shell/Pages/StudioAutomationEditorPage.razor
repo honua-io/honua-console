@@ -58,7 +58,7 @@
     {
         <header class="automation-editor-header" aria-label="Automation header">
             <span class="automation-editor-glyph" aria-hidden="true">⚡</span>
-            <input class="console-input automation-title-input" aria-label="Automation name" @bind="_draft.Name" @bind:event="oninput" @bind:after="OnEdit" />
+            <input disabled="@_busy" class="console-input automation-title-input" aria-label="Automation name" @bind="_draft.Name" @bind:event="oninput" @bind:after="OnEdit" />
             <span class="console-status automation-badge-draft">@DraftStatusBadge(_draft)</span>
             <span class="console-status @(_draft.Enabled ? string.Empty : "console-status-warning")">@(_draft.Enabled ? "enabled" : "disabled")</span>
             <div class="automation-editor-header-spacer"></div>
@@ -137,14 +137,14 @@
                             <h2 class="console-visually-hidden">Rule @(ri + 1)</h2>
                         }
                         <div class="automation-rule-head">
-                            <input class="console-input automation-rule-name" aria-label="Rule name" @bind="rule.Name" @bind:event="oninput" @bind:after="OnEdit" />
+                            <input disabled="@_busy" class="console-input automation-rule-name" aria-label="Rule name" @bind="rule.Name" @bind:event="oninput" @bind:after="OnEdit" />
                             <button class="console-button console-button-secondary automation-rule-remove" type="button" disabled="@_busy" @onclick="() => RemoveRule(ri)">Remove rule</button>
                         </div>
 
                         <div class="automation-form-grid automation-form-grid-compact">
                             <label>
                                 <span>Trigger</span>
-                                <select class="console-input" @bind="rule.Trigger" @bind:after="OnEdit">
+                                <select disabled="@_busy" class="console-input" @bind="rule.Trigger" @bind:after="OnEdit">
                                     @foreach (var trigger in CollectAutomationContractValues.TriggerKinds)
                                     {
                                         <option value="@trigger">@trigger</option>
@@ -153,12 +153,12 @@
                             </label>
                             <label>
                                 <span>Trigger field</span>
-                                <input class="console-input" aria-label="Trigger field" @bind="rule.TriggerField" @bind:event="oninput" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" aria-label="Trigger field" @bind="rule.TriggerField" @bind:event="oninput" @bind:after="OnEdit" />
                                 <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.RuleTriggerField(ri)" State="_validation" />
                             </label>
                             <label class="automation-form-wide">
                                 <span>Condition (sandboxed expression — empty means always)</span>
-                                <input class="console-input" aria-label="Condition" @bind="rule.Condition" @bind:event="oninput" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" aria-label="Condition" @bind="rule.Condition" @bind:event="oninput" @bind:after="OnEdit" />
                             </label>
                         </div>
 
@@ -172,14 +172,14 @@
                                 var ai = actionIndex;
                                 var action = rule.Actions[ai];
                                 <div class="automation-action-row">
-                                    <select class="console-input" aria-label="Action kind" @bind="action.Kind" @bind:after="OnEdit">
+                                    <select disabled="@_busy" class="console-input" aria-label="Action kind" @bind="action.Kind" @bind:after="OnEdit">
                                         @foreach (var kind in CollectAutomationContractValues.ActionKinds)
                                         {
                                             <option value="@kind">@kind</option>
                                         }
                                     </select>
-                                    <input class="console-input" aria-label="Action target" placeholder="target" @bind="action.Target" @bind:event="oninput" @bind:after="OnEdit" />
-                                    <input class="console-input" aria-label="Action expression" placeholder="expression" @bind="action.Expression" @bind:event="oninput" @bind:after="OnEdit" />
+                                    <input disabled="@_busy" class="console-input" aria-label="Action target" placeholder="target" @bind="action.Target" @bind:event="oninput" @bind:after="OnEdit" />
+                                    <input disabled="@_busy" class="console-input" aria-label="Action expression" placeholder="expression" @bind="action.Expression" @bind:event="oninput" @bind:after="OnEdit" />
                                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="() => RemoveAction(ri, ai)">Remove</button>
                                     <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.ActionTarget(ri, ai)" State="_validation" />
                                 </div>
@@ -198,25 +198,25 @@
                 <div class="automation-form-grid">
                     <label>
                         <span>Name</span>
-                        <input class="console-input" @bind="_draft.Name" @bind:event="oninput" @bind:after="OnEdit" />
+                        <input disabled="@_busy" class="console-input" @bind="_draft.Name" @bind:event="oninput" @bind:after="OnEdit" />
                         <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.Name" State="_validation" />
                     </label>
                     <label>
                         <span>Bound form id</span>
-                        <input class="console-input" @bind="_draft.FormId" @bind:event="oninput" @bind:after="OnEdit" />
+                        <input disabled="@_busy" class="console-input" @bind="_draft.FormId" @bind:event="oninput" @bind:after="OnEdit" />
                         <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.FormId" State="_validation" />
                     </label>
                     <label class="automation-form-wide">
                         <span>Description</span>
-                        <textarea class="console-input" rows="3" @bind="_draft.Description" @bind:event="oninput" @bind:after="OnEdit"></textarea>
+                        <textarea disabled="@_busy" class="console-input" rows="3" @bind="_draft.Description" @bind:event="oninput" @bind:after="OnEdit"></textarea>
                     </label>
                     <label>
                         <span>Cascade depth (engine loop guard)</span>
-                        <input class="console-input" type="number" min="1" max="32" @bind="_draft.MaxCascadeDepth" @bind:after="OnEdit" />
+                        <input disabled="@_busy" class="console-input" type="number" min="1" max="32" @bind="_draft.MaxCascadeDepth" @bind:after="OnEdit" />
                         <ValidationMessageInline FieldKey="@CollectAutomationFieldKeys.MaxCascadeDepth" State="_validation" />
                     </label>
                     <label class="automation-checkbox">
-                        <input type="checkbox" @bind="_draft.Enabled" @bind:after="OnEdit" />
+                        <input disabled="@_busy" type="checkbox" @bind="_draft.Enabled" @bind:after="OnEdit" />
                         <span>Enabled</span>
                     </label>
                 </div>
