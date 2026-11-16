@@ -39,9 +39,12 @@ for (const v4Enabled of [false, true]) {
       await expect(page.getByRole('button', { name: 'Submit ticket', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Submit ticket', exact: true }).click();
       await expect.poll(() => captures).toBe(2);
-      for (const label of ['Severity', 'Service', 'Requested action', 'Allowed access mode',
-        'Access TTL (minutes)', 'Scoped telemetry key (optional)', 'Symptoms']) {
-        await expect(page.getByLabel(label, { exact: true })).toBeDisabled();
+      for (const [role, name] of [
+        ['combobox', 'Severity'], ['textbox', 'Service'], ['textbox', 'Requested action'],
+        ['combobox', 'Allowed access mode'], ['spinbutton', 'Access TTL (minutes)'],
+        ['textbox', 'Scoped telemetry key (optional)'], ['textbox', 'Symptoms'],
+      ] as const) {
+        await expect(page.getByRole(role, { name, exact: true })).toBeDisabled();
       }
       await expect(page.locator('#support-rollback')).toBeDisabled();
       await testInfo.attach(`pending-support-v4-${v4Enabled}`, {
