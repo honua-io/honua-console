@@ -25,7 +25,7 @@ public sealed partial class OperateTemporalPageRenderTests
         EditRollbackSelection(page, scope);
         pending.SetResult(SelectionPlan);
         await request;
-        Assert.Empty(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
         Assert.False(Action(page, "Plan Rollback").HasAttribute("disabled"));
     }
 
@@ -46,10 +46,10 @@ public sealed partial class OperateTemporalPageRenderTests
         Assert.Single(page.FindAll("[data-console-confirm-accept]"));
         EditRollbackSelection(page, scope);
         Assert.Empty(page.FindAll("[data-console-confirm-accept]"));
-        Assert.Empty(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
         Assert.Equal(0, client.ExecuteRollbackCalls);
         Action(page, "Plan Rollback").Click();
-        Assert.Single(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.Single(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
     }
 
     [Theory]
@@ -64,7 +64,7 @@ public sealed partial class OperateTemporalPageRenderTests
         InspectFirstSource(page);
         Action(page, "Plan Rollback").Click();
         page.Find("select[aria-label='To checkpoint']").Change("cp-prev");
-        Assert.Single(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.Single(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed partial class OperateTemporalPageRenderTests
         page.Render();
         pending.SetResult(SelectionPlan);
         await request;
-        Assert.Empty(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed partial class OperateTemporalPageRenderTests
         Navigate(ctx, "src-parcels", "missing");
         page.Render();
         Assert.Empty(page.FindAll("[data-console-confirm-accept]"));
-        Assert.Empty(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.DoesNotContain(page.FindAll("button"), button => button.TextContent.Trim() == "Execute Rollback Job");
         Assert.Equal(0, client.ExecuteRollbackCalls);
     }
 
