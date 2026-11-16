@@ -61,7 +61,9 @@ public sealed partial class OperateReleasesPageRenderTests
         page.Render(p => p.Add(x => x.SelectedReleaseId, (string?)null));
         page.WaitForAssertion(() => Assert.Contains("deploy-current", page.Markup));
 
+        var renders = page.RenderCount;
         await page.InvokeAsync(() => pending.SetResult());
+        page.WaitForState(() => page.RenderCount > renders);
 
         page.WaitForAssertion(() =>
         {
@@ -157,7 +159,9 @@ public sealed partial class OperateReleasesPageRenderTests
         page.Render(p => p.Add(x => x.SelectedReleaseId, "current"));
         page.WaitForAssertion(() => Assert.Contains("Release current", page.Markup));
 
+        var renders = page.RenderCount;
         await page.InvokeAsync(() => pending.SetResult());
+        page.WaitForState(() => page.RenderCount > renders);
 
         page.WaitForAssertion(() => Assert.Contains("Release current", page.Markup));
         Assert.DoesNotContain("Release earlier", page.Markup);
@@ -205,12 +209,14 @@ public sealed partial class OperateReleasesPageRenderTests
         var page = context.Render<OperateReleasesPage>();
         page.WaitForAssertion(() => Assert.True(started.Task.IsCompleted));
 
+        var renders = page.RenderCount;
         await page.InvokeAsync(() =>
         {
             page.Instance.Dispose();
             pending.SetResult();
         });
 
+        page.WaitForState(() => page.RenderCount > renders);
         Assert.Equal(stage == "details" ? 1 : 0, detailReads);
         Assert.Equal(0, approvalReads);
     }
