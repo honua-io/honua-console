@@ -303,7 +303,7 @@ public sealed class CatalogServerBindingRenderTests
     }
 
     // Minimal resources-projection stub for the catalog server-binding bridge. Only the resource COUNT is
-    // load-bearing; the default IOperateTransitionDataSource.GetResourcesViewAsync derives from the workspace.
+    // load-bearing; the default IOperateTransitionDataSource.GetDatasetsViewAsync derives from the workspace.
     private sealed class StubOperateData(int resourceCount, bool throwOnRead = false) : IOperateTransitionDataSource
     {
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
@@ -314,7 +314,7 @@ public sealed class CatalogServerBindingRenderTests
             }
 
             var edits = Enumerable.Range(0, resourceCount)
-                .Select(index => new OperateResourceEditPreview(
+                .Select(index => new OperateDatasetEditPreview(
                     $"res-{index}",
                     $"Resource {index}",
                     "source",
@@ -330,8 +330,8 @@ public sealed class CatalogServerBindingRenderTests
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(null);
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateDatasetEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateServiceDetail?>(null);

@@ -47,7 +47,7 @@ internal static class ConsolePublicationRenderFixture
         }
         public Task<OperateConnectionSummary?> FindConnectionAsync(string id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string id, CancellationToken cancellationToken = default) =>
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

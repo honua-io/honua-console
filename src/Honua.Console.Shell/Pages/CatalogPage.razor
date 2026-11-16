@@ -270,15 +270,15 @@
     }
 
     // Sources the "N live resources" bridge count from the SAME resources projection Operate → Data & Layers
-    // renders (IOperateTransitionDataSource.GetResourcesViewAsync — no new endpoint). Returns null — omitting
+    // renders (IOperateTransitionDataSource.GetDatasetsViewAsync — no new endpoint). Returns null — omitting
     // the bridge line — when the server is unbound (empty projection), the read fails, or the server genuinely
     // has zero resources, so the plain empty state remains for every non-bridging case (honua-console#312).
     private async Task<int?> TryReadLiveResourceCountAsync()
     {
         try
         {
-            var resources = await OperateData.GetResourcesViewAsync();
-            var count = resources.ResourceEdits.Count;
+            var resources = await OperateData.GetDatasetsViewAsync();
+            var count = resources.DatasetEdits.Count;
             return count > 0 ? count : null;
         }
         catch (Exception)

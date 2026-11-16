@@ -10,7 +10,7 @@ public interface IOperateTransitionDataSource
         string connectionId,
         CancellationToken cancellationToken = default);
 
-    Task<OperateResourceEditPreview?> FindResourceEditAsync(
+    Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
         string resourceId,
         CancellationToken cancellationToken = default);
 
@@ -28,10 +28,10 @@ public interface IOperateTransitionDataSource
         return new OperateConnectionsView(workspace.Connections, workspace.CapabilityStates);
     }
 
-    async Task<OperateResourcesView> GetResourcesViewAsync(CancellationToken cancellationToken = default)
+    async Task<OperateDatasetsView> GetDatasetsViewAsync(CancellationToken cancellationToken = default)
     {
         var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
-        return new OperateResourcesView(workspace.ResourceEdits, workspace.CapabilityStates);
+        return new OperateDatasetsView(workspace.DatasetEdits, workspace.CapabilityStates);
     }
 
     async Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)

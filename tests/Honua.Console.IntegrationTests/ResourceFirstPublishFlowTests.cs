@@ -229,7 +229,7 @@ public sealed class ResourceFirstPublishFlowTests
         // Regression: existing server data populates ServiceType as joined protocol names ("FeatureServer,
         // MapServer"), not the metadata-v2 strings — the tree must still mark the resource Running with its
         // protocol publications rather than falling through to Draft.
-        IReadOnlyList<OperateResourceEditPreview> resources = [EditPreview("rsc_parcels", "parcels")];
+        IReadOnlyList<OperateDatasetEditPreview> resources = [EditPreview("rsc_parcels", "parcels")];
         IReadOnlyList<OperateServiceDetail> services =
         [
             Service("city/parcels", "FeatureServer, MapServer", Layer(1, "rsc_parcels")),
@@ -249,7 +249,7 @@ public sealed class ResourceFirstPublishFlowTests
     [Fact]
     public void TreeBuilder_GroupsServicePublicationsUnderTheirCanonicalResource()
     {
-        IReadOnlyList<OperateResourceEditPreview> resources =
+        IReadOnlyList<OperateDatasetEditPreview> resources =
         [
             EditPreview("rsc_parcels", "parcels"),
             EditPreview("rsc_zoning", "zoning"),
@@ -533,7 +533,7 @@ public sealed class ResourceFirstPublishFlowTests
         ctx.Services.AddSingleton<IOperateTransitionDataSource>(new OneResourceDataSource("rsc_parcels", "parcels"));
     }
 
-    private static OperateResourceEditPreview EditPreview(string id, string name) =>
+    private static OperateDatasetEditPreview EditPreview(string id, string name) =>
         new(id, name, "file", "—", "Valid",
             new OperateBlastRadius([], [], [], [], [], []), [], []);
 
@@ -554,8 +554,8 @@ public sealed class ResourceFirstPublishFlowTests
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(_connection);
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateDatasetEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateServiceDetail?>(null);
@@ -609,8 +609,8 @@ public sealed class ResourceFirstPublishFlowTests
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(null);
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateDatasetEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateServiceDetail?>(_service);

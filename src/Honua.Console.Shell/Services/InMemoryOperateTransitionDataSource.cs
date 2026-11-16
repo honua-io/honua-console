@@ -23,10 +23,10 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
         Task.FromResult(_workspace.Connections.FirstOrDefault(
             connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase)));
 
-    public Task<OperateResourceEditPreview?> FindResourceEditAsync(
+    public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
         string resourceId,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(_workspace.ResourceEdits.FirstOrDefault(
+        Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(
             resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase)));
 
     public Task<OperateServiceDetail?> FindServiceAsync(
@@ -135,9 +135,9 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                             ["secretReference"] = "secret://connections/cityworks-api/api-token"
                         }))
             ],
-            ResourceEdits:
+            DatasetEdits:
             [
-                new OperateResourceEditPreview(
+                new OperateDatasetEditPreview(
                     "res-parcels-2026",
                     "City Parcels 2026",
                     "PostGIS table public.parcels_2026",

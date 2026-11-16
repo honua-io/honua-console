@@ -94,7 +94,7 @@ public sealed class OperateTransitionLiveServerTests
 
         // Connections render the live connection; the resource view carries the published layer.
         Assert.Contains("Console Live PostGIS", connectionsHtml, StringComparison.Ordinal);
-        var resources = (await dataSource.GetResourcesViewAsync()).ResourceEdits;
+        var resources = (await dataSource.GetDatasetsViewAsync()).DatasetEdits;
         Assert.Contains(resources, resource =>
             resource.Name == "Console Live Fixture" && resource.Source.Contains("console_live", StringComparison.Ordinal));
 

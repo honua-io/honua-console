@@ -163,7 +163,7 @@
         _appliedFocus = null;
         try
         {
-        var resourcesView = await OperateData.GetResourcesViewAsync();
+        var resourcesView = await OperateData.GetDatasetsViewAsync();
         var servicesView = await OperateData.GetServicesViewAsync();
         if (generation != _loadGeneration) return;
         _servicesView = servicesView;
@@ -172,7 +172,7 @@
         if (generation != _loadGeneration) return;
         _environmentId = environmentId;
 
-        _nodes = DatasetEndpointsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
+        _nodes = DatasetEndpointsTreeBuilder.Build(resourcesView.DatasetEdits, servicesView.Services);
         if (V4Enabled) _catalogRows = CatalogRows(_nodes, servicesView);
         _states = OperateCapabilityStateFilters.ForSurface(
             resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),

@@ -57,7 +57,7 @@
                         <p class="console-kicker">Datasets</p>
                         <h2>Dataset edits</h2>
                     </div>
-                    <span class="console-profile-count">@_workspace.ResourceEdits.Count</span>
+                    <span class="console-profile-count">@_workspace.DatasetEdits.Count</span>
                 </div>
                 <p class="console-muted">Review validation state, blast radius, and publish impact before applying changes.</p>
             </a>
@@ -204,7 +204,7 @@
                     </li>
                 }
 
-                @foreach (var resource in _workspace.ResourceEdits)
+                @foreach (var resource in _workspace.DatasetEdits)
                 {
                     <li>
                         <strong>@resource.Name</strong>

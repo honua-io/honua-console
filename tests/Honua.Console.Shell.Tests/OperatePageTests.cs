@@ -29,7 +29,7 @@ public sealed class OperatePageTests
                         OperatorActions: [], // The empty-list case that used to throw.
                         Evidence: new Dictionary<string, string>())),
             ],
-            ResourceEdits: [],
+            DatasetEdits: [],
             Services: [],
             SettingsChanges: [],
             CapabilityStates: []);
@@ -57,7 +57,7 @@ public sealed class OperatePageTests
                         OperatorActions: ["Rotate the service-account credential."],
                         Evidence: new Dictionary<string, string>())),
             ],
-            ResourceEdits: [],
+            DatasetEdits: [],
             Services: [],
             SettingsChanges: [],
             CapabilityStates: []);
@@ -102,8 +102,8 @@ public sealed class OperatePageTests
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateConnectionSummary?>(null);
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateDatasetEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
             Task.FromResult<OperateServiceDetail?>(null);

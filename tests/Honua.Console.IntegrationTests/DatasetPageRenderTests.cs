@@ -214,7 +214,7 @@ public sealed class DatasetPageRenderTests
             };
         }
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => _inner.FindConnectionAsync(connectionId, cancellationToken);
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) => _inner.FindResourceEditAsync(resourceId, cancellationToken);
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) => _inner.FindDatasetEditAsync(resourceId, cancellationToken);
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => _inner.FindServiceAsync(serviceName, cancellationToken);
     }
 

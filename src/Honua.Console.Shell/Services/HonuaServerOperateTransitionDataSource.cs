@@ -50,7 +50,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         MergeStates(states, settingsChangeStates);
 
         if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], [], [], [], [ConsoleEnvironmentRead.Unavailable]);
-        var resources = BuildResourceEdits(layerRows);
+        var resources = BuildDatasetEdits(layerRows);
         var services = new ServiceProjection(serviceSettings, layerRows, new OperateServiceEndpointResolver(environment.ServerBaseUri)).Map(summaries);
 
         return new OperateTransitionWorkspace(
@@ -67,7 +67,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         return new OperateConnectionsView(connections, states);
     }
 
-    public async Task<OperateResourcesView> GetResourcesViewAsync(CancellationToken cancellationToken = default)
+    public async Task<OperateDatasetsView> GetDatasetsViewAsync(CancellationToken cancellationToken = default)
     {
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
         var summariesTask = LoadServiceSummariesAsync(cancellationToken);
@@ -83,7 +83,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         MergeStates(states, summaryStates);
         MergeStates(states, layerStates);
 
-        return new OperateResourcesView(BuildResourceEdits(layerRows), states);
+        return new OperateDatasetsView(BuildDatasetEdits(layerRows), states);
     }
 
     public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) =>
@@ -172,12 +172,12 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase));
     }
 
-    public async Task<OperateResourceEditPreview?> FindResourceEditAsync(
+    public async Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
         string resourceId,
         CancellationToken cancellationToken = default)
     {
-        var view = await GetResourcesViewAsync(cancellationToken).ConfigureAwait(false);
-        return view.ResourceEdits.FirstOrDefault(
+        var view = await GetDatasetsViewAsync(cancellationToken).ConfigureAwait(false);
+        return view.DatasetEdits.FirstOrDefault(
             resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -404,7 +404,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         return (new ReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse>(settings), states);
     }
 
-    private static IReadOnlyList<OperateResourceEditPreview> BuildResourceEdits(IReadOnlyList<LayerRow> layerRows)
+    private static IReadOnlyList<OperateDatasetEditPreview> BuildDatasetEdits(IReadOnlyList<LayerRow> layerRows)
     {
         return layerRows
             .GroupBy(row => row.Resource.ResourceId, StringComparer.OrdinalIgnoreCase)
@@ -577,7 +577,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             });
     }
 
-    private static OperateResourceEditPreview MapResource(
+    private static OperateDatasetEditPreview MapResource(
         OperateConnectionSummary connection,
         HonuaAdminPublishedLayerSummary layer)
     {
@@ -588,7 +588,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var resourceId = OperateResourceIdentity.ForPublishedLayer(connection.Id, layer.LayerId);
         var serviceName = Coalesce(layer.ServiceName, "default");
 
-        return new OperateResourceEditPreview(
+        return new OperateDatasetEditPreview(
             resourceId,
             layerName,
             source,
@@ -699,6 +699,6 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     private sealed record LayerRow(
         OperateConnectionSummary Connection,
         HonuaAdminPublishedLayerSummary Source,
-        OperateResourceEditPreview Resource,
+        OperateDatasetEditPreview Resource,
         OperateServiceLayer Projection);
 }

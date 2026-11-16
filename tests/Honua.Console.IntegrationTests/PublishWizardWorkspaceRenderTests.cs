@@ -655,8 +655,8 @@ public sealed partial class PublishWizardWorkspaceRenderTests
         public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace.Connections.FirstOrDefault(c => c.Id == connectionId));
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<OperateResourceEditPreview?>(null);
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateDatasetEditPreview?>(null);
 
         public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace.Services.FirstOrDefault(s => s.Name == serviceName));

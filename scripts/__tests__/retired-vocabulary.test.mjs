@@ -21,7 +21,7 @@ const RULES = [
     use: "the kind itself (Map, App, Form, Workflow)",
   },
   { id: "package-family", expression: /\bpackage famil(?:y|ies)\b/iu, use: "content kind" },
-  { id: "dataset-tree-type", expression: /\b(?:record|class|interface|enum|struct)\s+(?:ResourceTreeNode|PublicationTreeNode|ResourcePublicationsTreeBuilder)\b/u, use: "DatasetTreeNode, DatasetEndpointNode, DatasetEndpointsTreeBuilder" },
+  { id: "dataset-tree-type", expression: /\b(?:record|class|interface|enum|struct)\s+(?:ResourceTreeNode|PublicationTreeNode|ResourcePublicationsTreeBuilder|OperateResourceEditPreview|OperateResourcesView)\b/u, use: "DatasetTreeNode, DatasetEndpointNode, DatasetEndpointsTreeBuilder, OperateDatasetEditPreview, OperateDatasetsView" },
   { id: "envelope-type", expression: /\b(?:record|class|interface|enum|struct)\s+\w*(?:MapPackage|AppPackage|HostedMap|HonuaApiToken)/u, use: "Map, App, ApiKey" },
   {
     id: "workspace-tenancy",
@@ -82,6 +82,8 @@ test("retired phrases are caught and protocol or agent words are not", () => {
     "public sealed record ConsoleMapPackage",
     "public sealed record ResourceTreeNode",
     "public sealed record PublicationTreeNode",
+    "public sealed record OperateResourceEditPreview",
+    "public sealed record OperateResourcesView",
     "public static class ResourcePublicationsTreeBuilder",
   ];
   for (const line of caught) {
@@ -94,6 +96,8 @@ test("retired phrases are caught and protocol or agent words are not", () => {
     "Available slots",
     "public sealed record DatasetTreeNode",
     "public sealed record DatasetEndpointNode",
+    "public sealed record OperateDatasetEditPreview",
+    "public sealed record OperateDatasetsView",
     "public static class DatasetEndpointsTreeBuilder",
   ];
   for (const line of kept) {

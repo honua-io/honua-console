@@ -301,7 +301,7 @@ public sealed class OperateSyncPageRenderTests
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromException<OperateTransitionWorkspace>(new HttpRequestException("layers unavailable"));
         public Task<OperateConnectionSummary?> FindConnectionAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
@@ -328,7 +328,7 @@ public sealed class OperateSyncPageRenderTests
                     [new(0, "Roads", "LineString", "conn-b-layer-0", "roads")], [], [])
             ], [], []));
         public Task<OperateConnectionSummary?> FindConnectionAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OperateServiceDetail?> FindServiceAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 

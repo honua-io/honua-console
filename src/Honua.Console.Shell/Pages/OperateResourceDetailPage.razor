@@ -136,7 +136,7 @@
     [Parameter]
     public string ResourceId { get; set; } = string.Empty;
 
-    private OperateResourceEditPreview? _resource;
+    private OperateDatasetEditPreview? _resource;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
     private bool _loading;
@@ -154,9 +154,9 @@
         _loading = true;
         try
         {
-            var view = await OperateData.GetResourcesViewAsync();
+            var view = await OperateData.GetDatasetsViewAsync();
             if (generation != _generation) return;
-            _resource = view.ResourceEdits.FirstOrDefault(
+            _resource = view.DatasetEdits.FirstOrDefault(
                 resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
         }

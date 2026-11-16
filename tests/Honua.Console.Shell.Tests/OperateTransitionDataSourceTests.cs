@@ -112,7 +112,7 @@ public sealed partial class OperateTransitionDataSourceTests
         var workspace = await dataSource.GetWorkspaceAsync();
 
         Assert.Contains(workspace.Connections, connection => connection.Name == "Live PostGIS" && connection.Status == "Passed");
-        var resource = Assert.Single(workspace.ResourceEdits, candidate => candidate.Name == "Console Parcels");
+        var resource = Assert.Single(workspace.DatasetEdits, candidate => candidate.Name == "Console Parcels");
         Assert.Equal("Published", resource.ValidationState);
         Assert.Equal(["planning", "public"], resource.BlastRadius.Services);
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
@@ -258,11 +258,11 @@ public sealed partial class OperateTransitionDataSourceTests
                 new[] { $"{connectionId}-layer-7", $"{connectionId}-layer-8" },
                 layers.Select(layer => layer.CanonicalResourceId));
         }
-        Assert.Equal(2, workspace.ResourceEdits.Select(resource => resource.ResourceId).Distinct().Count());
+        Assert.Equal(2, workspace.DatasetEdits.Select(resource => resource.ResourceId).Distinct().Count());
         // The service is derived from the layer's own service name, not the absent services endpoint.
         Assert.Contains(servicesView.Services, service => service.Name == "planning");
         // Resources read the same layer rows directly and must also keep the published layer.
-        Assert.Contains(workspace.ResourceEdits, resource => resource.Name == "Console Parcels");
+        Assert.Contains(workspace.DatasetEdits, resource => resource.Name == "Console Parcels");
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed partial class OperateTransitionDataSourceTests
     {
         var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace(
             Connections: [],
-            ResourceEdits: [],
+            DatasetEdits: [],
             Services: [],
             SettingsChanges: [],
             CapabilityStates:
@@ -517,7 +517,7 @@ public sealed partial class OperateTransitionDataSourceTests
     public async Task ResourceEditCarriesValidationStateAndBlastRadius()
     {
         var dataSource = InMemoryOperateTransitionDataSource.CreateSeeded();
-        var resource = await dataSource.FindResourceEditAsync("res-parcels-2026");
+        var resource = await dataSource.FindDatasetEditAsync("res-parcels-2026");
 
         Assert.NotNull(resource);
         Assert.Contains("Blocked", resource.ValidationState, StringComparison.OrdinalIgnoreCase);
@@ -736,10 +736,10 @@ public sealed partial class OperateTransitionDataSourceTests
             Task.FromResult(_workspace.Connections.FirstOrDefault(
                 connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase)));
 
-        public Task<OperateResourceEditPreview?> FindResourceEditAsync(
+        public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
             string resourceId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(_workspace.ResourceEdits.FirstOrDefault(
+            Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(
                 resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase)));
 
         public Task<OperateServiceDetail?> FindServiceAsync(

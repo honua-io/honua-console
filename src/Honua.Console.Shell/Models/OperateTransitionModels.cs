@@ -7,7 +7,7 @@ namespace Honua.Console.Shell.Models;
 
 public sealed record OperateTransitionWorkspace(
     IReadOnlyList<OperateConnectionSummary> Connections,
-    IReadOnlyList<OperateResourceEditPreview> ResourceEdits,
+    IReadOnlyList<OperateDatasetEditPreview> DatasetEdits,
     IReadOnlyList<OperateServiceDetail> Services,
     IReadOnlyList<OperateSettingsChange> SettingsChanges,
     IReadOnlyList<OperateCapabilityState> CapabilityStates);
@@ -16,8 +16,8 @@ public sealed record OperateConnectionsView(
     IReadOnlyList<OperateConnectionSummary> Connections,
     IReadOnlyList<OperateCapabilityState> CapabilityStates);
 
-public sealed record OperateResourcesView(
-    IReadOnlyList<OperateResourceEditPreview> ResourceEdits,
+public sealed record OperateDatasetsView(
+    IReadOnlyList<OperateDatasetEditPreview> DatasetEdits,
     IReadOnlyList<OperateCapabilityState> CapabilityStates);
 
 public sealed record OperateServicesView(
@@ -113,7 +113,7 @@ public sealed record OperateDiagnosticSignal(
     string Severity,
     string Message);
 
-public sealed record OperateResourceEditPreview(
+public sealed record OperateDatasetEditPreview(
     string ResourceId,
     string Name,
     string Source,

@@ -6,7 +6,7 @@ public sealed class UnsupportedOperateTransitionDataSource : IOperateTransitionD
 {
     private static readonly OperateTransitionWorkspace Workspace = new(
         Connections: [],
-        ResourceEdits: [],
+        DatasetEdits: [],
         Services: [],
         SettingsChanges: [],
         CapabilityStates:
@@ -26,10 +26,10 @@ public sealed class UnsupportedOperateTransitionDataSource : IOperateTransitionD
         CancellationToken cancellationToken = default) =>
         Task.FromResult<OperateConnectionSummary?>(null);
 
-    public Task<OperateResourceEditPreview?> FindResourceEditAsync(
+    public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(
         string resourceId,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<OperateResourceEditPreview?>(null);
+        Task.FromResult<OperateDatasetEditPreview?>(null);
 
     public Task<OperateServiceDetail?> FindServiceAsync(
         string serviceName,

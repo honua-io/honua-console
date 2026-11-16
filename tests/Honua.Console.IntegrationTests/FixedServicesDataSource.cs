@@ -14,8 +14,8 @@ internal sealed class FixedServicesDataSource(params OperateServiceDetail[] serv
     public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
         Task.FromResult<OperateConnectionSummary?>(null);
 
-    public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
-        Task.FromResult<OperateResourceEditPreview?>(null);
+    public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<OperateDatasetEditPreview?>(null);
 
     public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
         Task.FromResult(services.FirstOrDefault(service =>

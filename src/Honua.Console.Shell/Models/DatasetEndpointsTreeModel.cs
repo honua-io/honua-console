@@ -24,7 +24,7 @@ public sealed record DatasetEndpointNode(
 public static class DatasetEndpointsTreeBuilder
 {
     public static IReadOnlyList<DatasetTreeNode> Build(
-        IReadOnlyList<OperateResourceEditPreview> datasets,
+        IReadOnlyList<OperateDatasetEditPreview> datasets,
         IReadOnlyList<OperateServiceDetail> services)
     {
         ArgumentNullException.ThrowIfNull(datasets);
