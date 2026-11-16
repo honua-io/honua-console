@@ -99,7 +99,8 @@ public sealed class SupportSubmissionLifecycleTests
             }));
         profiles.DelayNextCapture = false;
         await page.InvokeAsync(() => profiles.Pending.SetResult(null));
-        page.WaitForAssertion(() => Assert.Single(client.Requests));
+        await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Single(client.Requests);
         Assert.DoesNotContain("Later advice", client.Requests[0].Symptoms);
         await page.InvokeAsync(() => client.Pending.SetResult(
             SupportTicketResult.Denied(OperateSectionStatus.Unavailable, "Support is unavailable.")));
@@ -144,12 +145,14 @@ public sealed class SupportSubmissionLifecycleTests
     private sealed class DeferredClient : IConsoleSupportTicketClient
     {
         public TaskCompletionSource<SupportTicketResult> Pending { get; } = new();
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<CreateSupportTicketRequest> Requests { get; } = [];
         public CancellationToken Token { get; private set; }
         public Task<SupportTicketResult> CreateTicketAsync(CreateSupportTicketRequest request, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
             Token = cancellationToken;
+            Started.TrySetResult();
             return Pending.Task;
         }
         public Task<SupportTicketResult> GetTicketAsync(string ticketId, CancellationToken cancellationToken = default) =>
