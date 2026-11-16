@@ -30,6 +30,8 @@ const maplibreAsset = (file) =>
 // test time against the committed files.
 
 const instances = new Map();
+// A weak token also covers containers whose map has not been constructed yet.
+const initializations = new WeakMap();
 let maplibrePromise = null;
 
 function loadMapLibre() {
@@ -155,10 +157,11 @@ export function bindMapSession(map, authorize, subscribe) {
 const sessionReleases = new Map();
 
 // Attempts to mount a live MapLibre map into the given container.
-// Returns true when a real map was bound; false when the component should keep its placeholder.
-async function mountAuthorizedMap(maplibregl, container, options) {
+// Returns the mounted resources, or null when initialization was superseded.
+async function mountAuthorizedMap(maplibregl, { container, options, isCurrent }) {
     const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
     const authorize = typeof capture === 'function' ? await capture() : null;
+    if (!isCurrent()) return null;
     const mapOptions = {
         container,
         style: options.styleUrl,
@@ -170,6 +173,7 @@ async function mountAuthorizedMap(maplibregl, container, options) {
         mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
         await requireMapWorkerGuard(maplibregl);
     }
+    if (!isCurrent()) return null;
     const map = new maplibregl.Map(mapOptions);
     return { map, releaseSession: bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession) };
 }
@@ -178,15 +182,26 @@ export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
     }
+    dispose(container);
+    const token = {};
+    initializations.set(container, token);
+    const isCurrent = () => initializations.get(container) === token;
     const maplibregl = await loadMapLibre();
-    if (!maplibregl) {
+    if (!maplibregl || !isCurrent()) {
         return false;
     }
     let releaseSession = () => {};
+    let map;
     try {
-        const mounted = await mountAuthorizedMap(maplibregl, container, options);
-        const { map } = mounted;
+        const mounted = await mountAuthorizedMap(maplibregl, { container, options, isCurrent });
+        if (!mounted) return false;
+        map = mounted.map;
         releaseSession = mounted.releaseSession;
+        if (!isCurrent()) {
+            releaseSession();
+            try { map.remove(); } catch { /* teardown is best-effort */ }
+            return false;
+        }
         if (options.showScale) {
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
         }
@@ -240,6 +255,7 @@ export async function init(container, options) {
         return true;
     } catch {
         releaseSession();
+        try { map?.remove(); } catch { /* teardown is best-effort */ }
         return false;
     }
 }
@@ -301,6 +317,7 @@ export function recenter(container, center, zoom) {
 }
 
 export function dispose(container) {
+    initializations.delete(container);
     const map = instances.get(container);
     if (map) {
         sessionReleases.get(map)?.();

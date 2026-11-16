@@ -214,6 +214,7 @@
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private bool _liveMapBound;
+    private bool _disposed;
     private string? _boundStyleUrl;
     private string? _activeBasemapId;
     private bool _basemapInitialized;
@@ -353,15 +354,22 @@
         // bound. The builder/AI flows mount the preview BEFORE a style exists (empty draft) and only supply
         // StyleUrl after generation binds a real layer, so binding only on firstRender would never show the
         // map. Re-binding on change also handles switching between layers/refined proposals.
-        if (string.IsNullOrWhiteSpace(StyleUrl) || string.Equals(StyleUrl, _boundStyleUrl, StringComparison.Ordinal))
+        if (_disposed || string.IsNullOrWhiteSpace(StyleUrl) || string.Equals(StyleUrl, _boundStyleUrl, StringComparison.Ordinal))
         {
             return;
         }
 
         try
         {
-            _module ??= await JS.InvokeAsync<IJSObjectReference>(
+            var module = _module ?? await JS.InvokeAsync<IJSObjectReference>(
                 "import", "./_content/Honua.Console.Shell/map-preview.js");
+            if (_disposed)
+            {
+                await module.DisposeAsync();
+                return;
+            }
+
+            _module = module;
 
             // Dispose a previously-bound map before binding a new style (refine / layer switch).
             if (_liveMapBound)
@@ -378,6 +386,11 @@
                 _liveMapBound = false;
             }
 
+            if (_disposed)
+            {
+                return;
+            }
+
             var bound = await _module.InvokeAsync<bool>(
                 "init",
                 _canvas,
@@ -390,7 +403,7 @@
                     showScale = true,
                 });
 
-            if (bound)
+            if (bound && !_disposed)
             {
                 _boundStyleUrl = StyleUrl;
                 _liveMapBound = true;
@@ -480,6 +493,12 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         if (_module is not null)
         {
             try
