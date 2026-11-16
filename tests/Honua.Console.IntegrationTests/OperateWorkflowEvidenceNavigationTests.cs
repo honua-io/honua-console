@@ -207,17 +207,16 @@ public sealed class OperateWorkflowEvidenceNavigationTests
             });
         }
 
-        public async Task Complete(TaskCompletionSource<StudioWorkflowJobEvidence?> pending, string jobId, string log = "completed")
-        {
-            var renders = Page.RenderCount;
-            await Page.InvokeAsync(() => pending.SetResult(Evidence(jobId, log)));
-            Page.WaitForState(() => Page.RenderCount > renders);
-        }
+        public Task Complete(TaskCompletionSource<StudioWorkflowJobEvidence?> pending, string jobId, string log = "completed")
+            => CompleteRead(pending, Evidence(jobId, log));
 
-        public async Task CompleteMissing(TaskCompletionSource<StudioWorkflowJobEvidence?> pending)
+        public Task CompleteMissing(TaskCompletionSource<StudioWorkflowJobEvidence?> pending)
+            => CompleteRead(pending, null);
+
+        private async Task CompleteRead(TaskCompletionSource<StudioWorkflowJobEvidence?> pending, StudioWorkflowJobEvidence? evidence)
         {
             var renders = Page.RenderCount;
-            await Page.InvokeAsync(() => pending.SetResult(null));
+            await Page.InvokeAsync(() => pending.SetResult(evidence));
             Page.WaitForState(() => Page.RenderCount > renders);
         }
 
