@@ -2391,6 +2391,10 @@ p {
     margin-top: 18px;
 }
 
+.operate-import-page .studio-field-grid label {
+    overflow-wrap: anywhere;
+}
+
 .studio-field-grid label,
 .studio-stacked-field {
     display: grid;
@@ -4151,6 +4155,10 @@ p {
 
     .studio-page {
         width: min(100vw - 28px, 720px);
+    }
+
+    .operate-import-page .studio-field-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .studio-page-heading,
