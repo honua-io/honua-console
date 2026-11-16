@@ -92,7 +92,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
             var payload = result.Data;
             if (payload?.Items is null)
             {
-                return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The publication list returned an invalid page."));
+                return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The release list returned an invalid page."));
             }
 
             if (payload.Items is { Count: > 0 } pageItems)
@@ -101,7 +101,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
                 {
                     if (string.IsNullOrEmpty(item?.Route?.PublicationId))
                     {
-                        return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The publication list returned an invalid item."));
+                        return ([], new HonuaAdminEndpointIssue("Unavailable", ListContract, "The release list returned an invalid item."));
                     }
 
                     if (seenPublications.Add(item.Route.PublicationId))
@@ -119,13 +119,13 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
 
             if (!seenCursors.Add(next))
             {
-                return ([], IncompletePagination("The publication list repeated a pagination cursor; reload to retry."));
+                return ([], IncompletePagination("The release list repeated a pagination cursor; reload to retry."));
             }
 
             cursor = next;
         }
 
-        return ([], IncompletePagination("The publication list exceeded the page limit; select specific publication IDs and retry."));
+        return ([], IncompletePagination("The release list exceeded the page limit; select specific release IDs and retry."));
     }
 
     private static HonuaAdminEndpointIssue IncompletePagination(string detail) =>
@@ -226,7 +226,7 @@ public sealed class HonuaServerPublishingWorkspaceDataSource : IPublishingWorksp
             Surface,
             issue.State,
             issue.Contract ?? contract,
-            $"Publication '{publicationId}': {detail}")
+            $"Release '{publicationId}': {detail}")
         { StatusCode = issue.StatusCode };
     }
 }

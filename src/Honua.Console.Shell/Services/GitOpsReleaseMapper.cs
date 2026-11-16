@@ -20,7 +20,7 @@ internal static class GitOpsReleaseMapper
         var entries = package.Entries ?? [];
         var summary = FirstNonBlank(
             package.Metadata?.Description,
-            $"Promote {entries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} semantic resources from {package.SourceEnvironment}.");
+            $"Promote {entries.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} objects from {package.SourceEnvironment}.");
 
         var changed = entries
             .Select(MapChangedResource)
@@ -47,7 +47,7 @@ internal static class GitOpsReleaseMapper
         var title = FirstNonBlank(summary.Title, summary.PackageKey, $"Release {id}");
         var description = FirstNonBlank(
             summary.Summary,
-            $"Promote {summary.EntryCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} semantic resources from {summary.SourceEnvironment}.");
+            $"Promote {summary.EntryCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} objects from {summary.SourceEnvironment}.");
 
         return new GitOpsReleaseProposal(
             ReleasePackageId: id,

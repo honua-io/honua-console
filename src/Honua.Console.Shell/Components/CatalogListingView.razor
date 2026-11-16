@@ -48,7 +48,7 @@
     @if (Listing.RelatedTitles.Count == 0) { <p>Related apps and maps are not reported.</p> }
     else { <ul>@foreach (var title in Listing.RelatedTitles) { <li>@title</li> }</ul> }
     <h3>Public card preview</h3>
-    <p>Visitor preview is unavailable until the server provides a visitor-filtered card projection. Administration fields are not a public preview.</p>
+    <p>Visitor preview is unavailable until the server provides visitor-filtered cards. Administration fields are not a public preview.</p>
     <h3>Listing checks</h3>
     @if (Listing.Checks.Count == 0) { <p>Listing checks are not reported.</p> }
     else { <ul>@foreach (var check in Listing.Checks) { <li>@check.Label: @check.State</li> }</ul> }

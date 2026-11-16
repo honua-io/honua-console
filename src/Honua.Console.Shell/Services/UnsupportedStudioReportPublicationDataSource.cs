@@ -8,7 +8,7 @@ public sealed class UnsupportedStudioReportPublicationDataSource : IStudioReport
         "Report builder",
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the report builder can bind the server-owned content publication registry from honua-server.");
+        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the report builder can bind the server-owned release registry from honua-server.");
 
     public Task<StudioReportPublicationLoad> LoadAsync(
         string publicationId,

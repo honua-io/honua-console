@@ -89,7 +89,7 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
             var publicationId = item.Publication?.PublicationId?.Trim();
             if (string.IsNullOrWhiteSpace(publicationId))
             {
-                return Denied($"Studio {request.Family} item {request.ItemId} has no active publication.");
+                return Denied($"Studio {request.Family} item {request.ItemId} has no active release.");
             }
 
             var publication = await GetAsync(
@@ -101,7 +101,7 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
             var route = publication.Value?.Route;
             if (route is null || !string.Equals(route.PublicationId, publicationId, StringComparison.Ordinal))
             {
-                return Denied("The publication detail did not preserve its registry identity.");
+                return Denied("The release detail did not preserve its registry identity.");
             }
             var active = publication.Value!.Versions.SingleOrDefault(versionRow =>
                 string.Equals(versionRow.VersionId, route.ActiveVersionId, StringComparison.Ordinal));
@@ -110,7 +110,7 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
                 || !string.Equals(active.ContentVersionId, request.VersionId, StringComparison.Ordinal)
                 || !string.Equals(active.ContentHash, request.ContentHash, StringComparison.Ordinal))
             {
-                return Denied("The active publication version does not match the exact Studio item/version/content hash.");
+                return Denied("The active release version does not match the exact Studio item/version/content hash.");
             }
 
             var query = "api/v1/admin/observability/audit?resourceType=operation_proposal"
@@ -150,7 +150,7 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
             var routePath = route.RoutePath?.Trim();
             if (string.IsNullOrWhiteSpace(routePath))
             {
-                return Denied("The active publication does not expose a public route.");
+                return Denied("The active release does not expose a public route.");
             }
             var publicUrl = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, routePath.TrimStart('/')).AbsoluteUri;
             return OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(new(

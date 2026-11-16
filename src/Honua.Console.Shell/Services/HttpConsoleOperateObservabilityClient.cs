@@ -705,9 +705,9 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                     : MigrationStatus(migrations),
                 OperateAdminRoutes.Migrations),
             new OperateCompatibilityRow(
-                "SDK contract projection",
+                "SDK contract",
                 "thin HttpClient shim",
-                "honua-sdk-dotnet Operate projection",
+                "honua-sdk-dotnet Operate contract",
                 new OperateStatus("unknown", "Tracked as the SHIM swap target honua-sdk-dotnet#231."),
                 "Honua.Console.Contracts/OperateObservabilityContracts.cs")
         ];
@@ -1115,7 +1115,7 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 var projected = OperateObservabilityMapper.MapInvestigation(summary);
                 var message = FirstNonBlank(
                     detail.Message,
-                    "Investigation detail, pins, and linked resources are unavailable from the server.");
+                    "Investigation detail, pins, and linked objects are unavailable from the server.");
                 return projected with
                 {
                     DetailStatus = SubresourceStatus(

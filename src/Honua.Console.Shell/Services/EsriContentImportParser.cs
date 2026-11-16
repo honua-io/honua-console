@@ -167,7 +167,7 @@ public sealed class EsriContentImportParser
         // No resolvable source -> needs a manual data-resource binding (Charter section 11).
         if (!hasSource)
         {
-            return new EsriMappingRow(name, NormalizeLayerType(layerType), targetLayer, ImportFidelity.Manual, "pick a resource or import data first");
+            return new EsriMappingRow(name, NormalizeLayerType(layerType), targetLayer, ImportFidelity.Manual, "pick a Dataset or import data first");
         }
 
         // Arcade expressions / unique-value with labels degrade to static styling.

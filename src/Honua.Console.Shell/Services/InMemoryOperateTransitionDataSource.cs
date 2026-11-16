@@ -125,7 +125,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                                 "Daily quota is above the operator warning threshold.")
                         ],
                         [
-                            "Review scheduled sync frequency before the next publication window.",
+                            "Review scheduled sync frequency before the next publishing window.",
                             "Request a higher provider quota if production syncs must run hourly."
                         ],
                         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -186,7 +186,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                     "Planning Feature Service",
                     "Feature service",
                     "Running",
-                    "Canonical metadata is owned by data resources. Service settings only control runtime, protocols, and exposure.",
+                    "Canonical metadata is owned by Datasets. Service settings only control runtime, protocols, and exposure.",
                     [
                         new OperateServiceLayer(
                             12,
@@ -271,7 +271,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
                     "catalog-endpoint",
                     "Catalog",
                     "Catalog endpoint visibility",
-                    "Enable the public Open Data endpoint for eligible published resources.",
+                    "Enable the public Open Data endpoint for eligible published objects.",
                     "Catalog endpoint policy and generated landing pages",
                     RequiresRestart: false,
                     "No restart; published items re-evaluate on next catalog refresh.",

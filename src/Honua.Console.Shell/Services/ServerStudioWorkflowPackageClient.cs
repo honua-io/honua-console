@@ -307,7 +307,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
                 {
                     Severity = "warning",
                     Scope = "run",
-                    Message = run.Issue?.Detail ?? "The publication was created but the first run could not start."
+                    Message = run.Issue?.Detail ?? "The release was created but the first run could not start."
                 }
             ];
         }
@@ -699,7 +699,7 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
                 {
                     Severity = "warning",
                     Scope = "run",
-                    Message = "The publication run was queued, but this workflow-run evidence does not expose an Operate job link yet."
+                    Message = "The released workflow run was queued, but this workflow-run evidence does not expose an Operate job link yet."
                 }
             ];
         }

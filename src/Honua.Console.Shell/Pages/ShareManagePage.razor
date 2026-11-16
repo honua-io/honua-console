@@ -57,7 +57,7 @@
         <ConsoleStateView HeadingLevel="2" Kind="loading"
                           Kicker="Share access"
                           Title="Loading share access"
-                          Message="Reading the Console Share access projection from honua-server." />
+                          Message="Reading share access." />
     }
     else if (_bindingState is not null)
     {
@@ -355,7 +355,7 @@
                             <ConsoleStateView HeadingLevel="2" Kind="loading"
                                               Kicker="Open data"
                                               Title="Loading open-data metadata"
-                                              Message="Reading the server-owned content metadata projection for this item." />
+                                              Message="Reading metadata for this item." />
                         }
                         else
                         {
@@ -448,7 +448,7 @@
                                             <input type="checkbox" checked="@share.OpenDataEligible" disabled />
                                             <span>Publish STAC item / collection (SpatioTemporal Asset Catalog)</span>
                                         </label>
-                                        <p class="console-muted">DCAT, schema.org/Dataset JSON-LD, and STAC publication are server-owned and emitted by honua-server when the item is public-indexed. Toggles reflect the server projection.</p>
+                                        <p class="console-muted">DCAT, schema.org/Dataset JSON-LD, and STAC publishing are server-owned and emitted by honua-server when the item is public-indexed. Toggles reflect the server state.</p>
                                     </section>
 
                                     <div class="console-action-row">

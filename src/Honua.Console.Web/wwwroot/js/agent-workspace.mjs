@@ -303,7 +303,7 @@ export class AgentWorkspace {
             commandId,expectedRevision:revision,viewId
         });
         this.publications.observe(record,receipt);
-        if (!isCurrent()) throw new Error('The original publication may have been submitted. Review its recorded command before retrying.');
+        if (!isCurrent()) throw new Error('The original release may have been submitted. Review its recorded command before retrying.');
         return receipt;
     }
     async savePublishForm(fields, {publish = false, isCurrentView = () => true} = {}) {
@@ -340,7 +340,7 @@ export class AgentWorkspace {
         const observed = await this.api(`${workspaceId}?viewId=${encodeURIComponent(viewId)}`);
         requireCurrent();
         if (observed.task?.id !== draftId || observed.task?.revision !== revision || (observed.task?.kind || 'publish-layer') !== 'publish-layer')
-            throw new Error('The canonical draft changed after saving. Review it before submitting a publication.');
+            throw new Error('The canonical draft changed after saving. Review it before submitting a release.');
         this.context = observed; this.notify(this);
         if (publish) return this.submitDraft({save:false,isCurrent:current});
         return this.draft;
@@ -806,8 +806,8 @@ export function mountWorkspace() {
             if (!pending) return;
             const bound = workspace.publications.bound(pending);
             notice.querySelector('[data-workspace-publication-state]').textContent = !bound
-                ? 'Restore the original publication connection to review its unresolved command.'
-                : `Last observed publication: ${pending.lastStatus || 'acceptance unknown'}. Save and Publish are paused; later typing is retained.`;
+                ? 'Restore the original release connection to review its unresolved command.'
+                : `Last observed release: ${pending.lastStatus || 'acceptance unknown'}. Save and Publish are paused; later typing is retained.`;
             notice.querySelector('[data-workspace-publication-acknowledge]').hidden = !bound || !workspace.publications.isTerminal(pending);
         } catch (error) { notice.hidden = false; notice.querySelector('[data-workspace-publication-state]').textContent = error.message; }
     };
@@ -841,7 +841,7 @@ export function mountWorkspace() {
                     const receipt = event.target.closest('[data-workspace-publication-acknowledge]')
                         ? await workspace.publications.acknowledge({readFields:workspace.draftFields,isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form})
                         : await workspace.publications.reconcile();
-                    status.textContent = receipt ? `Original publication ${receipt.status}. Review the current draft before another action.` : 'No publication is awaiting review.';
+                    status.textContent = receipt ? `Original release ${receipt.status}. Review the current draft before another action.` : 'No release is awaiting review.';
                 } catch (error) { report(error); }
                 return;
             }
@@ -861,7 +861,7 @@ export function mountWorkspace() {
                 requireSupportedWorkspacePublish(form);
                 const result = await workspace.savePublishForm(workspace.draftFields(), {publish:true,isCurrentView:()=>document.querySelector('[data-workspace-publish-form]') === form});
                 const receipt = result.data || result;
-                status.textContent = `Publication ${receipt.status || receipt.state || 'submitted'}. Check the canonical operation receipt.`;
+                status.textContent = `Release ${receipt.status || receipt.state || 'submitted'}. Check the canonical operation receipt.`;
             } catch (error) { report(error); }
         }, { capture: true, signal: lifetime.signal });
     };
@@ -1080,7 +1080,7 @@ export async function attachNativeAgent(workspace, loadAssets = () => loadStudio
                                     && privateCatalogBinding?.turnId === currentTurn?.turnId
                                     && privateCatalogBinding?.releaseId === boundSession.releaseId),
                             system: () => 'You are the Honua workspace agent. Use only authorized canonical tools. ' +
-                                'Navigation and draft changes never approve or execute publication. Tool receipts alone establish operation status. ' +
+                                'Navigation and draft changes never approve or execute release. Tool receipts alone establish operation status. ' +
                                 `This turn is bound to the authorized context ${JSON.stringify(currentTurn?.context || {})}. ` +
                                 `Authorized immutable local process snapshot: ${JSON.stringify(currentTurn?.localProcessSnapshot ?? null)}. ` +
                                 `Original human browser-file selection metadata: ${JSON.stringify(currentTurn?.browserFileSelection ?? null)}. Browser tasks must match this selection exactly, including browserSelectionId.`,

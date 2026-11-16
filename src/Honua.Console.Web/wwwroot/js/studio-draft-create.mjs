@@ -61,7 +61,7 @@ export class StudioDraftCreateSession {
         return task;
     }
     async runSubmit(packageKey) {
-        if (!validKey(packageKey)) throw new Error('Use 1–200 letters, numbers, dots, dashes or underscores for the package key.');
+        if (!validKey(packageKey)) throw new Error('Use 1–200 letters, numbers, dots, dashes or underscores for the Map key.');
         const context = this.context(), previous = this.app.workspaceDraftIdentity?.draftId;
         let record = this.read();
         if (record && record.packageKey !== packageKey) {

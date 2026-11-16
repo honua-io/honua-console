@@ -592,7 +592,7 @@ public static class OperateObservabilityFixture
         ],
         CompatibilityRows:
         [
-            new("SDK contract projection", "mock UI projection", "honua-sdk-dotnet operate contract", new("unknown", "The backend/SDK projection is tracked in honua-server#1168-1170 and honua-sdk-js#229."), "docs/architecture/operate-observability-information-model.md"),
+            new("SDK contract", "mock UI projection", "honua-sdk-dotnet operate contract", new("unknown", "The backend/SDK projection is tracked in honua-server#1168-1170 and honua-sdk-js#229."), "docs/architecture/operate-observability-information-model.md"),
             new("Admin realtime stream", "not advertised", "optional", new("unsupported", "Realtime is not required for static evidence review."), "evt-telemetry-004"),
             new("OTLP exporter", "not configured", "optional", new("not configured", "Operators can still inspect product-level events and raw evidence links."), "evt-telemetry-001"),
             new("Content binding compatibility", "2 drifted", "0 drifted", new("degraded", "Generated app and layer content bindings differ from release rel-2026.05.18."), "evt-release-211")

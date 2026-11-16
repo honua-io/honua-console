@@ -705,7 +705,7 @@ public static class OperateObservabilityMapper
         }
 
         notes.Add($"{item.PinCount.ToString(CultureInfo.InvariantCulture)} pinned events");
-        notes.Add($"{item.LinkCount.ToString(CultureInfo.InvariantCulture)} linked resources");
+        notes.Add($"{item.LinkCount.ToString(CultureInfo.InvariantCulture)} linked objects");
         return notes;
     }
 

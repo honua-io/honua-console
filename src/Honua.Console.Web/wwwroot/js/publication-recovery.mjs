@@ -10,10 +10,10 @@ export class PublicationRecovery {
         const raw = this.workspace.storage.getItem(this.key());
         if (!raw) return null;
         let record;
-        try { if (raw.length > 65536) throw new Error(); record = JSON.parse(raw); } catch { throw new Error('The previous publication reference is unavailable. Review the original workspace before publishing.'); }
+        try { if (raw.length > 65536) throw new Error(); record = JSON.parse(raw); } catch { throw new Error('The previous release reference is unavailable. Review the original workspace before publishing.'); }
         if (record.schemaVersion !== 1 || !['workspaceId','targetId','draftId','commandId','viewId'].every(key=>identifier(record[key]))
             || record.workspaceId !== this.workspace.workspaceId || !Number.isSafeInteger(record.draftRevision) || record.draftRevision < 0
-            || typeof record.authority !== 'string') throw new Error('The previous publication reference is invalid. Review the original workspace before publishing.');
+            || typeof record.authority !== 'string') throw new Error('The previous release reference is invalid. Review the original workspace before publishing.');
         return record;
     }
     samePending(record) {
@@ -26,7 +26,7 @@ export class PublicationRecovery {
             && record.authority === workspace.authorityKey();
     }
     create(commandId, draft) {
-        if (this.read()) throw new Error('Check the previous publication before submitting another command.');
+        if (this.read()) throw new Error('Check the previous release before submitting another command.');
         const workspace = this.workspace;
         const record = {schemaVersion:1,workspaceId:workspace.workspaceId,targetId:workspace.context?.targetId,
             draftId:draft.id,draftRevision:draft.revision,commandId,viewId:workspace.viewId,authority:workspace.authorityKey(),
@@ -51,10 +51,10 @@ export class PublicationRecovery {
         const receipt = value?.data || value;
         if (receipt?.operationId !== 'service.publish' || !identifier(receipt.operationInstanceId) || !statuses.has(receipt.status)
             || record.operationInstanceId && record.operationInstanceId !== receipt.operationInstanceId)
-            throw new Error('The previous publication receipt could not be verified. Its acceptance remains unknown.');
+            throw new Error('The previous release receipt could not be verified. Its acceptance remains unknown.');
         const latest = this.read();
         if (!latest || !this.samePending(record) || !this.bound(latest)
-            || latest.operationInstanceId && latest.operationInstanceId !== receipt.operationInstanceId) throw new Error('Restore the original publication connection before reviewing its receipt.');
+            || latest.operationInstanceId && latest.operationInstanceId !== receipt.operationInstanceId) throw new Error('Restore the original release connection before reviewing its receipt.');
         // A read in flight must not overwrite typing that arrived after that read began.
         this.workspace.storage.setItem(this.key(), JSON.stringify({...latest,operationInstanceId:receipt.operationInstanceId,lastStatus:receipt.status}));
         this.workspace.notify(this.workspace);
@@ -65,11 +65,11 @@ export class PublicationRecovery {
         if (!record) return null;
         const workspace = this.workspace, viewId = workspace.viewId;
         const current = () => isCurrent() && workspace.viewId === viewId && this.bound(record) && this.samePending(record);
-        if (!current()) throw new Error('Restore the original publication connection before checking its command.');
+        if (!current()) throw new Error('Restore the original release connection before checking its command.');
         let value;
         try { value = await workspace.api(`${record.workspaceId}/commands/${record.commandId}?draftId=${encodeURIComponent(record.draftId)}&draftRevision=${record.draftRevision}`); }
-        catch { throw new Error('Previous publication acceptance is unknown. Check its original command; do not submit another publication.'); }
-        if (!current()) throw new Error('The publication connection changed during its read. The original command remains unresolved.');
+        catch { throw new Error('Previous release acceptance is unknown. Check its original command; do not submit another release.'); }
+        if (!current()) throw new Error('The release connection changed during its read. The original command remains unresolved.');
         return this.observe(record,value);
     }
     async requireResolved(isCurrent = () => true) {
@@ -92,7 +92,7 @@ export class PublicationRecovery {
             && JSON.stringify(candidates(readFields())) === fieldSnapshot && JSON.stringify(Object.fromEntries(workspace.dirty)) === dirtySnapshot;
         if (!current() || !draftId || draftId !== record.draftId) throw new Error('Review the current publish form before acknowledging the previous result.');
         const receipt = await this.reconcile(current);
-        if (!terminal.has(receipt.status)) throw new Error('The original publication is not resolved. Review its operation or human approval.');
+        if (!terminal.has(receipt.status)) throw new Error('The original release is not resolved. Review its operation or human approval.');
         const draft = await workspace.api(`${workspace.workspaceId}/drafts/${encodeURIComponent(draftId)}`);
         if (!current() || draft.id !== draftId || draft.revision !== revision || draft.kind !== 'publish-layer')
             throw new Error('The current draft changed during review. Your edits are retained; review again.');
@@ -102,11 +102,11 @@ export class PublicationRecovery {
             });
             if (!current() || advanced.id !== draftId || advanced.kind !== 'publish-layer'
                 || advanced.revision !== revision + 1)
-                throw new Error('The reviewed draft revision could not be confirmed. Keep the original publication reference and review again.');
+                throw new Error('The reviewed draft revision could not be confirmed. Keep the original release reference and review again.');
             const context = await workspace.api(`${workspace.workspaceId}?viewId=${encodeURIComponent(viewId)}`);
             if (!current() || context.targetId !== record.targetId || context.task?.id !== draftId
                 || context.task?.revision !== advanced.revision || (context.task?.kind || 'publish-layer') !== 'publish-layer')
-                throw new Error('The canonical publish context changed during review. Your edits and original publication reference are retained.');
+                throw new Error('The canonical publish context changed during review. Your edits and original release reference are retained.');
             workspace.draft = advanced; workspace.context = context;
         }
         workspace.storage.setItem(this.key(), '');

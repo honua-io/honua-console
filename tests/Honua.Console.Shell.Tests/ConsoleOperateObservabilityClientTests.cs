@@ -1438,7 +1438,7 @@ public sealed class ConsoleOperateObservabilityClientTests
                 ],
                 CompatibilityRows:
                 [
-                    new("SDK contract projection", "thin HttpClient shim", "honua-sdk-dotnet", new OperateStatus("unknown", "Shim"), "Honua.Console.Contracts")
+                    new("SDK contract", "thin HttpClient shim", "honua-sdk-dotnet", new OperateStatus("unknown", "Shim"), "Honua.Console.Contracts")
                 ])));
 
         public Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>> QueryEventsAsync(

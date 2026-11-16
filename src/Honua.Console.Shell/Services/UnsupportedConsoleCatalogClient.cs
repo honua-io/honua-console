@@ -8,7 +8,7 @@ public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
 
     internal const string MissingBindingMessage =
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
-        + "catalog/content metadata projection from honua-server.";
+        + "Catalog metadata contract from honua-server.";
 
     public Task<CatalogSearchResult> SearchAsync(
         CatalogListRequest request,

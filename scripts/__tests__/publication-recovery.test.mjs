@@ -38,7 +38,7 @@ test('reload restores local candidate only under original authority and reconcil
  assert.equal(reloaded.dirty.get('layerName'),'Retained typing');
  await assert.rejects(reloaded.savePublishForm({layerName:'Retained typing'}),/Previous publication Running/);
  reloaded.session={...reloaded.session,principalId:'foreign'};
- await assert.rejects(reloaded.publications.reconcile(),/original publication connection/);
+ await assert.rejects(reloaded.publications.reconcile(),/original release connection/);
  assert.equal(f.calls.filter(call=>call.method==='POST').length,1);
  assert.ok(reloaded.publications.read());
 });
@@ -105,7 +105,7 @@ test('an older concurrent receipt cannot replace a newly pinned operation identi
  const f=fixture(),workspace=f.make();await assert.rejects(workspace.submitDraft({save:false}),/lost response/);
  const unpinned=workspace.publications.read();
  workspace.publications.observe(unpinned,{operationId:'service.publish',operationInstanceId:'first-operation',status:'Running'});
- assert.throws(()=>workspace.publications.observe(unpinned,{operationId:'service.publish',operationInstanceId:'other-operation',status:'Completed'}),/original publication connection/);
+ assert.throws(()=>workspace.publications.observe(unpinned,{operationId:'service.publish',operationInstanceId:'other-operation',status:'Completed'}),/original release connection/);
  assert.equal(workspace.publications.read().operationInstanceId,'first-operation');
  assert.equal(workspace.publications.read().lastStatus,'Running');
 });

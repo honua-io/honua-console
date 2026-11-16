@@ -9,7 +9,7 @@ const COMPOSITION_FAMILIES = new Set(['map', 'dashboard', 'app']);
 export function publishedMapPath(route) {
     const key = route.replace(/^\//, '');
     if (key.length > 1024 || key.split('/').some(part => !part || part === '.' || part === '..' || /[\\%\p{Cc}]/u.test(part)))
-        throw new Error('This publication has an unsupported route.');
+        throw new Error('This release has an unsupported route.');
     return `/maps/published/${key.split('/').map(encodeURIComponent).join('/')}`;
 }
 
@@ -112,7 +112,7 @@ function readComposition(payload) {
     const body = artifact?.envelope?.body;
     if (!COMPOSITION_FAMILIES.has(artifact?.family) || artifact.envelope?.family !== artifact.family
         || !body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray(body.layers))
-        throw new Error('This publication requires a different viewer.');
+        throw new Error('This release requires a different viewer.');
     return artifact;
 }
 

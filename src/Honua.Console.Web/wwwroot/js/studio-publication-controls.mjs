@@ -35,7 +35,7 @@ export class StudioPublicationSession {
     legacyEntries() {
         const prefix = 'honua.workspace.studio-publication.';
         if (!Number.isInteger(this.storage.length) || this.storage.length > 10000 || typeof this.storage.key !== 'function')
-            throw new Error('Persistent browser storage is required to recover publication references.');
+            throw new Error('Persistent browser storage is required to recover release references.');
         const entries = [];
         for (let index = 0; index < this.storage.length; index++) {
             const key = this.storage.key(index);
@@ -44,9 +44,9 @@ export class StudioPublicationSession {
             if (!raw) continue;
             const record = this.decode(raw);
             let context;
-            try { context = JSON.parse(record.context); } catch { throw new Error('The original publication context is unreadable.'); }
+            try { context = JSON.parse(record.context); } catch { throw new Error('The original release context is unreadable.'); }
             if (!Array.isArray(context) || context.length !== 3 || context[0] !== key)
-                throw new Error('The original publication context is invalid.');
+                throw new Error('The original release context is invalid.');
             if (context[1] === this.authority() && context[2] === this.app.workspaceDraftIdentity?.draftId
                 && record.draftId === context[2]) entries.push({ key, record: { ...record, context: this.context() } });
         }
@@ -59,16 +59,16 @@ export class StudioPublicationSession {
         const identities = new Set(legacy.map(({ record }) => JSON.stringify([
             record.commandId, record.itemId, record.versionId, record.contentHash, record.input
         ])));
-        if (identities.size > 1) throw new Error('Multiple original publication references exist for this map. Resolve them before publishing again.');
+        if (identities.size > 1) throw new Error('Multiple original release references exist for this map. Resolve them before publishing again.');
         return legacy[0]?.record ?? null;
     }
     decode(raw) {
         if (!raw) return null;
         let record;
-        try { if (raw.length > 16384) throw new Error(); record = JSON.parse(raw); } catch { throw new Error('The original publication reference is unreadable. Restore it before submitting another publication.'); }
+        try { if (raw.length > 16384) throw new Error(); record = JSON.parse(raw); } catch { throw new Error('The original release reference is unreadable. Restore it before submitting another release.'); }
         if (!record || record.schemaVersion !== 1 || !['draftId', 'itemId', 'versionId', 'commandId'].every(key => id(record[key]))
             || typeof record.context !== 'string' || typeof record.contentHash !== 'string' || !record.contentHash
-            || !this.validInput(record.input)) throw new Error('The original publication reference is invalid. Review it before publishing again.');
+            || !this.validInput(record.input)) throw new Error('The original release reference is invalid. Review it before publishing again.');
         return record;
     }
     validInput(input) {
@@ -105,7 +105,7 @@ export class StudioPublicationSession {
         return definition;
     }
     async review(versionId) {
-        if (this.read()) throw new Error('Resolve the original publication before starting another.');
+        if (this.read()) throw new Error('Resolve the original release before starting another.');
         const context = this.viewContext();
         const version = await this.app.reviewWorkspacePublication(versionId);
         if (context !== this.viewContext()) throw new Error('The selected map or session changed during review.');
@@ -120,12 +120,12 @@ export class StudioPublicationSession {
             if (!reviewed || reviewed.context !== this.viewContext()) throw new Error('Review this saved version before publishing.');
             const canonical = { intent: { route: input.intent?.route, visibility: input.intent?.visibility },
                 ...(input.warningAcknowledgement ? { warningAcknowledgement: input.warningAcknowledgement } : {}) };
-            if (!this.validInput(canonical)) throw new Error('Choose an audience and a local publication route beginning with /.');
+            if (!this.validInput(canonical)) throw new Error('Choose an audience and a local release route beginning with /.');
             const version = reviewed.version;
             const record = { schemaVersion: 1, context: this.context(), draftId: this.app.workspaceDraftIdentity.draftId,
                 itemId: version.itemId, versionId: version.versionId, contentHash: version.contentHash,
                 commandId: this.uuid(), input: canonical };
-            if (!id(record.commandId)) throw new Error('The publication command identity is invalid.');
+            if (!id(record.commandId)) throw new Error('The release command identity is invalid.');
             this.storage.setItem(this.key(), JSON.stringify(record)); // Must succeed BEFORE the mutation.
             return this.dispatch(record, version);
         });
@@ -139,7 +139,7 @@ export class StudioPublicationSession {
             const version = this.reviewed?.context === context && this.reviewed.version.versionId === record.versionId
                 ? this.reviewed.version : await this.app.reviewWorkspacePublication(record.versionId);
             if (context !== this.viewContext() || !this.bound(record) || version.itemId !== record.itemId || version.contentHash !== record.contentHash || version.versionId !== record.versionId)
-                throw new Error('The original saved version could not be verified. No new publication was submitted.');
+                throw new Error('The original saved version could not be verified. No new release was submitted.');
             return this.dispatch(record, version);
         });
     }
@@ -158,7 +158,7 @@ export class StudioPublicationSession {
                     current();
                     if (receipt?.itemId !== record.itemId || receipt.versionId !== record.versionId
                         || receipt.requestId !== record.receipt.requestId || !['accepted', 'pending', 'rejected'].includes(receipt.status))
-                        throw new Error('The publication status does not match the original submission.');
+                        throw new Error('The release status does not match the original submission.');
                     this.storage.setItem(this.key(), JSON.stringify({ ...record, receipt: {
                         ...record.receipt, status: receipt.status === 'pending' ? 'publication-pending' : receipt.status,
                     } }));
@@ -171,7 +171,7 @@ export class StudioPublicationSession {
                 }
             }
             if (!id(record.receipt?.proposalId))
-                throw new Error('No readable publication or approval reference was returned. Recover the original submission before trying another.');
+                throw new Error('No readable release or approval reference was returned. Recover the original submission before trying another.');
             const proposal = await this.readProposal(record.receipt.proposalId);
             current();
             if (proposal?.proposalId !== record.receipt.proposalId || typeof proposal.status !== 'string')
@@ -196,8 +196,8 @@ export class StudioPublicationSession {
         const completed = ['accepted', 'rejected'].includes(receipt?.status) && receipt.itemId === record.itemId && receipt.versionId === record.versionId && id(receipt.requestId);
         if (pending && [receipt.itemId, receipt.versionId, receipt.requestId].some(value => value !== undefined)
             && (receipt.itemId !== record.itemId || receipt.versionId !== record.versionId || !id(receipt.requestId)))
-            throw new Error('The publication outcome is unknown. Its resource references do not match the original submission.');
-        if (!pending && !completed) throw new Error('The publication outcome is unknown. Retain and retry the original submission.');
+            throw new Error('The release outcome is unknown. Its object references do not match the original submission.');
+        if (!pending && !completed) throw new Error('The release outcome is unknown. Retain and retry the original submission.');
         const retained = { status: receipt.status, ...(pending
             ? { operationInstanceId: receipt.operationInstanceId, proposalId: receipt.proposalId,
                 ...(id(receipt.requestId) ? { requestId: receipt.requestId } : {}) }
@@ -212,7 +212,7 @@ export class StudioPublicationSession {
     }
     acknowledge() {
         const record = this.read();
-        if (!record || !this.bound(record) || !terminal(record.receipt)) throw new Error('The original publication has not reached a confirmed outcome.');
+        if (!record || !this.bound(record) || !terminal(record.receipt)) throw new Error('The original release has not reached a confirmed outcome.');
         for (const { key, record: original } of this.legacyEntries())
             if (original.commandId === record.commandId) this.storage.removeItem(key);
         this.storage.removeItem(this.key());
@@ -242,16 +242,16 @@ let sourceAccessSequence = 0;
 export function mountStudioPublicationControls({ app, host, status }) {
     const session = new StudioPublicationSession(app);
     const section = document.createElement('section');
-    section.setAttribute('aria-label', 'Map publication');
+    section.setAttribute('aria-label', 'Map release');
     section.dataset.studioPublication = '';
     const notice = document.createElement('p');
     const form = document.createElement('form');
     const summary = document.createElement('p');
     const route = document.createElement('input');
-    route.required = true; route.maxLength = 1024; route.setAttribute('aria-label', 'Publication route');
-    const routeField = document.createElement('label'); routeField.append('Publication route ', route);
+    route.required = true; route.maxLength = 1024; route.setAttribute('aria-label', 'Release route');
+    const routeField = document.createElement('label'); routeField.append('Release route ', route);
     const audience = document.createElement('select');
-    audience.setAttribute('aria-label', 'Publication audience');
+    audience.setAttribute('aria-label', 'Release audience');
     const audienceField = document.createElement('label'); audienceField.append('Who can see this map? ', audience);
     for (const [value, label] of [['personal', 'Only me'], ['team', 'My team'], ['organization', 'My organization'], ['public', 'Public']]) {
         const option = document.createElement('option'); option.value = value; option.textContent = label; audience.append(option);
@@ -263,11 +263,11 @@ export function mountStudioPublicationControls({ app, host, status }) {
     const warning = document.createElement('textarea');
     warning.maxLength = 2000; warning.setAttribute('aria-label', 'Validation warning acknowledgement');
     const warningField = document.createElement('label'); warningField.append('Acknowledge the validation warnings ', warning);
-    const diagnostics = document.createElement('ul'); diagnostics.setAttribute('aria-label', 'Publication validation warnings');
+    const diagnostics = document.createElement('ul'); diagnostics.setAttribute('aria-label', 'Release validation warnings');
     const publish = document.createElement('button'); publish.type = 'submit'; publish.textContent = 'Publish reviewed version';
     const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Retry original submission';
-    const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh publication status';
-    const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge publication outcome';
+    const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh release status';
+    const acknowledge = document.createElement('button'); acknowledge.type = 'button'; acknowledge.textContent = 'Acknowledge release outcome';
     const inbox = document.createElement('a'); inbox.href = consoleHref('/inbox'); inbox.textContent = 'Review approvals';
     const openMap = document.createElement('a'); openMap.textContent = 'Open published map';
     const definitionPreview = createDefinitionPreview(session, run);
@@ -275,7 +275,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
     openMap.target = '_blank'; openMap.rel = 'noopener noreferrer';
     const audienceActions = document.createElement('div'); audienceActions.className = 'console-action-row';
     audienceActions.append(openMap, definition);
-    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel publication review';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel release review';
     for (const field of [route, audience, warning]) field.className = 'console-input';
     for (const label of [routeField, audienceField, warningField]) label.className = 'publish-field';
     for (const button of [publish, retry, refresh, acknowledge, cancel, definition]) button.className = 'console-button console-button-secondary';
@@ -306,20 +306,20 @@ export function mountStudioPublicationControls({ app, host, status }) {
             section.hidden = !record && !hasReview;
             notice.textContent = '';
             if (record) {
-                if (!session.bound(record)) notice.textContent = 'Restore the original map, account and environment to recover its publication.';
+                if (!session.bound(record)) notice.textContent = 'Restore the original map, account and environment to recover its release.';
                 else {
                     notice.textContent = record.receipt?.status === 'awaiting-approval'
                         ? `Awaiting separate human approval. Proposal ${record.receipt.proposalId}.`
                         : record.receipt?.status === 'accepted' ? 'The reviewed version was published.'
-                        : record.receipt?.status === 'rejected' ? 'The publication was rejected.'
-                        : record.receipt?.status === 'approval-rejected' ? 'A human approver rejected the publication.'
-                        : record.receipt?.status === 'approval-failed' ? 'Approval execution failed. Inspect the approval and publication before submitting again.'
+                        : record.receipt?.status === 'rejected' ? 'The release was rejected.'
+                        : record.receipt?.status === 'approval-rejected' ? 'A human approver rejected the release.'
+                        : record.receipt?.status === 'approval-failed' ? 'Approval execution failed. Inspect the approval and release before submitting again.'
                         : record.receipt?.status === 'approval-cancelled' ? 'The approval was cancelled.'
                         : record.receipt?.status === 'approval-rolled-back' ? 'The approved operation was rolled back.'
                         : record.receipt?.status === 'approval-completed' ? (id(record.receipt.requestId)
-                            ? 'Approval completed. Publication has not yet been verified; refresh its status.'
-                            : 'Approval completed. Recover its publication receipt with the original submission.')
-                        : ['approval-executing', 'publication-pending'].includes(record.receipt?.status) ? 'Publication is processing. Refresh its status for a confirmed outcome.'
+                            ? 'Approval completed. Release has not yet been verified; refresh its status.'
+                            : 'Approval completed. Recover its release receipt with the original submission.')
+                        : ['approval-executing', 'publication-pending'].includes(record.receipt?.status) ? 'Release is processing. Refresh its status for a confirmed outcome.'
                         : 'The submission outcome is unknown. Its original command and settings are retained.';
                     const canRefresh = id(record.receipt?.requestId) || id(record.receipt?.proposalId);
                     refresh.hidden = terminal(record.receipt) || !canRefresh;
@@ -348,7 +348,7 @@ export function mountStudioPublicationControls({ app, host, status }) {
         try {
             captured = session.viewContext(); busy = true; update();
             await action(() => active(captured));
-        } catch (error) { if (captured && active(captured)) status.textContent = error.message || 'The publication action failed.'; }
+        } catch (error) { if (captured && active(captured)) status.textContent = error.message || 'The release action failed.'; }
         finally { busy = false; if (!disposed) update(); }
     }
     form.addEventListener('submit', event => {

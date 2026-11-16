@@ -30,7 +30,7 @@
         </div>
 
         <article class="console-panel" role="note" data-shared-style-scope>
-            <h2>Shared catalog scope</h2><p>Saving changes this catalog style for its associated resources. Use the map draft editor for a change that applies only to one map.</p>
+            <h2>Shared catalog scope</h2><p>Saving updates this catalog style everywhere it is used. Use the map draft editor for a change that applies only to one map.</p>
         </article>
         <article class="console-panel">
             @EditorBody
@@ -131,7 +131,7 @@
                 }</ul>
             }
             @if (!impact.CanEdit) { <p role="status">This shared style cannot be edited with your current access.</p> }
-            <p>Only resources your account can inspect are shown. The server checks current authority and the reviewed associations again when you save.</p>
+            <p>Only objects your account can inspect are shown. The server checks current authority and the reviewed associations again when you save.</p>
         </section>
     </text>;
     private RenderFragment SaveResultCallout(HonuaOgcStyleSaveResult result) => @<text>

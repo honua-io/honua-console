@@ -103,7 +103,7 @@ export class WorkspaceQuestionReplies {
             if (task.kind === 'publish-layer') {
                 const draft=await workspace.api(`${workspace.workspaceId}/drafts/${encodeURIComponent(task.id)}`);check();
                 if (draft?.id !== task.id || draft.kind !== task.kind || !Number.isSafeInteger(draft.revision) || draft.revision < task.revision)
-                    throw new Error('The original publication draft could not be verified.');
+                    throw new Error('The original release draft could not be verified.');
                 await workspace.reconcileDraft(draft);check();
                 task.revision=draft.revision;
             }

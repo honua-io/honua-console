@@ -4,6 +4,6 @@ export function processTask(value) {
     if (!value || typeof value.packageId !== 'string' || value.packageId.length < 1 || value.packageId.length > 256
         || invalidPackageId.test(value.packageId) || !Number.isInteger(value.version) || value.version < 1 || value.version > 2147483647
         || !/^[a-f0-9]{64}$/.test(value.contentHash || ''))
-        throw new Error('Processes returned no verified immutable package identity.');
+        throw new Error('Processes returned no verified immutable version identity.');
     return {kind:'workflow-package',id:value.packageId,revision:value.version,contentHash:value.contentHash};
 }

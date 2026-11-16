@@ -101,7 +101,7 @@ public static class OperateSectionPresentation
         OperateSectionStatus.Missing => "This server build does not expose this Operate surface.",
         OperateSectionStatus.Forbidden => "The active environment profile is not permitted to read this surface.",
         OperateSectionStatus.Rejected => "The request was rejected. Resolve the reported validation issues before retrying.",
-        OperateSectionStatus.Conflict => "The resource changed or conflicts with the request. Reload it before retrying.",
+        OperateSectionStatus.Conflict => "The object changed or conflicts with the request. Reload it before retrying.",
         OperateSectionStatus.Unsupported => "The connected server does not advertise this capability.",
         _ => "The honua-server admin API could not be reached. Retry once the environment is connected."
     };

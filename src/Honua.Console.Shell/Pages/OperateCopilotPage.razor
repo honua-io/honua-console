@@ -991,7 +991,7 @@
     private static string PolicySource(OpsAutonomyPolicyResponse policy) => policy.IsPersisted switch
     {
         true => "Durable override",
-        false => "Effective config/default projection — the first change creates a durable override",
+        false => "Effective configuration and defaults — the first change creates a durable override",
         null => "Persistence marker not reported by this server version"
     };
 

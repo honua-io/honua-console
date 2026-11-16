@@ -342,7 +342,7 @@ function processContextPreparation() {
         const task=processTask(await view.builtin.prepareWorkspaceTask());
         requireSameView();
         if(expected?.kind!=='workflow-package' || expected.id!==task.id || expected.revision!==task.revision || expected.contentHash!==task.contentHash)
-            throw new Error('Prepare and review the current Processes package before submitting.');
+            throw new Error('Prepare and review the current Process before submitting.');
         return task;
     };
 }

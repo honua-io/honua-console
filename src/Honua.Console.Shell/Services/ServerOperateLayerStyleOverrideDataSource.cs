@@ -126,8 +126,8 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
             return ([], new OperateLayerStyleBindingState(
                 Surface,
                 OperateLayerStyleBindingState.MissingBinding,
-                "GET /api/v1/admin/services (layer projection)",
-                $"No layer matching resource '{resourceId}' was found on the connected honua-server, so its "
+                "GET /api/v1/admin/services (Layer lookup)",
+                $"No Layer matching Dataset '{resourceId}' was found on the connected honua-server, so its "
                 + "presentation cannot be authored."));
         }
 

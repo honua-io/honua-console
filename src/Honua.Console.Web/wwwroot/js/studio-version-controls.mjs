@@ -63,7 +63,7 @@ export function mountStudioVersionControls({ app, host, status }) {
                 void run(() => app.reopenWorkspaceVersion(version.versionId));
             });
             const publish = document.createElement('button');
-            publish.type = 'button'; publish.textContent = 'Review publication';
+            publish.type = 'button'; publish.textContent = 'Review release';
             publish.className = 'console-button console-button-secondary console-button-small';
             publish.setAttribute('aria-label', `Review publication of version ${version.versionNumber}`);
             publish.addEventListener('click', () => {

@@ -47,7 +47,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
                         Surface,
                         "Unsupported",
                         GetContract,
-                        $"Publication '{publicationId}' is a '{route.Kind}' artifact, not a report. Open it in the matching Studio editor.")
+                        $"Release '{publicationId}' is a '{route.Kind}' artifact, not a report. Open it in the matching Studio editor.")
                 ]);
         }
 
@@ -201,7 +201,7 @@ public sealed class HonuaServerStudioReportPublicationDataSource : IStudioReport
         {
             return new StudioReportCommandResult(
                 false,
-                $"Publication '{route.PublicationId}' is a '{route.Kind}' artifact, not a report.",
+                $"Release '{route.PublicationId}' is a '{route.Kind}' artifact, not a report.",
                 Issue: new StudioReportCapabilityState(Surface, "Unsupported", contract, "Not a report artifact."));
         }
 

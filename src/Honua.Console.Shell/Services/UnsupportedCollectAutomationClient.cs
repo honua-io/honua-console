@@ -11,7 +11,7 @@ public sealed class UnsupportedCollectAutomationClient : ICollectAutomationClien
         "Missing binding",
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the Collect automation "
-            + "content + version projection over the shipped Data Events engine (Honua.Collect.Core).");
+            + "content and version contract over the shipped Data Events engine (Honua.Collect.Core).");
 
     public Task<IReadOnlyList<CollectAutomationSummary>> ListAutomationsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<CollectAutomationSummary>>([]);

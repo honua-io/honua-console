@@ -14,7 +14,7 @@ public sealed class UnsupportedStudioWorkflowPackageClient : IStudioWorkflowPack
         "Missing binding",
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Studio can bind the server-owned GP/ETL "
-            + "workflow, node registry, dry-run, and publication contract from honua-server (#1185).");
+            + "workflow, node registry, dry-run, and release contract from honua-server (#1185).");
 
     public Task<StudioWorkflowEditorContext> OpenEditorAsync(
         string? draftId,

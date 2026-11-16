@@ -566,7 +566,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                     $"Connection metadata was read from GET /api/v1/admin/connections for {Coalesce(connection.Name, connection.Host, "connection")}.")
             ],
             [
-                "Run the server-side connection test endpoint before using this source for publication."
+                "Run the server-side connection test endpoint before using this source for publishing."
             ],
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -592,7 +592,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             datasetId,
             layerName,
             source,
-            "Server-backed published layer metadata; draft edit preview is waiting on the Metadata v2 resource edit contract.",
+            "Server-backed published Layer metadata; draft edit preview requires the Dataset edit contract.",
             layer.Enabled == false ? "Disabled" : "Published",
             new OperateBlastRadius(
                 CatalogItems: [],
@@ -605,8 +605,8 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                 new OperateValidationIssue(
                     "Info",
                     "server-contract",
-                    "Live publication metadata is available, but draft validation and downstream blast-radius details are not projected by honua-server yet.",
-                    "Keep edits blocked in Console until the resource edit validation contract lands.")
+                    "Published Layer metadata is available, but honua-server does not provide draft validation and downstream impact details yet.",
+                    "Keep edits blocked in Console until the Dataset edit validation contract is available.")
             ],
             ["Overview", "Source", "Fields", "Validation"]);
     }

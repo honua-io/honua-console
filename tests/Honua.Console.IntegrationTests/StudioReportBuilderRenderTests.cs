@@ -299,7 +299,7 @@ public sealed class StudioReportBuilderRenderTests
         "Report builder",
         "Missing binding",
         "Honua:Server:BaseUrl",
-        "Configure Honua:Server:BaseUrl so the report builder can bind the server-owned content publication registry.");
+        "Configure Honua:Server:BaseUrl so the report builder can bind the server-owned release registry.");
 
     private sealed class FakeReportDataSource : IStudioReportPublicationDataSource
     {

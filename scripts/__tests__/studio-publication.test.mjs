@@ -113,7 +113,7 @@ for (const change of ['principal', 'environment', 'source-path', 'map']) {
         assert.equal(independent.read().commandId, 'other-command');
         app.workspaceCookieBinding = originalBinding; app.workspaceDraftIdentity.draftId = 'draft';
         assert.deepEqual(session.read(), original);
-        await assert.rejects(session.review('version'), /original publication/);
+        await assert.rejects(session.review('version'), /original release/);
         assert.equal(calls.length, 2);
     });
 }
@@ -151,7 +151,7 @@ test('a new conversation recovers the same map command without opening a second 
     app.workspace.workspaceId = 'new-conversation';
     const restored = new StudioPublicationSession(app, { uuid: () => { throw new Error('must retain original command'); } });
     assert.equal(restored.read().commandId, 'original-command');
-    await assert.rejects(restored.review('version'), /original publication/);
+    await assert.rejects(restored.review('version'), /original release/);
     app.publishWorkspaceVersion = publish;
     await restored.retry();
     assert.deepEqual(calls[0], calls[1]);
@@ -174,7 +174,7 @@ test('conflicting legacy commands for the same map refuse another submission', a
         storage.setItem(key, JSON.stringify({ ...original, commandId, context: JSON.stringify([key, session.authority(), 'draft']) }));
     }
     app.workspace.workspaceId = 'new-conversation';
-    await assert.rejects(session.review('version'), /Multiple original publication/);
+    await assert.rejects(session.review('version'), /Multiple original release/);
     assert.equal(calls.length, 1);
 });
 
@@ -200,7 +200,7 @@ test('lost response survives reload and retries exactly the original command and
     assert.equal((await restored.retry()).status, 'awaiting-approval');
     assert.deepEqual(calls[0], calls[1]);
     assert.equal(records.size, 1);
-    await assert.rejects(restored.review('version'), /original publication/);
+    await assert.rejects(restored.review('version'), /original release/);
     await assert.rejects(restored.submit({ intent: { route: '/another', visibility: 'public' } }), /original submission/);
     assert.equal(calls.length, 2);
 });
@@ -274,7 +274,7 @@ test('a confirmed accepted result can be acknowledged before reviewing another p
 test('corrupt recovery records and invalid routes do not dispatch', async () => {
     const { session, storage, calls } = fixture();
     await session.review('version');
-    await assert.rejects(session.submit({ intent: { route: '//elsewhere.test', visibility: 'public' } }), /local publication route/);
+    await assert.rejects(session.submit({ intent: { route: '//elsewhere.test', visibility: 'public' } }), /local release route/);
     storage.setItem(session.key(), '{invalid');
     await assert.rejects(session.retry(), /unreadable/);
     assert.equal(calls.length, 0);
@@ -357,7 +357,7 @@ test('a pending receipt cannot attach another version or incomplete resource ide
     const { session, app } = fixture(); await session.review('version');
     app.publishWorkspaceVersion = async () => ({ status: 'awaiting-approval', operationInstanceId: 'operation', proposalId: 'proposal',
         requestId: 'request', itemId: 'item', versionId: 'other' });
-    await assert.rejects(session.submit(input), /resource references do not match/);
+    await assert.rejects(session.submit(input), /object references do not match/);
     assert.equal(session.read().receipt, undefined);
 });
 
