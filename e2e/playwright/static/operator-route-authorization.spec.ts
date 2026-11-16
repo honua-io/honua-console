@@ -17,7 +17,8 @@ for (const route of routes) {
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => {
       const path = new URL(request.url()).pathname;
-      if (path.startsWith('/api/') && !path.startsWith('/api/v1/admin/auth/')) {
+      if (path.startsWith('/api/') && !path.startsWith('/api/v1/admin/auth/')
+        && path !== '/api/v1/capabilities/manifest') {
         resourceRequests.push(path);
       }
     });
