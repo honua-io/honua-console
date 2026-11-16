@@ -41,10 +41,10 @@
         @if (V4Enabled)
         {
             <ConsolePanel Title="Layers" HeadingId="data-publications-heading">
-                <LayerPreviewCatalog Rows="@_catalogRows" SelectedResourceId="@_selectedResource?.ResourceId" SelectedProtocolId="@_preview?.ProtocolId"
-                                     OnPublicationSelected="OnPublicationSelected" />
+                <LayerPreviewCatalog Rows="@_catalogRows" SelectedDatasetId="@_selectedDataset?.DatasetId" SelectedProtocolId="@_preview?.ProtocolId"
+                                     OnEndpointSelected="OnEndpointSelected" />
             </ConsolePanel>
-            @if (_selectedResource is not null)
+            @if (_selectedDataset is not null)
             {
                 <LayerPreviewPane Selection="@_preview"
                                   Layer="@PreviewLayer"
@@ -67,22 +67,22 @@
     private ConsoleAgentPageContext AgentContext => new()
     {
         Route = "/operate/data",
-        Entities = _nodes.Select(ResourceEntity).ToArray(),
-        Selection = _selectedResource is { } selected ? [ResourceEntity(selected)] : [],
+        Entities = _nodes.Select(DatasetEntity).ToArray(),
+        Selection = _selectedDataset is { } selected ? [DatasetEntity(selected)] : [],
         Unsaved = new() { PendingOperationCount = _loaded ? 0 : 1 }
     };
 
-    private static ConsoleAgentEntity ResourceEntity(ResourceTreeNode node) => new()
+    private static ConsoleAgentEntity DatasetEntity(DatasetTreeNode node) => new()
     {
-        Kind = ConsoleAgentEntityKind.Item, Id = node.ResourceId, ResourceId = node.ResourceId
+        Kind = ConsoleAgentEntityKind.Item, Id = node.DatasetId, ResourceId = node.DatasetId
     };
 
     private RenderFragment DatasetBrowser => @<div>
     <div class="operate-data-page__split">
-        <ResourcePublicationsTree Nodes="@_nodes"
-                                  FocusResourceId="@Focus"
-                                  OnPublicationSelected="OnPublicationSelected"
-                                  OnResourceSelected="OnResourceSelected" />
+        <DatasetEndpointsTree Nodes="@_nodes"
+                                  FocusDatasetId="@Focus"
+                                  OnEndpointSelected="OnEndpointSelected"
+                                  OnDatasetSelected="OnDatasetSelected" />
         <LayerPreviewPane Selection="@_preview"
                           Layer="@PreviewLayer"
                           EnvironmentId="@_environmentId"
@@ -94,11 +94,11 @@
     [SupplyParameterFromQuery(Name = "focus")]
     public string? Focus { get; set; }
 
-    private IReadOnlyList<ResourceTreeNode> _nodes = [];
+    private IReadOnlyList<DatasetTreeNode> _nodes = [];
     private IReadOnlyList<OperateCapabilityState> _states = [];
     private LayerPreviewPane.PreviewSelection? _preview;
     private IReadOnlyList<LayerPreviewPane.PreviewSelection> _previewProtocols = [];
-    private ResourceTreeNode? _selectedResource;
+    private DatasetTreeNode? _selectedDataset;
     private OperateServicesView? _servicesView;
     private string? _environmentId;
 
@@ -109,7 +109,7 @@
         get
         {
             if (_preview is not { ServiceName: not null } preview) return null;
-            var layer = _servicesView?.FindExposures(preview.ResourceId)
+            var layer = _servicesView?.FindExposures(preview.DatasetId)
                 .FirstOrDefault(exposure => string.Equals(exposure.Service.Name, preview.ServiceName, StringComparison.OrdinalIgnoreCase))?.Layer;
             return layer is null ? null : layer with { ServiceName = preview.ServiceName };
         }
@@ -141,10 +141,10 @@
     {
         if (string.Equals(_appliedFocus, Focus, StringComparison.Ordinal)) return;
         _appliedFocus = Focus;
-        _selectedResource = _nodes.FirstOrDefault(node => string.Equals(node.ResourceId, Focus, StringComparison.Ordinal));
+        _selectedDataset = _nodes.FirstOrDefault(node => string.Equals(node.DatasetId, Focus, StringComparison.Ordinal));
         _preview = null;
         _previewProtocols = [];
-        if (_selectedResource is { Publications.Count: > 0 } node) SetPreviewFromResource(node, node.Publications[0]);
+        if (_selectedDataset is { Endpoints.Count: > 0 } node) SetPreviewFromDataset(node, node.Endpoints[0]);
     }
 
     private async Task LoadAsync()
@@ -157,7 +157,7 @@
         _states = [];
         _preview = null;
         _previewProtocols = [];
-        _selectedResource = null;
+        _selectedDataset = null;
         _servicesView = null;
         _environmentId = null;
         _appliedFocus = null;
@@ -172,7 +172,7 @@
         if (generation != _loadGeneration) return;
         _environmentId = environmentId;
 
-        _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
+        _nodes = DatasetEndpointsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
         if (V4Enabled) _catalogRows = CatalogRows(_nodes, servicesView);
         _states = OperateCapabilityStateFilters.ForSurface(
             resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
@@ -188,13 +188,13 @@
         finally { if (generation == _loadGeneration) _loaded = true; }
     }
 
-    private void OnResourceSelected(ResourceTreeNode node) => _selectedResource = node;
+    private void OnDatasetSelected(DatasetTreeNode node) => _selectedDataset = node;
 
-    private void OnPublicationSelected(LayerPreviewPane.PreviewSelection selection)
+    private void OnEndpointSelected(LayerPreviewPane.PreviewSelection selection)
     {
         _preview = selection;
-        var node = _nodes.FirstOrDefault(n => string.Equals(n.ResourceId, selection.ResourceId, StringComparison.Ordinal));
-        _selectedResource = node;
+        var node = _nodes.FirstOrDefault(n => string.Equals(n.DatasetId, selection.DatasetId, StringComparison.Ordinal));
+        _selectedDataset = node;
         _previewProtocols = node is null ? [] : ProtocolsFor(node);
     }
 
@@ -207,22 +207,22 @@
         }
     }
 
-    private void SetPreviewFromResource(ResourceTreeNode node, PublicationTreeNode publication)
+    private void SetPreviewFromDataset(DatasetTreeNode node, DatasetEndpointNode endpoint)
     {
-        if (LayerPreviewPane.PreviewSelection.For(node, publication) is not { } selection) return;
+        if (LayerPreviewPane.PreviewSelection.For(node, endpoint) is not { } selection) return;
         _preview = selection;
         _previewProtocols = ProtocolsFor(node);
     }
 
-    private static IReadOnlyList<LayerPreviewCatalog.Row> CatalogRows(IReadOnlyList<ResourceTreeNode> nodes, OperateServicesView servicesView)
+    private static IReadOnlyList<LayerPreviewCatalog.Row> CatalogRows(IReadOnlyList<DatasetTreeNode> nodes, OperateServicesView servicesView)
     {
         var geometry = servicesView.GeometryByCanonicalResourceId();
-        return nodes.Select(node => new LayerPreviewCatalog.Row(node, geometry.GetValueOrDefault(node.ResourceId))).ToArray();
+        return nodes.Select(node => new LayerPreviewCatalog.Row(node, geometry.GetValueOrDefault(node.DatasetId))).ToArray();
     }
 
-    private static IReadOnlyList<LayerPreviewPane.PreviewSelection> ProtocolsFor(ResourceTreeNode node) =>
-        node.Publications
-            .Select(publication => LayerPreviewPane.PreviewSelection.For(node, publication))
+    private static IReadOnlyList<LayerPreviewPane.PreviewSelection> ProtocolsFor(DatasetTreeNode node) =>
+        node.Endpoints
+            .Select(endpoint => LayerPreviewPane.PreviewSelection.For(node, endpoint))
             .OfType<LayerPreviewPane.PreviewSelection>()
             .ToArray();
 }

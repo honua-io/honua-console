@@ -21,6 +21,7 @@ const RULES = [
     use: "the kind itself (Map, App, Form, Workflow)",
   },
   { id: "package-family", expression: /\bpackage famil(?:y|ies)\b/iu, use: "content kind" },
+  { id: "dataset-tree-type", expression: /\b(?:record|class|interface|enum|struct)\s+(?:ResourceTreeNode|PublicationTreeNode|ResourcePublicationsTreeBuilder)\b/u, use: "DatasetTreeNode, DatasetEndpointNode, DatasetEndpointsTreeBuilder" },
   { id: "envelope-type", expression: /\b(?:record|class|interface|enum|struct)\s+\w*(?:MapPackage|AppPackage|HostedMap|HonuaApiToken)/u, use: "Map, App, ApiKey" },
   {
     id: "workspace-tenancy",
@@ -79,6 +80,9 @@ test("retired phrases are caught and protocol or agent words are not", () => {
     "queryable through its FeatureServer slot.",
     'ContextRow Label="Tenant"',
     "public sealed record ConsoleMapPackage",
+    "public sealed record ResourceTreeNode",
+    "public sealed record PublicationTreeNode",
+    "public static class ResourcePublicationsTreeBuilder",
   ];
   for (const line of caught) {
     assert.notDeepEqual(findRetiredVocabulary("src/Honua.Console.Shell/Pages/X.razor", line), [], line);
@@ -88,6 +92,9 @@ test("retired phrases are caught and protocol or agent words are not", () => {
     "Coordinate projection EPSG:3857",
     "honua.map-package.v1",
     "Available slots",
+    "public sealed record DatasetTreeNode",
+    "public sealed record DatasetEndpointNode",
+    "public static class DatasetEndpointsTreeBuilder",
   ];
   for (const line of kept) {
     assert.deepEqual(findRetiredVocabulary("src/Honua.Console.Shell/Pages/X.razor", line), [], line);

@@ -33,14 +33,14 @@ Four top-level workflow areas (per ADR-0001), plus a small set of shell
 routes. Path prefixes are frozen for downstream tickets:
 
 ```
-/                              Workspace dashboard (post-auth landing) — information + approval landing (#193): leads with the approval-inbox summary + recent activity, then the four area work surfaces
+/                              Home dashboard (post-auth landing) — information + approval landing (#193): leads with the approval-inbox summary + recent activity, then the four area work surfaces
 /inbox                         Approval inbox (#193) — the GIS-department work queue: aggregates pending/active agent-proposed deploy-control operations (release-derived + operator-tracked ids), classified by GIS-desk ticket type, with the review→approve/reject/rollback surface inline. Pure projection over the deploy-control + GitOps-release contracts (no new server contract); missing-binding state when unbound. Alias: /approvals
 /auth/signin                   Sign in (anonymous; returnTo)
 /auth/callback                 Legacy OIDC callback (anonymous; WASM uses server-owned /admin/auth/callback)
 /auth/signed-out               Post-signout landing (anonymous)
 
-/studio                        Studio workspace (embedded honua-studio); /studio/drafts opens the same editor
-/studio/processes              Processes workspace (workflow authoring and isolated local processes)
+/studio                        Studio editor (embedded honua-studio); /studio/drafts opens the same editor
+/studio/processes              Processes editor (workflow authoring and isolated local processes)
 /studio/proof, /studio/apps/:itemId/preview
                                Compatibility routes: retirement notice pointing to /studio and /catalog
 /studio/report                 Generated report.package editor
@@ -57,7 +57,7 @@ routes. Path prefixes are frozen for downstream tickets:
 /maps/published/*route         Active Studio publication viewer; current-reader sources and data, separate from content-map ShareAccess links
 /maps/new                      New-map flow (from=:itemId)
 
-/groups                        Workspace groups (authenticated; any scope — member, operator, or admin)
+/groups                        Groups (authenticated; any scope — member, operator, or admin)
 
 /operate                       Operator landing (operator scope only)
 /operate/connections           Data connections list
@@ -73,11 +73,11 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/resources/import      File import — dedicated page (OperateImportFilePage) owns this entry point
 /operate/publishing/quick      Quick-publish a table/dataset — dedicated page (OperatePublishLayerPage)
 /operate/import/service        Import a remote service — dedicated page (OperateImportServicePage)
-/operate/publishing            Publishing workspace
+/operate/publishing            Publishing surface
 /operate/identity/providers
 /operate/identity/status
 /operate/identity/diagnostics
-/operate/license               License + entitlement workspace
+/operate/license               License + entitlement surface
 /operate/observability         Top-level observability tile
 /operate/events/:eventId       Event timeline detail deep link
 /operate/alerts                Redirects to the alert list on /operate/observability (#alerts)
@@ -142,7 +142,7 @@ routes. Path prefixes are frozen for downstream tickets:
 ```
 
 > The Console's non-realtime Studio builders are deleted. Their old URLs render a notice that
-> points to the Studio workspace (`/studio`) and Processes (`/studio/processes`). Still live:
+> points to the Studio editor (`/studio`) and Processes (`/studio/processes`). Still live:
 > `/studio/form`, `/studio/report`, `/studio/styles*`, `/studio/automations*` and
 > `/studio/workflows/:draftId`.
 
@@ -158,7 +158,7 @@ Top-level placement notes:
   saved-map items (`/maps/:id` plus `?token=<value>` for public-link tier),
   so the route must accept anonymous reads when `ShareAccess` authorizes
   them; see §2.5 and §6.4.
-- `/groups` stays top-level (not under `/operate`) because workspace
+- `/groups` stays top-level (not under `/operate`) because
   groups are member-accessible in Portal today
   (`honua-portal:src/routes/Groups.tsx:10` allows `member`, `operator`, or
   `admin`), and `/operate/*` is gated to `canSeeOperatorLinks(session)`
@@ -184,13 +184,12 @@ Top-level placement notes:
 | Catalog | always (signed-in) | `/catalog` |
 | Share | always (signed-in); empty state when user has no shareable items | `/share/public` |
 | Operate | `canSeeOperatorLinks(session)` returns true | `/operate` |
-| Workspace switcher | always (signed-in); driven by `session.workspace` | n/a (menu) |
+| Environment selector | always (signed-in); selects a configured server profile | `/environments` |
 
-Operate visibility uses the same seam as current Portal nav
-(`honua-portal:src/auth/permissions.ts:23` →
-`canSeeOperatorLinks(session)`). Switching workspaces re-evaluates the
-gate, so an admin of workspace A who is only a `member` in workspace B
-will not see Operate while B is active. Confirmed default (§13, Q4).
+Each Environment represents one Honua server. The selector changes the active
+server profile; it does not create a tenant or permission boundary. The active
+profile and its signed-in account determine access to that server. Console
+re-evaluates account capabilities when the active profile changes (§13, Q4).
 
 ### 2.2 Secondary navigation (within Operate)
 
@@ -226,8 +225,8 @@ The Legacy submenu contains the transitional iframe-embedded pages from
 §5 (EMBED rows) and disappears when those pages are retired.
 
 Groups is **not** in Operate secondary nav. `/groups` is a top-level
-workspace surface accessible to any authenticated user (§1, §6.1); it is
-surfaced via deep links and the workspace switcher menu until a dedicated
+surface accessible to any authenticated user (§1, §6.1); it is
+surfaced via deep links until a dedicated
 Groups feature ticket lands (tracked alongside `honua-portal#15`).
 
 Environments (`/environments`) has its own secondary navigation group,
@@ -570,7 +569,7 @@ state.
 | `/operator/data-connections/new` | REBUILD | `/operate/connections/new` | #6, #7 | Create parity |
 | `/operator/data-connections/{id:guid}` | REBUILD | `/operate/connections/:id` | #6, #7 | Detail parity |
 | `/operator/data-connections/{id:guid}/diagnostics` | REBUILD | `/operate/connections/:id/diagnostics` | #6, #7 | Diagnostics parity |
-| `/operator/license` | REBUILD | `/operate/license` | #6, #7 | License workspace parity |
+| `/operator/license` | REBUILD | `/operate/license` | #6, #7 | License surface parity |
 | `/operator/open-data` | EMBED · KEEP | `/operate/legacy/operator/open-data` | #6 | iframe container live |
 | `/operator/operations` | RETIRE | — (use `/operate` for operations and `/inbox` for approvals) | #6 | No Console redirect; `/operate/operations` is not routed |
 | `/operator/print` | EMBED · KEEP | `/operate/legacy/operator/print` | #6 | iframe container live |
@@ -639,7 +638,7 @@ the smoke pipeline (§10).
 
 | Route | Gates | Empty surface | Forbidden surface | Chunk |
 |---|---|---|---|---|
-| `/` | `auth` | empty-workspace | unauth-redirect | shell |
+| `/` | `auth` | empty-environment | unauth-redirect | shell |
 | `/auth/signin` | `anonymous` | — | — | shell+auth |
 | `/auth/callback` | `anonymous` | — | session-error | shell+auth |
 | `/auth/signed-out` | `anonymous` | — | — | shell+auth |
@@ -673,7 +672,7 @@ until `honua-sdk-dotnet#166` is consumable.
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
 | `/studio` | `auth` | Embedded realtime Studio editor; connecting state until mounted; explicit unavailable surface with connection/setup links when the embed is disabled | unauth-redirect | studio |
-| `/studio/processes` | `auth` | Processes workspace; unsupported when the realtime Studio embed is disabled | unauth-redirect | studio |
+| `/studio/processes` | `auth` | Processes editor; unsupported when the realtime Studio embed is disabled | unauth-redirect | studio |
 | `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/app`, `/studio/workflows/new`, `/studio/form/ai`, `/studio/report/ai` | `auth` | Retirement notice: “This view has moved to Studio”; links to `/studio` and `/studio/processes`; no standalone editor or publication controls | unauth-redirect | studio |
 | `/studio/report` | `auth` | missing-binding when no server base address; server-bound report builder (honua-console#56) on the content publication registry (honua-server#1183) — author a report (outline/sections, narrative, data bindings with version pins, Vega-Lite charts, map/table/filter panels, responsive preview), then publish (claims a route), republish (advances the active version), update visibility/embed policy, and roll back (pin) to an earlier immutable version; publish blocked until the report has a title, at least one panel bound to a declared data binding, and every chart declares a Vega-Lite spec | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |
@@ -725,7 +724,7 @@ type filter, no sharing filter, and `relevance`, respectively. Accepted
 `visibility` values are `private`, `org`, `group`, `public-link`, and
 `public`; accepted `sort` values are `relevance`, `modified-desc`,
 `modified-asc`, `title-asc`, and `title-desc`. The list surface requires
-an authenticated workspace session; public/open-data collection reads
+an authenticated account session; public/open-data collection reads
 live under `/share`, `/share/public`, and `/public`.
 
 The route slice exposes the unified content strip for `dataset`,
@@ -748,7 +747,7 @@ gates (editMetadata, updateSharing, etc.) still require authenticated
 `ROLE_MATRIX` (§4.2) and are hidden from the anonymous read surface.
 Anonymous public-link detail and map actions preserve the validated
 `?token=<value>` on followable `/catalog/:idOrSlug` and `/maps/:mapId`
-links. When a signed-in workspace session exists, Console resolves the
+links. When a signed-in account session exists, Console resolves the
 authenticated read path before the token path, so stale query tokens do
 not downgrade the read context or propagate into action links. Non-map
 draft hydration remains authenticated-only.
@@ -772,7 +771,7 @@ anonymous denials so upgrade copy is not leaked to anonymous users
 (§13 Q5).
 
 `/maps/new?from=<itemId>` hydrates an unsaved draft map from a supported
-catalog service or layer only after an authenticated workspace session is
+catalog service or layer only after an authenticated account session is
 resolved, and keeps the Studio continuation as
 `/studio?source=catalog&itemId=<itemId>`. Anonymous or public-link
 contexts render an unauthenticated/sign-in surface before hydration.
@@ -1016,7 +1015,7 @@ constraint).
 | embed | `/embed/maps/:mapId` |
 
 The embed chunk explicitly excludes shell chrome, Studio prompt UI,
-Operate workspace, and Catalog search UI. The share chunk excludes
+Operate surface, and Catalog search UI. The share chunk excludes
 Studio and Operate.
 
 ---
@@ -1129,7 +1128,7 @@ the human review answers land in
 | Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the realtime editor entry and `/studio/drafts` mounts the same editor. `/studio/proof` shows compatibility retirement guidance. Standalone generated-package builder URLs show retirement notices linking to Studio and Processes; the manual `/studio/form` and `/studio/report` tools remain routed. | default |
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
 | Q3 | `/share/public` vs `/public` redirect semantics | `honua-console#34` serves `/public` as a compatibility alias for `/share/public` in the Blazor route slice. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default updated by #34 |
-| Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |
+| Q4 | `/operate` access across Environments | Use the active server profile and its account capabilities; switching Environments re-evaluates access to that server. Environments are not tenants. | current |
 | Q5 | Anonymous user on a gated `/share/*` link | Generic `ConsoleStateView Kind="unavailable"` for anonymous; upgrade tile only when authenticated. | default updated by #34 |
 | Q6 | Admin EMBED container path: `/operate/legacy/<path>` vs `/operate/admin-legacy/<opaque>` | One-to-one `/operate/legacy/<path>` to preserve deep-link history. | default |
 | Q7 | SDK projection timing | Blazor Web Console treats Portal RBAC, share-link, embed, and open-data helpers as behavior references until `honua-sdk-dotnet#166` projects server-owned route/RBAC/content DTOs; JS runtimes use `honua-sdk-js#225` once available. Bounded interim, not a cross-repo blocker. | default |
@@ -1151,7 +1150,7 @@ projections rather than treating `honua-portal` helpers as behavior
 references. The Portal source rows in §4 remain as a historical pointer
 until `honua-console#10` retires Portal.
 
-## Unified workspace navigation (UX-001–007)
+## Unified Console navigation (UX-001–007)
 
 The primary rail follows Home (`/`), Datasets (`/operate/data`), realtime Maps & apps (`/studio`), Processes (`/studio/processes`), Approvals (`/inbox`) and Activity (`/operate/observability`). Realtime entries retain their embed capability gate. More tools preserves the existing area and operational destinations; URLs and deep links are unchanged. The view bar switches Console/Studio/Processes alongside one host-owned conversation.
 

@@ -60,12 +60,12 @@ public sealed class SharedStateAccessibilityTests : ConsoleComponentTestBase
     [Fact]
     public void ResourceSelectionUsesNativeButtonsAndRetainsCanonicalIdentity()
     {
-        ResourceTreeNode? selected = null;
-        var resource = new ResourceTreeNode("connection-layer-7", "Flood zones", "PostGIS", "Running", 4, "Polygon",
-            [new PublicationTreeNode("FeatureServer", "FeatureServer", true, "/rest/services/emergency/FeatureServer/7")]);
-        var navigation = Render<ResourcePublicationsTree>(parameters => parameters
+        DatasetTreeNode? selected = null;
+        var resource = new DatasetTreeNode("connection-layer-7", "Flood zones", "PostGIS", "Running", 4, "Polygon",
+            [new DatasetEndpointNode("FeatureServer", "FeatureServer", true, "/rest/services/emergency/FeatureServer/7")]);
+        var navigation = Render<DatasetEndpointsTree>(parameters => parameters
             .Add(component => component.Nodes, [resource])
-            .Add(component => component.OnResourceSelected, node => selected = node));
+            .Add(component => component.OnDatasetSelected, node => selected = node));
 
         var selector = navigation.Find("button.resource-tree__name");
         Assert.Equal("false", selector.GetAttribute("aria-expanded"));

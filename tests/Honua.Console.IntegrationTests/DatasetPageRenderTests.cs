@@ -153,7 +153,7 @@ public sealed class DatasetPageRenderTests
         catalog.FindAll(".catalog-admin-paging button")[^1].Click();
         Assert.Single(catalog.FindAll("tr[data-resource-node='layer-28']"));
 
-        catalog.Render(parameters => parameters.Add(p => p.SelectedResourceId, "layer-02"));
+        catalog.Render(parameters => parameters.Add(p => p.SelectedDatasetId, "layer-02"));
 
         Assert.Equal("true", catalog.Find("tr[data-resource-node='layer-02']").GetAttribute("aria-current"));
         Assert.Equal("Results 1 to 25 (out of 30 layers)", catalog.Find("[data-catalog-results]").TextContent);
@@ -166,7 +166,7 @@ public sealed class DatasetPageRenderTests
         LayerPreviewPane.PreviewSelection? selected = null;
         var catalog = ctx.Render<LayerPreviewCatalog>(parameters => parameters
             .Add(p => p.Rows, CatalogRows(3))
-            .Add(p => p.OnPublicationSelected, (LayerPreviewPane.PreviewSelection selection) => selected = selection));
+            .Add(p => p.OnEndpointSelected, (LayerPreviewPane.PreviewSelection selection) => selected = selection));
 
         catalog.Find("tr[data-resource-node='layer-02'] [data-catalog-map]").Click();
 
@@ -227,8 +227,8 @@ public sealed class DatasetPageRenderTests
 
     private static LayerPreviewCatalog.Row[] CatalogRows(int count) => Enumerable.Range(1, count)
         .Select(index => new LayerPreviewCatalog.Row(
-            new ResourceTreeNode($"layer-{index:00}", $"Layer {index:00}", "file", "Running", 0, null,
-                [new PublicationTreeNode("ogc-features", "OGC API Features", true, $"/ogc/features/collections/layer-{index:00}")]),
+            new DatasetTreeNode($"layer-{index:00}", $"Layer {index:00}", "file", "Running", 0, null,
+                [new DatasetEndpointNode("ogc-features", "OGC API Features", true, $"/ogc/features/collections/layer-{index:00}")]),
             index % 2 == 0 ? "Point" : "Polygon"))
         .ToArray();
 

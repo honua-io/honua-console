@@ -15,12 +15,12 @@ public sealed class ConsoleVocabularyRenderTests
     public void DatasetTree_EmptyAndFiltered_UsesDatasetLabels()
     {
         using var context = new BunitContext();
-        var tree = context.Render<ResourcePublicationsTree>();
+        var tree = context.Render<DatasetEndpointsTree>();
         Assert.Contains("No datasets yet.", tree.Find("[data-tree-empty]").TextContent);
         Assert.Equal("Filter datasets", tree.Find("input").GetAttribute("aria-label"));
 
         tree.Render(parameters => parameters.Add(p => p.Nodes,
-            [new ResourceTreeNode("roads", "Roads", "PostGIS", "Running", 1, "LineString", [])]));
+            [new DatasetTreeNode("roads", "Roads", "PostGIS", "Running", 1, "LineString", [])]));
         tree.Find("input").Input("missing");
         Assert.Contains("No datasets match this filter.", tree.Find("[data-tree-empty]").TextContent);
         tree.Find("button").Click();
@@ -31,9 +31,9 @@ public sealed class ConsoleVocabularyRenderTests
     public void DatasetTree_Expanded_LabelsLayersAndKeepsProtocolRoute()
     {
         using var context = new BunitContext();
-        var tree = context.Render<ResourcePublicationsTree>(parameters => parameters.Add(p => p.Nodes,
-            [new ResourceTreeNode("roads", "Roads", "PostGIS", "Running", 1, "LineString",
-                [new PublicationTreeNode("wfs", "WFS", true, "/wfs")])]));
+        var tree = context.Render<DatasetEndpointsTree>(parameters => parameters.Add(p => p.Nodes,
+            [new DatasetTreeNode("roads", "Roads", "PostGIS", "Running", 1, "LineString",
+                [new DatasetEndpointNode("wfs", "WFS", true, "/wfs")])]));
         tree.Find(".resource-tree__name").Click();
         Assert.Single(tree.FindAll("ul[aria-label='Layers']"));
         Assert.Equal("/wfs", tree.Find(".resource-tree__publication-route").TextContent);

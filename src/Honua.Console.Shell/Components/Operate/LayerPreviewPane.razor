@@ -2,7 +2,7 @@
 @using Honua.Console.Shell.Models
 
 @*
-    The Layer Preview pane renders the selected publication's served layer through the Console map proxy
+    The Layer Preview pane renders the selected endpoint's served layer through the Console map proxy
     and lists its served route, so what an operator previews is what the service publishes.
 *@
 <aside class="layer-preview-pane" data-layer-preview aria-label="Layer preview">
@@ -10,7 +10,7 @@
         <p class="console-kicker">Layer preview</p>
         @if (Selection is { } selection)
         {
-            <h2>@selection.ResourceName · @selection.ProtocolLabel</h2>
+            <h2>@selection.DatasetName · @selection.ProtocolLabel</h2>
         }
         else
         {
@@ -59,22 +59,22 @@
 </aside>
 
 @code {
-    /// <summary>The currently-previewed publication, or null when nothing is selected.</summary>
+    /// <summary>The currently-previewed endpoint, or null when nothing is selected.</summary>
     [Parameter] public PreviewSelection? Selection { get; set; }
 
-    /// <summary>The served layer behind the selected publication, or null when it has none to render.</summary>
+    /// <summary>The served layer behind the selected endpoint, or null when it has none to render.</summary>
     [Parameter] public OperateServiceLayer? Layer { get; set; }
 
     /// <summary>The active environment the map proxy URLs are pinned to.</summary>
     [Parameter] public string? EnvironmentId { get; set; }
 
-    /// <summary>The other publications on the same resource, for the "open in" protocol picker.</summary>
+    /// <summary>The other endpoints on the same dataset, for the "open in" protocol picker.</summary>
     [Parameter] public IReadOnlyList<PreviewSelection> Protocols { get; set; } = [];
 
     // Shown when nothing previewable is selected; each page names where its layers are picked.
     [Parameter] public string EmptyText { get; set; } = "Pick a dataset’s layer in the tree to preview its served endpoint here.";
 
-    /// <summary>Raised when the user switches which protocol to preview the selected resource in.</summary>
+    /// <summary>Raised when the user switches which protocol to preview the selected dataset in.</summary>
     [Parameter] public EventCallback<string> OnProtocolSelected { get; set; }
 
     private async Task OnProtocolChanged(ChangeEventArgs args)
@@ -86,24 +86,24 @@
     }
 
     internal static Task SelectAsync(
-        EventCallback<PreviewSelection> onSelected, ResourceTreeNode node, PublicationTreeNode publication) =>
-        onSelected.HasDelegate && PreviewSelection.For(node, publication) is { } selection
+        EventCallback<PreviewSelection> onSelected, DatasetTreeNode node, DatasetEndpointNode endpoint) =>
+        onSelected.HasDelegate && PreviewSelection.For(node, endpoint) is { } selection
             ? onSelected.InvokeAsync(selection)
             : Task.CompletedTask;
 
-    /// <summary>A previewable publication: the resource it belongs to, the protocol, and the served route.</summary>
+    /// <summary>A previewable endpoint: the dataset it belongs to, the protocol, and the served route.</summary>
     public sealed record PreviewSelection(
-        string ResourceId,
-        string ResourceName,
+        string DatasetId,
+        string DatasetName,
         string ProtocolId,
         string ProtocolLabel,
         string Route)
     {
         public string? ServiceName { get; init; }
 
-        public static PreviewSelection? For(ResourceTreeNode node, PublicationTreeNode publication) =>
-            publication.Route is { } route
-                ? new(node.ResourceId, node.Name, publication.ProtocolId, publication.ProtocolLabel, route) { ServiceName = publication.ServiceName }
+        public static PreviewSelection? For(DatasetTreeNode node, DatasetEndpointNode endpoint) =>
+            endpoint.Route is { } route
+                ? new(node.DatasetId, node.Name, endpoint.ProtocolId, endpoint.ProtocolLabel, route) { ServiceName = endpoint.ServiceName }
                 : null;
     }
 }

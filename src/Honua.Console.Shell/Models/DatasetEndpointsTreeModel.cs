@@ -1,18 +1,18 @@
 namespace Honua.Console.Shell.Models;
 
-public sealed record ResourceTreeNode(
-    string ResourceId,
+public sealed record DatasetTreeNode(
+    string DatasetId,
     string Name,
     string Source,
     string Status,
     long FeatureCount,
     string? GeometryType,
-    IReadOnlyList<PublicationTreeNode> Publications)
+    IReadOnlyList<DatasetEndpointNode> Endpoints)
 {
-    public bool HasPublications => Publications.Count > 0;
+    public bool HasEndpoints => Endpoints.Count > 0;
 }
 
-public sealed record PublicationTreeNode(
+public sealed record DatasetEndpointNode(
     string ProtocolId,
     string ProtocolLabel,
     bool IsLive,
@@ -21,17 +21,17 @@ public sealed record PublicationTreeNode(
     public string? ServiceName { get; init; }
 }
 
-public static class ResourcePublicationsTreeBuilder
+public static class DatasetEndpointsTreeBuilder
 {
-    public static IReadOnlyList<ResourceTreeNode> Build(
-        IReadOnlyList<OperateResourceEditPreview> resources,
+    public static IReadOnlyList<DatasetTreeNode> Build(
+        IReadOnlyList<OperateResourceEditPreview> datasets,
         IReadOnlyList<OperateServiceDetail> services)
     {
-        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(datasets);
         ArgumentNullException.ThrowIfNull(services);
 
-        // Map each canonical resource id → the (serviceType, serviceName) pairs that publish it.
-        var publicationsByResource = new Dictionary<string, List<(string ServiceType, string? ServiceName, string? FolderName, string ServiceIdentity)>>(StringComparer.Ordinal);
+        // Map each canonical dataset id → the (serviceType, serviceName) pairs that publish it.
+        var endpointsByDataset = new Dictionary<string, List<(string ServiceType, string? ServiceName, string? FolderName, string ServiceIdentity)>>(StringComparer.Ordinal);
         foreach (var service in services)
         {
             foreach (var layer in service.Layers)
@@ -41,50 +41,50 @@ public static class ResourcePublicationsTreeBuilder
                     continue;
                 }
 
-                if (!publicationsByResource.TryGetValue(layer.CanonicalResourceId, out var list))
+                if (!endpointsByDataset.TryGetValue(layer.CanonicalResourceId, out var list))
                 {
                     list = [];
-                    publicationsByResource[layer.CanonicalResourceId] = list;
+                    endpointsByDataset[layer.CanonicalResourceId] = list;
                 }
 
                 list.Add((service.ServiceType, service.PublicServiceName, service.FolderName, service.Name));
             }
         }
 
-        var nodes = new List<ResourceTreeNode>(resources.Count);
-        foreach (var resource in resources)
+        var nodes = new List<DatasetTreeNode>(datasets.Count);
+        foreach (var dataset in datasets)
         {
-            publicationsByResource.TryGetValue(resource.ResourceId, out var publications);
-            var publicationNodes = BuildPublicationNodes(publications);
-            nodes.Add(new ResourceTreeNode(
-                resource.ResourceId,
-                resource.Name,
-                resource.Source,
-                Status: publicationNodes.Count > 0 ? "Running" : "Draft",
+            endpointsByDataset.TryGetValue(dataset.ResourceId, out var endpoints);
+            var endpointNodes = BuildEndpointNodes(endpoints);
+            nodes.Add(new DatasetTreeNode(
+                dataset.ResourceId,
+                dataset.Name,
+                dataset.Source,
+                Status: endpointNodes.Count > 0 ? "Running" : "Draft",
                 FeatureCount: 0,
                 GeometryType: null,
-                Publications: publicationNodes));
+                Endpoints: endpointNodes));
         }
 
         return nodes;
     }
 
-    private static IReadOnlyList<PublicationTreeNode> BuildPublicationNodes(
-        List<(string ServiceType, string? ServiceName, string? FolderName, string ServiceIdentity)>? publications)
+    private static IReadOnlyList<DatasetEndpointNode> BuildEndpointNodes(
+        List<(string ServiceType, string? ServiceName, string? FolderName, string ServiceIdentity)>? endpoints)
     {
-        if (publications is null || publications.Count == 0)
+        if (endpoints is null || endpoints.Count == 0)
         {
             return [];
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var nodes = new List<PublicationTreeNode>();
-        foreach (var (serviceType, serviceName, folderName, serviceIdentity) in publications)
+        var nodes = new List<DatasetEndpointNode>();
+        foreach (var (serviceType, serviceName, folderName, serviceIdentity) in endpoints)
         {
             // A service's ServiceType can arrive as a metadata-v2 string (esri-feature-service), a joined
             // list of protocol names (FeatureServer, MapServer), or a display name (Feature service) depending
-            // on the source — resolve it to its protocol descriptors so existing published resources show as
-            // Running with previewable publications instead of falling through to Draft.
+            // on the source — resolve it to its protocol descriptors so existing published datasets show as
+            // Running with previewable endpoints instead of falling through to Draft.
             foreach (var descriptor in PublishProtocolCatalog.ResolveServiceTypeProtocols(serviceType))
             {
                 if (!seen.Add(descriptor.Id))
@@ -92,7 +92,7 @@ public static class ResourcePublicationsTreeBuilder
                     continue;
                 }
 
-                nodes.Add(new PublicationTreeNode(
+                nodes.Add(new DatasetEndpointNode(
                     descriptor.Id,
                     descriptor.Label,
                     IsLive: true,

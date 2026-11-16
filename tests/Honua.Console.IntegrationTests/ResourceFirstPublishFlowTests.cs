@@ -219,8 +219,8 @@ public sealed class ResourceFirstPublishFlowTests
             FolderName = folderName,
             PublicName = "Public parcels"
         };
-        var tree = ResourcePublicationsTreeBuilder.Build([EditPreview("rsc_parcels", "Parcels")], [service]);
-        Assert.Equal(expectedRoute, Assert.Single(Assert.Single(tree).Publications).Route);
+        var tree = DatasetEndpointsTreeBuilder.Build([EditPreview("rsc_parcels", "Parcels")], [service]);
+        Assert.Equal(expectedRoute, Assert.Single(Assert.Single(tree).Endpoints).Route);
     }
 
     [Fact]
@@ -235,13 +235,13 @@ public sealed class ResourceFirstPublishFlowTests
             Service("city/parcels", "FeatureServer, MapServer", Layer(1, "rsc_parcels")),
         ];
 
-        var nodes = ResourcePublicationsTreeBuilder.Build(resources, services);
+        var nodes = DatasetEndpointsTreeBuilder.Build(resources, services);
 
-        var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
+        var parcels = nodes.Single(node => node.DatasetId == "rsc_parcels");
         Assert.Equal("Running", parcels.Status);
-        Assert.Equal(new[] { "FeatureServer", "MapServer" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
-        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Publications[0].Route);
-        Assert.Equal("/rest/services/city%2Fparcels/MapServer", parcels.Publications[1].Route);
+        Assert.Equal(new[] { "FeatureServer", "MapServer" }, parcels.Endpoints.Select(p => p.ProtocolId).ToArray());
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Endpoints[0].Route);
+        Assert.Equal("/rest/services/city%2Fparcels/MapServer", parcels.Endpoints[1].Route);
     }
 
     // ----------------------------------------------------------------- tree builder
@@ -260,31 +260,31 @@ public sealed class ResourceFirstPublishFlowTests
             Service("stac/parcels", "stac-api", Layer(2, "rsc_parcels")),
         ];
 
-        var nodes = ResourcePublicationsTreeBuilder.Build(resources, services);
+        var nodes = DatasetEndpointsTreeBuilder.Build(resources, services);
 
-        var parcels = nodes.Single(node => node.ResourceId == "rsc_parcels");
+        var parcels = nodes.Single(node => node.DatasetId == "rsc_parcels");
         Assert.Equal("Running", parcels.Status);
-        Assert.Equal(new[] { "FeatureServer", "Stac" }, parcels.Publications.Select(p => p.ProtocolId).ToArray());
-        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Publications[0].Route);
+        Assert.Equal(new[] { "FeatureServer", "Stac" }, parcels.Endpoints.Select(p => p.ProtocolId).ToArray());
+        Assert.Equal("/rest/services/city%2Fparcels/FeatureServer", parcels.Endpoints[0].Route);
 
         // A resource with no published service layer is a draft node with no publications (not fabricated).
-        var zoning = nodes.Single(node => node.ResourceId == "rsc_zoning");
+        var zoning = nodes.Single(node => node.DatasetId == "rsc_zoning");
         Assert.Equal("Draft", zoning.Status);
-        Assert.Empty(zoning.Publications);
+        Assert.Empty(zoning.Endpoints);
     }
 
     [Fact]
     public void Tree_RendersResourceNodesAndDraftPublishAffordance()
     {
         using var ctx = NewContext();
-        IReadOnlyList<ResourceTreeNode> nodes =
+        IReadOnlyList<DatasetTreeNode> nodes =
         [
             new("rsc_parcels", "parcels", "file", "Running", 0, null,
                 [new("FeatureServer", "FeatureServer", true, "/city/parcels/FeatureServer/0")]),
             new("rsc_zoning", "zoning", "table", "Draft", 0, null, []),
         ];
 
-        var cut = ctx.Render<ResourcePublicationsTree>(p => p.Add(c => c.Nodes, nodes));
+        var cut = ctx.Render<DatasetEndpointsTree>(p => p.Add(c => c.Nodes, nodes));
 
         Assert.Contains("data-resource-node=\"rsc_parcels\"", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("data-resource-node=\"rsc_zoning\"", cut.Markup, StringComparison.Ordinal);
