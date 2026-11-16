@@ -863,6 +863,7 @@
     private OperateSectionResult<IReadOnlyList<OperateInvestigation>>? _investigations;
     private OperateSectionResult<OperateJobRun>? _selectedJob;
     private string? _selectedJobLoadedFor;
+    private long _selectedJobRequest;
 
     private string _pendingEnvironmentFilter = string.Empty;
     private string _pendingEventTypeFilter = string.Empty;
@@ -980,6 +981,7 @@
     {
         if (_loaded)
         {
+            var selectedJobTask = ResolveSelectedJobAsync();
             var correlationFilter = CorrelationId?.Trim() ?? string.Empty;
             if (!string.Equals(correlationFilter, _routeCorrelationFilter, StringComparison.Ordinal))
             {
@@ -987,7 +989,7 @@
                 _pendingCorrelationFilter = correlationFilter;
                 await LoadEventsAsync(_activeEventQuery with { CorrelationId = correlationFilter });
             }
-            await ResolveSelectedJobAsync();
+            await selectedJobTask;
         }
     }
 
@@ -999,6 +1001,7 @@
 
         if (string.IsNullOrWhiteSpace(targetId))
         {
+            _selectedJobRequest++;
             _selectedJob = null;
             _selectedJobLoadedFor = null;
             return;
@@ -1009,8 +1012,14 @@
             return;
         }
 
+        var request = ++_selectedJobRequest;
         _selectedJobLoadedFor = targetId;
-        _selectedJob = await OperateClient.GetJobDetailAsync(targetId);
+        _selectedJob = null;
+        var detail = await OperateClient.GetJobDetailAsync(targetId);
+        if (request == _selectedJobRequest)
+        {
+            _selectedJob = detail;
+        }
     }
 
     private async Task ApplyEventFilters()

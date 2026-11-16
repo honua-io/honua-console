@@ -287,6 +287,7 @@
     private OperateSectionResult<OperateJobStepsView>? _steps;
     private OperateSectionResult<OperateJobDiagnosticsView>? _diagnostics;
     private string? _loadedDetailFor;
+    private long _viewRequest;
     private string _stateFilter = string.Empty;
 
     // Tracks whether the current render is the list or detail surface so a return
@@ -321,46 +322,61 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (HasSelectedJobRoute)
+        var jobId = HasSelectedJobRoute ? SelectedJobRunId!.Trim() : null;
+        if (jobId is not null)
         {
-            var jobId = SelectedJobRunId!.Trim();
             if (!string.Equals(_loadedDetailFor, jobId, StringComparison.Ordinal) || _detail is null)
             {
-                _loadedDetailFor = jobId;
-                _detailLoaded = false;
-                _stepsLoaded = false;
-                _diagnosticsLoaded = false;
-                _diagnosticsReadingEarlier = false;
-                _actionMessage = null;
-                _detail = await OperateClient.GetJobDetailAsync(jobId);
-                _detailLoaded = true;
-
-                // Per-step glass-box is a separate endpoint; fetch it lazily once
-                // the detail opens rather than fanning it out from the list.
-                _steps = await OperateClient.GetJobStepsAsync(jobId);
-                _stepsLoaded = true;
-                _diagnostics = await OperateClient.GetJobDiagnosticsAsync(jobId);
-                _diagnosticsLoaded = true;
+                var request = BeginView(jobId);
+                _wasDetailRoute = true;
+                if (!await LoadDetailAsync(jobId, request)) return;
             }
-
-            _wasDetailRoute = true;
         }
-        else
+        else if (!_listLoaded || _wasDetailRoute)
         {
-            // Returning to the board (or first load): reload immediately so the
-            // list reflects any change made while the detail was open, rather than
-            // showing pre-navigation data until the next poll tick.
-            if (!_listLoaded || _wasDetailRoute)
-            {
-                _actionMessage = null;
-                _jobs = await OperateClient.GetGeoprocessingJobsAsync();
-                _listLoaded = true;
-            }
-
+            var request = BeginView(null);
             _wasDetailRoute = false;
+            var jobs = await OperateClient.GetGeoprocessingJobsAsync();
+            if (request != _viewRequest) return;
+            _jobs = jobs;
+            _listLoaded = true;
         }
 
         StartPolling();
+    }
+
+    private long BeginView(string? jobId)
+    {
+        StopPolling();
+        _loadedDetailFor = jobId;
+        _detail = null;
+        _steps = null;
+        _diagnostics = null;
+        _detailLoaded = false;
+        _stepsLoaded = false;
+        _diagnosticsLoaded = false;
+        _diagnosticsReadingEarlier = false;
+        _actionMessage = null;
+        _actionDetail = null;
+        return ++_viewRequest;
+    }
+
+    private async Task<bool> LoadDetailAsync(string jobId, long request)
+    {
+        var detail = await OperateClient.GetJobDetailAsync(jobId);
+        if (request != _viewRequest) return false;
+        _detail = detail;
+        _detailLoaded = true;
+
+        var steps = await OperateClient.GetJobStepsAsync(jobId);
+        if (request != _viewRequest) return false;
+        _steps = steps;
+        _stepsLoaded = true;
+
+        var diagnostics = await OperateClient.GetJobDiagnosticsAsync(jobId);
+        if (request != _viewRequest) return false;
+        ApplyDiagnostics(diagnostics);
+        return true;
     }
 
     private void ConfirmCancelJob(string jobRunId)
@@ -389,6 +405,7 @@
             return;
         }
 
+        var request = _viewRequest;
         _actionBusy = true;
         _actionMessage = null;
         _actionDetail = null;
@@ -396,6 +413,7 @@
         try
         {
             var result = await action(jobRunId, CancellationToken.None);
+            if (request != _viewRequest) return;
             if (result.IsAllowed && result.Value is not null)
             {
                 _actionMessage = string.IsNullOrWhiteSpace(result.Value.Message)
@@ -408,12 +426,18 @@
                 // wait for a later tick to drop Cancel or offer Retry.
                 if (HasSelectedJobRoute && string.Equals(_loadedDetailFor, jobRunId.Trim(), StringComparison.Ordinal))
                 {
-                    _detail = await OperateClient.GetJobDetailAsync(jobRunId);
-                    ApplyDiagnostics(await OperateClient.GetJobDiagnosticsAsync(jobRunId));
+                    var detail = await OperateClient.GetJobDetailAsync(jobRunId);
+                    if (request != _viewRequest) return;
+                    var diagnostics = await OperateClient.GetJobDiagnosticsAsync(jobRunId);
+                    if (request != _viewRequest) return;
+                    _detail = detail;
+                    ApplyDiagnostics(diagnostics);
                 }
                 else
                 {
-                    _jobs = await OperateClient.GetGeoprocessingJobsAsync();
+                    var jobs = await OperateClient.GetGeoprocessingJobsAsync();
+                    if (request != _viewRequest) return;
+                    _jobs = jobs;
                 }
 
                 StartPolling();
@@ -437,36 +461,25 @@
         }
     }
 
-    private async Task ReadEarlierDiagnosticsAsync(string cursor)
+    private Task ReadEarlierDiagnosticsAsync(string cursor)
     {
-        if (string.IsNullOrWhiteSpace(_loadedDetailFor) || _diagnostics?.Value is null)
-        {
-            return;
-        }
-
-        _diagnosticsReadingEarlier = true;
-        var page = await OperateClient.GetJobDiagnosticsAsync(_loadedDetailFor, cursor);
-        if (page.IsAllowed && page.Value is not null)
-        {
-            _diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(_diagnostics.Value.AppendEvents(page.Value));
-        }
-        else
-        {
-            _diagnostics = page;
-        }
+        if (_diagnostics?.Value is not null) _diagnosticsReadingEarlier = true;
+        return ReadDiagnosticsPageAsync(cursor);
     }
 
-    private async Task ReadNextDiagnosticsAsync(string cursor)
-    {
-        if (string.IsNullOrWhiteSpace(_loadedDetailFor) || _diagnostics?.Value is null)
-        {
-            return;
-        }
+    private Task ReadNextDiagnosticsAsync(string cursor) => ReadDiagnosticsPageAsync(cursor);
 
-        var page = await OperateClient.GetJobDiagnosticsAsync(_loadedDetailFor, cursor);
-        if (page.IsAllowed && page.Value is not null)
+    private async Task ReadDiagnosticsPageAsync(string cursor)
+    {
+        var jobId = _loadedDetailFor;
+        if (string.IsNullOrWhiteSpace(jobId) || _diagnostics?.Value is null) return;
+
+        var request = _viewRequest;
+        var page = await OperateClient.GetJobDiagnosticsAsync(jobId, cursor);
+        if (request != _viewRequest) return;
+        if (page.IsAllowed && page.Value is not null && _diagnostics?.Value is { } current)
         {
-            _diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(_diagnostics.Value.AppendEvents(page.Value));
+            _diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(current.AppendEvents(page.Value));
         }
         else
         {
@@ -516,20 +529,25 @@
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
+                var request = _viewRequest;
+                var jobId = _loadedDetailFor;
                 if (HasSelectedJobRoute)
                 {
-                    if (string.IsNullOrWhiteSpace(_loadedDetailFor))
+                    if (string.IsNullOrWhiteSpace(jobId))
                     {
                         break;
                     }
 
-                    var detail = await OperateClient.GetJobDetailAsync(_loadedDetailFor, cancellationToken);
+                    var detail = await OperateClient.GetJobDetailAsync(jobId, cancellationToken);
+                    if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;
                     // Refresh the per-step glass-box alongside the detail so a running
                     // job's newly emitted steps appear on the same poll cadence.
-                    var steps = await OperateClient.GetJobStepsAsync(_loadedDetailFor, cancellationToken);
-                    var diagnostics = await OperateClient.GetJobDiagnosticsAsync(_loadedDetailFor, cancellationToken: cancellationToken);
+                    var steps = await OperateClient.GetJobStepsAsync(jobId, cancellationToken);
+                    if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;
+                    var diagnostics = await OperateClient.GetJobDiagnosticsAsync(jobId, cancellationToken: cancellationToken);
                     await InvokeAsync(() =>
                     {
+                        if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;
                         _detail = detail;
                         _steps = steps;
                         _stepsLoaded = true;
@@ -548,6 +566,7 @@
                     var jobs = await OperateClient.GetGeoprocessingJobsAsync(cancellationToken);
                     await InvokeAsync(() =>
                     {
+                        if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;
                         _jobs = jobs;
                         StateHasChanged();
                     });
@@ -569,5 +588,9 @@
         _timer = null;
     }
 
-    public void Dispose() => StopPolling();
+    public void Dispose()
+    {
+        ++_viewRequest;
+        StopPolling();
+    }
 }

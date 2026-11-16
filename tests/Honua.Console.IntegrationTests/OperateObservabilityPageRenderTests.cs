@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 // Nesting the detail inside the populated-list branch swallows a deep link, including a job loaded by its own detail read.
-public sealed class OperateObservabilityPageRenderTests
+public sealed partial class OperateObservabilityPageRenderTests
 {
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
@@ -466,6 +466,8 @@ public sealed class OperateObservabilityPageRenderTests
 
         public Func<OperateEventQuery, Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>>>? AsyncEventQuery { get; init; }
 
+        public Func<string, Task<OperateSectionResult<OperateJobRun>>>? AsyncJobDetail { get; init; }
+
         public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; init; } =
             OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]);
 
@@ -501,7 +503,7 @@ public sealed class OperateObservabilityPageRenderTests
             GetJobsAsync(cancellationToken);
 
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(JobDetail(jobRunId));
+            AsyncJobDetail?.Invoke(jobRunId) ?? Task.FromResult(JobDetail(jobRunId));
 
         public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(string jobRunId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a"));
