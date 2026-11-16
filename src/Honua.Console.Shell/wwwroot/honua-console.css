@@ -1451,7 +1451,7 @@ p {
     min-height: 38px;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface);
     color: var(--honua-text);
     font: inherit;
     padding: 8px 10px;
