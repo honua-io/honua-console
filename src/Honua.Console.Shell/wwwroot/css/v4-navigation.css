@@ -75,7 +75,7 @@
     }
 }
 
-@container console-topbar (max-width: 66.75rem) {
+@container console-topbar (max-width: 84rem) {
     .console-shell[data-console-v4="true"] .console-menu-toggle {
         display: inline-grid;
         order: -1;

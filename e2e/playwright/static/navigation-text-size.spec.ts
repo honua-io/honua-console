@@ -86,6 +86,7 @@ test('top navigation keeps its default layout at normal text size', async ({ pag
   const close = await startSignedInConsole(page);
   try {
     await openActivity(page);
+    if (testInfo.project.name === 'desktop') await page.setViewportSize({ width: 1440, height: 900 });
     const toggle = page.getByRole('button', { name: 'Toggle navigation' });
     const wide = testInfo.project.name === 'desktop';
     await expect(toggle).toBeVisible({ visible: !wide });
@@ -98,6 +99,32 @@ test('top navigation keeps its default layout at normal text size', async ({ pag
   }
 });
 
+
+for (const width of [390, 1101, 1280, 1376, 1377, 1440]) {
+  for (const increasedSpacing of [false, true]) {
+    test(`header controls stay apart at ${width}px with ${increasedSpacing ? 'increased' : 'default'} spacing`, async ({ page }) => {
+      const close = await startSignedInConsole(page);
+      try {
+        await page.setViewportSize({ width, height: 900 });
+        if (increasedSpacing) {
+          await page.addStyleTag({ content: '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }' });
+        }
+        const toggle = page.getByRole('button', { name: 'Toggle navigation' });
+        const closed = await topBarBoxes(page);
+        expect(closed, 'header controls').toMatchObject({ overlaps: [], outside: [] });
+        expect(closed.scrollWidth).toBeLessThanOrEqual(closed.innerWidth + 1);
+        await expect(toggle).toBeVisible({ visible: width <= 1376 });
+        if (await toggle.isVisible()) await toggle.press('Enter');
+        const settings = page.locator('[data-navigation-menu="Settings"] > summary');
+        await settings.press('Enter');
+        await expect(page.locator('[data-navigation-menu="Settings"] .console-navigation-items')).toBeVisible();
+        expect(await topBarBoxes(page), 'open navigation').toMatchObject({ overlaps: [], outside: [] });
+      } finally {
+        await close();
+      }
+    });
+  }
+}
 
 test('selected job detail and unavailable workflow evidence fit the viewport', async ({ page }, testInfo) => {
   const jobId = '79ecd964b5094e3ca13d7f61529f0c18';

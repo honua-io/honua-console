@@ -15,13 +15,11 @@ export async function inspectV4NavigationPresentation(page, { name, width }, pre
   assert.equal(await page.locator(".console-topbar-brand > span").count(), v4 ? 0 : 1);
   assert.equal(await page.getByRole("link", { name: "Help", exact: true }).getAttribute("href"), "/support");
   assert.equal(await page.locator("[data-workspace-header-target]").getAttribute("href"), "/environments");
-  if (width === 390) {
-    assert.ok(await toggle.isVisible());
+  const compactNavigation = await toggle.isVisible();
+  if (compactNavigation) {
     await toggle.focus();
     await page.keyboard.press("Enter");
     assert.equal(await toggle.getAttribute("aria-expanded"), "true");
-  } else {
-    assert.ok(!(await toggle.isVisible()));
   }
   if (v4) {
     for (const control of await page.locator(".console-conversation-toggle, .console-help-link, .console-menu-toggle:visible").all()) {
@@ -37,7 +35,7 @@ export async function inspectV4NavigationPresentation(page, { name, width }, pre
   await page.keyboard.press("Escape");
   assert.equal(await dataMenu.getAttribute("open"), null);
   assert.ok(await dataSummary.evaluate(element => element === document.activeElement));
-  if (width === 390) {
+  if (compactNavigation) {
     await page.keyboard.press("Escape");
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");
     assert.ok(await toggle.evaluate(element => element === document.activeElement));
