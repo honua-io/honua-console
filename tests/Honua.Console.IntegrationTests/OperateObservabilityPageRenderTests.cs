@@ -211,6 +211,7 @@ public sealed class OperateObservabilityPageRenderTests
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        context.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
         var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
         navigation.NavigateTo("/operate/observability?correlationId=corr-first#events");
         var page = context.Render<OperateObservabilityPage>();
