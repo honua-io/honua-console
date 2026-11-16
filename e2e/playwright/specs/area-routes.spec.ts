@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 // Spec 2: the four product-area routes all resolve from the same Blazor Web host
 // and render their area heading. These are the IA anchors from docs/console-route-map.md.
@@ -25,6 +25,20 @@ for (const area of areas) {
   });
 }
 
+async function expandNavigation(page: Page): Promise<boolean> {
+  const toggle = page.getByRole('button', {name:'Toggle navigation', includeHidden:true});
+  await expect(toggle).toBeAttached();
+  await page.waitForFunction(() => Array.from(
+    document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+  ).every(link => link.sheet !== null));
+  const compact = await toggle.isVisible();
+  if (compact) {
+    await toggle.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  }
+  return compact;
+}
+
 const menus = [
   {name:'Data', paths:['/operate/data','/operate/services','/operate/layers','/operate/connections','/operate/data/new']},
   {name:'Protocols', paths:['/operate/catalogs']},
@@ -35,6 +49,7 @@ const menus = [
 
 for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`, async ({page}) => {
   await page.goto('/operate');
+  await expandNavigation(page);
   const menu = page.locator('[data-navigation-menu="Data"]');
   await menu.locator(':scope > summary').press('Enter');
   await menu.getByRole('link', {name, exact:true}).click();
@@ -47,6 +62,7 @@ for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`,
 
 for (const menu of menus) test(`${menu.name} advertises working current destinations`, async ({page}) => {
   await page.goto('/operate');
+  await expandNavigation(page);
   const disclosure=page.locator(`[data-navigation-menu="${menu.name}"]`);
   await disclosure.locator(':scope > summary').press('Enter');
   const nav=disclosure.getByRole('group',{name:menu.name,exact:true});
@@ -68,7 +84,7 @@ for (const menu of menus) test(`${menu.name} advertises working current destinat
   }
 });
 
-for (const width of [390, 1440]) test(`navigation preserves keyboard input during startup at ${width}px`, async ({page}) => {
+for (const width of [390, 1280, 1440]) test(`navigation preserves keyboard input during startup at ${width}px`, async ({page}) => {
   let startBlazor!: () => void;
   const bootstrap = new Promise<void>(resolve => { startBlazor = resolve; });
   await page.route(/\/_framework\/blazor\.web(?:\.[^/]+)?\.js$/, async route => {
@@ -79,10 +95,7 @@ for (const width of [390, 1440]) test(`navigation preserves keyboard input durin
     await page.setViewportSize({width, height:844});
     await page.goto('/operate', {waitUntil:'commit'});
     const toggle=page.getByRole('button',{name:'Toggle navigation'});
-    if(width < 1100) {
-      await toggle.press('Enter');
-      await expect(toggle).toHaveAttribute('aria-expanded','true');
-    }
+    const compact = await expandNavigation(page);
     const summary=page.locator('[data-navigation-menu="Operate"] > summary');
     await summary.press('Enter');
     const nav=page.getByRole('group',{name:'Operate',exact:true});
@@ -96,7 +109,7 @@ for (const width of [390, 1440]) test(`navigation preserves keyboard input durin
       (window as unknown as {prerenderedNavigation: Element}).prerenderedNavigation);
     await expect(nav).toBeVisible();
     await expect(nav.locator('a').first()).toBeFocused();
-    if(width < 1100) await expect(toggle).toHaveAttribute('aria-expanded','true');
+    if(compact) await expect(toggle).toHaveAttribute('aria-expanded','true');
     await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
     await expect(summary).toBeFocused();
@@ -125,6 +138,7 @@ test('hydrated navigation retains user focus when initial heading focus arrives 
   });
   await page.goto('/operate');
   await page.waitForFunction(() => 'releaseInitialHeadingFocus' in window);
+  await expandNavigation(page);
   const menu = page.locator('[data-navigation-menu="Data"]');
   await menu.locator(':scope > summary').press('Enter');
   const datasets = menu.getByRole('link', {name:'Datasets', exact:true});
