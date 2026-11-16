@@ -29,15 +29,14 @@ for (const advertised of [false, true]) {
       await page.route('**/api/v1/admin/**', route => {
         const path = new URL(route.request().url()).pathname;
         if (path.replace(/\/$/, '') === '/api/v1/admin/services') {
-          return route.fulfill({ json: { success: true, data: { items: [{ serviceName: 'fixture-service' }], total: 1 } } });
+          return route.fulfill({ json: { success: true, data: { items: [{ serviceName: 'fixture-service' }], page: 1, pageSize: 100, total: 1, layerTotal: 0 } } });
         }
         if (!alertPaths.includes(path)) return route.continue();
         requested.push(path);
         return route.fulfill({ status: 403, json: { title: 'Forbidden', detail: 'Alert access denied.' } });
       });
-      await signInWithFixturePassword(page, origin, '/inbox');
-      await page.waitForURL(url => url.pathname === '/console/inbox');
-      await page.goto(`${origin}/console/operate/observability`);
+      await signInWithFixturePassword(page, origin, '/operate/observability');
+      await page.waitForURL(url => url.pathname === '/console/operate/observability');
       await expect(page.locator('.operate-summary-tile').first()).toBeVisible();
       if (advertised) {
         await expect.poll(() => [...new Set(requested)].sort()).toEqual([...alertPaths].sort());
