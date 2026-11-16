@@ -1,5 +1,6 @@
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Validation;
 
 namespace Honua.Console.Shell.Services;
 
@@ -123,7 +124,7 @@ internal static class GitOpsReleaseMapper
             OperationId: operation.OperationId,
             Status: operation.Status,
             CurrentStage: FirstNonBlank(context?.CurrentStage, operation.CurrentPhase, operation.Status),
-            PrUrl: NullIfBlank(context?.PrUrl),
+            PrUrl: UrlRule.AbsoluteHttpOrNull(context?.PrUrl),
             CommitSha: NullIfBlank(context?.CommitSha),
             GitOperationId: NullIfBlank(context?.GitOperationId),
             DeployOperationId: NullIfBlank(context?.DeployOperationId),

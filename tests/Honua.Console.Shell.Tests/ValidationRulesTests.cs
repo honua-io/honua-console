@@ -226,6 +226,29 @@ public sealed class ValidationRulesTests
     [InlineData("https://")]                // no host
     public void Url_NotAbsoluteHttps_Fail(string value) => Assert.False(UrlRule.IsAbsoluteHttps(value));
 
+    [Theory]
+    [InlineData("https://git.example/pr/7", "https://git.example/pr/7")]
+    [InlineData("  http://git.example/pr/7  ", "http://git.example/pr/7")]
+    [InlineData("javascript:void(0)", null)]
+    [InlineData("data:text/html,pr", null)]
+    [InlineData("/operate/releases", null)]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void Url_AbsoluteHttpOrNull_KeepsOnlyWebUrls(string? value, string? expected) =>
+        Assert.Equal(expected, UrlRule.AbsoluteHttpOrNull(value));
+
+    [Theory]
+    [InlineData("https://server.example/plan/77", "https://server.example/plan/77")]
+    [InlineData(" /operate/events?jobId=7 ", "/operate/events?jobId=7")]
+    [InlineData("//other.example/plan", null)]
+    [InlineData("/operate\\events", null)]
+    [InlineData("javascript:void(0)", null)]
+    [InlineData("plan/77", null)]
+    [InlineData("/", null)]
+    [InlineData(null, null)]
+    public void Url_WebOrRootRelativeOrNull_KeepsWebUrlsAndAppRoutes(string? value, string? expected) =>
+        Assert.Equal(expected, UrlRule.WebOrRootRelativeOrNull(value));
+
     // --- Wave 5: identifier / lookup id (share item id, publication id) ---
 
     [Theory]
