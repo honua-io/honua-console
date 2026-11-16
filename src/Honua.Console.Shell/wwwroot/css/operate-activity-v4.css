@@ -77,7 +77,8 @@
     grid-template-columns: minmax(0, 1fr);
 }
 
-.console-activity-v4 .operate-detail-panel {
+.console-activity-v4 .operate-detail-grid > * {
+    min-width: 0;
     overflow-wrap: anywhere;
 }
 
