@@ -122,6 +122,11 @@ function readResource({ request, response, pathname, crossOrigin, authorized, js
     response.writeHead(405).end();
     return;
   }
+  // Capability discovery is public; operator resources below still require a session.
+  if (pathname === "/api/v1/capabilities/manifest") {
+    json({ schemaVersion: "honua.capability_manifest.v1", capabilities: [], packages: { families: [] } });
+    return;
+  }
   if (pathname === "/api/v1/admin/auth/csrf" && !crossOrigin) {
     json({ requestToken: authorized ? "identified-csrf" : "anonymous-csrf" });
     return;
@@ -181,9 +186,6 @@ function readAuthorizedResource({ response, pathname, json }) {
       return;
     case "/api/v1/admin/license":
       json({ success: true, data: { edition: "Community", isValid: true } });
-      return;
-    case "/api/v1/capabilities/manifest":
-      json({ schemaVersion: "honua.capability_manifest.v1", capabilities: [], packages: { families: [] } });
       return;
     default:
       response.writeHead(404).end();
