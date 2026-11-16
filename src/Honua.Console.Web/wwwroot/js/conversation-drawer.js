@@ -25,7 +25,7 @@
             host.setAttribute('aria-modal', 'true');
             host.setAttribute('aria-label', 'Conversation');
             modal.activate();
-            if (!host.contains(document.activeElement)) host.querySelector('[data-workspace-prompt]')?.focus();
+            if (!host.contains(document.activeElement)) focusDrawer();
         } else {
             host.removeAttribute('role'); host.removeAttribute('aria-modal'); host.removeAttribute('aria-label');
             modal.release();
@@ -35,7 +35,10 @@
         if (!host || !document.querySelector('[data-console-location]')) return;
         host.open = true;
         syncPresentation();
-        host.querySelector('[data-workspace-prompt]')?.focus();
+        focusDrawer();
+    }
+    function focusDrawer() {
+        (host.querySelector('[data-workspace-prompt]') ?? host.querySelector('[data-conversation-close]'))?.focus();
     }
     function close() {
         if (!host) return;

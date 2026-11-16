@@ -532,7 +532,7 @@ let activeWorkspace;
 const mountedWorkspaceHosts = new WeakSet();
 export function mountWorkspace() {
     const host = document.querySelector('[data-agent-workspace]');
-    if (!host || mountedWorkspaceHosts.has(host)) return;
+    if (!host || host.dataset.workspaceAvailability === 'unavailable' || mountedWorkspaceHosts.has(host)) return;
     mountedWorkspaceHosts.add(host);
     host.dataset.mounted = 'true';
     const lifetime = new AbortController();

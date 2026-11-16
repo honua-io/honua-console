@@ -1,9 +1,20 @@
-<details id="console-conversation-drawer" class="console-panel console-conversation" data-agent-workspace data-permanent>
+<details id="console-conversation-drawer" class="console-panel console-conversation" data-agent-workspace data-workspace-availability="@(IsAvailable ? "available" : "unavailable")" data-permanent>
     <summary>Conversation</summary>
     <button type="button" class="console-button console-button-secondary console-conversation-close" data-conversation-close>Close conversation</button>
-    <ConsoleConversationContext />
-    <ConsoleConversationComposer />
-    <ConsoleConversationReview />
-    <ConsoleConversationConnections />
+    @if (IsAvailable)
+    {
+        <ConsoleConversationContext />
+        <ConsoleConversationComposer />
+        <ConsoleConversationReview />
+        <ConsoleConversationConnections />
+    }
+    else
+    {
+        <p role="status">Conversation is unavailable in this Console deployment. A supported conversation connection is required.</p>
+    }
 </details>
 <div class="console-conversation-backdrop" data-conversation-backdrop hidden></div>
+
+@code {
+    [Parameter] public bool IsAvailable { get; set; } = true;
+}

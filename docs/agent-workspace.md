@@ -5,6 +5,13 @@ description: "Console and embedded Studio workspace composition, credential boun
 ---
 # Unified agent workspace host
 
+The shipping static Console currently has no supported conversation workspace
+binding in the native server contract. Its drawer displays an explicit unavailable
+state and does not initialize the legacy `/api/agent-workspace` client or expose
+Send, Start, or Connect actions. Native Studio session bootstrap is separate and
+remains available. The workspace behavior below describes the legacy host with
+a supported conversation binding.
+
 The Conversation control opens one document-level drawer. It starts closed outside
 Studio and opens on entry to `/studio`, `/studio/proof`, `/studio/drafts`, or
 `/studio/apps/{id}/preview`. Closing it lasts for that visit. Desktop keeps the
