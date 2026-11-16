@@ -275,6 +275,9 @@ public sealed class OperateObservabilityPageRenderTests
                 Assert.Contains("No jobs", page.Markup, StringComparison.Ordinal);
                 // ...and the independently-read job detail renders despite the empty list.
                 Assert.Contains("job-deep-001", page.Markup, StringComparison.Ordinal);
+                Assert.Contains("Workflow evidence unavailable", page.Markup, StringComparison.Ordinal);
+                Assert.DoesNotContain("honua-server#", page.Markup, StringComparison.Ordinal);
+                Assert.DoesNotContain("/api/v1/admin/jobs/job-deep-001", page.Markup, StringComparison.Ordinal);
                 Assert.Contains("Deep-linked job is running.", page.Markup, StringComparison.Ordinal);
             },
             TimeSpan.FromSeconds(5));
