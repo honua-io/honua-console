@@ -77,6 +77,21 @@ public sealed class ImportPublishHandoffRenderTests
     }
 
     [Fact]
+    public async Task UnresolvedQueryChangeClearsThePreviousPublishTarget()
+    {
+        using var context = CreateContext("unique");
+        var page = context.Render<OperatePublishLayerPage>();
+        page.WaitForAssertion(() => Assert.Equal("imports.physical_demo", page.Find("[aria-label='Table']").GetAttribute("value")));
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/publishing/quick?schema=imports&table=missing_import");
+        page.Render();
+
+        page.WaitForAssertion(() => Assert.Contains("imports.missing_import", page.Find("[data-import-publish-notice]").TextContent));
+        Assert.Equal("", page.Find("[aria-label='Table']").GetAttribute("value"));
+        await page.Find("[data-workspace-publish]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Assert.Empty(context.Services.GetRequiredService<PublishOperation>().Commands);
+    }
+
+    [Fact]
     public void DelayedQueryChangePreservesANewerTableChoice()
     {
         using var context = CreateContext("unique");
@@ -86,6 +101,7 @@ public sealed class ImportPublishHandoffRenderTests
         operation.DelayDiscovery = true;
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/publishing/quick?schema=imports&table=next_import");
         page.Render();
+        page.WaitForAssertion(() => Assert.Equal("", page.Find("[aria-label='Table']").GetAttribute("value")));
         page.Find("[aria-label='Table']").Change("imports.manual_choice");
         var renderCount = page.RenderCount;
         operation.Discovery.SetResult([new() { Schema = "imports", Table = "next_import", GeometryType = "POINT" }]);

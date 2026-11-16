@@ -21,6 +21,7 @@ public partial class OperatePublishLayerPage
         if (_importSelection == selection) return;
         _importSelection = selection;
         _importSelectionNotice = null;
+        ClearTableChoice();
         if (string.IsNullOrWhiteSpace(selection.Schema) || string.IsNullOrWhiteSpace(selection.Table)) return;
 
         var choiceVersion = _connectionChoiceVersion;
