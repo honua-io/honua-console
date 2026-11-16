@@ -95,7 +95,9 @@ public sealed class StudioFormNavigationTests
         using var view = new FormView(presentation);
         await view.Complete("a");
         view.Title.Change("Local draft");
+        view.ConfirmNavigation();
         view.Navigate("a", "unrelated");
+        Assert.Contains("marker=unrelated", view.Location, StringComparison.Ordinal);
         Assert.Equal("Local draft", view.Title.GetAttribute("value"));
         Assert.Single(view.Data.Requests);
         Assert.True(view.Page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
@@ -186,6 +188,8 @@ public sealed class StudioFormNavigationTests
         private readonly BunitContext _context = new();
         public DelayedFormData Data { get; }
         public IRenderedComponent<StudioFormBuilderPage> Page { get; }
+        public string Location => _context.Services.GetRequiredService<NavigationManager>().Uri;
+        public void ConfirmNavigation() => _context.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         public AngleSharp.Dom.IElement Title => Page.Find("input[placeholder='Field inspection form']");
 
         public FormView(ConsolePresentationMode presentation, WorkspaceMode mode = WorkspaceMode.Immediate)
