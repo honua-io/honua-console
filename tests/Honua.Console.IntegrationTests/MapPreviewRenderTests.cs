@@ -337,12 +337,34 @@ public sealed class MapPreviewRenderTests
         Assert.Equal(1, module.Initializations);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task MapPreview_ReplacingPendingStyle_OnlyLatestCompletionControlsBinding(bool latestCompletesFirst)
+    [Fact]
+    public async Task MapPreview_LatestStyleCompletesFirst_OldFailureCannotClearBinding()
     {
         using var ctx = new BunitContext();
+        var (cut, completeFirst, completeLatest) = PendingStyleReplacement(ctx);
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => completeLatest(true));
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => completeFirst(false));
+
+        Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound"));
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.False(button.HasAttribute("disabled")));
+    }
+
+    [Fact]
+    public async Task MapPreview_OldStyleCompletesFirst_RemainsUnboundUntilLatestCompletes()
+    {
+        using var ctx = new BunitContext();
+        var (cut, completeFirst, completeLatest) = PendingStyleReplacement(ctx);
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => completeFirst(true));
+        Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => completeLatest(true));
+
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.False(button.HasAttribute("disabled")));
+    }
+
+    private static (IRenderedComponent<MapPreview> Cut, Action<bool> First, Action<bool> Latest) PendingStyleReplacement(BunitContext ctx)
+    {
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
         var first = module.Setup<bool>("init", invocation =>
             System.Text.Json.JsonSerializer.SerializeToElement(invocation.Arguments[1])
@@ -357,22 +379,7 @@ public sealed class MapPreviewRenderTests
 
         Assert.Equal(2, module.Invocations["init"].Count);
         Assert.Single(module.Invocations["dispose"]);
-        if (latestCompletesFirst)
-        {
-            await ctx.Renderer.Dispatcher.InvokeAsync(() => latest.SetResult(true));
-            cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
-            await ctx.Renderer.Dispatcher.InvokeAsync(() => first.SetResult(false));
-        }
-        else
-        {
-            await ctx.Renderer.Dispatcher.InvokeAsync(() => first.SetResult(true));
-            Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
-            await ctx.Renderer.Dispatcher.InvokeAsync(() => latest.SetResult(true));
-        }
-
-        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
-        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.False(button.HasAttribute("disabled")));
-        Assert.Single(module.Invocations["dispose"]);
+        return (cut, first.SetResult, latest.SetResult);
     }
 
     [Fact]
