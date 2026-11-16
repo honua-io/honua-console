@@ -48,6 +48,14 @@ for (const v4Enabled of [false, true]) {
             return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 ? [] : [{ text: element.textContent, left: rect.left, right: rect.right, bounds }];
           });
         }), mode).toEqual([]);
+        if (enlarged) {
+          const panels = await page.locator('.support-layout').evaluate(layout => {
+            const form = layout.querySelector('article')!.getBoundingClientRect();
+            const context = layout.querySelector('aside')!.getBoundingClientRect();
+            return { formBottom: form.bottom, contextTop: context.top };
+          });
+          expect(panels.contextTop, 'enlarged text stacks readable Support panels').toBeGreaterThanOrEqual(panels.formBottom);
+        }
         await expect(page.getByRole('button', { name: 'Submit ticket', exact: true })).toBeDisabled();
         await testInfo.attach(`support-${mode}-v4-${v4Enabled}`, {
           body: await page.screenshot({ fullPage: true }), contentType: 'image/png',

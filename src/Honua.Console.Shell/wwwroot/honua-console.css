@@ -8194,16 +8194,24 @@ p {
 
 /* In-product support loop (#164) */
 .support-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 1.5rem;
     align-items: start;
 }
 
-@media (max-width: 960px) {
-    .support-layout {
-        grid-template-columns: minmax(0, 1fr);
-    }
+.support-layout > article {
+    flex: 2 1 22rem;
+    min-width: 0;
+}
+
+.support-layout > .support-context-panel {
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.support-layout .studio-field-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
 }
 
 .support-symptoms-field {
