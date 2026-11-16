@@ -25,6 +25,14 @@ test('unsupported conversation stays explicit and never starts a legacy workspac
   await expect(drawer.locator('textarea, [data-workspace-start], [data-workspace-connect], [data-workspace-send]')).toHaveCount(0);
   const close = drawer.getByRole('button', { name: 'Close conversation', exact: true });
   await expect(close).toBeFocused();
+  await expect(drawer).toHaveCSS('position', 'fixed');
+  const bounds = await drawer.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
   if (testInfo.project.name === 'mobile') {
     await expect(drawer).toHaveAttribute('aria-modal', 'true');
     await page.keyboard.press('Tab');
@@ -36,6 +44,11 @@ test('unsupported conversation stays explicit and never starts a legacy workspac
   });
   await close.focus();
   await page.keyboard.press('Escape');
+  await expect(drawer).not.toHaveAttribute('open', '');
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await expect(drawer).toHaveAttribute('open', '');
+  await close.click();
   await expect(drawer).not.toHaveAttribute('open', '');
   await expect(toggle).toBeFocused();
   expect(workspaceRequests).toEqual([]);
