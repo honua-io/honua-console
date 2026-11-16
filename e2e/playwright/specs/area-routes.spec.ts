@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 // Spec 2: the four product-area routes all resolve from the same Blazor Web host
 // and render their area heading. These are the IA anchors from docs/console-route-map.md.
@@ -25,6 +25,15 @@ for (const area of areas) {
   });
 }
 
+
+async function expandNavigation(page: Page) {
+  const toggle = page.getByRole('button', { name: 'Toggle navigation' });
+  if (await toggle.isVisible()) {
+    await toggle.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  }
+}
+
 const menus = [
   {name:'Data', paths:['/operate/data','/operate/services','/operate/layers','/operate/connections','/operate/data/new']},
   {name:'Protocols', paths:['/operate/catalogs']},
@@ -35,6 +44,7 @@ const menus = [
 
 for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`, async ({page}) => {
   await page.goto('/operate');
+  await expandNavigation(page);
   const menu = page.locator('[data-navigation-menu="Data"]');
   await menu.locator(':scope > summary').press('Enter');
   await menu.getByRole('link', {name, exact:true}).click();
@@ -47,6 +57,7 @@ for (const name of ['Services', 'Layers']) test(`Data > ${name} opens its list`,
 
 for (const menu of menus) test(`${menu.name} advertises working current destinations`, async ({page}) => {
   await page.goto('/operate');
+  await expandNavigation(page);
   const disclosure=page.locator(`[data-navigation-menu="${menu.name}"]`);
   await disclosure.locator(':scope > summary').press('Enter');
   const nav=disclosure.getByRole('group',{name:menu.name,exact:true});
@@ -125,6 +136,7 @@ test('hydrated navigation retains user focus when initial heading focus arrives 
   });
   await page.goto('/operate');
   await page.waitForFunction(() => 'releaseInitialHeadingFocus' in window);
+  await expandNavigation(page);
   const menu = page.locator('[data-navigation-menu="Data"]');
   await menu.locator(':scope > summary').press('Enter');
   const datasets = menu.getByRole('link', {name:'Datasets', exact:true});
