@@ -347,7 +347,10 @@ public sealed class StudioWorkflowEditorPageTests
                     draftId is "earlier" or "current"
                         ? new StudioWorkflowPackageDraft
                         {
-                            DraftId = draftId, ContentItemId = draftId, Title = draftId, CurrentVersionId = "v1",
+                            DraftId = draftId,
+                            ContentItemId = draftId,
+                            Title = draftId,
+                            CurrentVersionId = "v1",
                             Nodes =
                             [
                                 new() { Id = "source", Category = StudioWorkflowContractValues.NodeCategorySource },
