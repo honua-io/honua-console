@@ -26,7 +26,7 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
     }
 
     [Fact]
-    public async Task InitialManifestWaitsForRestoredAuthentication()
+    public async Task InitialManifestWaitsForSlowRestoredAuthentication()
     {
         await using var context = CreateContext();
         var authentication = context.Services.GetRequiredService<MutableAuthentication>();
@@ -36,6 +36,8 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
         Assert.Equal(0, registry.Reads);
         Assert.Empty(CatalogLinks(shell));
 
+        await Task.Delay(TimeSpan.FromSeconds(5.1));
+        Assert.Equal(0, registry.Reads);
         restored.SetResult(authentication.AuthenticatedState());
         shell.WaitForAssertion(() => Assert.Equal(2, CatalogLinks(shell).Count));
         Assert.Equal(1, registry.Reads);

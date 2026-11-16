@@ -117,21 +117,22 @@
         if (_disposed) return;
         _capabilityRefreshCancellation?.Cancel();
         _capabilityRefreshCancellation?.Dispose();
-        _capabilityRefreshCancellation = new CancellationTokenSource(
-            TimeSpan.FromSeconds(CapabilityRefreshTimeoutSeconds));
+        _capabilityRefreshCancellation = new CancellationTokenSource();
         _ = RefreshCapabilitiesAsync(_capabilityRefreshCancellation.Token, initialAuthentication);
     }
 
     private async Task RefreshCapabilitiesAsync(CancellationToken cancellationToken, Task<AuthenticationState>? initialAuthentication)
     {
+        using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
             // Restored browser credentials must be ready before the privileged manifest request.
             if (initialAuthentication is not null) await initialAuthentication.WaitAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await Capabilities.RefreshAsync(cancellationToken);
+            requestCancellation.CancelAfter(TimeSpan.FromSeconds(CapabilityRefreshTimeoutSeconds));
+            await Capabilities.RefreshAsync(requestCancellation.Token);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (requestCancellation.IsCancellationRequested)
         {
             // The initial state is deliberately fail-closed when the manifest cannot be read promptly.
             return;
