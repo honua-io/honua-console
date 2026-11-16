@@ -51,8 +51,12 @@ public sealed partial class HttpConsoleDeployApprovalClient
 
         return OperateSectionResult<ConsoleDeployApprovalReview>.Allowed(new(
             DeployApprovalMapper.MapProposal(response.Operation), response.Review.ExpiresAt, new ConsoleDeployReviewAuthority
-            { Capability = response.Review.Capability, ProfileId = target.Profile.Id,
-                ServerBaseUri = target.Profile.ServerBaseUri, Binding = binding }));
+            {
+                Capability = response.Review.Capability,
+                ProfileId = target.Profile.Id,
+                ServerBaseUri = target.Profile.ServerBaseUri,
+                Binding = binding
+            }));
     }
 
     public async Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(

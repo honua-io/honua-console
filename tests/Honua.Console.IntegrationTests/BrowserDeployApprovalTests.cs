@@ -111,7 +111,8 @@ public sealed class BrowserDeployApprovalTests
     private static HttpConsoleDeployApprovalClient Client(ConsoleBrowserSession session, ReviewServer server)
     {
         var http = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(Api, App), session, BrowserApiAccess.Authenticated)
-        { InnerHandler = server }) { BaseAddress = Api };
+        { InnerHandler = server })
+        { BaseAddress = Api };
         var profiles = new InMemoryConsoleEnvironmentProfileStore(
             [new ConsoleEnvironmentProfile { Id = "live", ServerBaseUri = Api }], activeProfileId: "live");
         return new(http, profiles, new InMemoryConsoleAccountSessionStore(), "unused-admin-key",
@@ -134,11 +135,26 @@ public sealed class BrowserDeployApprovalTests
                 Header("X-Honua-CSRF"), Header("Authorization"), Header("X-API-Key")));
             var reading = request.Method == HttpMethod.Get;
             var reviewing = reading && request.RequestUri.AbsolutePath.EndsWith("/approval-review/submit", StringComparison.Ordinal);
-            var operation = new { operationId = "deploy-1", kind = "Deploy", status = reading ? "AwaitingApproval" : "Submitted",
-                target = new { desiredRevision = reviewing || !reading ? "reviewed-revision" : "original-revision" } };
-            object body = reviewing ? new { operation, action = "submit", review = new { proposalId = "deploy-1",
-                proposalVersion = 3, planHash = "plan-3", capability = "issued-capability",
-                expiresAt = DateTimeOffset.UtcNow.AddMinutes(LifetimeMinutes) } } : operation;
+            var operation = new
+            {
+                operationId = "deploy-1",
+                kind = "Deploy",
+                status = reading ? "AwaitingApproval" : "Submitted",
+                target = new { desiredRevision = reviewing || !reading ? "reviewed-revision" : "original-revision" }
+            };
+            object body = reviewing ? new
+            {
+                operation,
+                action = "submit",
+                review = new
+                {
+                    proposalId = "deploy-1",
+                    proposalVersion = 3,
+                    planHash = "plan-3",
+                    capability = "issued-capability",
+                    expiresAt = DateTimeOffset.UtcNow.AddMinutes(LifetimeMinutes)
+                }
+            } : operation;
             return Task.FromResult(new HttpResponseMessage(reviewing ? ReviewStatus : DecisionStatus)
             { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") });
         }
