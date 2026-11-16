@@ -18,6 +18,8 @@ for (const v4Enabled of [false, true]) {
               { type: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier', value: 'fixture-operator' },
               { type: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role', value: 'admin' },
             ] }));
+          } else if (path.endsWith('/auth/csrf')) {
+            response.end(JSON.stringify({ requestToken: 'fixture-only' }));
           } else if (path.endsWith('/observability/errors')) {
             if (++captures > 1) await captureReleased;
             response.end(JSON.stringify({ errors: [] }));
