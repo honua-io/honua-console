@@ -120,7 +120,7 @@ public sealed class RemovedOperateEntryPointsRenderTests
         page.Find("#service-access-tab").Click();
         Assert.Equal("service-access-tab", registry.Current.Filters["tab"]);
         Assert.False(page.Find("#service-access-panel").HasAttribute("hidden"));
-        page.Find("[data-allowed-roles]").Change("surveyors");
+        page.Find("[data-allowed-roles]").Input("surveyors");
         Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
         Assert.DoesNotContain("surveyors", System.Text.Json.JsonSerializer.Serialize(registry.Current));
         page.Find("#service-layers-tab").Click();
