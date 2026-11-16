@@ -16,7 +16,7 @@ for (const v4Enabled of [false, true]) {
       await expect.poll(() => requests.length).toBe(1);
       await expect(toggle).toBeDisabled();
       await expect(name).toBeDisabled();
-      await expect(page.locator('.rbac-create-grants')).toBeDisabled();
+      await expect(page.locator('.rbac-create-grants input[type=checkbox]')).toBeDisabled();
       await testInfo.attach(`pending-role-v4-${v4Enabled}`, {
         body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
       });
