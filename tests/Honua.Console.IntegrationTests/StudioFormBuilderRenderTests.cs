@@ -299,12 +299,18 @@ public sealed class StudioFormBuilderRenderTests
             await pending;
         }
 
-        Assert.False(page.Find("input[placeholder='Field inspection form']").HasAttribute("disabled"));
-        Assert.False(FindButton(page, "Back to forms").HasAttribute("disabled"));
-        Assert.Contains("Command finished.", page.Markup, StringComparison.Ordinal);
-        page.Find("input[placeholder='Field inspection form']").Change("Edited after completion");
-        Assert.Equal("Edited after completion", editor.Title);
-        Assert.True(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
+        page.WaitForAssertion(() =>
+        {
+            Assert.False(page.Find("input[placeholder='Field inspection form']").HasAttribute("disabled"));
+            Assert.False(FindButton(page, "Back to forms").HasAttribute("disabled"));
+            Assert.Contains("Command finished.", page.Markup, StringComparison.Ordinal);
+        });
+        await page.Find("input[placeholder='Field inspection form']").ChangeAsync(new() { Value = "Edited after completion" });
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("Edited after completion", editor.Title);
+            Assert.True(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
+        });
     }
 
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
