@@ -109,6 +109,15 @@ test('configured presentation is visible without changing the identity boundary'
   await page.goto('/studio');
   await expect(page.locator('[data-console-mode]')).toHaveAttribute('data-console-mode', testInfo.project.name);
   await expect(page.locator('[data-focused-preview]')).toContainText('Preview');
+  const navigationToggle = page.getByRole('button', { name: 'Toggle navigation', includeHidden: true });
+  await expect(navigationToggle).toBeAttached();
+  await page.waitForFunction(() => Array.from(
+    document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+  ).every(link => link.sheet !== null));
+  if (await navigationToggle.isVisible()) {
+    await navigationToggle.press('Enter');
+    await expect(navigationToggle).toHaveAttribute('aria-expanded', 'true');
+  }
   await page.locator('[data-navigation-menu="Operate"] > summary').click();
   await expect(page.locator('nav[aria-label="Primary"] a[href="/inbox"]')).toBeVisible();
   await expect(page.locator('nav[aria-label="Primary"] a[href="/share/public"]')).toHaveCount(0);
