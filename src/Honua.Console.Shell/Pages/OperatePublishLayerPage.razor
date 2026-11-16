@@ -253,12 +253,13 @@
         }
     }
 
-    private Task OnConnectionChanged()
+    private async Task OnConnectionChanged()
     {
-        _connectionChoiceVersion++;
+        var choiceVersion = ++_connectionChoiceVersion;
         _importSelectionNotice = null;
         ClearTableChoice();
-        return _tableLoad.LoadAsync(PublishOperation, _connectionId);
+        await _tableLoad.LoadAsync(PublishOperation, _connectionId);
+        if (_connectionChoiceVersion == choiceVersion) SelectImportedTable();
     }
 
     private Task RetryTablesAsync()

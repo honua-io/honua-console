@@ -15,39 +15,28 @@ public partial class OperatePublishLayerPage
     private string? _importSelectionNotice;
     private int _connectionChoiceVersion;
 
-    protected override async Task OnParametersSetAsync()
+    protected override Task OnParametersSetAsync()
     {
         var selection = (Schema: ImportedSchema, Table: ImportedTable);
-        if (_importSelection == selection) return;
+        if (_importSelection == selection) return Task.CompletedTask;
         _importSelection = selection;
-        _importSelectionNotice = null;
+        _connectionChoiceVersion++;
+        _connectionId = string.Empty;
         ClearTableChoice();
-        if (string.IsNullOrWhiteSpace(selection.Schema) || string.IsNullOrWhiteSpace(selection.Table)) return;
-
-        var choiceVersion = _connectionChoiceVersion;
-        var candidates = await Task.WhenAll(_connections.Select(ReadImportCandidateAsync));
-        if (_importSelection != selection || _connectionChoiceVersion != choiceVersion) return;
-        var matches = candidates.Where(candidate => candidate.Load.Tables.Any(table =>
-            table.Schema == selection.Schema && table.Table == selection.Table)).ToArray();
-        if (_connectionStates.Count > 0 || candidates.Any(candidate => candidate.Load.Unavailable) || matches.Length != 1)
-        {
-            _importSelectionNotice = $"Choose the connection containing {selection.Schema}.{selection.Table}. The imported table could not be matched to one available connection.";
-            return;
-        }
-
-        ClearTableChoice();
-        _connectionId = matches[0].ConnectionId;
-        _tableLoad = matches[0].Load;
-        _tableKey = _tableLoad.Tables.Single(table => table.Schema == selection.Schema && table.Table == selection.Table).QualifiedName;
-        OnTableChanged();
-        if (string.IsNullOrWhiteSpace(_serviceName)) _serviceName = selection.Table;
+        _tableLoad.Reset();
+        _importSelectionNotice = string.IsNullOrWhiteSpace(selection.Schema) || string.IsNullOrWhiteSpace(selection.Table)
+            ? null
+            : $"Choose the connection containing {selection.Schema}.{selection.Table}.";
+        return Task.CompletedTask;
     }
 
-    private async Task<(string ConnectionId, ServiceLayerTableLoad Load)> ReadImportCandidateAsync(
-        Models.OperateConnectionSummary connection)
+    private void SelectImportedTable()
     {
-        var load = new ServiceLayerTableLoad();
-        await load.LoadAsync(PublishOperation, connection.Id);
-        return (connection.Id, load);
+        var table = _tableLoad.Tables.FirstOrDefault(table =>
+            table.Schema == ImportedSchema && table.Table == ImportedTable);
+        if (table is null) return;
+        _tableKey = table.QualifiedName;
+        OnTableChanged();
+        if (string.IsNullOrWhiteSpace(_serviceName)) _serviceName = table.Table;
     }
 }

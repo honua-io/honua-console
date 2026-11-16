@@ -10,11 +10,13 @@ namespace Honua.Console.IntegrationTests;
 public sealed class ImportPublishHandoffRenderTests
 {
     [Fact]
-    public async Task ImportedPhysicalTableSelectsItsConnectionAndPublishesOnlyWhenSubmitted()
+    public async Task ImportedPhysicalTableRequiresConnectionChoiceAndPublishesOnlyWhenSubmitted()
     {
         using var context = CreateContext("unique");
         var page = context.Render<OperatePublishLayerPage>();
 
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-import-publish-notice]")));
+        page.Find("[aria-label='Connection']").Change("conn-b");
         page.WaitForAssertion(() => Assert.Equal("conn-b", page.Find("[aria-label='Connection']").GetAttribute("value")));
         Assert.Equal("imports.physical_demo", page.Find("[aria-label='Table']").GetAttribute("value"));
         Assert.Equal("physical_demo", page.Find("[data-workspace-field='serviceName']").GetAttribute("value"));
@@ -32,6 +34,7 @@ public sealed class ImportPublishHandoffRenderTests
     }
 
     [Theory]
+    [InlineData("unique")]
     [InlineData("ambiguous")]
     [InlineData("missing")]
     [InlineData("unavailable")]
@@ -51,6 +54,8 @@ public sealed class ImportPublishHandoffRenderTests
     {
         using var context = CreateContext("unique");
         var page = context.Render<OperatePublishLayerPage>();
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-import-publish-notice]")));
+        page.Find("[aria-label='Connection']").Change("conn-b");
         page.WaitForAssertion(() => Assert.Equal("conn-b", page.Find("[aria-label='Connection']").GetAttribute("value")));
         page.Find("[data-workspace-field='serviceName']").Input("my-service");
         page.Find("[data-workspace-field='layerName']").Input("my-layer");
@@ -66,6 +71,7 @@ public sealed class ImportPublishHandoffRenderTests
         using var context = CreateContext("delayed");
         var operation = context.Services.GetRequiredService<PublishOperation>();
         var page = context.Render<OperatePublishLayerPage>();
+        page.Find("[aria-label='Connection']").Change("conn-b");
         page.Find("[aria-label='Connection']").Change("conn-a");
         var renderCount = page.RenderCount;
         operation.Discovery.SetResult([new() { Schema = "imports", Table = "physical_demo", GeometryType = "POINT" }]);
@@ -81,11 +87,13 @@ public sealed class ImportPublishHandoffRenderTests
     {
         using var context = CreateContext("unique");
         var page = context.Render<OperatePublishLayerPage>();
+        page.Find("[aria-label='Connection']").Change("conn-b");
         page.WaitForAssertion(() => Assert.Equal("imports.physical_demo", page.Find("[aria-label='Table']").GetAttribute("value")));
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/publishing/quick?schema=imports&table=missing_import");
         page.Render();
 
         page.WaitForAssertion(() => Assert.Contains("imports.missing_import", page.Find("[data-import-publish-notice]").TextContent));
+        Assert.Equal("", page.Find("[aria-label='Connection']").GetAttribute("value"));
         Assert.Equal("", page.Find("[aria-label='Table']").GetAttribute("value"));
         await page.Find("[data-workspace-publish]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
         Assert.Empty(context.Services.GetRequiredService<PublishOperation>().Commands);
@@ -94,20 +102,23 @@ public sealed class ImportPublishHandoffRenderTests
     [Fact]
     public void DelayedQueryChangePreservesANewerTableChoice()
     {
-        using var context = CreateContext("unique");
+        using var context = CreateContext("ambiguous");
         var page = context.Render<OperatePublishLayerPage>();
+        page.Find("[aria-label='Connection']").Change("conn-b");
         page.WaitForAssertion(() => Assert.Equal("imports.physical_demo", page.Find("[aria-label='Table']").GetAttribute("value")));
         var operation = context.Services.GetRequiredService<PublishOperation>();
         operation.DelayDiscovery = true;
         context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/publishing/quick?schema=imports&table=next_import");
         page.Render();
+        page.Find("[aria-label='Connection']").Change("conn-b");
         page.WaitForAssertion(() => Assert.Equal("", page.Find("[aria-label='Table']").GetAttribute("value")));
+        page.Find("[aria-label='Connection']").Change("conn-a");
         page.Find("[aria-label='Table']").Change("imports.manual_choice");
         var renderCount = page.RenderCount;
         operation.Discovery.SetResult([new() { Schema = "imports", Table = "next_import", GeometryType = "POINT" }]);
         page.WaitForState(() => page.RenderCount > renderCount);
 
-        Assert.Equal("conn-b", page.Find("[aria-label='Connection']").GetAttribute("value"));
+        Assert.Equal("conn-a", page.Find("[aria-label='Connection']").GetAttribute("value"));
         Assert.Equal("imports.manual_choice", page.Find("[aria-label='Table']").GetAttribute("value"));
         Assert.Empty(operation.Commands);
     }
