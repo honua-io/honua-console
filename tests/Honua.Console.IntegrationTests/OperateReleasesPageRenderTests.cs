@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class OperateReleasesPageRenderTests
+public sealed partial class OperateReleasesPageRenderTests
 {
     [Theory]
     [InlineData(false)]
@@ -512,9 +512,13 @@ public sealed class OperateReleasesPageRenderTests
         public Func<string, OperateSectionResult<GitOpsCoordinatedRelease>> Coordinated { get; init; } =
             _ => OperateSectionResult<GitOpsCoordinatedRelease>.Denied(OperateSectionStatus.Missing, "No coordinated release.");
 
+        public Func<Task<OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>>>? AsyncProposals { get; init; }
+        public Func<string, Task<OperateSectionResult<GitOpsReleaseDetail>>>? AsyncDetail { get; init; }
+        public Func<string, Task<OperateSectionResult<GitOpsCoordinatedRelease>>>? AsyncCoordinated { get; init; }
+
         public Task<OperateSectionResult<IReadOnlyList<GitOpsReleaseProposal>>> GetReleaseProposalsAsync(
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Proposals);
+            AsyncProposals?.Invoke() ?? Task.FromResult(Proposals);
 
         public Task<OperateSectionResult<GitOpsReleaseProposal>> GetReleaseProposalAsync(
             string releasePackageId,
@@ -529,11 +533,11 @@ public sealed class OperateReleasesPageRenderTests
         public Task<OperateSectionResult<GitOpsReleaseDetail>> GetReleaseDetailAsync(
             string releasePackageId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Detail(releasePackageId));
+            AsyncDetail?.Invoke(releasePackageId) ?? Task.FromResult(Detail(releasePackageId));
 
         public Task<OperateSectionResult<GitOpsCoordinatedRelease>> GetCoordinatedReleaseAsync(
             string releasePackageId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Coordinated(releasePackageId));
+            AsyncCoordinated?.Invoke(releasePackageId) ?? Task.FromResult(Coordinated(releasePackageId));
     }
 }
