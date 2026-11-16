@@ -232,7 +232,7 @@ public sealed partial class OperateCopilotPageTests
         Assert.Contains("Max blast radius", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Yes — blast radius 1", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Not automatable", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Effective config/default projection", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Effective configuration and defaults", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Proposals raised", page.Markup, StringComparison.Ordinal);
         Assert.Contains(">12<", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Auto-applied", page.Markup, StringComparison.Ordinal);

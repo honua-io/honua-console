@@ -65,7 +65,7 @@ export function mountStudioVersionControls({ app, host, status }) {
             const publish = document.createElement('button');
             publish.type = 'button'; publish.textContent = 'Review release';
             publish.className = 'console-button console-button-secondary console-button-small';
-            publish.setAttribute('aria-label', `Review publication of version ${version.versionNumber}`);
+            publish.setAttribute('aria-label', `Review release of version ${version.versionNumber}`);
             publish.addEventListener('click', () => {
                 if (!active(captured) || !versions.contains(publish)) return;
                 void publication.review(version.versionId);

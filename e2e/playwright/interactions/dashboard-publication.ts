@@ -35,7 +35,7 @@ export async function publishDashboard(page:Page,fixture:Fixture,expected:Expect
         const approver=await approverResponse.json();expect(approver.authenticated).toBe(true);
         expect(approver.environmentId).toBe(proposer.environmentId);expect(approver.principalId).not.toBe(proposer.principalId);
         await page.getByRole('button',{name:'Saved versions',exact:true}).click();
-        await page.getByRole('button',{name:'Review publication of version 1',exact:true}).click();
+        await page.getByRole('button',{name:'Review release of version 1',exact:true}).click();
         const publication=page.getByRole('region',{name:'Map publication',exact:true});
         await expect(publication).toContainText(`Publish saved version 1 of ${fixture.draft.packageKey}`);
         await publication.getByRole('textbox',{name:'Publication route'}).fill(route);

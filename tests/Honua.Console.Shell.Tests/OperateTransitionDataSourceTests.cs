@@ -539,7 +539,7 @@ public sealed partial class OperateTransitionDataSourceTests
         var service = await dataSource.FindServiceAsync("planning-feature-service");
 
         Assert.NotNull(service);
-        Assert.Contains("owned by data resources", service.MetadataOwnership, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("owned by Datasets", service.MetadataOwnership, StringComparison.OrdinalIgnoreCase);
         Assert.All(service.Layers, layer =>
         {
             Assert.NotEqual(0, layer.LayerId);

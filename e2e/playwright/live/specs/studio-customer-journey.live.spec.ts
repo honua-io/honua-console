@@ -442,7 +442,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
     completed.push('save-reload-reopen');
     await test.step('customer publication and signed-out audience', async () => {
       await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-      await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+      await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
       const publication = page.getByRole('region', { name: 'Map publication', exact: true });
       const route = `/customer-${nonce()}`;
       await publication.getByRole('textbox', { name: 'Publication route' }).fill(route);

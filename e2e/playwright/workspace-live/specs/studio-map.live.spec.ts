@@ -287,7 +287,7 @@ test('installed workspace: visual and prompted styling persist on the same rende
     expect(publicationRoute).toMatch(/^\/[a-z0-9][a-z0-9/_-]{0,126}$/);
     expect(handoffPath).toBeTruthy();
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     const publication = page.getByRole('region', { name: 'Map publication', exact: true });
     await expect(publication).toBeVisible();
     await expect(publication).toContainText(`Publish saved version 1 of ${packageKey}`);

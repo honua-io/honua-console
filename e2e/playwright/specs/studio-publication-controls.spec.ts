@@ -43,7 +43,7 @@ async function mount(page: Page, clear = true, fail = false) {
 test('reviewing a saved version does not publish; explicit submission shows pending approval', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await expect(page.getByLabel('Publication route', { exact: true })).toHaveValue('/maps/parcels');
     await expect(page.getByLabel('Publication audience', { exact: true })).toHaveValue('organization');
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual([]);
@@ -58,7 +58,7 @@ test('reviewing a saved version does not publish; explicit submission shows pend
 test('public audience explains source access before submitting the unchanged publication intent', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     const audience = page.getByLabel('Publication audience', { exact: true });
     const sourceAccess = page.locator('[data-publication-source-access]');
     const panel = page.getByRole('region', { name: 'Map publication', exact: true });
@@ -98,7 +98,7 @@ test('a saved public audience shows the source-access notice as soon as review o
         (window as any).publicationFixture.version.envelope.publicationIntent.visibility = 'public';
     });
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await expect(page.getByLabel('Publication audience', { exact: true })).toHaveValue('public');
     await expect(page.locator('[data-publication-source-access]')).toBeVisible();
     await expect(page.getByLabel('Publication audience', { exact: true }))
@@ -112,7 +112,7 @@ test('saved version review does not require secure-context UUID APIs', async ({ 
     });
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     const audience = page.getByLabel('Publication audience', { exact: true });
     await audience.selectOption('public');
     await expect(page.locator('[data-publication-source-access]')).toBeVisible();
@@ -123,7 +123,7 @@ test('saved version review does not require secure-context UUID APIs', async ({ 
 test('reload retains unknown submission and explicitly retries the original identity and audience', async ({ page }) => {
     await mount(page, true, true);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
     await expect(page.locator('[data-publication-test-status]')).toContainText('Response lost');
     const original = await page.evaluate(() => (window as any).publicationFixture.calls[0]);
@@ -138,7 +138,7 @@ test('reload retains unknown submission and explicitly retries the original iden
 test('a retained refresh button cannot read or submit after the operator changes', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
     await page.evaluate(() => {
         const app = (window as any).publicationFixture.app;
@@ -155,7 +155,7 @@ test('a pending publication does not block another operator and returns when its
     await mount(page);
     const review = async () => {
         await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-        await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+        await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
         await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
         await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
     };
@@ -183,7 +183,7 @@ test('a pending publication does not block another operator and returns when its
 test('reload refreshes a completed publication without another submission', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
     await mount(page, false);
@@ -202,7 +202,7 @@ test('reload refreshes a completed publication without another submission', asyn
 test('changing conversations on the same map retains the pending command and prevents a second publication', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
     const calls = await page.evaluate(() => (window as any).publicationFixture.calls);
     await page.evaluate(() => {
@@ -212,7 +212,7 @@ test('changing conversations on the same map retains the pending command and pre
     });
     await expect(page.getByRole('region', { name: 'Map publication' })).toContainText('Awaiting separate human approval');
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await expect(page.locator('[data-publication-test-status]')).toContainText('Resolve the original publication');
     expect(await page.evaluate(() => (window as any).publicationFixture.calls)).toEqual(calls);
 });
@@ -220,7 +220,7 @@ test('changing conversations on the same map retains the pending command and pre
 test('clearing map selection hides publication controls and restores the retained outcome on return', async ({ page }) => {
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
     await page.evaluate(() => {
         const app = (window as any).publicationFixture.app;
@@ -248,7 +248,7 @@ test('read-only approval rejection is shown without claiming publication or send
     });
     await mount(page);
     await page.getByRole('button', { name: 'Saved versions', exact: true }).click();
-    await page.getByRole('button', { name: 'Review publication of version 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Review release of version 1', exact: true }).click();
     await page.getByRole('button', { name: 'Publish reviewed version', exact: true }).click();
     await page.getByRole('button', { name: 'Refresh publication status', exact: true }).click();
     const panel = page.getByRole('region', { name: 'Map publication' });

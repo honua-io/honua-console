@@ -38,6 +38,7 @@ test('version actions require a draft and explicitly save, list and reopen it', 
     await save.click();
     await expect(page.locator('[data-version-test-status]')).toHaveText('Saved version 1.');
     await browse.click();
+    await expect(page.getByRole('button', { name: 'Review release of version 1', exact: true })).toHaveText('Review release');
     await page.getByRole('button', { name: 'Reopen version 1 as draft' }).click();
     await expect(page.getByRole('list', { name: 'Versions of this map' })).toBeEmpty();
     expect(await page.evaluate(() => (window as any).versionFixture.calls)).toEqual([
