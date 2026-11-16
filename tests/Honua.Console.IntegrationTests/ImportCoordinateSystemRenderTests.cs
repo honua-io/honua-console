@@ -127,7 +127,8 @@ public sealed class ImportCoordinateSystemRenderTests
         var import = Register(context);
         import.Outcome = import.Outcome with
         {
-            Schema = "import & data", PhysicalTableName = "physical+projected",
+            Schema = "import & data",
+            PhysicalTableName = "physical+projected",
             Warnings = ["<b>One feature has no optional name.</b>"]
         };
         var page = context.Render<OperateImportFilePage>();
