@@ -273,8 +273,11 @@ public sealed class MapPreviewRenderTests
             return (TValue)await Import.Task;
         }
 
+        // This test runtime forwards to its own fake implementation, which must expose failures to the test.
+#pragma warning disable BL0016
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
             InvokeAsync<TValue>(identifier, args);
+#pragma warning restore BL0016
     }
 
     private sealed class MapModule : IJSObjectReference
@@ -293,8 +296,11 @@ public sealed class MapPreviewRenderTests
             return ValueTask.FromResult(default(TValue)!);
         }
 
+        // This test runtime forwards to its own fake implementation, which must expose failures to the test.
+#pragma warning disable BL0016
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
             InvokeAsync<TValue>(identifier, args);
+#pragma warning restore BL0016
 
         public ValueTask DisposeAsync()
         {
