@@ -43,6 +43,51 @@ public sealed class LayerPreviewPaneRenderTests
         });
 
     [Theory]
+    [InlineData(0, "normal-first")]
+    [InlineData(0, "stac-first")]
+    [InlineData(7, "normal-first")]
+    [InlineData(7, "stac-first")]
+    public void EquivalentPublications_ResolveTheSelectedStorageLayerDeterministically(int layerId, string order)
+    {
+        using var ctx = new BunitContext();
+        var normal = new DiscoveryPublicationImpact("pub-normal", "CADASTRE", "37") { PreviewStorageLayerId = layerId };
+        var stac = new DiscoveryPublicationImpact("pub-stac", "cadastre", "catalog-item") { PreviewStorageLayerId = layerId };
+        var other = new DiscoveryPublicationImpact("pub-a-other-binding", "cadastre", "37") { PreviewStorageLayerId = layerId + 1 };
+        ctx.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new PublicationClient
+        {
+            Result = order == "normal-first" ? Publications(normal, stac, other) : Publications(other, stac, normal)
+        });
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
+        module.Mode = JSRuntimeMode.Loose;
+        var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels with { LayerId = layerId }).Add(x => x.EnvironmentId, "env-1"));
+
+        preview.WaitForAssertion(() => Assert.Single(module.Invocations["init"]));
+        Assert.Contains("/styles/pub-normal.json", System.Text.Json.JsonSerializer.Serialize(module.Invocations["init"][0].Arguments[1]), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("mismatched")]
+    [InlineData("unknown-alongside-matching")]
+    [InlineData("negative")]
+    public void UnprovedStorageIdentity_DoesNotMountAMap(string identity)
+    {
+        using var ctx = new BunitContext();
+        var matching = new DiscoveryPublicationImpact("pub-matching", "cadastre", "7") { PreviewStorageLayerId = 7 };
+        var unproved = new DiscoveryPublicationImpact("pub-unproved", "cadastre", "7")
+        {
+            PreviewStorageLayerId = identity == "mismatched" ? 8 : identity == "negative" ? -1 : null
+        };
+        ctx.Services.AddSingleton<IHonuaDiscoveryMetadataClient>(new PublicationClient
+        {
+            Result = identity == "unknown-alongside-matching" ? Publications(matching, unproved) : Publications(unproved)
+        });
+        var preview = ctx.Render<LayerMapPreview>(p => p.Add(x => x.Layer, Parcels).Add(x => x.EnvironmentId, "env-1"));
+
+        Assert.NotNull(preview.Find("[data-preview-unrendered]"));
+        Assert.Empty(preview.FindAll("figure.map-preview"));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void MissingOrAmbiguousPublication_DoesNotFallBackToStorageId(bool ambiguous)
