@@ -121,7 +121,7 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
 
     private void SessionChanged(ConsoleBrowserSessionSnapshot snapshot)
     {
-        if (snapshot.IsAuthenticated) return;
+        if (snapshot.Authenticated) return;
         _state = Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
         NotifyAuthenticationStateChanged(_state);
     }
