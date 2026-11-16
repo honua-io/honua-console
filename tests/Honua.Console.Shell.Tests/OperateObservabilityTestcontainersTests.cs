@@ -121,13 +121,10 @@ public sealed class OperateObservabilityTestcontainersTests
             services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
             services.AddSingleton<IConsoleOperateObservabilityClient>(operateClient);
             services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/activity"));
-            // OperateObservabilityPage (and its ConsoleCapabilityGate) inject IConsoleCapabilityManifest
-            // to gate the SIEM/investigations depth surface behind the first-release cut-line. This
-            // hand-rolled render container must register it or Blazor throws at injection time. Advertise
-            // siem-investigations so the investigations section renders live server data (asserted below);
-            // AddHonuaConsoleShell wires the config-list-backed default in the real host.
+            // Advertise both live surfaces exercised by this render fixture.
             services.AddSingleton<IConsoleCapabilityManifest>(
-                new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+                new ConsoleCapabilityManifest(
+                    [ConsoleCapabilityKeys.SiemInvestigations, ConsoleCapabilityKeys.RealtimeAlerting]));
             services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
             var provider = services.BuildServiceProvider();
 
