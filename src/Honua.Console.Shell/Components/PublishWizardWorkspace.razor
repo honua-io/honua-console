@@ -113,8 +113,7 @@ else
     private async Task LoadWorkspaceAsync()
     {
         _loading = true;
-        _loadFailure = null;
-        _loadStates = [];
+        // The previous failure stays until this read returns, so a retry keeps the notice and its focus.
         _services = [];
         _connections = [];
         _selectedServiceName = null;
@@ -125,6 +124,7 @@ else
         {
             var services = await OperateData.GetServicesViewAsync();
             var connections = await OperateData.GetConnectionsViewAsync();
+            _loadFailure = null;
             _loadStates = services.CapabilityStates.Concat(connections.CapabilityStates).ToArray();
             if (_loadStates.Count == 0)
             {
@@ -136,6 +136,7 @@ else
         {
             // A read failure is reported as itself. Falling back to sample content here is exactly
             // how the mockup fixtures used to reach the operator.
+            _loadStates = [];
             _loadFailure = ex.Message;
         }
         finally
