@@ -1,6 +1,6 @@
 namespace Honua.Console.Shell.Services;
 
-/// <summary>Collapses refresh bursts while awaiting every requested follow-up read.</summary>
+// Collapse refresh bursts while awaiting every requested follow-up read.
 public sealed class ConsoleRefreshCoalescer
 {
     private readonly object _gate = new();
