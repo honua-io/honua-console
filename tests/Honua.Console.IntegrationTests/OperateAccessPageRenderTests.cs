@@ -106,6 +106,33 @@ public sealed class OperateAccessPageRenderTests
         Assert.Contains("manage-roles", page2.Find("[data-rbac-custom-role]").GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RoleAudit_UsesNamedFocusableScrollRegion(bool enabled)
+    {
+        var data = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(SampleOverview(), []),
+            AuditLoad = new RbacAuditLoad([
+                new RbacAuditEntryView(1, "2026-11-16T22:00:00Z", "fixture-operator", "role.created", "synthetic-role", "success")
+            ], [])
+        };
+        var page = RenderRoles(data, new ConsoleV4Options { Enabled = enabled });
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-audit]")));
+
+        page.Find("[data-rbac-audit]").Click();
+
+        page.WaitForAssertion(() =>
+        {
+            var region = page.Find("[data-rbac-audit-panel] [role='region']");
+            Assert.Equal("Role change audit", region.GetAttribute("aria-label"));
+            Assert.Equal("0", region.GetAttribute("tabindex"));
+            Assert.Contains("console-table-wrap", region.ClassList);
+            Assert.Contains("fixture-operator", region.QuerySelector("[data-rbac-audit-table]")!.TextContent, StringComparison.Ordinal);
+        });
+    }
+
     [Fact]
     public void Members_WhenBindingMissing_RendersNotBoundSurface()
     {

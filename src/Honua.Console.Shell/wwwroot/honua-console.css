@@ -6767,6 +6767,11 @@ p {
 }
 
 /* Settings > Access · RBAC */
+.rbac-overview > .console-detail-heading > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .rbac-lede {
     margin: 6px 0 0;
     max-width: 80ch;
