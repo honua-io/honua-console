@@ -322,6 +322,7 @@
         var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
         if (!string.Equals(_activeDraftRouteId, draftRouteId, StringComparison.Ordinal))
         {
+            _dirty.MarkClean();
             _lastSave = null;
             _errorMessage = null;
             _activeDraftRouteId = draftRouteId;

@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -171,6 +172,26 @@ public sealed class StudioAutomationReadFailureTests
         Assert.Equal(1, client.RestoreCount);
         Assert.Equal(3, (await client.ReadSavedHistoryAsync(draft.ContentItemId)).Versions.Count);
         CapturePreview("restore-refresh", v4, page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedDraftNavigationDiscardsPreviousDraftDirtyState(bool v4)
+    {
+        using var context = CreateContext(v4, new FailingReadClient("open"));
+        var page = context.Render<StudioAutomationEditorPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+        page.Find("input[aria-label='Automation name']").Input("Edited previous draft");
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+
+        page.Render(p => p.Add(v => v.DraftId, "failed-draft"));
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Could not load automation draft", page.Markup);
+            Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+            Assert.Empty(page.FindAll("input[aria-label='Automation name']"));
+        });
     }
 
     private static void CapturePreview(string name, bool v4, string markup) =>
