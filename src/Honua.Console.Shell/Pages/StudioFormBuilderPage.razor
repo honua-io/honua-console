@@ -206,10 +206,10 @@
                             <FieldStateRow State="FieldState.System" Label="Form id" Value="@editor.FormId" Hint="@($"v{editor.Version}")" />
                         }
                         <FieldStateRow State="FieldState.Input" Label="Title" Errors="_validation.Errors(StudioFormFieldKeys.Title)">
-                            <input class="console-input" @bind="editor.Title" @bind:after="OnEdit" placeholder="Field inspection form" />
+                            <input class="console-input" @bind="editor.Title" @bind:after="OnEdit" disabled="@_busy" placeholder="Field inspection form" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Description">
-                            <textarea class="console-input" rows="2" @bind="editor.Description" @bind:after="OnEdit"></textarea>
+                            <textarea class="console-input" rows="2" @bind="editor.Description" @bind:after="OnEdit" disabled="@_busy"></textarea>
                         </FieldStateRow>
                     </article>
 
@@ -218,17 +218,17 @@
                         <h3>Feature service</h3>
                         <p class="console-muted">The feature service and layer that accept submissions. Required and server-validated before publish.</p>
                         <FieldStateRow State="FieldState.Input" Label="Service id" Errors="_validation.Errors(StudioFormFieldKeys.ServiceId)">
-                            <input class="console-input" @bind="editor.ServiceId" @bind:after="OnEdit" placeholder="inspections" />
+                            <input class="console-input" @bind="editor.ServiceId" @bind:after="OnEdit" disabled="@_busy" placeholder="inspections" />
                         </FieldStateRow>
                         <FieldStateRow State="FieldState.Input" Label="Layer id">
-                            <input class="console-input" type="number" @bind="editor.LayerId" @bind:after="OnEdit" />
+                            <input class="console-input" type="number" @bind="editor.LayerId" @bind:after="OnEdit" disabled="@_busy" />
                         </FieldStateRow>
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.AllowCreate" @bind:after="OnEdit" /> <span>Create</span></label>
-                            <label><input type="checkbox" @bind="editor.AllowUpdate" @bind:after="OnEdit" /> <span>Update</span></label>
-                            <label><input type="checkbox" @bind="editor.AllowDelete" @bind:after="OnEdit" /> <span>Delete</span></label>
-                            <label><input type="checkbox" @bind="editor.RequiresGeometry" @bind:after="OnEdit" /> <span>Requires geometry</span></label>
-                            <label><input type="checkbox" @bind="editor.AllowAttachments" @bind:after="OnEdit" /> <span>Allow attachments</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowCreate" @bind:after="OnEdit" disabled="@_busy" /> <span>Create</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowUpdate" @bind:after="OnEdit" disabled="@_busy" /> <span>Update</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowDelete" @bind:after="OnEdit" disabled="@_busy" /> <span>Delete</span></label>
+                            <label><input type="checkbox" @bind="editor.RequiresGeometry" @bind:after="OnEdit" disabled="@_busy" /> <span>Requires geometry</span></label>
+                            <label><input type="checkbox" @bind="editor.AllowAttachments" @bind:after="OnEdit" disabled="@_busy" /> <span>Allow attachments</span></label>
                         </div>
                         <ValidationMessageInline FieldKey="@StudioFormFieldKeys.SubmitOps" State="_validation" />
                     </article>
@@ -256,16 +256,16 @@
                         <fieldset class="studio-form-field" @key="field">
                             <div class="console-panel-grid">
                                 <FieldStateRow State="FieldState.Input" Label="Field id" Errors="_validation.Errors(StudioFormFieldKeys.FieldId(fieldIndex))">
-                                    <input class="console-input" @bind="field.FieldId" @bind:after="OnEdit" placeholder="asset_id" />
+                                    <input class="console-input" @bind="field.FieldId" @bind:after="OnEdit" disabled="@_busy" placeholder="asset_id" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Label">
-                                    <input class="console-input" @bind="field.Label" @bind:after="OnEdit" placeholder="Asset ID" />
+                                    <input class="console-input" @bind="field.Label" @bind:after="OnEdit" disabled="@_busy" placeholder="Asset ID" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Group / section">
-                                    <input class="console-input" @bind="field.Group" @bind:after="OnEdit" placeholder="Identification" />
+                                    <input class="console-input" @bind="field.Group" @bind:after="OnEdit" disabled="@_busy" placeholder="Identification" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Type">
-                                    <select class="console-input" @bind="field.Type" @bind:after="OnEdit">
+                                    <select class="console-input" @bind="field.Type" @bind:after="OnEdit" disabled="@_busy">
                                         @foreach (var type in StudioFormFieldTypes.All)
                                         {
                                             <option value="@type">@type</option>
@@ -275,10 +275,10 @@
                                 <FieldStateRow State="@(field.IsAttachment ? FieldState.System : string.IsNullOrWhiteSpace(field.TargetField) ? FieldState.Discovered : FieldState.Input)"
                                                Label="Target field"
                                                Hint="@(field.IsAttachment ? "managed by attachment store" : string.IsNullOrWhiteSpace(field.TargetField) ? "defaults to the field id" : null)">
-                                    <input class="console-input" @bind="field.TargetField" @bind:after="OnEdit" placeholder="asset_id" disabled="@field.IsAttachment" />
+                                    <input class="console-input" @bind="field.TargetField" @bind:after="OnEdit" placeholder="asset_id" disabled="@(_busy || field.IsAttachment)" />
                                 </FieldStateRow>
                                 <FieldStateRow State="FieldState.Input" Label="Domain">
-                                    <select class="console-input" @bind="field.DomainKind" @bind:after="OnEdit">
+                                    <select class="console-input" @bind="field.DomainKind" @bind:after="OnEdit" disabled="@_busy">
                                         <option value="none">No domain</option>
                                         <option value="coded">Coded values</option>
                                         <option value="range">Range</option>
@@ -287,11 +287,11 @@
                             </div>
 
                             <div class="console-chip-row studio-form-toggles">
-                                <label><input type="checkbox" @bind="field.Required" @bind:after="OnEdit" /> <span>Required</span></label>
-                                <label><input type="checkbox" @bind="field.Private" @bind:after="OnEdit" /> <span>Private</span></label>
+                                <label><input type="checkbox" @bind="field.Required" @bind:after="OnEdit" disabled="@_busy" /> <span>Required</span></label>
+                                <label><input type="checkbox" @bind="field.Private" @bind:after="OnEdit" disabled="@_busy" /> <span>Private</span></label>
                                 @if (field.IsAttachment)
                                 {
-                                    <label class="studio-form-label studio-form-inline"><span>Max attachments</span><input class="console-input" type="number" @bind="field.AttachmentMaxCount" @bind:after="OnEdit" /></label>
+                                    <label class="studio-form-label studio-form-inline"><span>Max attachments</span><input class="console-input" type="number" @bind="field.AttachmentMaxCount" @bind:after="OnEdit" disabled="@_busy" /></label>
                                 }
                             </div>
                             @if (field.IsAttachment)
@@ -303,14 +303,14 @@
                             {
                                 <label class="studio-form-label">
                                     <span>Coded values (one per line, <code>code=label</code>)</span>
-                                    <textarea class="console-input" rows="2" @bind="field.Choices" @bind:after="OnEdit" placeholder="good=Good&#10;needs-repair=Needs repair"></textarea>
+                                    <textarea class="console-input" rows="2" @bind="field.Choices" @bind:after="OnEdit" disabled="@_busy" placeholder="good=Good&#10;needs-repair=Needs repair"></textarea>
                                 </label>
                             }
                             else if (string.Equals(field.DomainKind, "range", StringComparison.OrdinalIgnoreCase))
                             {
                                 <div class="console-panel-grid">
-                                    <label class="studio-form-label"><span>Min</span><input class="console-input" @bind="field.RangeMin" @bind:after="OnEdit" /></label>
-                                    <label class="studio-form-label"><span>Max</span><input class="console-input" @bind="field.RangeMax" @bind:after="OnEdit" /></label>
+                                    <label class="studio-form-label"><span>Min</span><input class="console-input" @bind="field.RangeMin" @bind:after="OnEdit" disabled="@_busy" /></label>
+                                    <label class="studio-form-label"><span>Max</span><input class="console-input" @bind="field.RangeMax" @bind:after="OnEdit" disabled="@_busy" /></label>
                                 </div>
                                 <ValidationMessageInline FieldKey="@StudioFormFieldKeys.FieldRangeMin(fieldIndex)" State="_validation" />
                             }
@@ -318,7 +318,7 @@
                             <div class="console-panel-grid">
                                 <label class="studio-form-label">
                                     <span>Validation</span>
-                                    <select class="console-input" @bind="field.ValidationType" @bind:after="OnEdit">
+                                    <select class="console-input" @bind="field.ValidationType" @bind:after="OnEdit" disabled="@_busy">
                                         <option value="none">None</option>
                                         <option value="minLength">Min length</option>
                                         <option value="maxLength">Max length</option>
@@ -329,23 +329,23 @@
                                 </label>
                                 @if (!string.Equals(field.ValidationType, "none", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <label class="studio-form-label"><span>Rule value</span><input class="console-input" @bind="field.ValidationValue" @bind:after="OnEdit" /></label>
-                                    <label class="studio-form-label"><span>Message</span><input class="console-input" @bind="field.ValidationMessage" @bind:after="OnEdit" placeholder="Enter a valid value" /></label>
+                                    <label class="studio-form-label"><span>Rule value</span><input class="console-input" @bind="field.ValidationValue" @bind:after="OnEdit" disabled="@_busy" /></label>
+                                    <label class="studio-form-label"><span>Message</span><input class="console-input" @bind="field.ValidationMessage" @bind:after="OnEdit" disabled="@_busy" placeholder="Enter a valid value" /></label>
                                 }
                             </div>
 
                             <div class="console-panel-grid">
-                                <label class="studio-form-label"><span>Visible when field</span><input class="console-input" @bind="field.VisibilityDependsOn" @bind:after="OnEdit" placeholder="condition" /></label>
+                                <label class="studio-form-label"><span>Visible when field</span><input class="console-input" @bind="field.VisibilityDependsOn" @bind:after="OnEdit" disabled="@_busy" placeholder="condition" /></label>
                                 <label class="studio-form-label">
                                     <span>Operator</span>
-                                    <select class="console-input" @bind="field.VisibilityOperator" @bind:after="OnEdit">
+                                    <select class="console-input" @bind="field.VisibilityOperator" @bind:after="OnEdit" disabled="@_busy">
                                         @foreach (var op in StudioFormVisibilityOperators.All)
                                         {
                                             <option value="@op">@op</option>
                                         }
                                     </select>
                                 </label>
-                                <label class="studio-form-label"><span>Compares to</span><input class="console-input" @bind="field.VisibilityValue" @bind:after="OnEdit" /></label>
+                                <label class="studio-form-label"><span>Compares to</span><input class="console-input" @bind="field.VisibilityValue" @bind:after="OnEdit" disabled="@_busy" /></label>
                             </div>
                             <ValidationMessageInline FieldKey="@StudioFormFieldKeys.FieldVisibilityDependsOn(fieldIndex)" State="_validation" />
 
@@ -372,26 +372,26 @@
                         <p class="console-kicker">Attachments</p>
                         <h3>Attachment policy</h3>
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.AttachmentsEnabled" @bind:after="OnEdit" /> <span>Enabled</span></label>
-                            <label><input type="checkbox" @bind="editor.RequireExifStripping" @bind:after="OnEdit" /> <span>Strip EXIF</span></label>
-                            <label><input type="checkbox" @bind="editor.RequireFaceBlur" @bind:after="OnEdit" /> <span>Face blur</span></label>
-                            <label><input type="checkbox" @bind="editor.RequireRedaction" @bind:after="OnEdit" /> <span>Redaction</span></label>
+                            <label><input type="checkbox" @bind="editor.AttachmentsEnabled" @bind:after="OnEdit" disabled="@_busy" /> <span>Enabled</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireExifStripping" @bind:after="OnEdit" disabled="@_busy" /> <span>Strip EXIF</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireFaceBlur" @bind:after="OnEdit" disabled="@_busy" /> <span>Face blur</span></label>
+                            <label><input type="checkbox" @bind="editor.RequireRedaction" @bind:after="OnEdit" disabled="@_busy" /> <span>Redaction</span></label>
                         </div>
-                        <label class="studio-form-label"><span>Max attachments / submission</span><input class="console-input" type="number" @bind="editor.MaxAttachmentsPerSubmission" @bind:after="OnEdit" /></label>
+                        <label class="studio-form-label"><span>Max attachments / submission</span><input class="console-input" type="number" @bind="editor.MaxAttachmentsPerSubmission" @bind:after="OnEdit" disabled="@_busy" /></label>
                         <ValidationMessageInline FieldKey="@StudioFormFieldKeys.MaxAttachmentsPerSubmission" State="_validation" />
-                        <label class="studio-form-label"><span>Allowed content types</span><input class="console-input" @bind="editor.AllowedContentTypes" @bind:after="OnEdit" placeholder="image/*, application/pdf" /></label>
+                        <label class="studio-form-label"><span>Allowed content types</span><input class="console-input" @bind="editor.AllowedContentTypes" @bind:after="OnEdit" disabled="@_busy" placeholder="image/*, application/pdf" /></label>
                     </article>
 
                     <article class="console-panel">
                         <p class="console-kicker">Privacy</p>
                         <h3>Privacy policy</h3>
                         <div class="console-chip-row studio-form-toggles">
-                            <label><input type="checkbox" @bind="editor.CaptureActor" @bind:after="OnEdit" /> <span>Capture actor</span></label>
-                            <label><input type="checkbox" @bind="editor.CaptureDeviceId" @bind:after="OnEdit" /> <span>Capture device id</span></label>
+                            <label><input type="checkbox" @bind="editor.CaptureActor" @bind:after="OnEdit" disabled="@_busy" /> <span>Capture actor</span></label>
+                            <label><input type="checkbox" @bind="editor.CaptureDeviceId" @bind:after="OnEdit" disabled="@_busy" /> <span>Capture device id</span></label>
                         </div>
-                        <label class="studio-form-label"><span>Retention (days)</span><input class="console-input" type="number" @bind="editor.PrivacyRetentionDays" @bind:after="OnEdit" /></label>
+                        <label class="studio-form-label"><span>Retention (days)</span><input class="console-input" type="number" @bind="editor.PrivacyRetentionDays" @bind:after="OnEdit" disabled="@_busy" /></label>
                         <ValidationMessageInline FieldKey="@StudioFormFieldKeys.PrivacyRetentionDays" State="_validation" />
-                        <label class="studio-form-label"><span>Required transformations</span><input class="console-input" @bind="editor.RequiredTransformations" @bind:after="OnEdit" placeholder="auditOnly" /></label>
+                        <label class="studio-form-label"><span>Required transformations</span><input class="console-input" @bind="editor.RequiredTransformations" @bind:after="OnEdit" disabled="@_busy" placeholder="auditOnly" /></label>
                     </article>
                 </div>
 
@@ -400,14 +400,14 @@
                     <h3 id="form-offline-heading">Offline policy</h3>
                     <p class="console-muted">Field clients sync through honua-server transports. The offline policy must be an explicit, reviewed decision before publish.</p>
                     <div class="console-chip-row studio-form-toggles">
-                        <label><input type="checkbox" @bind="editor.OfflineEnabled" @bind:after="OnEdit" /> <span>Offline capture enabled</span></label>
-                        <label><input type="checkbox" @bind="editor.ReplicaTransportEnabled" @bind:after="OnEdit" /> <span>FeatureServer replica</span></label>
-                        <label><input type="checkbox" @bind="editor.FieldCollectionTransportEnabled" @bind:after="OnEdit" /> <span>FieldCollection sync</span></label>
+                        <label><input type="checkbox" @bind="editor.OfflineEnabled" @bind:after="OnEdit" disabled="@_busy" /> <span>Offline capture enabled</span></label>
+                        <label><input type="checkbox" @bind="editor.ReplicaTransportEnabled" @bind:after="OnEdit" disabled="@_busy" /> <span>FeatureServer replica</span></label>
+                        <label><input type="checkbox" @bind="editor.FieldCollectionTransportEnabled" @bind:after="OnEdit" disabled="@_busy" /> <span>FieldCollection sync</span></label>
                     </div>
                     <ValidationMessageInline FieldKey="@StudioFormFieldKeys.OfflineTransports" State="_validation" />
                     <label class="studio-form-label">
                         <span>Conflict review mode</span>
-                        <select class="console-input" @bind="editor.ConflictReviewMode" @bind:after="OnEdit">
+                        <select class="console-input" @bind="editor.ConflictReviewMode" @bind:after="OnEdit" disabled="@_busy">
                             @foreach (var mode in StudioFormConflictModes.All)
                             {
                                 <option value="@mode">@mode</option>
@@ -415,7 +415,7 @@
                         </select>
                     </label>
                     <label class="studio-form-review">
-                        <input type="checkbox" @bind="editor.OfflinePolicyReviewed" @bind:after="OnEdit" />
+                        <input type="checkbox" @bind="editor.OfflinePolicyReviewed" @bind:after="OnEdit" disabled="@_busy" />
                         <span>I reviewed the offline/sync policy for this form (required before publish).</span>
                     </label>
                 </article>
