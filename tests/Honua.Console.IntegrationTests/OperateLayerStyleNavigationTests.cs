@@ -9,11 +9,11 @@ namespace Honua.Console.IntegrationTests;
 public sealed class OperateLayerStyleNavigationTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PreviousLayerReadCannotReplaceCurrentLayerEdits(bool enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task PreviousLayerReadCannotReplaceCurrentLayerEdits(ConsolePresentationMode presentation)
     {
-        using var context = Context(enabled);
+        using var context = Context(presentation);
         var source = new DelayedOverrides();
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
         var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
@@ -28,17 +28,17 @@ public sealed class OperateLayerStyleNavigationTests
         Assert.Equal("second draft", page.Find("[data-layer-style-popup]").GetAttribute("value"));
         Assert.Equal("/operate/layers/second", page.Find("a").GetAttribute("href"));
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
-        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
-        if (enabled) Assert.Equal("second", Assert.Single(registry.Current.Entities).ResourceId);
+        if (presentation == ConsolePresentationMode.V4) Assert.Equal("second", Assert.Single(registry.Current.Entities).ResourceId);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PreviousLayerSaveCannotChangeCurrentSaveOrBaseline(bool enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task PreviousLayerSaveCannotChangeCurrentSaveOrBaseline(ConsolePresentationMode presentation)
     {
-        using var context = Context(enabled);
+        using var context = Context(presentation);
         var source = new DelayedOverrides { DelayFirstRead = false };
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
@@ -58,8 +58,8 @@ public sealed class OperateLayerStyleNavigationTests
         Assert.True(page.Find("[data-layer-style-save]").HasAttribute("disabled"));
         Assert.Empty(page.FindAll("[data-layer-style-saved]"));
         Assert.Equal("second draft", page.Find("[data-layer-style-popup]").GetAttribute("value"));
-        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
-        Assert.Equal(enabled ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.PendingOperationCount);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
         await page.InvokeAsync(() => source.SecondSave.SetResult(new(true)));
         await secondSave;
 
@@ -73,11 +73,11 @@ public sealed class OperateLayerStyleNavigationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void SameLayerParametersPreserveBothDraftsAndDirtyContext(bool enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void SameLayerParametersPreserveBothDraftsAndDirtyContext(ConsolePresentationMode presentation)
     {
-        using var context = Context(enabled);
+        using var context = Context(presentation);
         var source = new DelayedOverrides { DelayFirstRead = false };
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
         var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
@@ -90,16 +90,16 @@ public sealed class OperateLayerStyleNavigationTests
         Assert.Equal("drawing draft", page.Find("[data-layer-style-drawing]").GetAttribute("value"));
         Assert.Equal(["first"], source.Reads);
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
-        Assert.Equal(enabled ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SameLayerParametersDoNotRestartPendingRead(bool enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task SameLayerParametersDoNotRestartPendingRead(ConsolePresentationMode presentation)
     {
-        using var context = Context(enabled);
+        using var context = Context(presentation);
         var source = new DelayedOverrides();
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
         var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
@@ -112,11 +112,11 @@ public sealed class OperateLayerStyleNavigationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SameLayerParametersPreserveNewerEditsDuringSave(bool enabled)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task SameLayerParametersPreserveNewerEditsDuringSave(ConsolePresentationMode presentation)
     {
-        using var context = Context(enabled);
+        using var context = Context(presentation);
         var source = new DelayedOverrides { DelayFirstRead = false };
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
         var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
@@ -138,15 +138,15 @@ public sealed class OperateLayerStyleNavigationTests
         Assert.Equal(["first"], source.Reads);
         Assert.Equal("submitted popup", Assert.Single(source.Edits).PopupInfoJson);
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
-        Assert.Equal(enabled ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(presentation == ConsolePresentationMode.V4 ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
     }
 
-    private static BunitContext Context(bool enabled)
+    private static BunitContext Context(ConsolePresentationMode presentation)
     {
         var context = new BunitContext();
         context.AddConsoleNotifications();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         context.Services.AddSingleton<IStudioMapStyleCatalogDataSource, UnsupportedStudioMapStyleCatalogDataSource>();
         return context;
