@@ -116,16 +116,18 @@
         _issue = null;
         _saved = false;
         _loading = true;
+        _saving = false;
         await ReportUnsavedAsync();
+        if (!IsCurrentView(address, revision)) return;
         if (Client is { } client)
         {
             var result = await client.ReadDiscoveryAsync(address);
-            if (_disposed || revision != _viewRevision || Address != address) return;
+            if (!IsCurrentView(address, revision)) return;
             _loaded = result.Data;
             _issue = result.Issue;
             PopulateFields();
         }
-        if (!_disposed && revision == _viewRevision)
+        if (IsCurrentView(address, revision))
         {
             _loading = false;
             await ReportUnsavedAsync();
@@ -134,28 +136,40 @@
 
     private async Task SaveAsync()
     {
-        if (_saving || _loaded is null || Client is not { } client) return;
+        if (_disposed || _saving || _loaded is null || Client is not { } client) return;
         var address = Address;
         var revision = _viewRevision;
+        var request = new DiscoveryMetadataUpdateRequest
+        {
+            Etag = _loaded.Etag, Title = EditedText(_title, _loaded.Title), Description = EditedText(_description, _loaded.Description),
+            Keywords = EditedKeywords(_keywords, _loaded.Keywords)
+        };
         _saving = true;
         _saved = false;
-        await ReportUnsavedAsync();
         try
         {
-            var result = await client.UpdateDiscoveryAsync(address, new DiscoveryMetadataUpdateRequest
-            {
-                Etag = _loaded.Etag, Title = EditedText(_title, _loaded.Title), Description = EditedText(_description, _loaded.Description),
-                Keywords = EditedKeywords(_keywords, _loaded.Keywords)
-            });
-            if (_disposed || revision != _viewRevision || Address != address) return;
+            await ReportUnsavedAsync();
+            if (!IsCurrentView(address, revision)) return;
+            var result = await client.UpdateDiscoveryAsync(address, request);
+            if (!IsCurrentView(address, revision)) return;
             _issue = result.Issue;
             if (result.Data is null) return;
             _loaded = result.Data;
             PopulateFields();
             _saved = true;
         }
-        finally { _saving = false; if (!_disposed) await ReportUnsavedAsync(); }
+        finally
+        {
+            if (IsCurrentView(address, revision))
+            {
+                _saving = false;
+                await ReportUnsavedAsync();
+            }
+        }
     }
+
+    private bool IsCurrentView(DiscoveryMetadataAddress address, long revision) =>
+        !_disposed && revision == _viewRevision && Address == address;
 
     private static string? EditedText(string current, string? saved) => current == (saved ?? string.Empty)
         ? saved : string.IsNullOrWhiteSpace(current) ? null : current;
