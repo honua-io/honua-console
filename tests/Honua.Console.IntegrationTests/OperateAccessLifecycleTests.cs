@@ -173,7 +173,7 @@ public sealed class OperateAccessLifecycleTests
         var page = context.Render<OperateAccessRolesPage>();
         OpenDraft(page, "draft");
         var pending = page.Find("[data-rbac-create-form]").SubmitAsync();
-        page.Dispose();
+        await context.DisposeComponentsAsync();
         created.SetResult(new(true, null));
         await pending;
 
