@@ -26,7 +26,7 @@ public sealed class OperatorWorkflowRouteAuthorizationTests
         // No backend clients are registered: constructing the page would fail, even before
         // it could display a misleading missing-binding or outage state.
         var view = context.Render<AuthorizeRouteView>(parameters => parameters
-            .Add(component => component.RouteData, new RouteData(pageType, new Dictionary<string, object>()))
+            .Add(component => component.RouteData, new RouteData(pageType, new Dictionary<string, object?>()))
             .Add(component => component.NotAuthorized, _ => builder =>
             {
                 builder.OpenComponent<RedirectToLogin>(0);
