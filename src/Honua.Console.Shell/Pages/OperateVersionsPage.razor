@@ -207,15 +207,15 @@
                 <div class="console-panel-grid">
                     <label class="console-field">
                         <span class="console-field-label">Version name</span>
-                        <input class="console-input" type="text" @bind="_formName" data-version-name />
+                        <input class="console-input" type="text" @bind="_formName" @bind:event="oninput" @bind:after="OnFormEdit" data-version-name />
                     </label>
                     <label class="console-field">
                         <span class="console-field-label">Owner</span>
-                        <input class="console-input" type="text" @bind="_formOwner" data-version-owner />
+                        <input class="console-input" type="text" @bind="_formOwner" @bind:event="oninput" @bind:after="OnFormEdit" data-version-owner />
                     </label>
                     <label class="console-field">
                         <span class="console-field-label">Access</span>
-                        <select class="console-input" @bind="_formAccess" data-version-access>
+                        <select class="console-input" @bind="_formAccess" @bind:after="OnFormEdit" data-version-access>
                             <option value="private">Private</option>
                             <option value="protected">Protected</option>
                             <option value="public">Public</option>
@@ -223,7 +223,7 @@
                     </label>
                     <label class="console-field">
                         <span class="console-field-label">Description</span>
-                        <input class="console-input" type="text" @bind="_formDescription" data-version-description />
+                        <input class="console-input" type="text" @bind="_formDescription" @bind:event="oninput" @bind:after="OnFormEdit" data-version-description />
                     </label>
                 </div>
                 <div class="console-action-row">
@@ -259,6 +259,10 @@
     private ConsoleConfirmDialog? _confirm;
 
     // Create/alter form state. _alterGuid is null in create mode and the version guid in alter mode.
+    private int _formRevision;
+    private int _formSession;
+    private void OnFormEdit() => _formRevision++;
+
     private string? _alterGuid;
     private string? _alterName;
     private string _originalName = string.Empty;
@@ -346,6 +350,8 @@
 
     private void BeginAlter(OperateVersionView version)
     {
+        _formSession++;
+        _formRevision++;
         _alterGuid = version.VersionGuid;
         _alterName = version.VersionName;
         _formName = version.VersionName;
@@ -367,6 +373,8 @@
 
     private void CancelAlter()
     {
+        _formSession++;
+        _formRevision++;
         _alterGuid = null;
         _alterName = null;
         _formName = string.Empty;
@@ -383,6 +391,10 @@
             return Task.CompletedTask;
         }
 
+        var revision = _formRevision;
+        var session = _formSession;
+        var submitted = (_formName, _formOwner, _formAccess, _formDescription);
+        var altering = _alterGuid is not null;
         _lastReconcile = null;
         return Notifications.RunGuardedAsync(
             async () =>
@@ -412,7 +424,15 @@
 
                 if (_lastResult.Succeeded)
                 {
-                    CancelAlter();
+                    if (revision == _formRevision)
+                    {
+                        CancelAlter();
+                    }
+                    else if (altering && session == _formSession)
+                    {
+                        // The submitted values are saved; newer input remains a draft against them.
+                        (_originalName, _originalOwner, _originalAccess, _originalDescription) = submitted;
+                    }
                     _versions = await VersionOps.ListVersionsAsync(_serviceId);
                 }
             },

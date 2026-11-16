@@ -9,12 +9,13 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 // A 403 from the server approval gate is Forbidden and is not bypassed.
-public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClient
+public sealed partial class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClient
 {
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to review deploy approvals.";
 
     private readonly HttpClient _http;
+    private readonly IConsoleAuthorityBindingValidator? _authority;
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
@@ -27,7 +28,8 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
         IConsoleAccountSessionStore sessionStore,
         string? adminApiKey = null,
         IConsoleOperatorBearerProvider? operatorBearerProvider = null,
-        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
+        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive,
+        IConsoleAuthorityBindingValidator? authority = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _profileStore = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
@@ -39,6 +41,7 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
                 new UnavailableConsoleOperatorBearerExchange(),
                 TimeProvider.System);
         _credentialMode = credentialMode;
+        _authority = authority;
     }
 
     public async Task<OperateSectionResult<DeployOperationProposal>> GetOperationAsync(
@@ -108,31 +111,6 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
             pending,
             partialResult: anyFailed,
             message: anyFailed ? "One or more deploy operations could not be read and were omitted." : string.Empty);
-    }
-
-    public async Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(
-        string operationId,
-        string? reason,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
-
-        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        if (profile is null)
-        {
-            return OperateSectionResult<DeployOperationProposal>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
-        }
-
-        var body = JsonSerializer.Serialize(
-            new SubmitDeployOperationRequest { Reason = NormalizeReason(reason) },
-            DeployControlJsonContext.Default.SubmitDeployOperationRequest);
-
-        return await SendAsync(
-            profile,
-            HttpMethod.Post,
-            DeployControlAdminRoutes.Submit(operationId.Trim()),
-            body,
-            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<OperateSectionResult<DeployOperationProposal>> RollbackAsync(

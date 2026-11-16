@@ -55,7 +55,8 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 adminApiKey,
                 serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                credentialMode));
+                credentialMode,
+                serviceProvider.GetService<IConsoleAuthorityBindingValidator>()));
         services.TryAddSingleton<IConsoleDeployOperationsClient>(serviceProvider =>
             new HttpConsoleDeployOperationsClient(
                 ShellHttpClients.ManagerBound(serviceProvider),

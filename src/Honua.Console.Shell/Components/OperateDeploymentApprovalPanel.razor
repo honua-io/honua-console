@@ -9,7 +9,7 @@
 @* Human-in-the-loop approval panel for a single deploy-control operation. Shows the
    proposal detail (service/env/revision/action, change summary, evidence links, required
    approvals, suggested rollback) and the governed actions:
-     Approve  -> POST /operations/{id}/submit  (optional reason)
+     Review -> GET /operations/{id}/approval-review/submit; explicit approve -> POST submit
      Rollback -> POST /operations/{id}/rollback (data-affecting requires explicit confirm)
    Status polling reflects AwaitingApproval -> Submitted -> Reconciling -> Succeeded.
    The server's OperatorApprovalGate is the real gate; this panel never bypasses it.
@@ -179,10 +179,17 @@ else
                             disabled="@(_busy || proposal.BlockingReasons.Count > 0)"
                             title="@(proposal.BlockingReasons.Count > 0
                                 ? "Resolve blocking findings before approving."
+                                : _review is null ? "Review the current deployment before approving."
                                 : "Approve and submit this operation for execution.")"
                             @onclick="ApproveAsync">
-                        Approve &amp; submit
+                        @(_review is null ? "Review deployment" : "Approve & submit")
                     </button>
+                }
+
+                @if (_review is not null)
+                {
+                    <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="CancelReview">Cancel review</button>
+                    <p role="status">Review the deployment above before approving. This review expires @_review.ExpiresAt.ToLocalTime().ToString("t").</p>
                 }
 
                 @if (proposal.IsRollbackEligible)
@@ -379,6 +386,8 @@ else
         if (!string.Equals(_loadedOperationId, OperationId, StringComparison.Ordinal))
         {
             _loadedOperationId = OperationId;
+            _review = null;
+            _reviewGeneration++;
             _confirmingRollback = false;
             _actionMessage = null;
             _recoveryLoaded = false;
@@ -398,7 +407,9 @@ else
 
     private async Task LoadAsync()
     {
+        var generation = _reviewGeneration;
         var result = await ApprovalClient.GetOperationAsync(OperationId);
+        if (generation != _reviewGeneration) return;
         await ApplyAsync(result);
     }
 
@@ -467,13 +478,6 @@ else
         }
     }
 
-    private async Task ApproveAsync()
-    {
-        await RunActionAsync(
-            () => ApprovalClient.SubmitAsync(OperationId, _reason),
-            successMessage: "Approved — operation submitted for execution.");
-    }
-
     private void RequestRollbackAsync()
     {
         // Always require an explicit confirm step before a rollback request is sent, and make
@@ -503,9 +507,11 @@ else
 
         _busy = true;
         _actionMessage = null;
+        var generation = _reviewGeneration;
         try
         {
             var result = await action();
+            if (generation != _reviewGeneration) return;
             if (result.IsAllowed && result.Value is not null)
             {
                 await ApplyAsync(result);
@@ -552,14 +558,16 @@ else
                     break;
                 }
 
-                if (_busy)
+                if (_busy || _review is not null)
                 {
                     continue;
                 }
 
+                var generation = _reviewGeneration;
                 var result = await ApprovalClient.GetOperationAsync(OperationId, cancellationToken);
                 await InvokeAsync(async () =>
                 {
+                    if (_busy || _review is not null || generation != _reviewGeneration) return;
                     await ApplyAsync(result);
                     StateHasChanged();
                 });
@@ -580,5 +588,10 @@ else
         _timer = null;
     }
 
-    public void Dispose() => StopPolling();
+    public void Dispose()
+    {
+        _review = null;
+        _reviewGeneration++;
+        StopPolling();
+    }
 }
