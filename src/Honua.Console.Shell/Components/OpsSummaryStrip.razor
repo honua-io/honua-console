@@ -123,7 +123,7 @@
         await ResolveServerNameAsync();
         if (_disposed) return;
         _updates = new ConsoleProposalSubscription(ServiceProvider.GetService<IConsoleProposalRealtimeClient>(),
-            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
         await RefreshAsync();
         if (_disposed) return;
         await _updates.StartAsync(_lifetimeToken);
@@ -173,18 +173,33 @@
         if (result.IsAllowed) _lastFindingsReadUtc = _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
     }
 
+    private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
+    {
+        await ReadInboxAsync();
+        if (_disposed || _inbox is null || _inboxStatus != OperateSectionStatus.Allowed || _inboxPartial)
+            throw new InvalidOperationException("The approval summary could not be reconciled.");
+        StateHasChanged();
+    });
+
+    private readonly SemaphoreSlim _inboxReadGate = new(1, 1);
+
     private async Task ReadInboxAsync()
     {
-        if (_disposed || _inbox is null) return;
-        var revision = ++_inboxRevision;
-        var result = await ConsoleReadBudget.RunAsync(token => _inbox.GetInboxAsync(cancellationToken: token), LoadBudget,
-            "The approval queue read did not respond in time.", _lifetimeToken);
-        if (_disposed || revision != _inboxRevision) return;
-        _inboxStatus = result.Status;
-        _awaitingApprovals = result.IsAllowed ? result.Value!.AwaitingApprovalCount : null;
-        _inboxPartial = result.IsAllowed && result.PartialResult;
-        _inboxPartialMessage = ApprovalInboxPresentation.PartialMessage(result.Message);
-        if (result.IsAllowed) _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
+        await _inboxReadGate.WaitAsync();
+        try
+        {
+            if (_disposed || _inbox is null) return;
+            var revision = ++_inboxRevision;
+            var result = await ConsoleReadBudget.RunAsync(token => _inbox.GetInboxAsync(cancellationToken: token), LoadBudget,
+                "The approval queue read did not respond in time.", _lifetimeToken);
+            if (_disposed || revision != _inboxRevision) return;
+            _inboxStatus = result.Status;
+            _awaitingApprovals = result.IsAllowed ? result.Value!.AwaitingApprovalCount : null;
+            _inboxPartial = result.IsAllowed && result.PartialResult;
+            _inboxPartialMessage = ApprovalInboxPresentation.PartialMessage(result.Message);
+            if (result.IsAllowed) _lastRefreshedAtUtc = DateTimeOffset.UtcNow;
+        }
+        finally { _inboxReadGate.Release(); }
     }
 
     private async Task ResolveServerNameAsync()

@@ -4,13 +4,15 @@ namespace Honua.Console.Shell.Services;
 
 public sealed record ConsoleProposalObservers(
     Action<ConsoleProposalEvent> ProposalChanged,
-    Action<ConsoleRealtimeConnectionState> ConnectionChanged);
+    Action<ConsoleRealtimeConnectionState> ConnectionChanged,
+    Func<Task>? RefreshRequired = null);
 
 public sealed class ConsoleProposalSubscription : IDisposable
 {
     private readonly IConsoleProposalRealtimeClient? _client;
     private readonly IConsoleRealtimeCapabilityClient? _connection;
     private readonly ConsoleProposalObservers _observers;
+    private readonly IConsoleRealtimeRefreshClient? _refresh;
     private bool _disposed;
 
     public ConsoleProposalSubscription(IConsoleProposalRealtimeClient? client, ConsoleProposalObservers observers)
@@ -19,6 +21,8 @@ public sealed class ConsoleProposalSubscription : IDisposable
         _observers = observers;
         if (client is null) return;
         client.ProposalChanged += observers.ProposalChanged;
+        _refresh = client as IConsoleRealtimeRefreshClient;
+        if (_refresh is not null && observers.RefreshRequired is not null) _refresh.RefreshRequired += observers.RefreshRequired;
         _connection = client as IConsoleRealtimeCapabilityClient;
         if (_connection is not null) _connection.ConnectionStateChanged += observers.ConnectionChanged;
     }
@@ -39,6 +43,7 @@ public sealed class ConsoleProposalSubscription : IDisposable
         if (_disposed) return;
         _disposed = true;
         if (_client is not null) _client.ProposalChanged -= _observers.ProposalChanged;
+        if (_refresh is not null && _observers.RefreshRequired is not null) _refresh.RefreshRequired -= _observers.RefreshRequired;
         if (_connection is not null) _connection.ConnectionStateChanged -= _observers.ConnectionChanged;
     }
 }

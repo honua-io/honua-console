@@ -4,19 +4,8 @@
 @inject IServiceProvider ServiceProvider
 @implements IAsyncDisposable
 
-@* Deploy-operations list (console#290 acceptance criterion 1): consumes the real, paged
-   GET /api/v1/admin/deploy/operations list (honua-server PR #2577) instead of the retired
-   release-scrape workaround (a deploy operation is no longer discovered only by
-   hand-copying a deployOperationId off a release, or by manual "track by id"). Live
-   progress (canary step / health gate / promote / rollback transitions) comes from the
-   deploy-operations realtime seam with an honest Live/Manual pill (console#293); when
-   honua-server#2554's hub group does not exist yet (true for every server today) it falls
-   back to a manual-refresh poll, never fake liveness.
-
-   Feature-detected against an older server: a 404/501 on the list route degrades the
-   Kind/Status filter to <see cref="OperateSectionStatus.Unsupported"/>, which the caller can
-   still bridge to a caller-supplied tracked-id fallback (kept on the Deploy page for exactly
-   this case). *@
+@* Read the paged deploy-operation list and stream operation transitions. Unsupported
+   servers retain the tracked-id fallback; interrupted streams expose manual refresh. *@
 
 <div class="console-panel operate-deploy-operations-list" data-deploy-operations-list>
     <div class="console-panel-heading">
@@ -115,6 +104,8 @@
     private string _status = string.Empty;
     private string _kind = string.Empty;
     private int _page = 1;
+    private bool _disposed;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private const int PageSize = 25;
     private IReadOnlyList<OperateTimelineEntry> _liveEntries = [];
 
@@ -139,6 +130,7 @@
         }
 
         _realtimeClient.OperationChanged += OnRealtimeOperationChanged;
+        if (_realtimeClient is IConsoleRealtimeRefreshClient refresh) refresh.RefreshRequired += OnRefreshRequiredAsync;
         if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
         {
             capability.ConnectionStateChanged += OnConnectionStateChanged;
@@ -149,14 +141,29 @@
 
     private async Task RefreshAsync()
     {
-        _result = await DeployOperationsClient.ListAsync(new DeployOperationListQuery(
-            Status: string.IsNullOrWhiteSpace(_status) ? null : _status,
-            Kind: string.IsNullOrWhiteSpace(_kind) ? null : _kind,
-            Page: _page,
-            PageSize: PageSize));
-        _page = _result is { IsAllowed: true, Value: { } list } ? list.Page : _page;
-        await InvokeAsync(StateHasChanged);
+        await _refreshGate.WaitAsync();
+        try
+        {
+            if (_disposed) return;
+            _result = await DeployOperationsClient.ListAsync(new DeployOperationListQuery(
+                Status: string.IsNullOrWhiteSpace(_status) ? null : _status,
+                Kind: string.IsNullOrWhiteSpace(_kind) ? null : _kind,
+                Page: _page,
+                PageSize: PageSize));
+            _page = _result is { IsAllowed: true, Value: { } list } ? list.Page : _page;
+            if (!_disposed) await InvokeAsync(StateHasChanged);
+        }
+        finally { _refreshGate.Release(); }
     }
+
+    private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
+    {
+        await RefreshAsync();
+        if (_disposed || _result is not { IsAllowed: true, PartialResult: false })
+            throw new InvalidOperationException("The deploy operations could not be reconciled.");
+        _liveEntries = [];
+        StateHasChanged();
+    });
 
     private async Task PreviousPageAsync()
     {
@@ -214,21 +221,22 @@
 
     private string RealtimeStateTitle => ConnectionState switch
     {
-        ConsoleRealtimeConnectionState.Connected => "Live deploy-operation transitions via the admin realtime hub.",
-        ConsoleRealtimeConnectionState.Connecting => "Connecting to the admin realtime hub.",
+        ConsoleRealtimeConnectionState.Connected => "Live deploy-operation updates.",
+        ConsoleRealtimeConnectionState.Connecting => "Connecting to live updates.",
         ConsoleRealtimeConnectionState.FallbackEngaged =>
-            "The deploy-operations realtime group is unavailable (honua-server#2554 not yet merged, or the connection failed); use Refresh to update.",
+            "Live updates are unavailable; use Refresh to update.",
         _ => "No environment is bound; use Refresh to update.",
     };
 
     public ValueTask DisposeAsync()
     {
-        // The realtime client is an app-lifetime singleton shared across circuits (mirrors
-        // ApprovalInboxPage): only detach this component's handlers. The connection itself is
-        // torn down by the DI container on shutdown, not when one operator navigates away.
+        _disposed = true;
+        // Detach this component's handlers; the scoped client can serve other mounted consumers.
+        // The DI container owns the connection lifetime.
         if (_realtimeClient is not null)
         {
             _realtimeClient.OperationChanged -= OnRealtimeOperationChanged;
+            if (_realtimeClient is IConsoleRealtimeRefreshClient refresh) refresh.RefreshRequired -= OnRefreshRequiredAsync;
             if (_realtimeClient is IConsoleRealtimeCapabilityClient capability)
             {
                 capability.ConnectionStateChanged -= OnConnectionStateChanged;

@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 
@@ -18,7 +19,7 @@ public sealed class ConsoleProposalRealtimeMapperTests
             GeneratedAt = DateTimeOffset.Parse("2026-06-28T10:00:00Z")
         };
 
-        var evt = SignalRConsoleProposalRealtimeClient.MapEvent(ConsoleProposalEventKind.Pending, wire);
+        var evt = SseConsoleProposalRealtimeClient.MapEvent(ConsoleProposalEventKind.Pending, wire);
 
         Assert.Equal(ConsoleProposalEventKind.Pending, evt.EventKind);
         Assert.Equal("prop-1", evt.ProposalId);
@@ -40,7 +41,7 @@ public sealed class ConsoleProposalRealtimeMapperTests
             GeneratedAt = DateTimeOffset.Parse("2026-06-28T11:00:00Z")
         };
 
-        var evt = SignalRConsoleProposalRealtimeClient.MapEvent(ConsoleProposalEventKind.Resolved, wire);
+        var evt = SseConsoleProposalRealtimeClient.MapEvent(ConsoleProposalEventKind.Resolved, wire);
 
         Assert.Equal(ConsoleProposalEventKind.Resolved, evt.EventKind);
         Assert.Equal("prop-2", evt.ProposalId);

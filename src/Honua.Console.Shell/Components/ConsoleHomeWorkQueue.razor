@@ -104,6 +104,7 @@
     private bool _disposed;
     private bool _inboxLoaded;
     private bool _inboxBusy;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
@@ -123,21 +124,19 @@
         if (_disposed) return;
 
         _updates = new ConsoleProposalSubscription(ServiceProvider.GetService<IConsoleProposalRealtimeClient>(),
-            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
         await _updates.StartAsync(_lifetime.Token);
     }
 
     private async Task RefreshInboxAsync()
     {
-        if (_inboxBusy || _disposed)
-        {
-            return;
-        }
+        await _refreshGate.WaitAsync();
 
         _inboxBusy = true;
         try
         {
 
+            if (_disposed) return;
             var inbox = await ConsoleReadBudget.RunAsync(
                 token => Inbox.GetInboxAsync(cancellationToken: token),
                 LoadBudget,
@@ -153,9 +152,18 @@
         finally
         {
             _inboxBusy = false;
+            _refreshGate.Release();
             _inboxLoaded = true;
         }
     }
+
+    private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
+    {
+        await RefreshInboxAsync();
+        if (_disposed || !_inbox.IsAllowed || _inbox.PartialResult)
+            throw new InvalidOperationException("The approval projection could not be reconciled.");
+        StateHasChanged();
+    });
 
     private void OnProposalEvent(ConsoleProposalEvent proposal)
     {
