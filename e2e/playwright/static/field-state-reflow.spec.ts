@@ -29,7 +29,7 @@ for (const v4Enabled of [false, true]) {
         handleApi: async (request, response) => {
           const path = new URL(request.url!, 'http://localhost').pathname;
           if (request.method === 'GET' &&
-              (path === '/api/v1/admin/forms/packages' || path === `/api/v1/admin/forms/packages/${formId}`)) {
+              (path === '/api/v1/admin/forms' || path === `/api/v1/admin/forms/${formId}`)) {
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify(path.endsWith(formId) ? version : [summary]));
             return;
