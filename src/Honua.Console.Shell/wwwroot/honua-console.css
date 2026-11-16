@@ -8227,12 +8227,25 @@ p {
     top: 1rem;
 }
 
+.support-context-panel .console-panel-heading {
+    flex-wrap: wrap;
+}
+
+.support-context-panel .console-panel-heading > *,
+.support-context-row dt,
+.support-context-row dd {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
 .support-context-list {
     margin: 0;
 }
 
 .support-context-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.35rem 0;
