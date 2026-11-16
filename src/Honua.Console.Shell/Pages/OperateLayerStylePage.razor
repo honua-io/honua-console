@@ -176,7 +176,7 @@
     private readonly Dictionary<string, string> _popupEdits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _drawingEdits = new(StringComparer.Ordinal);
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal)) return;
         _loadedResourceId = ResourceId;
@@ -187,16 +187,11 @@
         _drawingEdits.Clear();
         _saving = false;
         _saveResult = null;
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
         var generation = ++_loadGeneration;
         var resourceId = ResourceId;
         var publication = PublicationContext;
         var attempt = publication?.BeginRead(resourceId);
         _loading = true;
-        _saveResult = null;
         var catalog = await StyleCatalog.GetStyleCatalogAsync();
         if (generation != _loadGeneration) return;
         var overrides = await OverrideData.GetOverridesAsync(resourceId);
