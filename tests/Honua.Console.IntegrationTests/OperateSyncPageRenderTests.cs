@@ -398,7 +398,7 @@ public sealed class OperateSyncPageRenderTests
 
         private bool _resolved;
 
-        public Task<TemporalViewerWorkspace> GetEnvironmentAsync(CancellationToken cancellationToken = default) =>
+        public Task<TemporalViewerWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Workspace);
 
         public Task<TemporalCheckpointList> GetCheckpointsAsync(string sourceId, CancellationToken cancellationToken = default) =>

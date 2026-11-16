@@ -29,7 +29,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
         var page = context.Render<OperateReleaseWitnessPage>();
 
         Assert.Equal(new ConsoleReleaseWitnessRequest("map", "item-one", "version-one", "hash-one", "proposal-one"), Assert.Single(client.Requests));
-        AssertPresentation(page, enabled ? "Publication evidence" : "Candidate publication evidence", enabled ? 1 : 0);
+        AssertPresentation(page, enabled ? "Release evidence" : "Candidate release evidence", enabled ? 1 : 0);
         var witness = page.Find("[data-release-witness]");
         Assert.Equal("server-revision-one", witness.GetAttribute("data-server-source-revision"));
         Assert.Equal("map", witness.GetAttribute("data-family"));
@@ -64,7 +64,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
 
         var page = context.Render<OperateReleaseWitnessPage>();
 
-        AssertPresentation(page, enabled ? "Publication evidence" : "Candidate publication evidence", enabled ? 1 : 0);
+        AssertPresentation(page, enabled ? "Release evidence" : "Candidate release evidence", enabled ? 1 : 0);
         Assert.Empty(client.Requests);
         Assert.Empty(page.FindAll("[data-release-witness]"));
         Assert.Contains("requires a complete sealed candidate query", page.Markup, StringComparison.Ordinal);
@@ -82,7 +82,7 @@ public sealed class OperateReleaseWitnessPageRenderTests
 
         var page = context.Render<OperateReleaseWitnessPage>();
 
-        AssertPresentation(page, enabled ? "Publication evidence" : "Candidate publication evidence", enabled ? 1 : 0);
+        AssertPresentation(page, enabled ? "Release evidence" : "Candidate release evidence", enabled ? 1 : 0);
         Assert.Empty(page.FindAll("[data-release-witness], [data-release-public-link]"));
         Assert.Contains("Evidence access is denied.", page.Markup, StringComparison.Ordinal);
         Assert.Contains("request-denied-one", page.Markup, StringComparison.Ordinal);
@@ -101,12 +101,12 @@ public sealed class OperateReleaseWitnessPageRenderTests
 
         var page = context.Render<OperateReleaseWitnessPage>();
 
-        AssertPresentation(page, enabled ? "Publication evidence" : "Candidate publication evidence", enabled ? 1 : 0);
+        AssertPresentation(page, enabled ? "Release evidence" : "Candidate release evidence", enabled ? 1 : 0);
         Assert.Contains("Loading...", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-release-witness]"));
         await page.InvokeAsync(() => response.SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(Evidence)));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-release-witness]")));
-        AssertPresentation(page, enabled ? "Publication evidence" : "Candidate publication evidence", enabled ? 1 : 0);
+        AssertPresentation(page, enabled ? "Release evidence" : "Candidate release evidence", enabled ? 1 : 0);
     }
 
     [Theory]
