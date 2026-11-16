@@ -11,9 +11,13 @@
             <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(ActionHref)">@ActionLabel</a>
             @if (OnRetry.HasDelegate)
             {
-                <button type="button" class="console-button console-button-secondary" @onclick="OnRetry" disabled="@Busy">@(Busy ? "Reading…" : "Try again")</button>
+                @* aria-disabled, not disabled: a disabled button drops keyboard focus to the page body. *@
+                <button type="button" class="console-button console-button-secondary" @onclick="RetryAsync"
+                        aria-disabled="@(Busy ? "true" : null)">@(Busy ? "Reading…" : "Try again")</button>
             }
         </div>
+        @* The role="alert" text above does not change when a retry fails again, so it is not re-announced. *@
+        <p class="console-visually-hidden" role="status">@_retryAnnouncement</p>
         <details><summary>Environment details</summary>
             @if (!string.IsNullOrWhiteSpace(Error)) { <p>@Error</p> }
             @foreach (var state in States.DistinctBy(state => state.Detail))
@@ -25,6 +29,25 @@
 }
 
 @code {
+    private int _failedRetries;
+    private string? _retryAnnouncement;
+
+    private async Task RetryAsync()
+    {
+        if (Busy)
+        {
+            return;
+        }
+
+        _retryAnnouncement = null;
+        await OnRetry.InvokeAsync();
+        if (States.Count > 0 || !string.IsNullOrWhiteSpace(Error))
+        {
+            _failedRetries++;
+            _retryAnnouncement = $"Attempt {_failedRetries + 1} did not complete. {StatusHeading}.";
+        }
+    }
+
     private string StateText => string.Join(" ", States.Select(state => state.State)).ToLowerInvariant();
     private bool Forbidden => !SignIn && (States.Any(state => state.StatusCode == 403) || StateText.Contains("forbidden") || StateText.Contains("denied") || StateText.Contains("missing permission"));
     private bool SignIn => States.Any(state => state.StatusCode == 401) || StateText.Contains("unauthorized") || StateText.Contains("unauthenticated");

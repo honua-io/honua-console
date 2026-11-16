@@ -35,4 +35,39 @@ public sealed class ConsoleConnectionNoticeRenderTests
         Assert.Null(component.Find("details").GetAttribute("open"));
         Assert.DoesNotContain("private-config-reference", component.Find("h2").TextContent);
     }
+
+    [Fact]
+    public void BusyRetryStaysFocusableAndIgnoresClicks()
+    {
+        using var context = new BunitContext();
+        var calls = 0;
+        var component = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.Error, "Read failed")
+            .Add(value => value.Busy, true)
+            .Add(value => value.OnRetry, () => calls++));
+        var button = component.Find("button");
+        Assert.Equal("true", button.GetAttribute("aria-disabled"));
+        Assert.False(button.HasAttribute("disabled"));
+        Assert.Equal("Reading…", button.TextContent);
+        button.Click();
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void RepeatedFailedRetryIsAnnouncedWithChangingText()
+    {
+        using var context = new BunitContext();
+        var calls = 0;
+        var component = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.Error, "Read failed")
+            .Add(value => value.OnRetry, () => calls++));
+        Assert.Null(component.Find("button").GetAttribute("aria-disabled"));
+        Assert.Equal("", component.Find("[role=status]").TextContent);
+
+        component.Find("button").Click();
+        Assert.Equal("Attempt 2 did not complete. Could not read this environment.", component.Find("[role=status]").TextContent);
+        component.Find("button").Click();
+        Assert.Equal("Attempt 3 did not complete. Could not read this environment.", component.Find("[role=status]").TextContent);
+        Assert.Equal(2, calls);
+    }
 }
