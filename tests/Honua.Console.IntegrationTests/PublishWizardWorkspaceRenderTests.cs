@@ -191,7 +191,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
     }
 
     [Fact]
-    public async Task Publish_SendsTheOperatorsSelection()
+    public async Task Publish_SendsTheOperatorsSelectionWithServerDefaultFields()
     {
         var publish = new RecordingPublishOperation();
         using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
@@ -212,7 +212,32 @@ public sealed partial class PublishWizardWorkspaceRenderTests
         Assert.Equal("the_geom", command.GeometryColumn);
         Assert.Equal("LineString", command.GeometryType);
         Assert.Equal(3857, command.Srid);
-        Assert.Equal(["id", "name", "the_geom"], command.Fields);
+        Assert.Empty(command.Fields);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QuickPublish_UsesServerDefaultFieldsForImportedTables(bool enabled)
+    {
+        var publish = new RecordingPublishOperation
+        {
+            OnListTables = _ => Task.FromResult<IReadOnlyList<ServiceLayerPublishTable>>([
+                new() { Schema = "imports", Table = "requests", Columns = ["id", "name", "rank", "properties", "created_at", "geom"] }
+            ])
+        };
+        using var ctx = NewContext(StubOperateData.WithFixtures(), publish);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var cut = ctx.Render<OperatePublishLayerPage>();
+        await cut.Find("[data-workspace-field='connectionId']").ChangeAsync(new ChangeEventArgs { Value = "conn-a" });
+        cut.Find("[data-workspace-field='table']").Change("imports.requests");
+        cut.Find("[data-workspace-field='serviceName']").Input("requests-service");
+        await cut.Find("[data-workspace-publish]").ClickAsync(new MouseEventArgs());
+
+        var command = Assert.Single(publish.Commands);
+        Assert.Equal("imports", command.Schema);
+        Assert.Equal("requests", command.Table);
+        Assert.Empty(command.Fields);
     }
 
     [Fact]
@@ -654,7 +679,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
                         GeometryType = "LineString",
                         Srid = 3857,
                         EstimatedRows = 4096,
-                        Columns = ["id", "name", "the_geom"]
+                        Columns = ["id", "name", "properties", "created_at", "the_geom"]
                     },
                     new ServiceLayerPublishTable
                     {
