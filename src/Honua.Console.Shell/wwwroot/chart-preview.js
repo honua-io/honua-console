@@ -83,7 +83,10 @@ function loadVegaEmbed() {
             return null;
         }
         return window.vegaEmbed ?? null;
-    })();
+    })().then(runtime => {
+        if (!runtime) vegaEmbedPromise = null;
+        return runtime;
+    });
     return vegaEmbedPromise;
 }
 
