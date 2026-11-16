@@ -23,7 +23,16 @@ for (const route of ['/console/', '/console/operate/connections']) {
     expect((await sessionResponse).status()).toBe(404);
     await expect(page.getByRole('heading', { name: 'Console could not load' })).toBeVisible();
     await expect(page.getByText('Check the API connection and your sign-in session, then reload.')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Reload Console' })).toBeVisible();
+    const reload = page.getByRole('link', { name: 'Reload Console' });
+    await expect(reload).toBeVisible();
+    const originalUrl = page.url();
+    const retriedSession = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/v1/admin/auth/session');
+    await reload.focus();
+    await page.keyboard.press('Enter');
+    expect((await retriedSession).status()).toBe(404);
+    await expect(page.getByRole('heading', { name: 'Console could not load' })).toBeVisible();
+    expect(page.url()).toBe(originalUrl);
     await expect(page.getByText('Loading Honua Console…', { exact: true })).toHaveCount(0);
     await expect(page.locator('#blazor-error-ui')).toBeHidden();
     expect(frameworkErrors.length).toBeGreaterThan(0);
