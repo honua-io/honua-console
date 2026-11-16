@@ -6767,7 +6767,7 @@ p {
 }
 
 /* Settings > Access · RBAC */
-.rbac-overview > .console-detail-heading > * {
+:is(.rbac-overview, .rbac-members) > .console-detail-heading > * {
     min-width: 0;
     overflow-wrap: anywhere;
 }
@@ -6986,6 +6986,7 @@ p {
 }
 
 .rbac-invite-head {
+    overflow-wrap: anywhere;
     padding: 12px 14px;
     background: var(--honua-surface-strong);
     border-bottom: 1px solid var(--honua-border);
@@ -7079,6 +7080,7 @@ p {
 
 .rbac-invite-foot {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 12px 14px;
     border-top: 1px solid var(--honua-border);
