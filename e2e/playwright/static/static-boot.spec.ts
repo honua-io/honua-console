@@ -1,29 +1,47 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { recordCspViolations } from './csp-violations';
+
+async function recordBootDiagnostics(page: Page) {
+  const errors: string[] = [];
+  const frameworkErrors: string[] = [];
+  const failedAssets: string[] = [];
+  const runtime: string[] = [];
+  const cspViolations = await recordCspViolations(page);
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error' && message.text().includes('fail:')) frameworkErrors.push(message.text());
+  });
+  page.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    if (path.startsWith('/console/') && response.status() >= 400) failedAssets.push(path);
+    if (path.endsWith('.wasm') && response.ok()) runtime.push(path);
+  });
+  return { errors, frameworkErrors, failedAssets, runtime, cspViolations };
+}
+
+async function retryUnavailableConsole(page: Page) {
+  const originalUrl = page.url();
+  const retriedSession = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/v1/admin/auth/session');
+  await page.getByRole('link', { name: 'Reload Console' }).focus();
+  await page.keyboard.press('Enter');
+  expect((await retriedSession).status()).toBe(404);
+  await expect(page.getByRole('heading', { name: 'Console could not load' })).toBeVisible();
+  expect(page.url()).toBe(originalUrl);
+}
 
 for (const route of ['/console/', '/console/operate/connections']) {
   test(`static bundle boots ${route} with an explicit unavailable API state`, async ({ page }, testInfo) => {
-    const errors: string[] = [];
-    const frameworkErrors: string[] = [];
-    const failedAssets: string[] = [];
-    const runtime: string[] = [];
-    const cspViolations = await recordCspViolations(page);
-    page.on('pageerror', error => errors.push(error.message));
-    page.on('console', message => {
-      if (message.type() === 'error' && message.text().includes('fail:')) frameworkErrors.push(message.text());
-    });
-    page.on('response', response => {
-      const path = new URL(response.url()).pathname;
-      if (path.startsWith('/console/') && response.status() >= 400) failedAssets.push(path);
-      if (path.endsWith('.wasm') && response.ok()) runtime.push(path);
-    });
+    const { errors, frameworkErrors, failedAssets, runtime, cspViolations } = await recordBootDiagnostics(page);
     const sessionResponse = page.waitForResponse(response =>
       new URL(response.url()).pathname === '/api/v1/admin/auth/session');
     await page.goto(route);
     expect((await sessionResponse).status()).toBe(404);
     await expect(page.getByRole('heading', { name: 'Console could not load' })).toBeVisible();
     await expect(page.getByText('Check the API connection and your sign-in session, then reload.')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Reload Console' })).toBeVisible();
+    const reload = page.getByRole('link', { name: 'Reload Console' });
+    await expect(reload).toBeVisible();
+    await retryUnavailableConsole(page);
     await expect(page.getByText('Loading Honua Console…', { exact: true })).toHaveCount(0);
     await expect(page.locator('#blazor-error-ui')).toBeHidden();
     expect(frameworkErrors.length).toBeGreaterThan(0);
