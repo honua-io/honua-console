@@ -13,7 +13,8 @@ dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release -o arti
 python3 scripts/package-console-static.py artifacts/console-publish/wwwroot/console --version 0.1.0
 ```
 
-The zip contains the contents of `wwwroot/console`, ready to extract beneath `/console/`. The companion
+The zip contains the contents of `wwwroot/console` plus `LICENSE`, `NOTICE` and `licenses/`, ready to
+extract beneath `/console/`. Keep the license files with every copy you host or redistribute. The companion
 JSON records the release SHA-256, file count, source size and compressed bundle size. Keep the
 precompressed `.br` and `.gz` files; serve them with the matching `Content-Encoding` when the
 request accepts it, and `Vary: Accept-Encoding`.

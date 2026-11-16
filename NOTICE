@@ -39,3 +39,31 @@ Vega-Embed (vega-embed)
   Licensed under the BSD-3-Clause license.
   Full license text: src/Honua.Console.Shell/wwwroot/vendor/vega-embed/LICENSE
   Upstream: https://github.com/vega/vega-embed
+
+In the static release bundle the vendored assets above are served from
+_content/Honua.Console.Shell/vendor/, each with its license text.
+
+---
+
+The static release bundle also redistributes the following .NET components in
+_framework/. Their license and third-party notice texts are included in the
+bundle under licenses/ (from release/licenses/ in this repository).
+
+.NET runtime for WebAssembly, including the ICU data files
+  Copyright (c) .NET Foundation and Contributors
+  Licensed under the MIT license.
+  License: licenses/dotnet-runtime/LICENSE.TXT
+  Third-party notices: licenses/dotnet-runtime/THIRD-PARTY-NOTICES.TXT
+  Upstream: https://github.com/dotnet/runtime
+
+ASP.NET Core Blazor WebAssembly
+  Copyright (c) .NET Foundation and Contributors
+  Licensed under the MIT license.
+  Third-party notices: licenses/aspnetcore/THIRD-PARTY-NOTICES.txt
+  Upstream: https://github.com/dotnet/aspnetcore
+
+Polly (Polly.Core, Polly.Extensions, Polly.RateLimiting)
+  Copyright (c) 2015-2023, App vNext
+  Licensed under the BSD-3-Clause license.
+  License: licenses/polly/LICENSE
+  Upstream: https://github.com/App-vNext/Polly

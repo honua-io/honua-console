@@ -49,7 +49,7 @@
 }
 else if (_loadFailure is not null || _loadStates.Count > 0)
 {
-    <ConsoleConnectionNotice States="_loadStates" Error="_loadFailure" OnRetry="LoadWorkspaceAsync" Busy="_loading" />
+    <ConsoleConnectionNotice States="_loadStates" Error="@_loadFailure" OnRetry="LoadWorkspaceAsync" Busy="_loading" />
 }
 else
 {
@@ -73,9 +73,8 @@ else
     // ---- Server-owned reads. Empty until loaded; never seeded. ----
     private IReadOnlyList<OperateServiceDetail> _services = [];
     private IReadOnlyList<OperateConnectionSummary> _connections = [];
-    private IReadOnlyList<ServiceLayerPublishTable> _tables = [];
+    private readonly ServiceLayerTableLoad _tableLoad = new();
     private bool _loading = true;
-    private bool _loadingTables;
     private string? _loadFailure;
     private IReadOnlyList<OperateCapabilityState> _loadStates = [];
 
@@ -100,7 +99,7 @@ else
     private string? _publishedServiceUrl;
 
     private ServiceLayerPublishTable? SelectedTable =>
-        _tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _tableKey, StringComparison.Ordinal));
+        _tableLoad.Tables.FirstOrDefault(t => string.Equals(t.QualifiedName, _tableKey, StringComparison.Ordinal));
 
     private OperateServiceDetail? SelectedService =>
         _services.FirstOrDefault(s => string.Equals(s.Name, _selectedServiceName, StringComparison.Ordinal));
@@ -113,18 +112,17 @@ else
     private async Task LoadWorkspaceAsync()
     {
         _loading = true;
-        _loadFailure = null;
-        _loadStates = [];
+        // The previous failure stays until this read returns, so a retry keeps the notice and its focus.
         _services = [];
         _connections = [];
         _selectedServiceName = null;
         _connectionId = null;
-        _tables = [];
-        _tableKey = null;
+        ResetTables();
         try
         {
             var services = await OperateData.GetServicesViewAsync();
             var connections = await OperateData.GetConnectionsViewAsync();
+            _loadFailure = null;
             _loadStates = services.CapabilityStates.Concat(connections.CapabilityStates).ToArray();
             if (_loadStates.Count == 0)
             {
@@ -136,6 +134,7 @@ else
         {
             // A read failure is reported as itself. Falling back to sample content here is exactly
             // how the mockup fixtures used to reach the operator.
+            _loadStates = [];
             _loadFailure = ex.Message;
         }
         finally
@@ -148,27 +147,40 @@ else
 
     private void OnQuickCurrentChanged(int next) => _quickCurrent = next;
 
-    private async Task OnConnectionChanged(ChangeEventArgs args)
+    private string TablePlaceholder =>
+        _tableLoad.Loading ? "Loading tables…"
+        : _tableLoad.Unavailable ? "Tables could not be read"
+        : !string.IsNullOrWhiteSpace(_connectionId) && _tableLoad.Tables.Count == 0 ? "No publishable tables"
+        : "Select a table…";
+
+    private Task OnConnectionChanged(ChangeEventArgs args)
     {
         _connectionId = args.Value?.ToString();
-        _tables = [];
-        _tableKey = null;
         _publishResult = null;
+        return LoadTablesAsync();
+    }
 
-        if (string.IsNullOrWhiteSpace(_connectionId))
-        {
-            return;
-        }
+    private void ResetTables()
+    {
+        _tableLoad.Reset();
+        ClearTableChoice();
+    }
 
-        _loadingTables = true;
-        try
-        {
-            _tables = await PublishOperation.ListTablesAsync(_connectionId);
-        }
-        finally
-        {
-            _loadingTables = false;
-        }
+    private Task LoadTablesAsync()
+    {
+        ClearTableChoice();
+        return _tableLoad.LoadAsync(PublishOperation, _connectionId);
+    }
+
+    private Task RetryTablesAsync()
+    {
+        ClearTableChoice();
+        return _tableLoad.RetryAsync(PublishOperation, _connectionId);
+    }
+
+    private void ClearTableChoice()
+    {
+        _tableKey = null;
     }
 
     private void OnTableChanged(ChangeEventArgs args)
@@ -288,13 +300,13 @@ else
                 <div class="publish-segment" role="group" aria-label="Service mode">
                     <button type="button"
                             class="publish-segment-option @(_createNewService ? null : "publish-segment-active")"
-                            aria-pressed="@(!_createNewService)"
+                            aria-pressed="@(_createNewService ? "false" : "true")"
                             @onclick="() => _createNewService = false">
                         Use existing service
                     </button>
                     <button type="button"
                             class="publish-segment-option @(_createNewService ? "publish-segment-active" : null)"
-                            aria-pressed="@_createNewService"
+                            aria-pressed="@(_createNewService ? "true" : "false")"
                             @onclick="() => _createNewService = true">
                         Create new service
                     </button>
@@ -376,7 +388,7 @@ else
                     <button type="button"
                             class="publish-tree-row @(selected ? "publish-tree-row-selected" : null)"
                             data-publish-tree-row="@service.Name"
-                            aria-pressed="@selected"
+                            aria-pressed="@(selected ? "true" : "false")"
                             @onclick="() => _selectedServiceName = service.Name">
                         <span class="publish-tree-name">@service.DisplayName</span>
                         @if (!string.Equals(service.DisplayName, service.Name, StringComparison.Ordinal)
@@ -420,9 +432,9 @@ else
                         <label class="publish-field">
                             <span>Table</span>
                             <select class="console-input" data-table-picker value="@_tableKey" @onchange="OnTableChanged"
-                                    disabled="@(_tables.Count == 0)">
-                                <option value="">@(_loadingTables ? "Loading tables…" : "Select a table…")</option>
-                                @foreach (var candidate in _tables)
+                                    disabled="@(_tableLoad.Tables.Count == 0)">
+                                <option value="">@TablePlaceholder</option>
+                                @foreach (var candidate in _tableLoad.Tables)
                                 {
                                     <option value="@candidate.QualifiedName">@candidate.QualifiedName</option>
                                 }
@@ -436,6 +448,12 @@ else
                     @if (_connections.Count == 0 && !_loading)
                     {
                         <p class="console-muted" data-no-connections>No connections are registered on this server. Add one under Operate → Connections before publishing.</p>
+                    }
+                    @if (_tableLoad.Unavailable)
+                    {
+                        <div data-table-load-failure>
+                            <ConsoleConnectionNotice Heading="Could not read this connection's tables" States="_tableLoad.States" Error="@_tableLoad.Failure" OnRetry="RetryTablesAsync" />
+                        </div>
                     }
                 </article>
             </div>

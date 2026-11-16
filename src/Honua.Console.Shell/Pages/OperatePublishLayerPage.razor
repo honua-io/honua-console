@@ -64,7 +64,7 @@
         Unsaved = new()
         {
             ChangedFieldCount = _result?.Succeeded == true ? 0 : new[] { _connectionId, _tableKey, _serviceName, _layerName, _geometryTypeOverride, _publicName }.Count(value => !string.IsNullOrWhiteSpace(value)) + (_folderId.IsSpecified ? 1 : 0),
-            PendingOperationCount = (_loadingConnections ? 1 : 0) + (_loadingTables ? 1 : 0) + (_busy ? 1 : 0)
+            PendingOperationCount = (_loadingConnections ? 1 : 0) + (_tableLoad.Loading ? 1 : 0) + (_busy ? 1 : 0)
         }
     };
     private RenderFragment PublishForm => @<text>
@@ -81,9 +81,9 @@
                 </label>
                 <label>
                     <span>Table</span>
-                    <select class="console-input" aria-label="Table" data-workspace-field="table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tables.Count == 0)">
-                        <option value="">@(_loadingTables ? "Loading tables…" : _tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
-                        @foreach (var table in _tables)
+                    <select class="console-input" aria-label="Table" data-workspace-field="table" @bind="_tableKey" @bind:after="OnTableChanged" disabled="@(_tableLoad.Tables.Count == 0)">
+                        <option value="">@(_tableLoad.Loading ? "Loading tables…" : _tableLoad.Unavailable ? "Tables could not be read" : _tableLoad.Tables.Count == 0 ? "No publishable tables" : "Select a table…")</option>
+                        @foreach (var table in _tableLoad.Tables)
                         {
                             <option value="@table.QualifiedName" data-schema="@table.Schema" data-table="@table.Table">@table.QualifiedName @(table.GeometryType is { } gt ? $"· {gt}" : "")</option>
                         }
@@ -115,6 +115,13 @@
                     <input class="console-input" data-workspace-field="layerName" @bind="_layerName" @bind:event="oninput" @bind:after="ClearResult" placeholder="Parcels" />
                 </label>
             </div>
+
+            @if (_tableLoad.Unavailable)
+            {
+                <div data-table-load-failure>
+                    <ConsoleConnectionNotice Heading="Could not read this connection's tables" States="_tableLoad.States" Error="@_tableLoad.Failure" OnRetry="RetryTablesAsync" />
+                </div>
+            }
 
             <FolderPublishSelection @bind-Value="_folderId" AuthorityBindingChanged="binding => _folderAuthority = binding" />
             <label class="console-field">
@@ -192,7 +199,7 @@
     </text>;
 
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
-    private IReadOnlyList<ServiceLayerPublishTable> _tables = Array.Empty<ServiceLayerPublishTable>();
+    private readonly ServiceLayerTableLoad _tableLoad = new();
     private ServiceLayerPublishTable? _selectedTable;
 
     private string _connectionId = string.Empty;
@@ -204,8 +211,6 @@
     private string _publicName = "";
     private string? _folderAuthority;
 
-    private long _tableGeneration;
-    private bool _loadingTables;
     private bool _interactive;
     private bool _busy;
     private bool _requiresCatalogRead;
@@ -244,38 +249,31 @@
         }
     }
 
-    private async Task OnConnectionChanged()
+    private Task OnConnectionChanged()
     {
-        var generation = ++_tableGeneration;
-        var connectionId = _connectionId;
+        ClearTableChoice();
+        return _tableLoad.LoadAsync(PublishOperation, _connectionId);
+    }
+
+    private Task RetryTablesAsync()
+    {
+        ClearTableChoice();
+        return _tableLoad.RetryAsync(PublishOperation, _connectionId);
+    }
+
+    private void ClearTableChoice()
+    {
         ClearResult();
-        _loadingTables = false;
         _geometryTypeOverride = string.Empty;
-        _tables = Array.Empty<ServiceLayerPublishTable>();
         _tableKey = string.Empty;
         _selectedTable = null;
-        if (string.IsNullOrWhiteSpace(_connectionId))
-        {
-            return;
-        }
-
-        _loadingTables = true;
-        try
-        {
-            var tables = await PublishOperation.ListTablesAsync(connectionId);
-            if (generation == _tableGeneration) _tables = tables;
-        }
-        finally
-        {
-            if (generation == _tableGeneration) _loadingTables = false;
-        }
     }
 
     private void OnTableChanged()
     {
         ClearResult();
         _geometryTypeOverride = string.Empty;
-        _selectedTable = _tables.FirstOrDefault(table =>
+        _selectedTable = _tableLoad.Tables.FirstOrDefault(table =>
             string.Equals(table.QualifiedName, _tableKey, StringComparison.Ordinal));
         if (_selectedTable is { } t && string.IsNullOrWhiteSpace(_layerName))
         {

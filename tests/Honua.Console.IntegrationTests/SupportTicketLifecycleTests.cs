@@ -1,0 +1,191 @@
+using Bunit;
+using Honua.Console.Contracts;
+using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Pages;
+using Honua.Console.Shell.Services;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Honua.Console.IntegrationTests;
+
+public sealed class SupportTicketLifecycleTests
+{
+    [Theory]
+    [InlineData(OperateSectionStatus.Allowed)]
+    [InlineData(OperateSectionStatus.Forbidden)]
+    public void DelayedOldTicketCannotReplaceCurrentTicket(OperateSectionStatus oldStatus)
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "old"));
+        page.Render(p => p.Add(c => c.TicketId, "current"));
+        page.WaitForAssertion(() => Assert.Contains("action-current", page.Markup));
+        var renders = page.RenderCount;
+        client.Pending.SetResult(oldStatus == OperateSectionStatus.Allowed
+            ? Ticket("old") : SupportTicketResult.Denied(oldStatus, "Old ticket denied"));
+        page.WaitForState(() => page.RenderCount > renders);
+        Assert.Contains("action-current", page.Markup);
+        Assert.DoesNotContain("action-old", page.Markup);
+        Assert.DoesNotContain("Old ticket denied", page.Markup);
+        Assert.True(client.PendingToken.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task DisposalCancelsPendingTicketRead()
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "old"));
+        await context.DisposeComponentsAsync();
+        Assert.True(client.PendingToken.IsCancellationRequested);
+        client.Pending.SetResult(Ticket("old", "diagnosing"));
+        await context.Renderer.Dispatcher.InvokeAsync(() => Task.CompletedTask);
+        Assert.Single(client.Requests);
+    }
+
+    [Fact]
+    public void EmptyRouteCancelsReadAndKeepsMissingStateAfterLateResponse()
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "old"));
+        page.Render(p => p.Add(c => c.TicketId, ""));
+        var renders = page.RenderCount;
+        client.Pending.SetResult(Ticket("old"));
+        page.WaitForState(() => page.RenderCount > renders);
+        Assert.Contains("No ticket id was supplied", page.Markup);
+        Assert.DoesNotContain("action-old", page.Markup);
+        Assert.True(client.PendingToken.IsCancellationRequested);
+    }
+
+    [Theory]
+    [InlineData(OperateSectionStatus.Forbidden)]
+    [InlineData(OperateSectionStatus.Missing)]
+    [InlineData(OperateSectionStatus.Unavailable)]
+    public void UnreadableRefreshRemovesPreviouslyLoadedDetails(OperateSectionStatus status)
+    {
+        var client = new TicketClient { RefreshStatus = status };
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "polling"));
+        page.WaitForAssertion(() => Assert.Contains("action-polling", page.Markup));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Ticket no longer readable", page.Markup);
+            Assert.DoesNotContain("action-polling", page.Markup);
+            Assert.Empty(page.FindAll(".support-phase-badge"));
+        }, TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task UnavailableRefreshBacksOffKeepsPollingAndRecovers()
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "flaky"));
+        page.WaitForAssertion(() => Assert.Contains("action-flaky", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("Support API briefly unavailable", page.Markup),
+            TimeSpan.FromSeconds(10));
+
+        // The retry after a failure waits 10s, not 5s.
+        await Task.Delay(TimeSpan.FromSeconds(7));
+        Assert.Equal(2, client.Requests.Count(id => id == "flaky"));
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("action-flaky", page.Markup);
+            Assert.DoesNotContain("Support API briefly unavailable", page.Markup);
+        }, TimeSpan.FromSeconds(10));
+        Assert.Equal(3, client.Requests.Count(id => id == "flaky"));
+    }
+
+    [Fact]
+    public void UnavailableFirstLoadRetriesAndRecovers()
+    {
+        var client = new TicketClient();
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "down-first"));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Support API briefly unavailable", page.Markup);
+            Assert.Contains("Retrying automatically", page.Markup);
+        });
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("action-down-first", page.Markup);
+            Assert.DoesNotContain("Retrying automatically", page.Markup);
+        }, TimeSpan.FromSeconds(10));
+        Assert.Equal(2, client.Requests.Count(id => id == "down-first"));
+    }
+
+    [Theory]
+    [InlineData(OperateSectionStatus.Forbidden)]
+    [InlineData(OperateSectionStatus.Missing)]
+    [InlineData(OperateSectionStatus.Unsupported)]
+    public async Task PermanentFirstLoadFailureIsNotRetried(OperateSectionStatus status)
+    {
+        var client = new TicketClient { RefreshStatus = status };
+        using var context = Context(client);
+        var page = context.Render<SupportTicketDetailPage>(p => p.Add(c => c.TicketId, "denied"));
+        page.WaitForAssertion(() => Assert.Contains("Ticket no longer readable", page.Markup));
+        Assert.DoesNotContain("Retrying automatically", page.Markup);
+        await Task.Delay(TimeSpan.FromSeconds(6));
+        Assert.Single(client.Requests, id => id == "denied");
+    }
+
+    private static BunitContext Context(TicketClient client)
+    {
+        var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleSupportTicketClient>(client);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        return context;
+    }
+
+    private static SupportTicketResult Ticket(string id, string phase = "resolved") =>
+        SupportTicketResult.Allowed(new SupportTicketResponse
+        {
+            Id = id,
+            CustomerId = "customer",
+            Phase = phase,
+            RequestedAction = "action-" + id
+        });
+
+    private sealed class TicketClient : IConsoleSupportTicketClient
+    {
+        public TaskCompletionSource<SupportTicketResult> Pending { get; } = new();
+        public CancellationToken PendingToken { get; private set; }
+        public List<string> Requests { get; } = [];
+        public OperateSectionStatus RefreshStatus { get; init; }
+
+        public Task<SupportTicketResult> GetTicketAsync(string ticketId, CancellationToken cancellationToken = default)
+        {
+            Requests.Add(ticketId);
+            if (ticketId == "old")
+            {
+                PendingToken = cancellationToken;
+                return Pending.Task;
+            }
+            if (ticketId == "down-first")
+            {
+                return Task.FromResult(Requests.Count(id => id == "down-first") == 1
+                    ? SupportTicketResult.Denied(OperateSectionStatus.Unavailable, "Support API briefly unavailable")
+                    : Ticket(ticketId));
+            }
+            if (ticketId == "denied")
+            {
+                return Task.FromResult(SupportTicketResult.Denied(RefreshStatus, "Ticket no longer readable"));
+            }
+            if (ticketId == "flaky")
+            {
+                var attempt = Requests.Count(id => id == "flaky");
+                return Task.FromResult(attempt == 2
+                    ? SupportTicketResult.Denied(OperateSectionStatus.Unavailable, "Support API briefly unavailable")
+                    : Ticket(ticketId, attempt == 1 ? "diagnosing" : "resolved"));
+            }
+            return Task.FromResult(ticketId != "polling" ? Ticket(ticketId)
+                : Requests.Count == 1 ? Ticket(ticketId, "diagnosing")
+                : SupportTicketResult.Denied(RefreshStatus, "Ticket no longer readable"));
+        }
+
+        public Task<SupportTicketResult> CreateTicketAsync(CreateSupportTicketRequest request, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Ticket detail must never create a ticket.");
+    }
+}

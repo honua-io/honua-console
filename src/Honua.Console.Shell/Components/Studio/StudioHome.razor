@@ -2,8 +2,7 @@
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
 
-@* Studio home landing — hero prompt, content-type grid, and recent projects.
-   Mirrors StudioHome in docs/design-handoff/console-canvas/screens-studio.jsx and Charter §9.
+@* Studio home landing — hero prompt, content-type grid, and recent projects (Charter §9).
    Recent projects bind to the live server content listing (IConsoleCatalogClient); when no
    honua-server base URL is configured the client is the Unsupported one and we render the
    explicit missing-binding ConsoleStateView instead of fabricating rows (Charter §11). *@

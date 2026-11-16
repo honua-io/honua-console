@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text.RegularExpressions;
+using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
@@ -33,6 +35,17 @@ public sealed record OperateCapabilityState(
     string Detail)
 {
     public int? StatusCode { get; init; }
+
+    public static OperateCapabilityState FromIssue(string surface, HonuaAdminEndpointIssue issue)
+    {
+        ArgumentNullException.ThrowIfNull(issue);
+        return new(
+            surface,
+            issue.State,
+            issue.Contract,
+            issue.StatusCode is null ? issue.Detail : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.")
+        { StatusCode = issue.StatusCode };
+    }
 }
 
 public static class OperateCapabilityStateFilters

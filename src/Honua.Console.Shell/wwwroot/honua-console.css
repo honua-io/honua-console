@@ -333,6 +333,12 @@ p {
     text-decoration: none;
 }
 
+/* The display above would otherwise override the hidden attribute on script-toggled buttons. */
+.console-button[hidden],
+.console-button-link[hidden] {
+    display: none;
+}
+
 .console-toolbar {
     display: flex;
     justify-content: flex-end;
@@ -1845,7 +1851,12 @@ p {
 
 .operate-summary-tile {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 5px;
+}
+
+.operate-summary-tile span {
+    overflow-wrap: anywhere;
 }
 
 .operate-summary-tile strong {
@@ -2215,6 +2226,7 @@ p {
 
 .operate-filter-bar label {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     color: var(--honua-muted);
     font-weight: 800;
@@ -2669,8 +2681,7 @@ p {
     font-weight: 900;
 }
 
-/* Studio analysis builder editor (/studio/analysis, honua-console#53). Mirrors the design-handoff
-   StudioAnalysisEditor: a header bar (title + status + step meta + actions) over a three-region body
+/* Studio analysis builder editor (/studio/analysis, honua-console#53): a header bar (title + status + step meta + actions) over a three-region body
    of step rail, pipeline canvas + run preview, and the plan inspector. */
 .studio-analysis-editor {
     display: grid;
@@ -4181,7 +4192,7 @@ p {
     .operate-summary-grid,
     .operate-detail-grid,
     .operate-filter-bar {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .operate-section-heading {
@@ -4655,7 +4666,7 @@ p {
 }
 
 /* honua-console#43 — design alignment: header, scrubber axis, now-vs-as-of split,
-   three-way merge, and AI advisory strip per console-canvas/screens-gitops-temporal-sync.jsx. */
+   three-way merge, and AI advisory strip. */
 .operate-temporal-header {
     display: flex;
     flex-wrap: wrap;
@@ -4948,8 +4959,7 @@ p {
 }
 
 /* ----- Publishing workspace (Operate / Publishing) ----- */
-/* Mode bar: Quick publish vs. Author resource first (advanced). Mirrors the
-   design-handoff ModeBar segmented toggle. */
+/* Mode bar: Quick publish vs. Author resource first (advanced), a segmented toggle. */
 .publish-mode-bar {
     display: flex;
     flex-wrap: wrap;
@@ -5162,7 +5172,7 @@ p {
     border-left: 3px solid #2563eb;
 }
 
-/* Studio dashboard builder (/studio/dashboard) — design-handoff StudioDashboardEditor */
+/* Studio dashboard builder (/studio/dashboard) */
 .studio-dashboard-editor {
     display: grid;
     gap: 16px;
@@ -6374,8 +6384,7 @@ p {
 
 /* ============================================================================
    Publish wizard workspace (Operate / Publishing) — functional Quick-publish
-   and Author-first flows. See PublishWizardWorkspace.razor and the design
-   handoff screens-quick-publish.jsx / screens-publish-flow.jsx.
+   and Author-first flows. See PublishWizardWorkspace.razor.
    ============================================================================ */
 
 .publish-wizard {
@@ -6753,7 +6762,7 @@ p {
     word-break: break-all;
 }
 
-/* Settings > Access · RBAC (screens-collab-rbac.jsx RBACOverview / TeamMembers) */
+/* Settings > Access · RBAC */
 .rbac-lede {
     margin: 6px 0 0;
     max-width: 80ch;
@@ -7071,7 +7080,7 @@ p {
     margin-left: auto;
 }
 
-/* Operate > Catalogs discovery-endpoints surface (honua-console#125, screens-catalogs.jsx). */
+/* Operate > Catalogs discovery-endpoints surface (honua-console#125). */
 .catalogs-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7255,7 +7264,7 @@ p {
     font-size: 0.92rem;
 }
 
-/* ----- field-state vocabulary (design-handoff console-canvas/field-state.jsx) -----
+/* ----- field-state vocabulary -----
    A labelled field row carrying a state pill so operators learn one visual language for who owns a
    value (input / discovered / calculated / system / admin) and whether it is editable. Re-expressed
    against the --honua-* tokens with `console-field-state` BEM classes (not the wireframe's raw fs-*
@@ -7438,7 +7447,7 @@ p {
    --honua-* design tokens with BEM class names.
    --------------------------------------------------------------------------- */
 
-/* Shared fidelity badge (mirrors the design-handoff Fid helper). Colour comes
+/* Shared fidelity badge. Colour comes
    from the shared console-state palette; this only tightens the badge metrics. */
 .fidelity-badge {
     font-size: 0.74rem;

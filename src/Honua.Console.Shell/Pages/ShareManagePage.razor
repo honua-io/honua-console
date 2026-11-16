@@ -683,7 +683,7 @@
         ("audit", "Audit & traffic")
     ];
 
-    // Canonical open-data download formats per the screens-share.jsx ShareOpenDataPage editor. A format's
+    // Canonical open-data download formats. A format's
     // checkbox is checked only when the server-owned content projection actually publishes it; Console never
     // invents downloads (Console Patterns Charter section 11).
     private static readonly (string Key, string Label, string Hint)[] OpenDataFormats =
@@ -716,6 +716,8 @@
     // server body-validator (catalog), so the findings are purely client-side and surfaced inline.
     private readonly ValidationState _validation = new();
     private readonly FormDirtyState _dirty = new();
+    private long _editRevision;
+    private bool _itemIdEdited;
 
     private ShareManageState BuildValidationState()
     {
@@ -730,12 +732,15 @@
 
     private void OnItemIdEdit()
     {
+        _editRevision++;
+        _itemIdEdited = true;
         _dirty.MarkDirty();
         Revalidate();
     }
 
     private void OnExpiresEdit()
     {
+        _editRevision++;
         _dirty.MarkDirty();
         Revalidate();
     }
@@ -832,6 +837,7 @@
 
             // A freshly loaded item is the clean baseline; recompute findings against the opened id.
             _dirty.MarkClean();
+            _itemIdEdited = false;
             Revalidate();
 
             // A newly loaded item invalidates any cached open-data detail; reload if the editor tab is open.
@@ -868,10 +874,13 @@
         DateTimeOffset? expiresAt = _expiresAtInput is { } local
             ? new DateTimeOffset(DateTime.SpecifyKind(local, DateTimeKind.Utc))
             : null;
-        await RunCommandAsync(() => ShareData.MintPublicLinkAsync(itemId, expiresAt));
-
-        // A successful mint consumes the staged expiry; the form returns to a clean baseline.
-        _dirty.MarkClean();
+        var submittedRevision = _editRevision;
+        var result = await RunCommandAsync(() => ShareData.MintPublicLinkAsync(itemId, expiresAt));
+        if (result is { Succeeded: true, MintedSecret: not null }
+            && submittedRevision == _editRevision && !_itemIdEdited)
+        {
+            _dirty.MarkClean();
+        }
     }
 
     private Task RevokePublicLink(string itemId, string tokenId) =>
@@ -883,11 +892,11 @@
     private Task MintEmbedToken(string itemId, string audience) =>
         RunCommandAsync(() => ShareData.MintEmbedTokenAsync(itemId, audience, ttlSeconds: null));
 
-    private async Task RunCommandAsync(Func<Task<ShareCommandResult>> command)
+    private async Task<ShareCommandResult?> RunCommandAsync(Func<Task<ShareCommandResult>> command)
     {
         if (_busy)
         {
-            return;
+            return null;
         }
 
         _busy = true;
@@ -917,6 +926,7 @@
             }
 
             ApplyStates(result.CapabilityStates);
+            return result;
         }
         finally
         {

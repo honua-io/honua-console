@@ -7,6 +7,11 @@ function tabList() {
     const visits = [];
     const tabs = ['layers', 'protocols', 'access'].map(id => ({
         focus: () => visits.push(`focus:${id}`),
+        // Narrow screens scroll the tab strip; the selected tab must end up in view.
+        scrollIntoView: options => {
+            assert.deepEqual(options, { block: 'nearest', inline: 'nearest' });
+            visits.push(`reveal:${id}`);
+        },
         click: () => visits.push(`select:${id}`)
     }));
     const element = {
@@ -26,13 +31,13 @@ test('tabs wrap arrow navigation and support Home and End without trapping Tab',
     const list = tabList();
     attach(list.element);
     assert.equal(list.press('ArrowLeft', 0), true);
-    assert.deepEqual(list.visits.splice(0), ['focus:access', 'select:access']);
+    assert.deepEqual(list.visits.splice(0), ['focus:access', 'select:access', 'reveal:access']);
     assert.equal(list.press('ArrowRight', 2), true);
-    assert.deepEqual(list.visits.splice(0), ['focus:layers', 'select:layers']);
+    assert.deepEqual(list.visits.splice(0), ['focus:layers', 'select:layers', 'reveal:layers']);
     list.press('End', 0);
-    assert.deepEqual(list.visits.splice(0), ['focus:access', 'select:access']);
+    assert.deepEqual(list.visits.splice(0), ['focus:access', 'select:access', 'reveal:access']);
     list.press('Home', 2);
-    assert.deepEqual(list.visits.splice(0), ['focus:layers', 'select:layers']);
+    assert.deepEqual(list.visits.splice(0), ['focus:layers', 'select:layers', 'reveal:layers']);
     assert.equal(list.press('Tab', 0), false);
     assert.deepEqual(list.visits, []);
 });

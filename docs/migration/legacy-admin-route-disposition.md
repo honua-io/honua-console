@@ -202,4 +202,4 @@ Tracked here so #2/#3 implementers and Studio (#5) port owners see the open deci
 
 - Every Console ticket that redesigns an operator workflow MUST update the corresponding row's disposition, replacement ticket, and retirement gate in the same PR.
 - Every `honua-server-admin` change that adds or removes a legacy route MUST update the inventory in `honua-server-admin#96` and surface a PR here to keep this table aligned.
-- The `HONUA_CONSOLE_MIGRATION_BACKLOG.md` parity gate links to this doc; the gate cannot close while any `EMBED` row remains.
+- The [Portal Parity Checklist](./PORTAL_PARITY_CHECKLIST.md) gate cannot close while any `EMBED` row remains.

@@ -3,7 +3,7 @@
 @using Honua.Console.Shell.Services
 @inject IEsriMigrationRunDataSource MigrationRun
 
-@* "Import source content" wizard (screens-import-wizard.jsx). Multi-step, REUSING the shared
+@* "Import source content" wizard. Multi-step, REUSING the shared
    PublishWizard shell: Source connect → Select content → Map → Run → Scorecard. The Map step shows mixed
    content types + per-item fidelity (deterministic from the selected content). The Run engine and the
    Parity scorecard are driven by honua-devops (issue-122 "migration-run API owner"): Console does not own
@@ -143,7 +143,7 @@
                 @foreach (var item in plan.Items)
                 {
                     <li>
-                        <input type="checkbox" checked disabled />
+                        <input type="checkbox" checked disabled aria-label="@($"Include {item.SourceName}")" />
                         @item.SourceName
                         <span class="console-type-tag">@item.SourceType</span>
                     </li>

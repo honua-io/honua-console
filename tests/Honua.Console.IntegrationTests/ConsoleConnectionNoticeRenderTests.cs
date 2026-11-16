@@ -1,6 +1,8 @@
 using Bunit;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Honua.Console.IntegrationTests;
 
@@ -34,5 +36,113 @@ public sealed class ConsoleConnectionNoticeRenderTests
         Assert.Equal(href, component.Find("a").GetAttribute("href"));
         Assert.Null(component.Find("details").GetAttribute("open"));
         Assert.DoesNotContain("private-config-reference", component.Find("h2").TextContent);
+    }
+
+    [Fact]
+    public void BusyRetryStaysFocusableAndIgnoresClicks()
+    {
+        using var context = new BunitContext();
+        var calls = 0;
+        var component = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.Error, "Read failed")
+            .Add(value => value.Busy, true)
+            .Add(value => value.OnRetry, () => calls++));
+        var button = component.Find("button");
+        Assert.Equal("true", button.GetAttribute("aria-disabled"));
+        Assert.False(button.HasAttribute("disabled"));
+        Assert.Equal("Reading…", button.TextContent);
+        button.Click();
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void RepeatedFailedRetryIsAnnouncedWithChangingText()
+    {
+        using var context = new BunitContext();
+        var calls = 0;
+        var component = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.Error, "Read failed")
+            .Add(value => value.OnRetry, () => calls++));
+        Assert.Null(component.Find("button").GetAttribute("aria-disabled"));
+        Assert.Equal("", component.Find("[role=status]").TextContent);
+
+        component.Find("button").Click();
+        Assert.Equal("Attempt 2 did not complete. Could not read this environment.", component.Find("[role=status]").TextContent);
+        component.Find("button").Click();
+        Assert.Equal("Attempt 3 did not complete. Could not read this environment.", component.Find("[role=status]").TextContent);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task RetryFromClearingParentKeepsNoticeAndAnnouncesRepeatFailure()
+    {
+        using var context = new BunitContext();
+        var host = context.Render<ClearingRetryHost>();
+        host.Find("button").Click();
+
+        // The parent cleared its error while the read runs; the notice and its button must stay.
+        Assert.Single(host.FindAll("[data-connection-notice]"));
+        var busyButton = host.Find("button");
+        Assert.Equal("true", busyButton.GetAttribute("aria-disabled"));
+        Assert.Equal("Reading…", busyButton.TextContent);
+
+        await host.InvokeAsync(() => host.Instance.Complete(succeeded: false));
+        host.WaitForAssertion(() => Assert.Equal(
+            "Attempt 2 did not complete. Could not read this environment.", host.Find("[role=status]").TextContent));
+        Assert.Null(host.Find("button").GetAttribute("aria-disabled"));
+
+        host.Find("button").Click();
+        await host.InvokeAsync(() => host.Instance.Complete(succeeded: true));
+        host.WaitForAssertion(() => Assert.Empty(host.FindAll("[data-connection-notice]")));
+        Assert.Equal(2, host.Instance.Calls);
+    }
+
+    [Fact]
+    public async Task RetryWithoutBusyParameterStillShowsReading()
+    {
+        using var context = new BunitContext();
+        var host = context.Render<ClearingRetryHost>(p => p.Add(h => h.PassBusy, false));
+        host.Find("button").Click();
+        Assert.Equal("true", host.Find("button").GetAttribute("aria-disabled"));
+        Assert.Equal("Reading…", host.Find("button").TextContent);
+        host.Find("button").Click();
+        Assert.Equal(1, host.Instance.Calls);
+
+        await host.InvokeAsync(() => host.Instance.Complete(succeeded: false));
+        host.WaitForAssertion(() => Assert.Equal("Try again", host.Find("button").TextContent));
+        Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
+    }
+
+    private sealed class ClearingRetryHost : ComponentBase
+    {
+        [Parameter] public bool PassBusy { get; set; } = true;
+
+        private TaskCompletionSource<bool>? _pending;
+        private string? _error = "Read failed";
+        private bool _loading;
+
+        public int Calls { get; private set; }
+
+        public void Complete(bool succeeded) => _pending!.SetResult(succeeded);
+
+        private async Task LoadAsync()
+        {
+            Calls++;
+            _loading = true;
+            _error = null;
+            _pending = new TaskCompletionSource<bool>();
+            var succeeded = await _pending.Task;
+            _error = succeeded ? null : "Read failed again";
+            _loading = false;
+        }
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            builder.OpenComponent<ConsoleConnectionNotice>(0);
+            builder.AddAttribute(1, nameof(ConsoleConnectionNotice.Error), _error);
+            builder.AddAttribute(2, nameof(ConsoleConnectionNotice.Busy), PassBusy && _loading);
+            builder.AddAttribute(3, nameof(ConsoleConnectionNotice.OnRetry), EventCallback.Factory.Create(this, LoadAsync));
+            builder.CloseComponent();
+        }
     }
 }

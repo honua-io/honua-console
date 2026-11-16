@@ -638,14 +638,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             return;
         }
 
-        AddStateOnce(
-            states,
-            new OperateCapabilityState(
-                surface,
-                issue.State,
-                issue.Contract,
-                issue.StatusCode is null ? issue.Detail : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.")
-            { StatusCode = issue.StatusCode });
+        AddStateOnce(states, OperateCapabilityState.FromIssue(surface, issue));
     }
 
     private static void AddStateOnce(

@@ -36,6 +36,10 @@
                           Message="@(_message ?? OperateSectionPresentation.FallbackMessage(_status))"
                           ActionHref="/support"
                           ActionLabel="Back to support" />
+        @if (_polling)
+        {
+            <p class="console-muted" role="status">Retrying automatically...</p>
+        }
     }
     else
     {
@@ -126,6 +130,7 @@
     public string TicketId { get; set; } = string.Empty;
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxRetryInterval = TimeSpan.FromSeconds(60);
 
     private SupportTicketResponse? _ticket;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
@@ -133,9 +138,9 @@
     private bool _loaded;
     private bool _polling;
 
-    private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
     private string? _polledTicketId;
+    private bool _disposed;
 
     private string StateKind => _status switch
     {
@@ -152,7 +157,7 @@
     protected override async Task OnParametersSetAsync()
     {
         // Restart the poll loop when navigating between ticket ids.
-        if (string.Equals(_polledTicketId, TicketId, StringComparison.Ordinal))
+        if (_disposed || string.Equals(_polledTicketId, TicketId, StringComparison.Ordinal))
         {
             return;
         }
@@ -170,61 +175,81 @@
             return;
         }
 
-        await RefreshAsync();
-        StartPolling();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+        var ticketId = TicketId;
+        if (await RefreshAsync(ticketId, token))
+        {
+            StartPolling(ticketId, token);
+        }
     }
 
-    private async Task RefreshAsync()
+    private async Task<bool> RefreshAsync(string ticketId, CancellationToken token)
     {
-        var result = await SupportClient.GetTicketAsync(TicketId);
+        SupportTicketResult result;
+        try
+        {
+            result = await SupportClient.GetTicketAsync(ticketId, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return false;
+        }
+        if (token.IsCancellationRequested)
+        {
+            return false;
+        }
+
         _loaded = true;
-        if (result.IsAllowed)
-        {
-            _ticket = result.Value;
-            _status = OperateSectionStatus.Allowed;
-            _message = null;
-        }
-        else
-        {
-            _status = result.Status;
-            _message = result.Message;
-        }
+        _ticket = result.IsAllowed ? result.Value : null;
+        _status = result.Status;
+        _message = result.IsAllowed ? null : result.Message;
+        return true;
     }
 
-    private void StartPolling()
+    private void StartPolling(string ticketId, CancellationToken token)
     {
-        // No point polling a terminal ticket or an unreadable surface.
-        if (_ticket is null || IsTerminal(_ticket.Phase))
+        // Poll an open ticket, or retry a read that failed for a reason that may clear.
+        if (!ShouldPoll())
         {
             _polling = false;
             return;
         }
 
         _polling = true;
-        _cts = new CancellationTokenSource();
-        _timer = new PeriodicTimer(PollInterval);
-        var token = _cts.Token;
-        _ = PollAsync(token);
+        _ = PollAsync(ticketId, token);
     }
 
-    private async Task PollAsync(CancellationToken token)
+    private async Task PollAsync(string ticketId, CancellationToken token)
     {
+        var delay = PollInterval;
         try
         {
-            while (await _timer!.WaitForNextTickAsync(token).ConfigureAwait(false))
+            while (true)
             {
-                await RefreshAsync().ConfigureAwait(false);
-                await InvokeAsync(StateHasChanged).ConfigureAwait(false);
-
-                if (_ticket is not null && IsTerminal(_ticket.Phase))
+                await Task.Delay(delay, token).ConfigureAwait(false);
+                await InvokeAsync(async () =>
                 {
-                    _polling = false;
-                    await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+                    if (token.IsCancellationRequested || !await RefreshAsync(ticketId, token))
+                    {
+                        return;
+                    }
+                    _polling = ShouldPoll();
+                    StateHasChanged();
+                }).ConfigureAwait(false);
+
+                if (token.IsCancellationRequested || !_polling)
+                {
                     return;
                 }
+
+                // Back off while the read keeps failing, so a misconfigured endpoint is not hit every 5s forever.
+                delay = _status == OperateSectionStatus.Unavailable
+                    ? TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxRetryInterval.Ticks))
+                    : PollInterval;
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             // Disposed or navigated away; stop quietly.
         }
@@ -233,15 +258,22 @@
     private void StopPolling()
     {
         _cts?.Cancel();
-        _timer?.Dispose();
         _cts?.Dispose();
-        _timer = null;
         _cts = null;
         _polling = false;
     }
 
+    // Unavailable (network, server error, timeout or unexpected response) may clear, so it is retried with
+    // backoff; every other status will not, and a terminal ticket has nothing left to change.
+    private bool ShouldPoll() =>
+        _status == OperateSectionStatus.Unavailable || (_ticket is not null && !IsTerminal(_ticket.Phase));
+
     private static bool IsTerminal(string phase) =>
         phase is "resolved" or "cancelled" or "closed";
 
-    public void Dispose() => StopPolling();
+    public void Dispose()
+    {
+        _disposed = true;
+        StopPolling();
+    }
 }

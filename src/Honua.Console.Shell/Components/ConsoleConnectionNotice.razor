@@ -2,7 +2,7 @@
 @inject NavigationManager Navigation
 @inject IServiceProvider Services
 
-@if (States.Count > 0 || !string.IsNullOrWhiteSpace(Error))
+@if (Showing)
 {
     <div class="console-panel console-state-warning" role="alert" data-connection-notice>
         <h2>@StatusHeading</h2>
@@ -11,23 +11,83 @@
             <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(ActionHref)">@ActionLabel</a>
             @if (OnRetry.HasDelegate)
             {
-                <button type="button" class="console-button console-button-secondary" @onclick="OnRetry" disabled="@Busy">@(Busy ? "Reading…" : "Try again")</button>
+                @* aria-disabled, not disabled: a disabled button drops keyboard focus to the page body. *@
+                <button type="button" class="console-button console-button-secondary" @onclick="RetryAsync"
+                        aria-disabled="@(Reading ? "true" : null)">@(Reading ? "Reading…" : "Try again")</button>
             }
         </div>
         <details><summary>Environment details</summary>
-            @if (!string.IsNullOrWhiteSpace(Error)) { <p>@Error</p> }
-            @foreach (var state in States.DistinctBy(state => state.Detail))
+            @if (!string.IsNullOrWhiteSpace(_error)) { <p>@_error</p> }
+            @foreach (var state in _states.DistinctBy(state => state.Detail))
             {
                 <p>@ConsoleVocabulary.SurfaceName(state.Surface): @state.Detail</p>
             }
         </details>
     </div>
+    @* Outside the alert: a failed retry leaves the alert text unchanged, so this names each attempt. *@
+    <p class="console-visually-hidden" role="status">@_retryAnnouncement</p>
 }
 
 @code {
-    private string StateText => string.Join(" ", States.Select(state => state.State)).ToLowerInvariant();
-    private bool Forbidden => !SignIn && (States.Any(state => state.StatusCode == 403) || StateText.Contains("forbidden") || StateText.Contains("denied") || StateText.Contains("missing permission"));
-    private bool SignIn => States.Any(state => state.StatusCode == 401) || StateText.Contains("unauthorized") || StateText.Contains("unauthenticated");
+    // The last failure shown. Callers clear their states when a retry starts; keeping this while Busy keeps
+    // the notice, and the focused retry button, on screen until the read returns.
+    private IReadOnlyList<OperateCapabilityState> _states = [];
+    private string? _error;
+    private int _failedRetries;
+    private string? _retryAnnouncement;
+    private bool _retrying;
+
+    private bool Showing => _states.Count > 0 || !string.IsNullOrWhiteSpace(_error);
+    private bool Reading => Busy || _retrying;
+
+    protected override void OnParametersSet() => CaptureFailure();
+
+    private void CaptureFailure()
+    {
+        if (States.Count > 0 || !string.IsNullOrWhiteSpace(Error))
+        {
+            _states = States;
+            _error = Error;
+        }
+        else if (!Busy && !_retrying)
+        {
+            _states = [];
+            _error = null;
+            _failedRetries = 0;
+            _retryAnnouncement = null;
+        }
+    }
+
+    private async Task RetryAsync()
+    {
+        if (Reading)
+        {
+            return;
+        }
+
+        _retrying = true;
+        _retryAnnouncement = null;
+        try
+        {
+            await OnRetry.InvokeAsync();
+        }
+        finally
+        {
+            _retrying = false;
+        }
+
+        CaptureFailure();
+        // Still Busy means a newer read replaced this one; it has not failed yet.
+        if (Showing && !Busy)
+        {
+            _failedRetries++;
+            _retryAnnouncement = $"Attempt {_failedRetries + 1} did not complete. {StatusHeading}.";
+        }
+    }
+
+    private string StateText => string.Join(" ", _states.Select(state => state.State)).ToLowerInvariant();
+    private bool Forbidden => !SignIn && (_states.Any(state => state.StatusCode == 403) || StateText.Contains("forbidden") || StateText.Contains("denied") || StateText.Contains("missing permission"));
+    private bool SignIn => _states.Any(state => state.StatusCode == 401) || StateText.Contains("unauthorized") || StateText.Contains("unauthenticated");
     private bool Missing => StateText.Contains("missing binding") || StateText.Contains("binding") || StateText.Contains("unconfigured");
     private bool Unsupported => StateText.Contains("unsupported") && !Missing;
     private string StatusHeading => Forbidden ? "Access to these objects was denied" : SignIn ? "Sign in to read this environment" : Missing ? "Connect an environment to continue" : Unsupported ? "This feature is unavailable on this deployment" : Heading;

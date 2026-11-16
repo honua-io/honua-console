@@ -498,11 +498,15 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           completed.push('separate-approval');
         } finally { await approverHealth.verify(info); }
       } finally { await approverContext.close(); }
+      // Refresh is hidden once the receipt is terminal and disabled while a refresh is in flight.
+      const openPublishedMap = publication.getByRole('link', { name: 'Open published map', exact: true });
+      const refreshPublication = publication.getByRole('button', { name: 'Refresh publication status', disabled: false });
       await expect.poll(async () => {
-        await publication.getByRole('button', { name: 'Refresh publication status' }).click();
-        return publication.getByRole('link', { name: 'Open published map', exact: true }).isVisible();
+        if (await openPublishedMap.isVisible()) return true;
+        if (await refreshPublication.isVisible()) await refreshPublication.click();
+        return openPublishedMap.isVisible();
       }, { timeout: 90_000 }).toBe(true);
-      const href = await publication.getByRole('link', { name: 'Open published map', exact: true }).getAttribute('href');
+      const href = await openPublishedMap.getAttribute('href');
       expect(href).toBeTruthy();
       const anonymous = await page.context().browser()!.newContext();
       try {
