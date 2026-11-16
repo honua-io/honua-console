@@ -222,6 +222,46 @@ public sealed class MapPreviewRenderTests
         Assert.Equal(0, module.Initializations);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public void MapPreview_ClearingStyle_RemovesBoundMapAndDisablesZoom(string? missingStyle)
+    {
+        using var ctx = new BunitContext();
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
+        module.Setup<bool>("init", _ => true).SetResult(true);
+        module.SetupVoid("dispose", _ => true).SetVoidResult();
+        var cut = ctx.Render<MapPreview>(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+
+        cut.Render(parameters => parameters.Add(p => p.StyleUrl, missingStyle));
+
+        cut.WaitForAssertion(() => Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.Single(module.Invocations["dispose"]);
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.True(button.HasAttribute("disabled")));
+
+        cut.Render(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.Equal(2, module.Invocations["init"].Count);
+    }
+
+    [Fact]
+    public async Task MapPreview_ClearingStyleWhileImporting_DoesNotInitializeMap()
+    {
+        using var ctx = new BunitContext();
+        var runtime = new DeferredMapRuntime();
+        ctx.Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = ctx.Render<MapPreview>(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        Assert.True(runtime.ImportStarted);
+        cut.Render(parameters => parameters.Add(p => p.StyleUrl, (string?)null));
+
+        var module = new MapModule();
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => runtime.Import.SetResult(module));
+
+        Assert.Equal(0, module.Initializations);
+        Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
+    }
+
     private sealed class DeferredMapRuntime : IJSRuntime
     {
         public TaskCompletionSource<IJSObjectReference> Import { get; } = new();

@@ -216,6 +216,8 @@
     private bool _liveMapBound;
     private bool _disposed;
     private string? _boundStyleUrl;
+    private string? _requestedStyleUrl;
+    private long _bindingVersion;
     private string? _activeBasemapId;
     private bool _basemapInitialized;
 
@@ -354,11 +356,25 @@
         // bound. The builder/AI flows mount the preview BEFORE a style exists (empty draft) and only supply
         // StyleUrl after generation binds a real layer, so binding only on firstRender would never show the
         // map. Re-binding on change also handles switching between layers/refined proposals.
-        if (_disposed || string.IsNullOrWhiteSpace(StyleUrl) || string.Equals(StyleUrl, _boundStyleUrl, StringComparison.Ordinal))
+        if (_disposed)
         {
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(StyleUrl))
+        {
+            await ClearBindingAsync();
+            return;
+        }
+
+        if (string.Equals(StyleUrl, _boundStyleUrl, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var styleUrl = StyleUrl;
+        _requestedStyleUrl = styleUrl;
+        var bindingVersion = ++_bindingVersion;
         try
         {
             var module = _module ?? await JS.InvokeAsync<IJSObjectReference>(
@@ -370,6 +386,10 @@
             }
 
             _module = module;
+            if (bindingVersion != _bindingVersion)
+            {
+                return;
+            }
 
             // Dispose a previously-bound map before binding a new style (refine / layer switch).
             if (_liveMapBound)
@@ -386,7 +406,7 @@
                 _liveMapBound = false;
             }
 
-            if (_disposed)
+            if (_disposed || bindingVersion != _bindingVersion)
             {
                 return;
             }
@@ -396,16 +416,16 @@
                 _canvas,
                 new
                 {
-                    styleUrl = StyleUrl,
+                    styleUrl,
                     center = Center,
                     zoom = CameraZoom,
                     bounds = Bounds,
                     showScale = true,
                 });
 
-            if (bound && !_disposed)
+            if (bound && !_disposed && bindingVersion == _bindingVersion)
             {
-                _boundStyleUrl = StyleUrl;
+                _boundStyleUrl = styleUrl;
                 _liveMapBound = true;
                 StateHasChanged();
             }
@@ -418,6 +438,36 @@
         catch (InvalidOperationException)
         {
             // JS interop unavailable (prerender / bUnit without a JS runtime): keep the placeholder.
+        }
+    }
+
+    private async Task ClearBindingAsync()
+    {
+        if (_requestedStyleUrl is null)
+        {
+            return;
+        }
+
+        _requestedStyleUrl = null;
+        ++_bindingVersion;
+        _boundStyleUrl = null;
+        var wasBound = _liveMapBound;
+        _liveMapBound = false;
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("dispose", _canvas);
+            }
+            catch (JSException)
+            {
+                // The missing-binding state still replaces the previous preview.
+            }
+        }
+
+        if (wasBound && !_disposed)
+        {
+            StateHasChanged();
         }
     }
 
