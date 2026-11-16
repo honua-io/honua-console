@@ -67,6 +67,30 @@ public sealed partial class PublishWizardWorkspaceRenderTests
     }
 
     [Fact]
+    public async Task ServiceStep_RetryKeepsRecoveryVisibleUntilCatalogReadSettles()
+    {
+        var data = StubOperateData.WithFixtures();
+        var services = await data.GetServicesViewAsync();
+        data.OnServicesReadAsync = () => Task.FromException<OperateServicesView>(new HttpRequestException("Read failed"));
+        using var ctx = NewContext(data);
+        var cut = ctx.Render<PublishWizardWorkspace>();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-connection-notice]")));
+
+        var pending = new TaskCompletionSource<OperateServicesView>(TaskCreationOptions.RunContinuationsAsynchronously);
+        data.OnServicesReadAsync = () => pending.Task;
+        cut.Find("[data-connection-notice] button").Click();
+        Assert.Equal("Reading…", cut.Find("[data-connection-notice] button").TextContent);
+        Assert.Empty(cut.FindAll("[data-publish-tree-empty]"));
+        pending.SetException(new HttpRequestException("Read failed again"));
+        cut.WaitForAssertion(() => Assert.Contains("Attempt 2 did not complete", cut.Find("[role=status]").TextContent));
+
+        data.OnServicesReadAsync = () => Task.FromResult(services);
+        cut.Find("[data-connection-notice] button").Click();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-publish-tree-row]").Count));
+        Assert.Empty(cut.FindAll("[data-connection-notice]"));
+    }
+
+    [Fact]
     public void ServiceStep_SuccessfulEmptyReadCanShowEmptyCatalog()
     {
         using var ctx = NewContext(StubOperateData.Empty());
@@ -568,6 +592,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
     {
         private readonly OperateTransitionWorkspace _workspace;
         public Action? OnServicesRead { get; set; }
+        public Func<Task<OperateServicesView>>? OnServicesReadAsync { get; set; }
         public StubOperateData WithFolder(string? id, string? name) => new(_workspace with
         {
             Services = _workspace.Services.Select(service => service with { FolderId = id, FolderName = name }).ToArray()
@@ -582,7 +607,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
         public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)
         {
             OnServicesRead?.Invoke();
-            return Task.FromResult(new OperateServicesView(_workspace.Services, _workspace.CapabilityStates));
+            return OnServicesReadAsync?.Invoke() ?? Task.FromResult(new OperateServicesView(_workspace.Services, _workspace.CapabilityStates));
         }
 
         private StubOperateData(OperateTransitionWorkspace workspace) => _workspace = workspace;

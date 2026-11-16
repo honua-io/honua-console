@@ -952,8 +952,15 @@
         _activeEventQuery = new() { CorrelationId = _pendingCorrelationFilter };
         var eventsTask = OperateClient.QueryEventsAsync(_activeEventQuery);
         var logsTask = OperateClient.GetLogsAsync();
-        var alertsTask = OperateClient.GetAlertsAsync();
-        var rulesTask = OperateClient.GetRulesAsync();
+        var alertsAvailable = Capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting);
+        var alertsTask = alertsAvailable
+            ? OperateClient.GetAlertsAsync()
+            : Task.FromResult(OperateSectionResult<IReadOnlyList<OperateAlertRecord>>.Denied(
+                OperateSectionStatus.Unsupported, OptionalAlertAvailability.Message));
+        var rulesTask = alertsAvailable
+            ? OperateClient.GetRulesAsync()
+            : Task.FromResult(OperateSectionResult<OperateRulesView>.Denied(
+                OperateSectionStatus.Unsupported, OptionalAlertAvailability.Message));
         var jobsTask = OperateClient.GetJobsAsync();
         var investigationsTask = Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations)
             ? OperateClient.GetInvestigationsAsync()

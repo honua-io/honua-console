@@ -103,6 +103,44 @@ public sealed class LiveManifestPageGateTests
         Assert.Equal("/api/v1/capabilities/manifest", handler.RequestPath);
     }
 
+    public static IEnumerable<object[]> AlertStates => Matrix
+        .Where(row => (string)row[0] == "realtime-alerting")
+        .Select(row => new[] { row[2] });
+
+    [Theory]
+    [MemberData(nameof(AlertStates))]
+    public async Task ActivityOnlyReadsAdvertisedAlertCollections(string state)
+    {
+        using var ctx = new BunitContext();
+        ctx.AddConsoleNotifications();
+        using var handler = new ManifestHandler("alerts.geofence", state);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://server.example") };
+        var manifest = new ManifestBackedConsoleCapabilityManifest(
+            new HonuaServerCapabilityRegistryClient(new HonuaCapabilityManifestClient(http)));
+        ctx.Services.AddSingleton<IConsoleCapabilityManifest>(manifest);
+        var operations = new RecordingOperateClient();
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(operations);
+        var page = ctx.Render<OperateObservabilityPage>();
+        Assert.Equal(0, operations.AlertCalls);
+        Assert.Equal(0, operations.RuleCalls);
+        handler.Release.TrySetResult();
+
+        var available = state == "available";
+        page.WaitForAssertion(() =>
+        {
+            Assert.NotEmpty(page.FindAll(".operate-summary-tile"));
+            Assert.Equal(available ? 1 : 0, operations.AlertCalls);
+            Assert.Equal(available ? 1 : 0, operations.RuleCalls);
+            if (!available)
+            {
+                Assert.Contains("Alerts are not enabled or available on this server", page.Markup);
+            }
+        });
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => Task.CompletedTask);
+        Assert.Equal(available ? 1 : 0, operations.AlertCalls);
+        Assert.Equal(available ? 1 : 0, operations.RuleCalls);
+    }
+
     public class RecordingProxy<T> : DispatchProxy where T : class
     {
         public List<string> Calls { get; } = [];
@@ -147,6 +185,8 @@ public sealed class LiveManifestPageGateTests
     private sealed class RecordingOperateClient : IConsoleOperateObservabilityClient
     {
         public int InvestigationCalls { get; private set; }
+        public int AlertCalls { get; private set; }
+        public int RuleCalls { get; private set; }
 
         public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; init; } =
             OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]);
@@ -163,11 +203,17 @@ public sealed class LiveManifestPageGateTests
         public Task<OperateSectionResult<OperateLogsView>> GetLogsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<OperateLogsView>.Allowed(OperateLogsView.Empty));
 
-        public Task<OperateSectionResult<IReadOnlyList<OperateAlertRecord>>> GetAlertsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<IReadOnlyList<OperateAlertRecord>>.Allowed([]));
+        public Task<OperateSectionResult<IReadOnlyList<OperateAlertRecord>>> GetAlertsAsync(CancellationToken cancellationToken = default)
+        {
+            AlertCalls++;
+            return Task.FromResult(OperateSectionResult<IReadOnlyList<OperateAlertRecord>>.Allowed([]));
+        }
 
-        public Task<OperateSectionResult<OperateRulesView>> GetRulesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<OperateRulesView>.Allowed(OperateRulesView.Empty));
+        public Task<OperateSectionResult<OperateRulesView>> GetRulesAsync(CancellationToken cancellationToken = default)
+        {
+            RuleCalls++;
+            return Task.FromResult(OperateSectionResult<OperateRulesView>.Allowed(OperateRulesView.Empty));
+        }
 
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetJobsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(Jobs);

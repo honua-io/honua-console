@@ -957,10 +957,9 @@ public sealed class ConsoleOperateObservabilityClientTests
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
         services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/activity"));
-        // The investigations section is capability-gated (first-release cut-line); advertise it so the
-        // full-page live-data render under test exercises that surface.
+        // Advertise the optional sections exercised by the live-data and alert deep-link assertions.
         services.AddSingleton<IConsoleCapabilityManifest>(
-            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations, ConsoleCapabilityKeys.RealtimeAlerting]));
         services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
@@ -989,10 +988,9 @@ public sealed class ConsoleOperateObservabilityClientTests
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton<IConsoleOperateObservabilityClient>(new RenderingOperateClient());
         services.AddSingleton<NavigationManager>(new TestPageNavigationManager("operate/activity"));
-        // The investigations section is capability-gated (first-release cut-line); advertise it so the
-        // full-page live-data render under test exercises that surface.
+        // Advertise the optional sections exercised by the live-data and alert deep-link assertions.
         services.AddSingleton<IConsoleCapabilityManifest>(
-            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations]));
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.SiemInvestigations, ConsoleCapabilityKeys.RealtimeAlerting]));
         services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager, StaticRenderNavigationManager>();
         var provider = services.BuildServiceProvider();
 
