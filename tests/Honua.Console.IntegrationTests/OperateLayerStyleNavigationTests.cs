@@ -2,6 +2,7 @@ using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -140,6 +141,38 @@ public sealed class OperateLayerStyleNavigationTests
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DisposedStyleReadCannotPublishSharedLayerSelection(ConsolePresentationMode presentation)
+    {
+        using var context = Context(presentation);
+        var source = new DelayedOverrides();
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
+        var selection = new ConsolePublicationLayerContext();
+        var tree = context.Render<CascadingValue<ConsolePublicationLayerContext>>(parameters => parameters
+            .Add(component => component.Value, selection)
+            .AddChildContent<ObservedStylePage>(child => child.Add(component => component.ResourceId, "first")));
+        var loading = tree.FindComponent<ObservedStylePage>().Instance.Loading;
+        Assert.False(loading.IsCompleted);
+        Assert.Null(selection.Selection);
+        var revision = selection.Revision;
+
+        await context.DisposeComponentsAsync();
+        source.FirstRead.SetResult(View("first"));
+        await loading;
+
+        Assert.Null(selection.Selection);
+        Assert.Equal(revision, selection.Revision);
+        Assert.Equal(["first"], source.Reads);
+    }
+
+    public sealed class ObservedStylePage : OperateLayerStylePage
+    {
+        public Task Loading { get; private set; } = Task.CompletedTask;
+        protected override Task OnParametersSetAsync() => Loading = base.OnParametersSetAsync();
     }
 
     private static BunitContext Context(ConsolePresentationMode presentation)
