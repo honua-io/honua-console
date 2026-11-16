@@ -12,7 +12,7 @@ namespace Honua.Console.Shell.Tests;
 public sealed class ConsoleDeployApprovalClientTests
 {
     [Fact]
-    public async Task SubmitPrefersSignedInOperatorBearerOverConfiguredAdminKey()
+    public async Task ReviewRequiresBrowserSessionEvenWithBearerAndAdminKey()
     {
         var handler = new RecordingHandler(_ => JsonResponse(new DeployOperationResponse
         {
@@ -44,12 +44,10 @@ public sealed class ConsoleDeployApprovalClientTests
             sessionStore: sessions,
             adminApiKey: "shared-admin-key");
 
-        _ = await client.SubmitAsync("deploy-1", "Reviewed by Alice");
+        var result = await client.OpenSubmitReviewAsync("deploy-1");
 
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-alice-bearer"), request.Headers.Authorization);
-        Assert.False(request.Headers.Contains("X-API-Key"));
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -78,7 +76,7 @@ public sealed class ConsoleDeployApprovalClientTests
             sessions,
             adminApiKey: "shared-admin-key");
 
-        var result = await client.SubmitAsync("deploy-1", "Approved by Alice");
+        var result = await client.OpenSubmitReviewAsync("deploy-1");
 
         Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Contains("sign in", result.Message, StringComparison.OrdinalIgnoreCase);

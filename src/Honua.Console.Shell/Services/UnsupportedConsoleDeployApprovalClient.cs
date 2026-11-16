@@ -20,8 +20,12 @@ public sealed class UnsupportedConsoleDeployApprovalClient : IConsoleDeployAppro
             OperateSectionStatus.Unsupported,
             Message));
 
+    public Task<OperateSectionResult<ConsoleDeployApprovalReview>> OpenSubmitReviewAsync(
+        string operationId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateSectionResult<ConsoleDeployApprovalReview>.Denied(OperateSectionStatus.Unsupported, Message));
+
     public Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(
-        string operationId,
+        ConsoleDeployApprovalReview review,
         string? reason,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(OperateSectionStatus.Unsupported, Message));

@@ -42,11 +42,28 @@ public sealed class InMemoryConsoleDeployApprovalClient : IConsoleDeployApproval
             OperateSectionResult<IReadOnlyList<DeployOperationProposal>>.Allowed(pending));
     }
 
+    public async Task<OperateSectionResult<ConsoleDeployApprovalReview>> OpenSubmitReviewAsync(
+        string operationId, CancellationToken cancellationToken = default)
+    {
+        var result = await GetOperationAsync(operationId, cancellationToken);
+        return result.IsAllowed && result.Value is { } op
+            ? OperateSectionResult<ConsoleDeployApprovalReview>.Allowed(new(op, DateTimeOffset.UtcNow.AddMinutes(5), new ConsoleDeployReviewAuthority()))
+            : OperateSectionResult<ConsoleDeployApprovalReview>.Denied(result.Status, result.Message);
+    }
+
     public Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(
-        string operationId,
+        ConsoleDeployApprovalReview review,
         string? reason,
         CancellationToken cancellationToken = default)
     {
+        var operationId = review.Operation.OperationId;
+        if (!review.TryConsume() || review.ExpiresAt <= DateTimeOffset.UtcNow || !_operations.TryGetValue(operationId, out var current)
+            || current != review.Operation)
+        {
+            return Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(
+                OperateSectionStatus.Unavailable, "The deployment changed or the review expired. Review it again."));
+        }
+
         if (!_operations.TryGetValue(operationId.Trim(), out var op))
         {
             return Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(

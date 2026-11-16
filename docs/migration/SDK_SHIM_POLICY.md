@@ -103,6 +103,7 @@ The current active shims are bounded to catalog/viewer/share route parity, Studi
 
 | Shim   | Language | Added in PR | Waiting on | Owner | Target removal |
 |--------|----------|-------------|------------|-------|----------------|
+| Deployment human-review envelope (`DeployHumanReviewContracts.cs`) | .NET | This PR | honua-sdk-dotnet#166 | s-console-ops | Remove when the published Admin SDK projects deployment review (honua-console#7). |
 | API-key list, create and revoke (`AdminApiKeyContracts.cs`, `AdminApiKeyClient.cs`) | .NET | honua-console#712 | honua-sdk-dotnet#531 merged; Honua.Sdk.Admin 3.0.0 is not a consumable nuget.org package (latest 2.2.0) | s-catalog-ui | honua-console#7 replaces these types with the published SDK models |
 | Physical-layer catalog scope (`HonuaAdminCatalogQuery.ConnectionId` and `StorageLayerId`; paired server admin query) | .NET | layer detail lookup (honua-console#794) | honua-sdk-dotnet#166 | Operate | honua-console#7; scoped layer lookup tests pin the paired query |
 | Synchronous file-import receipt (`FileImportContracts.cs`, including `HonuaAdminImportResult.Schema` and `PhysicalTableName`; no published SDK projection) | .NET | import-to-publish handoff (honua-console#789) | honua-sdk-dotnet#166 | Operate | honua-console#7; pinned by import receipt and publish render tests |
@@ -173,3 +174,12 @@ Two alternatives were considered:
 - **Allow inline DTO duplication wherever needed, clean up later.** Faster in the short term, but creates a diffuse cleanup with no list of what needs to be deleted. Rejected - this is the exact failure mode the DRY constraint in ADR-0001 warns against.
 
 The single-boundary-per-language approach takes a measured shortcut: porting work continues, every shortcut is visible in one file per runtime and one document, and removal is a single coordinated PR rather than a scavenger hunt.
+
+## Deployment human review
+
+`DeployHumanReviewContracts.cs` composes the existing deploy-operation projection
+with the server human-review grant, pending a published SDK projection in
+[honua-sdk-dotnet#166](https://github.com/honua-io/honua-sdk-dotnet/issues/166).
+Owner: s-console-ops. Removal: [honua-console#7](https://github.com/honua-io/honua-console/issues/7).
+The grant stays transient; the browser transport binds the review and decision
+to the same session.
