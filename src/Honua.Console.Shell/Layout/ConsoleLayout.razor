@@ -108,17 +108,17 @@
         // Start fail-closed: navigation renders immediately while live capability truth is loaded.
         // A slow or unreachable server must not hold the prerendered shell behind HttpClient's long
         // default timeout.
-        StartCapabilityRefresh(_authentication?.GetAuthenticationStateAsync());
+        StartCapabilityRefresh();
         return Task.CompletedTask;
     }
 
-    private void StartCapabilityRefresh(Task<AuthenticationState>? initialAuthentication = null)
+    private void StartCapabilityRefresh()
     {
         if (_disposed) return;
         _capabilityRefreshCancellation?.Cancel();
         _capabilityRefreshCancellation?.Dispose();
         _capabilityRefreshCancellation = new CancellationTokenSource();
-        _ = RefreshCapabilitiesAsync(_capabilityRefreshCancellation.Token, initialAuthentication);
+        _ = RefreshCapabilitiesAsync(_capabilityRefreshCancellation.Token, _authentication?.GetAuthenticationStateAsync());
     }
 
     private async Task RefreshCapabilitiesAsync(CancellationToken cancellationToken, Task<AuthenticationState>? initialAuthentication)

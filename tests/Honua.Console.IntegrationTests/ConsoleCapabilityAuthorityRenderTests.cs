@@ -26,9 +26,14 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
     }
 
     [Fact]
-    public async Task InitialManifestWaitsForSlowRestoredAuthentication()
+    public async Task EnvironmentChangeStillWaitsForSlowRestoredAuthentication()
     {
         await using var context = CreateContext();
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([
+            new ConsoleEnvironmentProfile { Id = "first", DisplayName = "First", ServerBaseUri = new Uri("https://first.test/") },
+            new ConsoleEnvironmentProfile { Id = "second", DisplayName = "Second", ServerBaseUri = new Uri("https://second.test/") }
+        ]);
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
         var authentication = context.Services.GetRequiredService<MutableAuthentication>();
         var restored = authentication.DeferInitialState();
         var shell = context.Render<ConsoleLayout>();
@@ -37,6 +42,7 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
         Assert.Empty(CatalogLinks(shell));
 
         await Task.Delay(TimeSpan.FromSeconds(5.1));
+        await shell.InvokeAsync(() => profiles.ActivateProfileAsync("second"));
         Assert.Equal(0, registry.Reads);
         restored.SetResult(authentication.AuthenticatedState());
         shell.WaitForAssertion(() => Assert.Equal(2, CatalogLinks(shell).Count));
