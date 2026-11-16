@@ -5726,6 +5726,8 @@ p {
 
 /* Live chart (graphs) preview — the dashboard/report/analysis analog of the map preview. */
 .chart-preview {
+    width: 100%;
+    min-width: 0;
     margin: 0;
     display: grid;
     gap: 8px;
