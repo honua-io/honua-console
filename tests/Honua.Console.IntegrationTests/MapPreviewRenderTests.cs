@@ -1,4 +1,6 @@
 using Bunit;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 
@@ -200,5 +202,110 @@ public sealed class MapPreviewRenderTests
             .Add(p => p.TimeFrameLabel, "current"));
         Assert.Contains("map-preview-timeframe-now", now.Markup, StringComparison.Ordinal);
         Assert.Contains(">now<", now.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MapPreview_DisposedWhileImporting_DoesNotInitializeMap()
+    {
+        using var ctx = new BunitContext();
+        var runtime = new DeferredMapRuntime();
+        ctx.Services.AddSingleton<IJSRuntime>(runtime);
+        ctx.Render<MapPreview>(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        Assert.True(runtime.ImportStarted);
+        Assert.False(runtime.Import.Task.IsCompleted);
+
+        await ctx.DisposeComponentsAsync();
+        var module = new MapModule();
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => runtime.Import.SetResult(module));
+        await module.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(0, module.Initializations);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    public void MapPreview_ClearingStyle_RemovesBoundMapAndDisablesZoom(string? missingStyle)
+    {
+        using var ctx = new BunitContext();
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
+        module.Setup<bool>("init", _ => true).SetResult(true);
+        module.SetupVoid("dispose", _ => true).SetVoidResult();
+        var cut = ctx.Render<MapPreview>(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+
+        cut.Render(parameters => parameters.Add(p => p.StyleUrl, missingStyle));
+
+        cut.WaitForAssertion(() => Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.Single(module.Invocations["dispose"]);
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.True(button.HasAttribute("disabled")));
+
+        cut.Render(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+        Assert.Equal(2, module.Invocations["init"].Count);
+    }
+
+    [Fact]
+    public async Task MapPreview_ClearingStyleWhileImporting_DoesNotInitializeMap()
+    {
+        using var ctx = new BunitContext();
+        var runtime = new DeferredMapRuntime();
+        ctx.Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = ctx.Render<MapPreview>(parameters => parameters.Add(p => p.StyleUrl, "/style.json"));
+        Assert.True(runtime.ImportStarted);
+        cut.Render(parameters => parameters.Add(p => p.StyleUrl, (string?)null));
+
+        var module = new MapModule();
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => runtime.Import.SetResult(module));
+
+        Assert.Equal(0, module.Initializations);
+        Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
+    }
+
+    private sealed class DeferredMapRuntime : IJSRuntime
+    {
+        public TaskCompletionSource<IJSObjectReference> Import { get; } = new();
+        public bool ImportStarted { get; private set; }
+
+        public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+        {
+            ImportStarted = true;
+            return (TValue)await Import.Task;
+        }
+
+        // This test runtime forwards to its own fake implementation, which must expose failures to the test.
+#pragma warning disable BL0016
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, args);
+#pragma warning restore BL0016
+    }
+
+    private sealed class MapModule : IJSObjectReference
+    {
+        public int Initializations { get; private set; }
+        public TaskCompletionSource Disposed { get; } = new();
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+        {
+            if (identifier == "init")
+            {
+                Initializations++;
+                return ValueTask.FromResult((TValue)(object)true);
+            }
+
+            return ValueTask.FromResult(default(TValue)!);
+        }
+
+        // This test runtime forwards to its own fake implementation, which must expose failures to the test.
+#pragma warning disable BL0016
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, args);
+#pragma warning restore BL0016
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
     }
 }

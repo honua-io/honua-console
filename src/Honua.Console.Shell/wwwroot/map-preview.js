@@ -30,6 +30,8 @@ const maplibreAsset = (file) =>
 // test time against the committed files.
 
 const instances = new Map();
+// A weak token also covers containers whose map has not been constructed yet.
+const initializations = new WeakMap();
 let maplibrePromise = null;
 
 function loadMapLibre() {
@@ -155,10 +157,11 @@ export function bindMapSession(map, authorize, subscribe) {
 const sessionReleases = new Map();
 
 // Attempts to mount a live MapLibre map into the given container.
-// Returns true when a real map was bound; false when the component should keep its placeholder.
-async function mountAuthorizedMap(maplibregl, container, options) {
+// Returns the mounted resources, or null when initialization was superseded.
+async function mountAuthorizedMap(maplibregl, { container, options, isCurrent }) {
     const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
     const authorize = typeof capture === 'function' ? await capture() : null;
+    if (!isCurrent()) return null;
     const mapOptions = {
         container,
         style: options.styleUrl,
@@ -170,76 +173,93 @@ async function mountAuthorizedMap(maplibregl, container, options) {
         mapOptions.transformRequest = (url) => mapRequestParameters(authorize, url);
         await requireMapWorkerGuard(maplibregl);
     }
+    if (!isCurrent()) return null;
     const map = new maplibregl.Map(mapOptions);
     return { map, releaseSession: bindMapSession(map, authorize, globalThis.honuaConsoleSubscribeSession) };
+}
+
+function configureMapPreview(maplibregl, map, options) {
+    if (options.showScale) {
+        map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+    }
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-left');
+    // The server layer style is feature-only (fill/outline) with no basemap, so the map renders
+    // on a blank background. Inject a free, no-API-key OpenStreetMap raster basemap UNDER the
+    // feature layers when the loaded style carries no raster basemap of its own, so the data has
+    // geographic context. (OSM tiles require network; if unreachable the features still render.)
+    map.on('load', () => {
+        try {
+            const style = map.getStyle();
+            const hasRaster = style && style.sources
+                && Object.values(style.sources).some(s => s && s.type === 'raster');
+            if (!hasRaster && !map.getSource('osm-basemap')) {
+                map.addSource('osm-basemap', {
+                    type: 'raster',
+                    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                    tileSize: 256,
+                    attribution: '© OpenStreetMap contributors',
+                });
+                const layers = (map.getStyle().layers) || [];
+                const firstLayerId = layers.length > 0 ? layers[0].id : undefined;
+                map.addLayer({ id: 'osm-basemap', type: 'raster', source: 'osm-basemap' }, firstLayerId);
+            }
+        } catch {
+            /* basemap is best-effort; never break the feature render */
+        }
+        // Frame the camera on the layer's data. Preferred source is the server-provided extent
+        // ([minLng, minLat, maxLng, maxLat] in EPSG:4326, from the layer's cached metadata extent),
+        // which is reliable even at a whole-world start where the vector tiles are empty. When no
+        // extent is supplied, fall back to fitting the actual rendered features once the map idles.
+        // Both use real geometry only — never a synthetic extent.
+        const b = options.bounds;
+        if (Array.isArray(b) && b.length === 4 && b.every(n => Number.isFinite(n))) {
+            try {
+                map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 });
+                map._homeCenter = map.getCenter().toArray();
+                map._homeZoom = map.getZoom();
+            } catch {
+                fitToFeaturesOnce(map);
+            }
+        } else {
+            fitToFeaturesOnce(map);
+        }
+    });
+    // Remember the initial view so the custom Recenter control can restore it.
+    map._homeCenter = options.center ?? [0, 0];
+    map._homeZoom = options.zoom ?? 1;
 }
 
 export async function init(container, options) {
     if (!container || !options || !options.styleUrl) {
         return false;
     }
+    dispose(container);
+    const token = {};
+    initializations.set(container, token);
+    const isCurrent = () => initializations.get(container) === token;
     const maplibregl = await loadMapLibre();
-    if (!maplibregl) {
+    if (!maplibregl || !isCurrent()) {
         return false;
     }
     let releaseSession = () => {};
+    let map;
     try {
-        const mounted = await mountAuthorizedMap(maplibregl, container, options);
-        const { map } = mounted;
+        const mounted = await mountAuthorizedMap(maplibregl, { container, options, isCurrent });
+        if (!mounted) return false;
+        map = mounted.map;
         releaseSession = mounted.releaseSession;
-        if (options.showScale) {
-            map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+        if (!isCurrent()) {
+            releaseSession();
+            try { map.remove(); } catch { /* teardown is best-effort */ }
+            return false;
         }
-        map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-left');
-        // The server layer style is feature-only (fill/outline) with no basemap, so the map renders
-        // on a blank background. Inject a free, no-API-key OpenStreetMap raster basemap UNDER the
-        // feature layers when the loaded style carries no raster basemap of its own, so the data has
-        // geographic context. (OSM tiles require network; if unreachable the features still render.)
-        map.on('load', () => {
-            try {
-                const style = map.getStyle();
-                const hasRaster = style && style.sources
-                    && Object.values(style.sources).some(s => s && s.type === 'raster');
-                if (!hasRaster && !map.getSource('osm-basemap')) {
-                    map.addSource('osm-basemap', {
-                        type: 'raster',
-                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                        tileSize: 256,
-                        attribution: '© OpenStreetMap contributors',
-                    });
-                    const layers = (map.getStyle().layers) || [];
-                    const firstLayerId = layers.length > 0 ? layers[0].id : undefined;
-                    map.addLayer({ id: 'osm-basemap', type: 'raster', source: 'osm-basemap' }, firstLayerId);
-                }
-            } catch {
-                /* basemap is best-effort; never break the feature render */
-            }
-            // Frame the camera on the layer's data. Preferred source is the server-provided extent
-            // ([minLng, minLat, maxLng, maxLat] in EPSG:4326, from the layer's cached metadata extent),
-            // which is reliable even at a whole-world start where the vector tiles are empty. When no
-            // extent is supplied, fall back to fitting the actual rendered features once the map idles.
-            // Both use real geometry only — never a synthetic extent.
-            const b = options.bounds;
-            if (Array.isArray(b) && b.length === 4 && b.every(n => Number.isFinite(n))) {
-                try {
-                    map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 });
-                    map._homeCenter = map.getCenter().toArray();
-                    map._homeZoom = map.getZoom();
-                } catch {
-                    fitToFeaturesOnce(map);
-                }
-            } else {
-                fitToFeaturesOnce(map);
-            }
-        });
-        // Remember the initial view so the custom Recenter control can restore it.
-        map._homeCenter = options.center ?? [0, 0];
-        map._homeZoom = options.zoom ?? 1;
+        configureMapPreview(maplibregl, map, options);
         sessionReleases.set(map, releaseSession);
         instances.set(container, map);
         return true;
     } catch {
         releaseSession();
+        try { map?.remove(); } catch { /* teardown is best-effort */ }
         return false;
     }
 }
@@ -286,12 +306,12 @@ export function zoomOut(container) {
     return false;
 }
 
-// Recenter returns the live map to the initial center/zoom it was mounted with.
+// Recenter restores the fitted layer view, or the initial camera when no extent was available.
 export function recenter(container, center, zoom) {
     const map = instances.get(container);
     if (map) {
         try {
-            map.easeTo({ center: center ?? [0, 0], zoom: zoom ?? 1 });
+            map.easeTo({ center: map._homeCenter ?? center ?? [0, 0], zoom: map._homeZoom ?? zoom ?? 1 });
             return true;
         } catch {
             return false;
@@ -301,6 +321,7 @@ export function recenter(container, center, zoom) {
 }
 
 export function dispose(container) {
+    initializations.delete(container);
     const map = instances.get(container);
     if (map) {
         sessionReleases.get(map)?.();
