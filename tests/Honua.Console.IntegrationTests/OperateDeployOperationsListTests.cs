@@ -66,6 +66,62 @@ public sealed class OperateDeployOperationsListTests
         Assert.Equal("op-selectable", selected!.OperationId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReplayReset_AwaitsListReconciliation_AndRejectsUnavailableRead(bool unavailable)
+    {
+        using var ctx = new BunitContext();
+        var client = new ResetListClient();
+        var realtime = new ResetRealtimeClient();
+        ctx.Services.AddSingleton<IConsoleDeployOperationsClient>(client);
+        ctx.Services.AddSingleton<IConsoleDeployOperationRealtimeClient>(realtime);
+        var cut = ctx.Render<OperateDeployOperationsList>();
+        var pending = new TaskCompletionSource<OperateSectionResult<DeployOperationListView>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.Pending = pending.Task;
+        var reset = cut.InvokeAsync(realtime.ResetAsync);
+        cut.WaitForAssertion(() => Assert.Equal(2, client.Reads));
+        Assert.False(reset.IsCompleted);
+        pending.SetResult(unavailable
+            ? OperateSectionResult<DeployOperationListView>.Denied(OperateSectionStatus.Unavailable, "Unavailable")
+            : await new InMemoryConsoleDeployOperationsClient([Awaiting("reconciled")]).ListAsync(new()));
+        if (unavailable)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => reset);
+        else
+        {
+            await reset;
+            Assert.Contains("reconciled", cut.Markup, StringComparison.Ordinal);
+        }
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        await realtime.ResetAsync();
+        Assert.Equal(2, client.Reads);
+    }
+
+    private sealed class ResetListClient : IConsoleDeployOperationsClient
+    {
+        public int Reads { get; private set; }
+        public Task<OperateSectionResult<DeployOperationListView>>? Pending { get; set; }
+        public Task<OperateSectionResult<DeployOperationListView>> ListAsync(DeployOperationListQuery query, CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return Pending ?? new InMemoryConsoleDeployOperationsClient([]).ListAsync(query, cancellationToken);
+        }
+        public Task<OperateSectionResult<DeployPreflightView>> GetPreflightAsync(bool includeDiagnostics = true, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+        public Task<OperateSectionResult<PlatformReleaseConvergeView>> ConvergeAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class ResetRealtimeClient : IConsoleDeployOperationRealtimeClient, IConsoleRealtimeRefreshClient
+    {
+        public event Action<ConsoleDeployOperationRealtimeEvent>? OperationChanged { add { } remove { } }
+        public event Func<Task>? RefreshRequired;
+        public Task ResetAsync() => RefreshRequired?.Invoke() ?? Task.CompletedTask;
+        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     private static DeployOperationProposal Awaiting(string operationId) => new(
         OperationId: operationId,
         Lifecycle: DeployOperationLifecycle.AwaitingApproval,

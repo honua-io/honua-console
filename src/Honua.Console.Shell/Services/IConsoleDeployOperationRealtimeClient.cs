@@ -2,7 +2,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-// Hub transitions are at-least-once, so consumers dedupe on operation id and transition kind.
+// Transitions are at-least-once, so consumers dedupe on operation id and transition kind.
 public sealed record ConsoleDeployOperationRealtimeEvent(
     string OperationId,
     string TransitionKind,
@@ -15,7 +15,7 @@ public interface IConsoleDeployOperationRealtimeClient : IAsyncDisposable
     // Callbacks run on the connection thread, so a UI subscriber marshals its own update.
     event Action<ConsoleDeployOperationRealtimeEvent>? OperationChanged;
 
-    // A missing hub group becomes the fallback state and does not throw, so callers keep their poll loop.
+    // An unavailable event stream enters fallback while callers keep their poll loop.
     Task StartAsync(CancellationToken cancellationToken = default);
 
     Task StopAsync(CancellationToken cancellationToken = default);

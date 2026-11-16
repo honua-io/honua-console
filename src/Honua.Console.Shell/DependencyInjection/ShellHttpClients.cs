@@ -21,6 +21,9 @@ internal static class ShellHttpClients
 
     public static HttpClient ServerBound(IServiceProvider services) => ServerBound(services, ReadTimeout);
 
+    // Heartbeat deadlines are enforced by the SSE reader, not the lifetime of an HTTP request.
+    public static HttpClient ServerBoundStream(IServiceProvider services) => ServerBound(services, Timeout.InfiniteTimeSpan);
+
     public static HttpClient ServerBoundUpload(IServiceProvider services) => ServerBound(services, LongRequestTimeout);
 
     public static HttpClient Standalone(TimeSpan timeout) => new(CreateBoundedLifetimeHandler()) { Timeout = timeout };

@@ -10,17 +10,9 @@
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 
-@* APPROVAL INBOX (#193) — the GIS department's work queue as one human-in-the-loop surface.
-   The console's job is not form-work: it WITNESSES and AUTHORIZES the operations agents and
-   APIs propose. This page reads the first-class honua-server proposals API (#1694), classifies
-   each proposal onto a GIS-desk ticket type, and lets an operator review the plan / diff /
-   dry-run / risk / blockers and approve or reject (reason required) — all through the server's
-   governed endpoints (the RBAC approve gate stays the only real gate; this surface never
-   bypasses it). It subscribes to the admin realtime hub's proposals group (#1695) so pending /
-   resolved events update the queue live, with a manual refresh fallback.
-
-   Server-owned data only (Console Patterns Charter section 11): a missing / unsupported /
-   forbidden / unavailable read renders the shared status surface, never seeded data. *@
+@* Server-owned proposals and governed approval endpoints. Realtime notifications refresh
+   the queue, with manual refresh available when streaming is unavailable. Unsupported,
+   forbidden, and unavailable reads render the shared status surface. *@
 
 <section class="console-page console-operate-page approval-inbox-page @(V4Enabled ? "approval-inbox-v4" : null)">
     @if (V4Enabled)
@@ -44,10 +36,7 @@
         </div>
     }
 
-    @* Freshness affordance (console#309): a persistent, honest currency signal. "Live" when the
-       proposals realtime hub is connected; when it has degraded to manual refresh the queue says
-       so and shows when the data was last good, so an approver is never silently handed a stale
-       queue. It flips on reconnect without a reload via the shared realtime state-changed seam. *@
+    @* Keep the connection state and last successful read visible when live updates pause. *@
     <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls"
          data-freshness-state="@(Realtime.IsConnected ? "live" : "paused")">
         @if (Realtime.IsConnected)
@@ -342,6 +331,7 @@
 
     private bool _loaded;
     private bool _busy;
+    private readonly ConsoleRefreshCoalescer _refreshGate = new();
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
@@ -394,7 +384,7 @@
         SetSelectedProposal(_routeProposalId);
 
         _updates = new ConsoleProposalSubscription(Realtime,
-            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged));
+            new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
 
         // Best-effort: name the failing source honestly in the error card (console#308). A profile
         // store may not be registered in a bare render harness; degrade to the generic server name.
@@ -526,22 +516,20 @@
         }
     }
 
-    private async Task RefreshAsync()
-    {
-        if (_busy)
-        {
-            return;
-        }
+    private Task RefreshAsync() => _refreshGate.RunAsync(ReadInboxCoreAsync);
 
+    private async Task ReadInboxCoreAsync()
+    {
         _busy = true;
         try
         {
+            if (_disposed) return;
             // Bounded loading (console#308): a hung or failing read resolves to an explicit,
             // retryable Unavailable error rather than an endless spinner.
             _result = await ConsoleReadBudget.RunAsync(
                 token => Inbox.GetInboxAsync(cancellationToken: token),
                 LoadBudget,
-                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.");
+                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.", _lifetimeCancellation.Token);
 
             if (_result.IsAllowed)
             {
@@ -572,6 +560,15 @@
 
     // A live ProposalPending / ProposalResolved event: refresh the queue (and the open detail
     // if the resolved proposal is the selected one) without polling.
+    private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
+    {
+        await RefreshAsync();
+        if (_disposed || !_result.IsAllowed || _result.PartialResult)
+            throw new InvalidOperationException("The approval projection could not be reconciled.");
+        _detailReloadToken++;
+        StateHasChanged();
+    });
+
     private void OnProposalEvent(ConsoleProposalEvent evt)
     {
         _ = InvokeAsync(async () =>

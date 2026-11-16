@@ -63,12 +63,11 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 adminApiKey));
         services.TryAddScoped<IConsoleDeployOperationRealtimeClient>(serviceProvider =>
-            new SignalRConsoleDeployOperationRealtimeClient(
+            new SseConsoleDeployOperationRealtimeClient(
+                ShellHttpClients.ServerBoundStream(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                serviceProvider.GetRequiredService<ILogger<SignalRConsoleDeployOperationRealtimeClient>>(),
-                adminApiKey,
-                serviceProvider.GetService<IConsoleManagerEndpoint>()));
+                serviceProvider.GetService<IConsoleAuthorityBindingValidator>(),
+                serviceProvider.GetRequiredService<ILogger<SseConsoleDeployOperationRealtimeClient>>()));
     }
 
     // A denied approve/reject surfaces as Forbidden; a human decision never falls back to the admin API key.
@@ -93,12 +92,11 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 adminApiKey));
         services.TryAddScoped<IConsoleProposalRealtimeClient>(serviceProvider =>
-            new SignalRConsoleProposalRealtimeClient(
+            new SseConsoleProposalRealtimeClient(
+                ShellHttpClients.ServerBoundStream(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                serviceProvider.GetRequiredService<ILogger<SignalRConsoleProposalRealtimeClient>>(),
-                adminApiKey,
-                serviceProvider.GetService<IConsoleManagerEndpoint>()));
+                serviceProvider.GetService<IConsoleAuthorityBindingValidator>(),
+                serviceProvider.GetRequiredService<ILogger<SseConsoleProposalRealtimeClient>>()));
 
         // honua-devops exposes no Console proposals endpoint, so its source reads an empty, allowed result.
         services.TryAddSingleton<IConsoleDevOpsProposalsClient, UnavailableConsoleDevOpsProposalsClient>();
@@ -118,12 +116,11 @@ internal static class OperateObservabilityRegistrations
         services.TryAddSingleton<IOpsHealthDataSource>(serviceProvider =>
             new OpsHealthDataSource(serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
         services.TryAddScoped<IConsoleOpsHealthRealtimeClient>(serviceProvider =>
-            new SignalRConsoleOpsHealthRealtimeClient(
+            new SseConsoleOpsHealthRealtimeClient(
+                ShellHttpClients.ServerBoundStream(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                serviceProvider.GetRequiredService<ILogger<SignalRConsoleOpsHealthRealtimeClient>>(),
-                adminApiKey,
-                serviceProvider.GetService<IConsoleManagerEndpoint>()));
+                serviceProvider.GetService<IConsoleAuthorityBindingValidator>(),
+                serviceProvider.GetRequiredService<ILogger<SseConsoleOpsHealthRealtimeClient>>()));
         services.TryAddSingleton<HttpConsoleOpsFindingsClient>(serviceProvider =>
             new HttpConsoleOpsFindingsClient(
                 ShellHttpClients.ManagerBound(serviceProvider),
