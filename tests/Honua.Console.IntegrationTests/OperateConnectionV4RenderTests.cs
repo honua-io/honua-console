@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class OperateConnectionV4RenderTests
+public sealed partial class OperateConnectionV4RenderTests
 {
     private static readonly OperateConnectionSummary Connection = new("connection a", "Production database", "PostGIS", "db.example:5432 / spatial", "reader", "Healthy", "Today", null);
 
@@ -321,7 +321,13 @@ public sealed class OperateConnectionV4RenderTests
             TestedConnections.Add(connectionId);
             return connectionId == "second" ? SecondTest.Task : Test.Task;
         }
-        public Task<ConsoleConnectionCreateResult> CreateAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default) => Create.Task;
+        public List<ConsoleConnectionCreateCommand> CreatedCommands { get; } = [];
+        public TaskCompletionSource<ConsoleConnectionCreateResult> SecondCreate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<ConsoleConnectionCreateResult> CreateAsync(ConsoleConnectionCreateCommand command, CancellationToken cancellationToken = default)
+        {
+            CreatedCommands.Add(command);
+            return CreatedCommands.Count == 1 ? Create.Task : SecondCreate.Task;
+        }
     }
 
     private static BunitContext Context(bool enabled, string mount = "/")

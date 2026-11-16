@@ -187,6 +187,15 @@
             </div>
         }
 
+        @if (_createdConnection is { } created)
+        {
+            <div class="console-panel console-state-success" role="status">
+                <OperateSectionHeading Text="Connection created" />
+                <p>Your newer draft is still unsaved.</p>
+                <a href="@ConnectionHref(created.ConnectionId)" data-created-connection>@created.Name</a>
+            </div>
+        }
+
         @if (_result is { Succeeded: false })
         {
             <div class="console-panel console-state-danger" role="alert">
@@ -260,6 +269,8 @@
     private bool _testing;
     private long _editRevision;
     private ConsoleConnectionCreateResult? _result;
+    private CreatedConnection? _createdConnection;
+    private sealed record CreatedConnection(string Name, string? ConnectionId);
     private ConsoleConnectionTestOutcome? _testOutcome;
 
     private readonly ValidationState _validation = new();
@@ -375,45 +386,56 @@
 
     private async Task CreateAsync()
     {
-        if (_busy || _testing || !CanUseProvider)
-        {
-            return;
-        }
-        var errors = Revalidate();
-        if (errors.Any(error => error.IsBlocking))
-        {
-            return;
-        }
+        if (_busy || _testing || !CanUseProvider) return;
+        if (Revalidate().Any(error => error.IsBlocking)) return;
 
+        var revision = _editRevision;
+        var command = BuildCommand();
         _busy = true;
         _result = null;
+        ConsoleConnectionCreateResult result;
         try
         {
-            _result = await ConnectionCreate.CreateAsync(BuildCommand());
+            result = await ConnectionCreate.CreateAsync(command);
         }
         finally
         {
             _busy = false;
         }
 
-        if (_result.Succeeded)
+        if (result.Succeeded)
         {
-            // Clear the dirty flag and let one render flow so the UnsavedChangesGuard observes the cleared
-            // state (its IsDirty parameter only updates on render) before we navigate — otherwise a successful
-            // save trips the "leave this page?" prompt.
+            _existingNames.Add(command.Name);
+            await CompleteCreationAsync(new(command.Name, result.ConnectionId), revision);
+        }
+        else if (revision == _editRevision)
+        {
+            _result = result;
+            _validation.SetServerErrors(MapServerErrors(result.FieldErrors));
+        }
+    }
+
+    private async Task CompleteCreationAsync(CreatedConnection created, long revision)
+    {
+        if (revision == _editRevision)
+        {
             _dirty.MarkClean();
             StateHasChanged();
             await Task.Yield();
-            Nav.NavigateTo(Nav.ToConsoleHref(string.IsNullOrWhiteSpace(_result.ConnectionId)
-                ? "/operate/connections"
-                : ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(_result.ConnectionId))));
-            return;
+            if (revision == _editRevision)
+            {
+                Nav.NavigateTo(ConnectionHref(created.ConnectionId));
+                return;
+            }
         }
 
-        // Bind any field-addressable server rejection onto the offending inputs; the form-level detail still
-        // renders in the failure panel above.
-        _validation.SetServerErrors(MapServerErrors(_result.FieldErrors));
+        _createdConnection = created;
+        Revalidate();
     }
+
+    private string ConnectionHref(string? connectionId) => Nav.ToConsoleHref(string.IsNullOrWhiteSpace(connectionId)
+        ? "/operate/connections"
+        : ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(connectionId)));
 
     private static IReadOnlyList<ConsoleFieldError> MapServerErrors(IReadOnlyList<ConsoleConnectionCreateFieldError> errors)
     {
