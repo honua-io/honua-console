@@ -1,5 +1,5 @@
 {
-    const host = document.querySelector('[data-agent-workspace]');
+    let host;
     const narrow = matchMedia('(max-width: 1000px)');
     const toggle = () => document.querySelector('[data-conversation-toggle]');
     let lastPath;
@@ -55,6 +55,11 @@
         window.dispatchEvent(new CustomEvent('honua-console-authority'));
     }
     function reconcileRoute() {
+        const renderedHost = document.querySelector('[data-agent-workspace]');
+        if (renderedHost !== host) {
+            host = renderedHost;
+            host?.addEventListener('toggle', syncPresentation);
+        }
         const marker = document.querySelector('[data-console-location]');
         const path = marker?.dataset.consoleLocation;
         reconcileAuthority(marker);
@@ -66,7 +71,6 @@
         window.dispatchEvent(new CustomEvent('honua-console-navigation'));
         syncPresentation();
     }
-    host?.addEventListener('toggle', syncPresentation);
     document.addEventListener('click', event => {
         if (event.target.closest('[data-conversation-close], [data-conversation-backdrop]')) close();
         else if (event.target.closest('[data-conversation-toggle]')) { if (host?.open) close(); else open(); }
