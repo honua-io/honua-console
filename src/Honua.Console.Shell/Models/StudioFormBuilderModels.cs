@@ -78,7 +78,7 @@ public sealed class StudioFormEditorState
 
     public string StatusLabel => IsReleased
         ? "Released"
-        : Status.Equals(HonuaFormStatuses.Draft, StringComparison.OrdinalIgnoreCase) ? "Draft" : Status;
+        : string.Equals(Status, HonuaFormStatuses.Draft, StringComparison.OrdinalIgnoreCase) ? "Draft" : Status;
 
     public bool IsReleased =>
         string.Equals(Status, HonuaFormStatuses.Released, StringComparison.OrdinalIgnoreCase);

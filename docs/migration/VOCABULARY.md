@@ -12,4 +12,8 @@ Console pages name Studio content by its kind: a map, app, dashboard, form, work
 
 The Support page no longer shows a tenant row; the support ticket still carries the stored identifier.
 
+Form clients now call `/api/v1/admin/forms` and `/api/v1/forms`; version route parameters use `formVersion`. Deploy the server Form-route migration before this Console revision. The retired `/forms/packages` paths have no compatibility aliases. The editor labels released versions as Released and activates a version with Go live. The existing `published` status value, `/publish` action and persisted Form document fields remain wire contracts.
+
+Form presentation models rename `IsPublished` to `IsReleased`, `HonuaFormStatuses.Published` to `HonuaFormStatuses.Released`, and `StudioFormPackageListItem.PublishedVersion` to `ReleasedVersion`. `StudioFormPublishReadiness`, `StudioFormPublishReadinessEvaluator`, and `CanPublish` become `StudioFormGoLiveReadiness`, `StudioFormGoLiveReadinessEvaluator`, and `CanGoLive`. Consumers must update these names; aliases are not provided.
+
 Review additions with the [shared retired-terms checker and policy](https://github.com/honua-io/honua-server/tree/115011ce760443e93ec70e4bd5123d7b9fa08414/scripts/ci). Use the checker and adjacent policy from that same pinned server commit; do not create a second retired-terms list. Contextual UI words are also covered by the mandatory vocabulary review rule in AGENTS.md.

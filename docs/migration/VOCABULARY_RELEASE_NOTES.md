@@ -7,3 +7,5 @@ Data > Services now opens its own service list. Data > Layers opens the layer li
 Console navigation menus stay open while pointer focus moves between their links, so Services and Layers receive the click before the menu closes. Delayed initial page-heading focus preserves a menu the user has already opened after hydration; subsequent route changes still focus the new page heading.
 
 The [transition guide](VOCABULARY.md) records the remaining coordinated model, SDK, kind-filter, and search-alias work. The Catalog administration feature keeps its separate capability gate.
+
+Forms now use the canonical `/admin/forms` and `/forms` server routes, with `formVersion` route parameters. Deploy the matching server migration first. The builder shows Released and Go live. Form presentation models use `IsReleased`, `HonuaFormStatuses.Released`, `ReleasedVersion`, `StudioFormGoLiveReadiness`, `StudioFormGoLiveReadinessEvaluator`, and `CanGoLive`; the transition guide lists the replaced names. Retired route and model aliases are not supplied. The serialized `published` status and `/publish` action remain unchanged.
