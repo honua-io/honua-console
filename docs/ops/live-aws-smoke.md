@@ -6,23 +6,29 @@ title: Live AWS browser smoke
 # Live AWS browser smoke
 
 The scheduled and manually dispatched `.github/workflows/console-aws-browser.yml`
-workflow runs the `live-aws-browser` check against `https://demo.honua.io`.
+workflow currently records a **SKIPPED** notice. The first Launch Stack gate
+install is not available. No browser journey runs, and a successful preflight is
+not a live qualification pass. The workflow does not emit a `live-aws-browser`
+check or browser evidence.
 
-Before checkout, tool installation, or publishing, `operator-preflight` reads
-`HONUA_CONSOLE_AWS_OPERATOR_USERNAME` and
-`HONUA_CONSOLE_AWS_OPERATOR_PASSWORD`. It does not print the values. If either
-secret is absent, the step writes `provisioned=false`, records an error that
-missing operator secrets are not a pass, and exits non-zero. `live-aws-browser`
-does not run. The workflow is red until both repository secrets exist.
+The retired smoke ran a non-shipping legacy host against a deployment that did
+not serve the static Console. Repository operator username/password secrets are
+no longer used by this workflow.
 
-With both secrets present, the existing publish, AWS-bound journeys, and evidence
-upload run unchanged. Invalid credentials, backend errors, browser assertions,
-and missing evidence still fail. There is no skip for absent operator secrets.
-The check name remains `live-aws-browser` for the release environment-gated
-classification in `honua-release/certification/env-gated-checks.yaml`.
+Before enabling browser qualification, connect it to a gate install with:
+
+- The candidate server image and published static Console, with their identities
+  recorded in the evidence.
+- The stack's Cognito pool and a test operator created by the stack, without
+  long-lived repository operator credentials.
+- Shipping Console journeys at 1280 and 390 widths, against that installed
+  Console rather than the legacy fixture.
+- Failing assertions and required evidence uploads on a provisioned gate.
+
+The local shipping replay remains documented in
+[Shipping live replay](../testing/SHIPPING_LIVE_REPLAY.md). It does not replace
+AWS/Cognito qualification.
 
 Run the workflow contract tests with
 `node --test tests/workflows/live-aws-browser-smoke.test.mjs`; they also run in
 `npm test`.
-
-Refs honua-io/honua-release#376
