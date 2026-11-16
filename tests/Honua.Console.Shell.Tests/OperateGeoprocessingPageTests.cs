@@ -767,6 +767,12 @@ public sealed partial class OperateGeoprocessingPageTests
 
         public int StepFetchCount { get; private set; }
 
+        public Func<string, Task<OperateSectionResult<OperateJobRun>>>? ReadDetail { get; init; }
+
+        public Func<string, Task<OperateSectionResult<OperateJobStepsView>>>? ReadSteps { get; init; }
+
+        public Func<string, string?, Task<OperateSectionResult<OperateJobDiagnosticsView>>>? ReadDiagnostics { get; init; }
+
         public Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> GetGeoprocessingJobsAsync(CancellationToken cancellationToken = default)
         {
             GeoprocessingJobReads++;
@@ -781,6 +787,7 @@ public sealed partial class OperateGeoprocessingPageTests
 
         public Task<OperateSectionResult<OperateJobRun>> GetJobDetailAsync(string jobRunId, CancellationToken cancellationToken = default)
         {
+            if (ReadDetail is not null) return ReadDetail(jobRunId);
             if ((CancelCalls.Count > 0 || RetryCalls.Count > 0) && DetailAfterControl is not null)
             {
                 return Task.FromResult(DetailAfterControl);
@@ -804,6 +811,7 @@ public sealed partial class OperateGeoprocessingPageTests
         public Task<OperateSectionResult<OperateJobStepsView>> GetJobStepsAsync(string jobRunId, CancellationToken cancellationToken = default)
         {
             StepFetchCount++;
+            if (ReadSteps is not null) return ReadSteps(jobRunId);
             return Task.FromResult(Steps ?? OperateSectionResult<OperateJobStepsView>.Allowed(OperateJobStepsView.Empty));
         }
 
@@ -813,6 +821,7 @@ public sealed partial class OperateGeoprocessingPageTests
             CancellationToken cancellationToken = default)
         {
             DiagnosticCursors.Add(eventCursor);
+            if (ReadDiagnostics is not null) return ReadDiagnostics(jobRunId, eventCursor);
             if ((CancelCalls.Count > 0 || RetryCalls.Count > 0)
                 && eventCursor is null
                 && DiagnosticsAfterControl is not null)
