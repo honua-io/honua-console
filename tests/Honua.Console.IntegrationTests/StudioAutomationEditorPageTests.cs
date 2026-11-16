@@ -190,11 +190,11 @@ public sealed class StudioAutomationEditorPageTests
     }
 
     [Theory]
-    [InlineData(ConsolePresentationMode.Legacy, true)]
-    [InlineData(ConsolePresentationMode.Legacy, false)]
-    [InlineData(ConsolePresentationMode.V4, true)]
-    [InlineData(ConsolePresentationMode.V4, false)]
-    public async Task PendingSave_DisablesEditsUntilCompletion(ConsolePresentationMode presentation, bool succeeds)
+    [InlineData(ConsolePresentationMode.Legacy, "saved-version")]
+    [InlineData(ConsolePresentationMode.Legacy, null)]
+    [InlineData(ConsolePresentationMode.V4, "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, null)]
+    public async Task PendingSave_DisablesEditsUntilCompletion(ConsolePresentationMode presentation, string? versionId)
     {
         var completion = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new RecordingAutomationClient { PendingSave = completion.Task };
@@ -213,14 +213,14 @@ public sealed class StudioAutomationEditorPageTests
             completion.SetResult(new CollectAutomationSaveResult
             {
                 ContentItemId = "automation-current",
-                VersionId = succeeds ? "saved-version" : null
+                VersionId = versionId
             });
             await saving;
         }
 
-        Assert.False(page.Find("input[aria-label='Automation name']").HasAttribute("disabled"));
-        page.Find("input[aria-label='Automation name']").Input("Edited after completion");
-        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        page.WaitForAssertion(() => Assert.False(page.Find("input[aria-label='Automation name']").HasAttribute("disabled")));
+        await page.Find("input[aria-label='Automation name']").InputAsync(new() { Value = "Edited after completion" });
+        page.WaitForAssertion(() => Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty));
     }
 
     private static void AssertAutomationInputsDisabled(IRenderedComponent<StudioAutomationEditorPage> page)

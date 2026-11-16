@@ -282,15 +282,15 @@ public sealed class StudioWorkflowEditorPageTests
     }
 
     [Theory]
-    [InlineData(ConsolePresentationMode.Legacy, "Save draft", true)]
-    [InlineData(ConsolePresentationMode.V4, "Save draft", true)]
-    [InlineData(ConsolePresentationMode.Legacy, "Save draft", false)]
-    [InlineData(ConsolePresentationMode.V4, "Save draft", false)]
-    [InlineData(ConsolePresentationMode.Legacy, "Run once", true)]
-    [InlineData(ConsolePresentationMode.V4, "Run once", true)]
-    [InlineData(ConsolePresentationMode.Legacy, "Publish", true)]
-    [InlineData(ConsolePresentationMode.V4, "Publish", true)]
-    public async Task PendingCommand_DisablesEditsUntilCompletion(ConsolePresentationMode presentation, string command, bool succeeds)
+    [InlineData(ConsolePresentationMode.Legacy, "Save draft", "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, "Save draft", "saved-version")]
+    [InlineData(ConsolePresentationMode.Legacy, "Save draft", null)]
+    [InlineData(ConsolePresentationMode.V4, "Save draft", null)]
+    [InlineData(ConsolePresentationMode.Legacy, "Run once", "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, "Run once", "saved-version")]
+    [InlineData(ConsolePresentationMode.Legacy, "Publish", "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, "Publish", "saved-version")]
+    public async Task PendingCommand_DisablesEditsUntilCompletion(ConsolePresentationMode presentation, string command, string? versionId)
     {
         var save = new TaskCompletionSource<StudioWorkflowSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var run = new TaskCompletionSource<StudioWorkflowDryRunResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -312,7 +312,7 @@ public sealed class StudioWorkflowEditorPageTests
             AssertWorkflowInputsDisabled(page);
             Assert.True(page.Find(".workflow-palette-item").HasAttribute("disabled"));
             Assert.True(FindButton(page, "Add Parameter").HasAttribute("disabled"));
-            save.SetResult(new() { ContentItemId = "current", VersionId = succeeds ? "saved-version" : null });
+            save.SetResult(new() { ContentItemId = "current", VersionId = versionId });
             if (command != "Save draft")
             {
                 page.WaitForAssertion(() => Assert.Equal(1, command == "Run once" ? client.DryRunCalls : client.PublishCalls));
@@ -327,9 +327,9 @@ public sealed class StudioWorkflowEditorPageTests
             await running;
         }
 
-        Assert.False(TitleInput(page).HasAttribute("disabled"));
-        TitleInput(page).Input("Edited after completion");
-        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        page.WaitForAssertion(() => Assert.False(TitleInput(page).HasAttribute("disabled")));
+        await TitleInput(page).InputAsync(new() { Value = "Edited after completion" });
+        page.WaitForAssertion(() => Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty));
     }
 
     private static void AssertWorkflowInputsDisabled(IRenderedComponent<StudioWorkflowEditorPage> page)
