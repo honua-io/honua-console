@@ -172,7 +172,7 @@ public sealed class StudioAutomationEditorPageTests
         page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
 
         page.Render(parameters => parameters.Add(p => p.DraftId, "current"));
-        page.Find("input[aria-label='Automation name']").Change("Edited current automation");
+        page.Find("input[aria-label='Automation name']").Input("Edited current automation");
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
         await page.InvokeAsync(() => earlierSave.SetResult(new CollectAutomationSaveResult
         {
