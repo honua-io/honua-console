@@ -154,6 +154,123 @@ public sealed class OperateObservabilityPageRenderTests
     }
 
     [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, "")]
+    [InlineData(ConsolePresentationMode.Legacy, "corr-first")]
+    [InlineData(ConsolePresentationMode.V4, "")]
+    [InlineData(ConsolePresentationMode.V4, "corr-first")]
+    public void CorrelationNavigationReloadsEventsWithoutReloadingThePage(ConsolePresentationMode presentation, string initialCorrelationId)
+    {
+        var rows = new[]
+        {
+            BuildEvent("evt-first", "First event", "corr-first"),
+            BuildEvent("evt-next", "Next event", "corr-next")
+        };
+        var client = new StubOperateClient
+        {
+            EventQuery = query => OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed(
+                rows.Where(row => string.IsNullOrEmpty(query.CorrelationId) || row.CorrelationId == query.CorrelationId).ToArray())
+        };
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/operate/observability" + (string.IsNullOrEmpty(initialCorrelationId) ? "#events" : $"?correlationId={initialCorrelationId}#events"));
+        var page = context.Render<OperateObservabilityPage>();
+        var original = page.Instance;
+        page.WaitForAssertion(() => Assert.Equal(string.IsNullOrEmpty(initialCorrelationId) ? 2 : 1, page.FindAll("[data-timeline-row]").Count));
+        Assert.Single(client.EventQueries);
+
+        navigation.NavigateTo("/operate/observability?correlationId=corr-next#events");
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("corr-next", client.LastEventQuery?.CorrelationId);
+            Assert.Single(page.FindAll("[data-timeline-row]"));
+            Assert.Contains("Next event", page.Find("#events").TextContent, StringComparison.Ordinal);
+            Assert.Equal("corr-next", page.Find("form[aria-label='Operate evidence filters'] input").GetAttribute("value"));
+        });
+        Assert.Same(original, page.Instance);
+
+        navigation.NavigateTo("/operate/observability#events");
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal(string.Empty, client.LastEventQuery?.CorrelationId);
+            Assert.Equal(2, page.FindAll("[data-timeline-row]").Count);
+            Assert.Equal(string.Empty, page.Find("form[aria-label='Operate evidence filters'] input").GetAttribute("value"));
+        });
+        Assert.Equal(3, client.EventQueries.Count);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void CorrelationNavigationPreservesOtherAppliedFiltersAndIgnoresUnchangedQuery(ConsolePresentationMode presentation)
+    {
+        var client = new StubOperateClient();
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        context.Services.AddSingleton<IStudioWorkflowPackageClient>(new UnsupportedStudioWorkflowPackageClient());
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/operate/observability?correlationId=corr-first#events");
+        var page = context.Render<OperateObservabilityPage>();
+        var filters = page.Find("form[aria-label='Operate evidence filters']");
+        filters.QuerySelectorAll("label").Single(label => label.QuerySelector("span")?.TextContent == "Event type")
+            .QuerySelector("select")!.Change("release");
+        filters.QuerySelector("input")!.Input("corr-manual");
+        filters.Submit();
+        page.WaitForAssertion(() => Assert.Equal("corr-manual", client.LastEventQuery?.CorrelationId));
+
+        // A hash or unrelated route parameter change must not restore the old URL filter.
+        navigation.NavigateTo("/operate/observability?correlationId=corr-first#jobs");
+        page.Render(parameters => parameters.Add(p => p.SelectedJobRunId, "job-next"));
+        Assert.Equal("corr-manual", client.LastEventQuery?.CorrelationId);
+        Assert.Equal(2, client.EventQueries.Count);
+
+        navigation.NavigateTo("/operate/observability?correlationId=corr-next#events");
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("corr-next", client.LastEventQuery?.CorrelationId);
+            Assert.Equal("release", client.LastEventQuery?.EventType);
+        });
+    }
+
+    [Fact]
+    public async Task CorrelationNavigationIgnoresAnOlderFilterResponse()
+    {
+        var olderResponse = new TaskCompletionSource<OperateSectionResult<IReadOnlyList<OperateEventRow>>>();
+        var client = new StubOperateClient
+        {
+            AsyncEventQuery = query => query.CorrelationId == "corr-older"
+                ? olderResponse.Task
+                : Task.FromResult(OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed(
+                    [BuildEvent("evt-newer", "Newer event", "corr-newer")]))
+        };
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
+        context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/operate/observability");
+        var page = context.Render<OperateObservabilityPage>();
+
+        navigation.NavigateTo("/operate/observability?correlationId=corr-older#events");
+        page.WaitForAssertion(() => Assert.Equal("corr-older", client.LastEventQuery?.CorrelationId));
+        navigation.NavigateTo("/operate/observability?correlationId=corr-newer#events");
+        page.WaitForAssertion(() => Assert.Equal("corr-newer", client.LastEventQuery?.CorrelationId));
+        await page.InvokeAsync(() => olderResponse.SetResult(
+            OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([BuildEvent("evt-older", "Older event", "corr-older")])));
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Newer event", page.Find("#events").TextContent, StringComparison.Ordinal);
+            Assert.DoesNotContain("Older event", page.Find("#events").TextContent, StringComparison.Ordinal);
+            Assert.Equal("corr-newer", page.Find("form[aria-label='Operate evidence filters'] input").GetAttribute("value"));
+        });
+    }
+
+    [Theory]
     [InlineData(false, "Operate Observability")]
     [InlineData(true, "Activity")]
     public void RolloutFlag_SelectsPresentationWithoutDroppingOperationalSections(bool enabled, string heading)
@@ -343,6 +460,12 @@ public sealed class OperateObservabilityPageRenderTests
 
         public OperateEventQuery? LastEventQuery { get; private set; }
 
+        public List<OperateEventQuery> EventQueries { get; } = [];
+
+        public Func<OperateEventQuery, OperateSectionResult<IReadOnlyList<OperateEventRow>>>? EventQuery { get; init; }
+
+        public Func<OperateEventQuery, Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>>>? AsyncEventQuery { get; init; }
+
         public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; init; } =
             OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]);
 
@@ -355,7 +478,8 @@ public sealed class OperateObservabilityPageRenderTests
         public Task<OperateSectionResult<IReadOnlyList<OperateEventRow>>> QueryEventsAsync(OperateEventQuery query, CancellationToken cancellationToken = default)
         {
             LastEventQuery = query;
-            return Task.FromResult(Events);
+            EventQueries.Add(query);
+            return AsyncEventQuery?.Invoke(query) ?? Task.FromResult(EventQuery?.Invoke(query) ?? Events);
         }
 
         public Task<OperateSectionResult<OperateLogsView>> GetLogsAsync(CancellationToken cancellationToken = default) =>
