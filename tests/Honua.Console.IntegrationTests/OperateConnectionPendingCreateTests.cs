@@ -1,3 +1,4 @@
+using static Honua.Console.IntegrationTests.ConnectionRenderTestSupport;
 using Bunit;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed partial class OperateConnectionV4RenderTests
+public sealed class OperateConnectionPendingCreateTests
 {
     public enum DraftEvent { Input, Change }
 
