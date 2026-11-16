@@ -3,14 +3,16 @@ import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
 
 function settingsData(path: string) {
-  return path.endsWith('/api-keys') ? [{
+  if (path.endsWith('/api-keys')) return [{
     id: '4e386945-c5f5-45bf-8d4a-2fed5a3d7b62', name: 'Synthetic integration key',
     keyPrefix: 'fixture', permissions: ['admin:read'], status: 'active',
     createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z',
-  }] : path.endsWith('/version') ? { version: 'fixture', metadataApiVersion: '2' }
-    : path.endsWith('/capabilities') ? { metadataSchemaVersion: '2' }
-      : path.endsWith('/license') ? { edition: 'Fixture', isValid: true, entitlements: [] }
-        : path.endsWith('/oidc/providers') ? [] : null;
+  }];
+  if (path.endsWith('/version')) return { version: 'fixture', metadataApiVersion: '2' };
+  if (path.endsWith('/capabilities')) return { metadataSchemaVersion: '2' };
+  if (path.endsWith('/license')) return { edition: 'Fixture', isValid: true, entitlements: [] };
+  if (path.endsWith('/oidc/providers')) return [];
+  return null;
 }
 
 function respondToSettingsApi(request: IncomingMessage, response: ServerResponse, mutations: string[]) {
