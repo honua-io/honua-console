@@ -18,6 +18,7 @@ public sealed class ConsoleSettingsV4Tests
         var page = context.Render<OperateSettingsPage>();
         Assert.Equal("Settings", page.Find("h1").TextContent);
         Assert.Equal(["Category", "Setting", "Current value", "Scope", "Read from"], page.FindAll("th").Select(cell => cell.TextContent));
+        Assert.All(page.FindAll("thead th"), header => Assert.Equal("col", header.GetAttribute("scope")));
         Assert.Equal(["Server", "Admin API version", "1", "Server runtime", "/api/v1/admin/version"], page.FindAll("tbody td").Select(cell => cell.TextContent));
         Assert.Empty(page.FindAll("input,select,textarea,button"));
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
