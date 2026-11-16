@@ -1148,6 +1148,8 @@ p {
 }
 
 .console-state {
+    min-width: 0;
+    overflow-wrap: anywhere;
     padding: 28px;
     border: 1px solid var(--honua-border);
     border-radius: var(--radius-lg);
