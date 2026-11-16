@@ -40,8 +40,15 @@ internal sealed class BrowserApiHandler(
             throw new HttpRequestException("The Console session changed. Refresh before making another request.");
 
         var binding = pinned || capture ? current : null;
+        var sessionRevision = session.Revision;
         PrepareRequest(request);
         var response = await base.SendAsync(request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+            && access == BrowserApiAccess.Authenticated && session.Revision == sessionRevision)
+        {
+            session.Clear();
+            return response;
+        }
         if (binding is not null && !string.Equals(binding, session.CaptureAuthority(origins.Api), StringComparison.Ordinal))
         {
             response.Dispose();
