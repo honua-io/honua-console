@@ -18,6 +18,8 @@ test('unsupported conversation stays explicit and never starts a legacy workspac
   await page.keyboard.press('Enter');
   const drawer = page.locator('#console-conversation-drawer');
   await expect(drawer).toHaveAttribute('open', '');
+  await expect(drawer).toHaveAttribute('data-workspace-availability', 'unavailable');
+  await expect(drawer).not.toHaveAttribute('data-mounted', 'true');
   await expect(drawer.getByRole('status')).toContainText('Conversation is unavailable in this Console deployment.');
   await expect(drawer.locator('textarea, [data-workspace-start], [data-workspace-connect], [data-workspace-send]')).toHaveCount(0);
   const close = drawer.getByRole('button', { name: 'Close conversation', exact: true });
