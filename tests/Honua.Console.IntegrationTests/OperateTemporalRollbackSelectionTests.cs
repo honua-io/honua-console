@@ -67,6 +67,42 @@ public sealed partial class OperateTemporalPageRenderTests
         Assert.Single(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
     }
 
+    [Fact]
+    public async Task Rollback_UnknownCheckpointNavigationRejectsPendingPlan()
+    {
+        var client = SelectionClient();
+        var pending = new TaskCompletionSource<TemporalRollbackPlan>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingPlan = pending.Task;
+        using var ctx = NewContext(client, true);
+        Navigate(ctx, "src-parcels", "cp-prev");
+        var page = ctx.Render<OperateTemporalPage>();
+        var request = Action(page, "Plan Rollback").ClickAsync(new MouseEventArgs());
+        page.WaitForAssertion(() => Assert.True(Action(page, "Plan Rollback").HasAttribute("disabled")));
+        Navigate(ctx, "src-parcels", "missing");
+        page.Render();
+        pending.SetResult(SelectionPlan);
+        await request;
+        Assert.Empty(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+    }
+
+    [Fact]
+    public void Rollback_UnknownCheckpointNavigationClosesConfirmation()
+    {
+        var client = SelectionClient();
+        client.RollbackPlan = SelectionPlan;
+        using var ctx = NewContext(client, true);
+        Navigate(ctx, "src-parcels", "cp-prev");
+        var page = ctx.Render<OperateTemporalPage>();
+        Action(page, "Plan Rollback").Click();
+        Action(page, "Execute Rollback Job").Click();
+        Assert.Single(page.FindAll("[data-console-confirm-accept]"));
+        Navigate(ctx, "src-parcels", "missing");
+        page.Render();
+        Assert.Empty(page.FindAll("[data-console-confirm-accept]"));
+        Assert.Empty(page.FindAll("button").Where(button => button.TextContent.Trim() == "Execute Rollback Job"));
+        Assert.Equal(0, client.ExecuteRollbackCalls);
+    }
+
     private static void EditRollbackSelection(IRenderedComponent<OperateTemporalPage> page, bool scope)
     {
         if (scope) page.Find("select[aria-label='Rollback scope']").Change("Layer");

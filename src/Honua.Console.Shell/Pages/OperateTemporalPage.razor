@@ -388,7 +388,7 @@
             {
                 _selectedCheckpointId = null;
                 _fromCheckpointId = null;
-                RevalidateDiffSelection();
+                OnFromSelectionEdit();
             }
         }
         else if (_checkpoints.FirstOrDefault() is { } latest)

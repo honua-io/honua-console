@@ -62,6 +62,24 @@ public sealed partial class OperateTemporalPageRenderTests
         Assert.DoesNotContain("No revisions were found for feature f-1", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Diff_UnknownCheckpointNavigationRejectsPendingResponse()
+    {
+        var client = SelectionClient();
+        var pending = new TaskCompletionSource<TemporalDiff>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingDiffs[RollbackSource.SourceId] = pending.Task;
+        using var ctx = NewContext(client, true);
+        Navigate(ctx, "src-parcels", "cp-prev");
+        var page = ctx.Render<OperateTemporalPage>();
+        var request = Action(page, "Compare").ClickAsync(new MouseEventArgs());
+        page.WaitForAssertion(() => Assert.Equal(1, client.DiffCalls));
+        Navigate(ctx, "src-parcels", "missing");
+        page.Render();
+        pending.SetResult(TemporalDiff.Blocked(StaleSelectionBinding));
+        await request;
+        Assert.DoesNotContain("Discarded selection response", page.Markup, StringComparison.Ordinal);
+    }
+
     private static FakeTemporalClient SelectionClient() => new()
     {
         Workspace = WorkspaceWith(RollbackSource),
