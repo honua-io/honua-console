@@ -619,11 +619,11 @@ state.
 
 | Disposition | Count | Notes |
 |---|---|---|
-| REDIRECT | 8 | Admin 301 → Console once parity lands |
+| REDIRECT | 6 | Admin 301 → Console once parity lands |
 | REBUILD | 16 | Console Operate primary surface |
 | EMBED | 7 | iframe under `/operate/legacy/*` (6 of these are also KEEP) |
 | KEEP | 6 | Subset of EMBED; no rebuild in current backlog |
-| RETIRE | 10 | Removed from Admin; not linked from Console |
+| RETIRE | 12 | Removed from Admin; not linked from Console |
 | **Total** | **41** | All `@page` paths covered exactly once |
 
 ---
