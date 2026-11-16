@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class OperateVersionsPageRenderTests
+public sealed partial class OperateVersionsPageRenderTests
 {
     [Theory]
     [InlineData(false)]
@@ -51,9 +51,9 @@ public sealed class OperateVersionsPageRenderTests
         ctx.Services.AddSingleton<IVersionManagementOperation>(operation);
         var page = ctx.Render<OperateVersionsPage>();
         Load(page);
-        page.Find("[data-version-name]").Change(" Review edits ");
-        page.Find("[data-version-owner]").Change(" operator ");
-        page.Find("[data-version-description]").Change(" Parcel updates ");
+        page.Find("[data-version-name]").Input(" Review edits ");
+        page.Find("[data-version-owner]").Input(" operator ");
+        page.Find("[data-version-description]").Input(" Parcel updates ");
         page.Find("[data-version-access]").Change("protected");
         page.Find("[data-submit-version]").Click();
 
@@ -83,7 +83,7 @@ public sealed class OperateVersionsPageRenderTests
         Assert.Equal("parcels", selected.ServiceName);
         page.Find("[data-alter]").Click();
         Assert.Equal(0, registry.Current.Unsaved.ChangedFieldCount);
-        page.Find("[data-version-description]").Change("Changed description");
+        page.Find("[data-version-description]").Input("Changed description");
         Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
         Capture("versions-alter", page);
         page.Find("[data-cancel-alter]").Click();
@@ -132,6 +132,8 @@ public sealed class OperateVersionsPageRenderTests
 
     private sealed class SeededVersionOperation : IVersionManagementOperation
     {
+        public Task<VersionOperationResult>? PendingSave { get; set; }
+        public AlterVersionCommand? Altered { get; private set; }
         public CreateVersionCommand? Created { get; private set; }
         public ReconcileVersionCommand? Reconcile { get; private set; }
 
@@ -149,7 +151,7 @@ public sealed class OperateVersionsPageRenderTests
         public Task<VersionOperationResult> CreateVersionAsync(CreateVersionCommand command, CancellationToken cancellationToken = default)
         {
             Created = command;
-            return Task.FromResult(VersionOperationResult.Success("Created", "Version created."));
+            return PendingSave ?? Task.FromResult(VersionOperationResult.Success("Created", "Version created."));
         }
 
         public Task<ReconcileResultView> ReconcileAsync(ReconcileVersionCommand command, CancellationToken cancellationToken = default)
@@ -165,7 +167,11 @@ public sealed class OperateVersionsPageRenderTests
             });
         }
 
-        public Task<VersionOperationResult> AlterVersionAsync(AlterVersionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<VersionOperationResult> AlterVersionAsync(AlterVersionCommand command, CancellationToken cancellationToken = default)
+        {
+            Altered = command;
+            return PendingSave ?? Task.FromResult(VersionOperationResult.Success("Altered", "Version altered."));
+        }
         public Task<VersionOperationResult> DeleteVersionAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<VersionConflictsView> InspectConflictsAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ResolveConflictsResultView> ResolveConflictsAsync(string serviceId, string versionGuid, IReadOnlyList<ConflictResolutionChoice> resolutions, CancellationToken cancellationToken = default) => throw new NotSupportedException();

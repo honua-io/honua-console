@@ -20,7 +20,7 @@ public sealed class VersionServiceNavigationTests
         var page = ctx.Render<OperateVersionsPage>();
         Load(page, "first");
         page.Find("[data-alter]").Click();
-        page.Find("[data-version-description]").Change("Unsaved old edit");
+        page.Find("[data-version-description]").Input("Unsaved old edit");
 
         Load(page, "second");
 
@@ -70,7 +70,7 @@ public sealed class VersionServiceNavigationTests
         ctx.Services.AddSingleton<IVersionManagementOperation>(operation);
         var page = ctx.Render<OperateVersionsPage>();
         Load(page, "first");
-        page.Find("[data-version-name]").Change("New branch");
+        page.Find("[data-version-name]").Input("New branch");
         page.Find("[data-submit-version]").Click();
         Assert.Equal("first", operation.Created?.ServiceId);
         page.Find("[data-service-id-input]").Change("second");
