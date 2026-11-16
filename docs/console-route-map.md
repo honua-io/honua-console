@@ -39,7 +39,10 @@ routes. Path prefixes are frozen for downstream tickets:
 /auth/callback                 Legacy OIDC callback (anonymous; WASM uses server-owned /admin/auth/callback)
 /auth/signed-out               Post-signout landing (anonymous)
 
-/studio                        Studio workspace (embedded honua-studio); /studio/proof, /studio/drafts and /studio/apps/:itemId/preview open the same page
+/studio                        Studio workspace (embedded honua-studio); /studio/drafts opens the same editor
+/studio/processes              Processes workspace (workflow authoring and isolated local processes)
+/studio/proof, /studio/apps/:itemId/preview
+                               Compatibility routes: retirement notice pointing to /studio and /catalog
 /studio/report                 Generated report.package editor
 /studio/form                   Server-bound form package builder (honua-server#1184)
 /studio/map, /studio/app, /studio/dashboard, /studio/analysis, /studio/query, /studio/report/ai, /studio/form/ai, /studio/workflows/new
@@ -87,8 +90,6 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/geoprocessing/:jobRunId  Geoprocessing job detail · state/progress/phase/stages/logs/artifacts via the shared JobDetailPanel (GET /api/v1/admin/jobs/{id}{,/logs,/artifacts})
 /operate/health                Ops Health · the GIS-aware at-a-glance operational snapshot (ADR-0060 WS4): overall status, per-protocol serving latency (p50/p95/p99 + error rate with SLO-breach row flags), geoprocessing queue depth by status/backend, alert-dispatch backlog + dead-letters, coordinated-deploy readiness + platform-release skew (isCoVersioned/skewedIds), and database vitals (pool utilization, cache hit ratio, error rate). One read (GET /api/v1/admin/observability/ops-health), manual refresh, else missing-binding/forbidden/unsupported/unavailable per the shared section-status surface
 /operate/copilot               Copilot Findings + graduated autonomy (#193/#289): lists honua-server's DETERMINISTIC findings and proposes fixes through the governed gateway. When the connected server exposes `/api/v1/admin/observability/autonomy/*`, the same route adds server-confirmed per-rule ProposeOnly/AutoApply controls, route-time guardrails, a confirm-first global kill switch, graduation counters, finding state pills, and an action/policy audit projected through the shared Operate timeline/status/correlation primitives. Human mutations require the active operator bearer and never optimistically update or fall back to a shared admin key. A 404/501 capability probe hides the autonomy controls and preserves the original propose-only flow. Audit evidence absent from the server event projection is labelled unreported rather than reconstructed client-side. NO model/LLM anything (ADR-0028). Empty state = all conditions healthy; else missing-binding/forbidden/unsupported/unavailable
-/operate/operations            Operations console
-/operate/control-center        Control center
 /operate/services              Services list — dedicated page (OperateServicesPage) owns this route
 /operate/services/:name/settings
 /operate/folders/:id            Folder home (Console v4 flag): Services in the selected Folder and Administration; flag off shows a link to /operate/services#folders without catalog reads
@@ -564,14 +565,14 @@ state.
 | `/operator/admin-readiness` | EMBED · KEEP | `/operate/legacy/operator/admin-readiness` | #6 | iframe container live |
 | `/operator/annotations` | EMBED · KEEP | `/operate/legacy/operator/annotations` | #6 | iframe container live |
 | `/operator/app-builder` | RETIRE | — (Studio is the surface) | #5 | Studio `/studio` covers proof flow |
-| `/operator/control-center` | REDIRECT | `/operate/control-center` | #6 | Control center reachable in Console |
+| `/operator/control-center` | RETIRE | — (use `/operate` for the operational overview) | #6 | No Console redirect; `/operate/control-center` is not routed |
 | `/operator/data-connections` | REBUILD | `/operate/connections` | #6, #7 | List parity |
 | `/operator/data-connections/new` | REBUILD | `/operate/connections/new` | #6, #7 | Create parity |
 | `/operator/data-connections/{id:guid}` | REBUILD | `/operate/connections/:id` | #6, #7 | Detail parity |
 | `/operator/data-connections/{id:guid}/diagnostics` | REBUILD | `/operate/connections/:id/diagnostics` | #6, #7 | Diagnostics parity |
 | `/operator/license` | REBUILD | `/operate/license` | #6, #7 | License workspace parity |
 | `/operator/open-data` | EMBED · KEEP | `/operate/legacy/operator/open-data` | #6 | iframe container live |
-| `/operator/operations` | REDIRECT | `/operate/operations` | #6 | Operations reachable in Console |
+| `/operator/operations` | RETIRE | — (use `/operate` for operations and `/inbox` for approvals) | #6 | No Console redirect; `/operate/operations` is not routed |
 | `/operator/print` | EMBED · KEEP | `/operate/legacy/operator/print` | #6 | iframe container live |
 | `/operator/publishing` | REBUILD | `/operate/publishing` | #6, #7 | Publishing workflow parity |
 | `/operator/sql` | EMBED · KEEP | `/operate/legacy/operator/sql` | #6 | iframe container live |
@@ -671,50 +672,26 @@ until `honua-sdk-dotnet#166` is consumable.
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
-| `/studio` | `auth` | Studio home landing (`StudioHome`): hero "What do you want to build?" prompt with suggestion chips that targets the inline-authoring shell at `/studio/proof?prompt=…`, the eight "Start with a content type" cards linking to the existing builders (`/studio/map`, `/studio/dashboard`, `/studio/report`, `/studio/form`, `/studio/app`, `/studio/query`, `/studio/analysis`, `/studio/workflows/new`), and a "Recent projects (last 14 days)" table bound to the server content listing (`IConsoleCatalogClient`); recent-projects renders missing-binding when no server base address is configured (honua-server#1162), empty-state when bound-but-no-rows — never seeded rows. The inline-authoring shell stays reachable at `/studio/proof` / `/studio/drafts` | unauth-redirect | studio |
-| `/studio/query` | `auth` | missing-binding when no server base address; bound-but-no-list capability state (honua-server#1182 saved-query content has no list route — open by id or create new); authoring editor (source binding, predicate builder, generated SQL/filter readout, projection, parameter editor, save-as-content) with live map/table preview after save | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/analysis` | `auth` | missing-binding when no server base address; core content/artifacts contract live-bound (honua-server#1182, closed); bound-but-no-list capability state and server cost-estimate ("estimate unavailable from server" → local Console projection) both degraded until honua-server#1237 (analysis content API: list + cost-estimate) lands — open by id or create new; submit blocked until title, method, a bound input, an output-schema field, and a compute estimate are present; result-artifact panel after submit | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/map` | `auth` | missing-binding when no server base address; server-bound map builder on the Studio package lifecycle (honua-server#1180) + content publication registry (honua-server#1183) — author layers/filters/style/popup/legend/basemap/extent/interactions, save a `map.package` draft, review then publish (freezes an immutable content version and routes it to the publication contract), and reopen a published version as a new draft; bound-but-no-list capability state (no Studio package list route — open by id or create new); publish blocked until title, a sourced layer, basemap, and initial extent are present; Comments + Activity editor tabs host the multiplayer collaboration surface (honua-console#124 — presence avatar stack, named live cursors, per-draft collaborative markup layer, feature-pinned comment pins + thread drawer, follow-mode pill, live activity feed) which renders an explicit missing-binding state until the collaboration/presence + comments API lands (honua-server#1278) — never fabricated presence/cursors/comments | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/dashboard` | `auth` | missing-binding when no server base address; server-bound builder (honua-console#55) on the honua-server Studio package lifecycle + publication registry (#1180/#1181/#1183) — save draft, server validate, publish (save content version then publish request), and reopen against the live `dashboard` family; data bindings, layout panels, Vega-Lite charts, filters, narrative, version pinning, and responsive preview; publish blocked until every chart declares a Vega-Lite spec and every panel binds to a declared data binding; package-list surface is empty with an "Unsupported" capability state until honua-server exposes a Studio content-item listing endpoint (New/open-by-id is live) | unauth-redirect / missing-permission (server RBAC) | studio |
+| `/studio` | `auth` | Embedded realtime Studio editor; connecting state until mounted; explicit unavailable surface with connection/setup links when the embed is disabled | unauth-redirect | studio |
+| `/studio/processes` | `auth` | Processes workspace; unsupported when the realtime Studio embed is disabled | unauth-redirect | studio |
+| `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/app`, `/studio/workflows/new`, `/studio/form/ai`, `/studio/report/ai` | `auth` | Retirement notice: “This view has moved to Studio”; links to `/studio` and `/studio/processes`; no standalone editor or publication controls | unauth-redirect | studio |
 | `/studio/report` | `auth` | missing-binding when no server base address; server-bound report builder (honua-console#56) on the content publication registry (honua-server#1183) — author a report (outline/sections, narrative, data bindings with version pins, Vega-Lite charts, map/table/filter panels, responsive preview), then publish (claims a route), republish (advances the active version), update visibility/embed policy, and roll back (pin) to an earlier immutable version; publish blocked until the report has a title, at least one panel bound to a declared data binding, and every chart declares a Vega-Lite spec | unauth-redirect / missing-permission (server RBAC) | studio |
 | `/studio/form` | `auth` | missing-binding when no server base address; empty form-package list when bound; publish blocked until the offline/sync policy is reviewed and the submit target validates | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/app` | `auth` | missing-binding when no server base address; server-bound app.package builder (honua-console#58) on the Studio package lifecycle (honua-server#1180) and publication registry (honua-server#1183) — author pages/components/navigation/bindings/actions/permissions, review the share/embed policy, validate, preview, then save versions and publish; version history offers preview/reopen and rollback, and reopened edits create new content versions rather than mutating published state; publish blocked until a page binds content, every action declares a permission, and the share/embed policy is reviewed | unauth-redirect / missing-permission (server RBAC) | studio |
-| `/studio/proof` | `auth` | inline-authoring shell (prompt → clarification → server package draft → validate → preview-plan → save → publish); accepts `?prompt=…` to seed the prompt from the `/studio` home hero | unauth-redirect | studio |
-| `/studio/drafts` | `auth` | empty-studio (source-scoped draft start) | unauth-redirect | studio |
-| `/studio/apps/:itemId/preview` | `auth` (+ generated-app preview read) | missing-item | forbidden / unsupported-package | studio |
-| `/studio/workflows/new` | `auth` (+ workflow author permission) | empty-studio | forbidden / missing-binding | studio |
+| `/studio/proof`, `/studio/apps/:itemId/preview` | `auth` | Compatibility retirement notice with links to `/studio` and `/catalog` | unauth-redirect | studio |
+| `/studio/drafts` | `auth` | Same embedded realtime Studio editor and availability states as `/studio` | unauth-redirect | studio |
 | `/studio/workflows/:draftId` | `auth` (+ workflow draft read/write) | missing-item | forbidden / missing-binding | studio |
 
-The current `/studio` implementation is the package-first Studio shell
-(real-server revisit `honua-console#61` of the `honua-console#38`
-slice). It runs in the shared Razor component library and binds the
-server-owned package lifecycle — draft create/read/update, validation,
-preview-planning, content-version save, and publish — to honua-server
-(`honua-server#1180`/`#1181`); prompt and structured clarification
-stay Console-local UX. Workflow choices cover map, dashboard, report,
-form, app, query, analysis, workflow, GP service, and ETL. Ambiguous
-prompts produce structured clarification questions; while any question
-remains open, Validate, Preview, Save Version, and Publish controls are
-disabled. The inspector remains visible for the active package and must
-include assumptions, data bindings, warnings, validation, and
-provenance. Draft, Saved version, and Published are the lifecycle states;
-Preview is a transient preview-plan action (not a stored state), and
-rendered preview output / generated-app preview has no server contract
-yet, so it renders the shared missing-binding surface. When no server
-base address is configured the shell renders that missing-binding surface
-instead of mock package data.
+`StudioPage.razor` owns `/studio`, `/studio/drafts`, `/studio/proof`, and
+`/studio/apps/:itemId/preview`. The first two mount the embedded realtime
+editor when `Studio:EmbedJsStudio` is enabled; otherwise they show an explicit
+unavailable surface. The latter two retain compatibility URLs but show a
+retirement notice instead of a package editor or generated-app preview.
 
-`/studio/proof`, `/studio/drafts?source=<kind>&id=<itemId>`,
-`/studio?source=<kind>&itemId=<itemId>`, and
-`/studio/apps/:itemId/preview` are mounted to the same package shell for
-the current Console slice so smoke evidence, legacy proof links, viewer
-edit actions, and generated-app reopen paths resolve through an
-implemented Studio route. The `?source=...&itemId=...` spelling is the
-route-compatible action URL emitted by the `honua-console#34` map viewer
-and draft-map slice. The route parameters are accepted but not yet used
-to hydrate a server-backed package. Save Version and Publish do create
-server-owned content versions and publication requests through the
-honua-server package lifecycle.
+`RetiredStudioBuilderPage.razor` owns the retired standalone builder URLs
+listed above. These routes remain reachable for existing links and show
+“This view has moved to Studio”, with links to `/studio` and
+`/studio/processes`. They do not expose the former package draft, validation,
+preview, or publish controls. New authoring links target Studio or Processes.
 
 `/studio/form` is the server-bound form package builder over `honua-server#1184`, and `/studio/report`
 the report builder over the content publication registry; the other generated-package editors are retired.
@@ -843,8 +820,6 @@ surface as in-page capability states rather than seeded rows.
 | `/operate/events/:eventId` | — | no matching events | forbidden | operate |
 | `/operate/alerts/:alertId` | — | no active alerts | forbidden | operate |
 | `/operate/jobs/:jobRunId` | — | missing job | forbidden | operate |
-| `/operate/operations` | — | empty-operate | forbidden | operate |
-| `/operate/control-center` | — | empty-operate | forbidden | operate |
 | `/operate/services` | — | empty-operate or environment notice (dedicated OperateServicesPage) | forbidden | operate |
 | `/operate/services/:name/settings` | — | missing-item | forbidden | operate |
 | `/operate/layers` | — | empty-operate (dedicated OperateLayersPage) | forbidden | operate |
@@ -986,7 +961,7 @@ read contract.
 | Forbidden | `ConsoleStateView Kind="forbidden"` | authenticated gate denial or authenticated item/package read denial (scope, item-role action, share-tier, edition, entitlement, server read) | failed authenticated gate token from §4.6 or server/SDK unauthorized read result; `entitlement:*` and `edition:*` render with `LicenseEntitlementDecision.UpgradeMessage` (`LicenseModels.cs:147`); anonymous denials on anonymous-capable Share/Public/Catalog/Maps/Embed routes use `Kind="unavailable"` |
 | Missing item | `ConsoleStateView Kind="missing"` | item id resolved to not found, or an anonymous open-data item URL resolves to an item that fails `open-data` eligibility | item-kind hint: map, service, layer, app, dashboard, report; open-data failures use generic public-not-found copy |
 | Unsupported service metadata | `ConsoleStateView Kind="unsupported-service"` | service metadata schema not yet supported by Console (e.g. pre-Metadata v2) | shared between `/catalog/:idOrSlug`, `/maps/new?from=:itemId`, and Studio "open from catalog" |
-| Unsupported content binding | `ConsoleStateView Kind="unsupported-package"` | generated app, generated Studio content, or saved map newer than Console runtime understands | used on `/studio/apps/:itemId/preview`, `/studio/map`, `/maps/:mapId`, and `/embed/maps/:mapId` (`/studio/app`, `/studio/form`, `/studio/query`, `/studio/analysis`, `/studio/dashboard`, and `/studio/report` are server-bound and render their own missing-binding / capability-state surface instead) |
+| Unsupported content binding | `ConsoleStateView Kind="unsupported-package"` | generated app, generated Studio content, or saved map newer than Console runtime understands | used on `/maps/:mapId` and `/embed/maps/:mapId`; the manual `/studio/form` and `/studio/report` tools render their own missing-binding / capability-state surfaces. Retired Studio routes render retirement notices instead of reading packages |
 | Empty state | `ConsoleStateView Kind="empty"` | list/query returned zero rows | per-area copy + CTA; areas: catalog, studio, share, operate, workspace, groups |
 | Loading | `ConsoleStateView Kind="loading"` | route mounted, content pending | never blocks shell paint |
 | Errored session | `<SessionErrorView retry>` | session is `ErroredSession` | distinct from unauthenticated; renders diagnostic id |
@@ -1151,7 +1126,7 @@ the human review answers land in
 
 | # | Question | Default decision | Status |
 |---|---|---|---|
-| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the entry; `/studio/proof` is a legacy alias, and `/studio/drafts` starts source-scoped drafts. The first Console-native package editor sub-routes from `honua-console#39` are `/studio/query`, `/studio/analysis`, `/studio/map`, `/studio/dashboard`, `/studio/report`, and `/studio/app`; `/studio/form` is the server-bound `honua-console#57` form builder. Broader list/marketplace generator routes stay deferred to their owning tickets. | default |
+| Q1 | Studio root path: `/studio` vs `/studio/proof` | `/studio` is the realtime editor entry and `/studio/drafts` mounts the same editor. `/studio/proof` shows compatibility retirement guidance. Standalone generated-package builder URLs show retirement notices linking to Studio and Processes; the manual `/studio/form` and `/studio/report` tools remain routed. | default |
 | Q2 | Saved-map list: `/catalog?type=map` vs `/studio/maps` vs `/catalog/maps` | `/catalog?type=map` (Catalog filter). Avoids two list surfaces; preserves existing query-param contract. | default |
 | Q3 | `/share/public` vs `/public` redirect semantics | `honua-console#34` serves `/public` as a compatibility alias for `/share/public` in the Blazor route slice. No 3xx for `/embed/maps/:mapId`; 200-at-both-paths for open-data item detail URLs (`/public/items/:idOrSlug` plus `/share/public/items/:idOrSlug`) because item URLs appear in DCAT-US / data.json / schema.org contexts. | default updated by #34 |
 | Q4 | `/operate` visibility for cross-workspace admins | `canSeeOperatorLinks(session)` evaluated against the active workspace; switching workspaces re-evaluates. | default |
