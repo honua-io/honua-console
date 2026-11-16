@@ -277,6 +277,8 @@
 
     private void OnTableChanged()
     {
+        _connectionChoiceVersion++;
+        _importSelectionNotice = null;
         ClearResult();
         _geometryTypeOverride = string.Empty;
         _selectedTable = _tableLoad.Tables.FirstOrDefault(table =>

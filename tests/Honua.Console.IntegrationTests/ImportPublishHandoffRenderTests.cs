@@ -76,6 +76,26 @@ public sealed class ImportPublishHandoffRenderTests
         Assert.Empty(operation.Commands);
     }
 
+    [Fact]
+    public void DelayedQueryChangePreservesANewerTableChoice()
+    {
+        using var context = CreateContext("unique");
+        var page = context.Render<OperatePublishLayerPage>();
+        page.WaitForAssertion(() => Assert.Equal("imports.physical_demo", page.Find("[aria-label='Table']").GetAttribute("value")));
+        var operation = context.Services.GetRequiredService<PublishOperation>();
+        operation.DelayDiscovery = true;
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/publishing/quick?schema=imports&table=next_import");
+        page.Render();
+        page.Find("[aria-label='Table']").Change("imports.manual_choice");
+        var renderCount = page.RenderCount;
+        operation.Discovery.SetResult([new() { Schema = "imports", Table = "next_import", GeometryType = "POINT" }]);
+        page.WaitForState(() => page.RenderCount > renderCount);
+
+        Assert.Equal("conn-b", page.Find("[aria-label='Connection']").GetAttribute("value"));
+        Assert.Equal("imports.manual_choice", page.Find("[aria-label='Table']").GetAttribute("value"));
+        Assert.Empty(operation.Commands);
+    }
+
     private static BunitContext CreateContext(string scenario)
     {
         var context = new BunitContext();
@@ -91,15 +111,17 @@ public sealed class ImportPublishHandoffRenderTests
 
     private sealed class PublishOperation(string scenario) : IServiceLayerPublishOperation
     {
+        public bool DelayDiscovery { get; set; }
         public List<ServiceLayerPublishCommand> Commands { get; } = [];
         public TaskCompletionSource<IReadOnlyList<ServiceLayerPublishTable>> Discovery { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<IReadOnlyList<ServiceLayerPublishTable>> ListTablesAsync(string connectionId, CancellationToken cancellationToken = default)
         {
-            if (scenario == "delayed" && connectionId == "conn-b") return Discovery.Task;
+            if ((scenario == "delayed" || DelayDiscovery) && connectionId == "conn-b") return Discovery.Task;
             if (scenario == "unavailable" && connectionId == "conn-a") throw new HttpRequestException("Unavailable");
             IReadOnlyList<ServiceLayerPublishTable> tables = scenario == "missing" || connectionId == "conn-a" && scenario != "ambiguous"
-                ? [] : [new() { Schema = "imports", Table = "physical_demo", GeometryType = "POINT" }];
+                ? [] : [new() { Schema = "imports", Table = "physical_demo", GeometryType = "POINT" },
+                    new() { Schema = "imports", Table = "manual_choice", GeometryType = "POINT" }];
             return Task.FromResult(tables);
         }
 
