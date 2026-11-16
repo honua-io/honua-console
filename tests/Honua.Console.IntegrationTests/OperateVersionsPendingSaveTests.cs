@@ -37,7 +37,8 @@ public sealed partial class OperateVersionsPageRenderTests
         Assert.Equal("Next owner", page.Find("[data-version-owner]").GetAttribute("value"));
         Assert.Equal("Next description", page.Find("[data-version-description]").GetAttribute("value"));
         Assert.Equal("public", page.Find("[data-version-access]").GetAttribute("value"));
-        Assert.True(ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount > 0);
+        var changedFields = ctx.Services.GetRequiredService<ConsoleAgentContextRegistry>().Current.Unsaved.ChangedFieldCount;
+        Assert.Equal(enabled ? 4 : 0, changedFields);
         operation.PendingSave = null;
         page.Find("[data-submit-version]").Click();
         page.WaitForAssertion(() => Assert.Equal("Next name", alter ? operation.Altered?.VersionName : operation.Created?.VersionName));
