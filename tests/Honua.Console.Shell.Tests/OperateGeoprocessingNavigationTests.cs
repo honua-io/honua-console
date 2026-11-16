@@ -10,13 +10,13 @@ namespace Honua.Console.Shell.Tests;
 public sealed partial class OperateGeoprocessingPageTests
 {
     [Theory]
-    [InlineData(false, "detail")]
-    [InlineData(true, "detail")]
-    [InlineData(false, "steps")]
-    [InlineData(true, "steps")]
-    [InlineData(false, "diagnostics")]
-    [InlineData(true, "diagnostics")]
-    public async Task EarlierJobReadCannotReplaceCurrentEvidence(bool v4, string stage)
+    [InlineData(ConsolePresentationMode.Legacy, "detail")]
+    [InlineData(ConsolePresentationMode.V4, "detail")]
+    [InlineData(ConsolePresentationMode.Legacy, "steps")]
+    [InlineData(ConsolePresentationMode.V4, "steps")]
+    [InlineData(ConsolePresentationMode.Legacy, "diagnostics")]
+    [InlineData(ConsolePresentationMode.V4, "diagnostics")]
+    public async Task EarlierJobReadCannotReplaceCurrentEvidence(ConsolePresentationMode mode, string stage)
     {
         var pending = new TaskCompletionSource<bool>();
         var client = new StubGeoprocessingClient
@@ -37,7 +37,7 @@ public sealed partial class OperateGeoprocessingPageTests
                 return OperateSectionResult<OperateJobDiagnosticsView>.Denied(OperateSectionStatus.Unavailable, $"{id} diagnostics");
             }
         };
-        using var context = NavigationContext(v4, client);
+        using var context = NavigationContext(mode, client);
         var page = context.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "earlier"));
         page.Render(p => p.Add(x => x.SelectedJobRunId, "current"));
         page.WaitForAssertion(() => Assert.Equal("current", page.Find("#job-detail-heading").TextContent));
@@ -55,12 +55,12 @@ public sealed partial class OperateGeoprocessingPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ReturningToSameJobReloadsItsEvidence(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void ReturningToSameJobReloadsItsEvidence(ConsolePresentationMode mode)
     {
         var client = new StubGeoprocessingClient { Detail = NavigationJob("same") };
-        using var context = NavigationContext(v4, client);
+        using var context = NavigationContext(mode, client);
         var page = context.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "same"));
         page.Render(p => p.Add(x => x.SelectedJobRunId, (string?)null));
         client.Detail = OperateSectionResult<OperateJobRun>.Denied(OperateSectionStatus.Missing, "Job removed on server");
@@ -72,11 +72,11 @@ public sealed partial class OperateGeoprocessingPageTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task EarlierEventPageCannotReplaceCurrentDiagnostics(bool v4, bool earlier)
+    [InlineData(ConsolePresentationMode.Legacy, "next")]
+    [InlineData(ConsolePresentationMode.V4, "next")]
+    [InlineData(ConsolePresentationMode.Legacy, "older")]
+    [InlineData(ConsolePresentationMode.V4, "older")]
+    public async Task EarlierEventPageCannotReplaceCurrentDiagnostics(ConsolePresentationMode mode, string cursor)
     {
         var pending = new TaskCompletionSource<OperateSectionResult<OperateJobDiagnosticsView>>();
         var client = new StubGeoprocessingClient
@@ -85,10 +85,10 @@ public sealed partial class OperateGeoprocessingPageTests
             ReadDiagnostics = (id, cursor) => cursor is not null ? pending.Task
                 : Task.FromResult(OperateSectionResult<OperateJobDiagnosticsView>.Allowed(Projection(id)))
         };
-        using var context = NavigationContext(v4, client);
+        using var context = NavigationContext(mode, client);
         var page = context.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "earlier"));
         var timeline = page.FindComponent<JobDiagnosticsTimeline>();
-        var read = page.InvokeAsync(() => earlier
+        var read = page.InvokeAsync(() => cursor == "older"
             ? timeline.Instance.OnReadEarlier.InvokeAsync("older")
             : timeline.Instance.OnReadNext.InvokeAsync("next"));
         page.Render(p => p.Add(x => x.SelectedJobRunId, "current"));
@@ -102,9 +102,9 @@ public sealed partial class OperateGeoprocessingPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CancelCompletionDoesNotPublishOnAnotherJob(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task CancelCompletionDoesNotPublishOnAnotherJob(ConsolePresentationMode mode)
     {
         var pending = new TaskCompletionSource<OperateSectionResult<OperateJobControlOutcome>>();
         var client = new StubGeoprocessingClient
@@ -116,7 +116,7 @@ public sealed partial class OperateGeoprocessingPageTests
                 OperateSectionResult<OperateJobDiagnosticsView>.Allowed(Projection(id, cancel: id == "earlier"))),
             PendingCancel = pending.Task
         };
-        using var context = NavigationContext(v4, client);
+        using var context = NavigationContext(mode, client);
         var page = context.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "earlier"));
         page.FindAll("button").Single(button => button.TextContent == "Cancel job").Click();
         var cancel = page.Find("[data-console-confirm-accept]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
@@ -132,9 +132,9 @@ public sealed partial class OperateGeoprocessingPageTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task NonCooperativePollCannotRestoreAnEarlierJob(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task NonCooperativePollCannotRestoreAnEarlierJob(ConsolePresentationMode mode)
     {
         var pending = new TaskCompletionSource<OperateSectionResult<OperateJobRun>>();
         var earlierReads = 0;
@@ -153,7 +153,7 @@ public sealed partial class OperateGeoprocessingPageTests
                     : NavigationJob(id));
             }
         };
-        using var context = NavigationContext(v4, client);
+        using var context = NavigationContext(mode, client);
         var page = context.Render<OperateGeoprocessingPage>(p => p
             .Add(x => x.SelectedJobRunId, "earlier").Add(x => x.PollIntervalMilliseconds, 5));
         await pollStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -168,11 +168,11 @@ public sealed partial class OperateGeoprocessingPageTests
     private static OperateSectionResult<OperateJobRun> NavigationJob(string id) =>
         OperateSectionResult<OperateJobRun>.Allowed(Job(id, "Succeeded", "Done", 100, "operator"));
 
-    private static BunitContext NavigationContext(bool v4, StubGeoprocessingClient client)
+    private static BunitContext NavigationContext(ConsolePresentationMode mode, StubGeoprocessingClient client)
     {
         var context = new BunitContext();
         context.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
         context.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
         return context;
     }

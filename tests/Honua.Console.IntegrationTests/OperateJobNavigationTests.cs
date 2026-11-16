@@ -62,15 +62,15 @@ public sealed partial class OperateObservabilityPageRenderTests
     }
 
     [Theory]
-    [InlineData(ConsolePresentationMode.Legacy, false)]
-    [InlineData(ConsolePresentationMode.Legacy, true)]
-    [InlineData(ConsolePresentationMode.V4, false)]
-    [InlineData(ConsolePresentationMode.V4, true)]
-    public async Task CorrelationQueryCannotDelayJobSelectionChange(ConsolePresentationMode mode, bool earlierLoaded)
+    [InlineData(ConsolePresentationMode.Legacy, "pending")]
+    [InlineData(ConsolePresentationMode.Legacy, "loaded")]
+    [InlineData(ConsolePresentationMode.V4, "pending")]
+    [InlineData(ConsolePresentationMode.V4, "loaded")]
+    public async Task CorrelationQueryCannotDelayJobSelectionChange(ConsolePresentationMode mode, string earlierState)
     {
         var earlier = new TaskCompletionSource<OperateSectionResult<OperateJobRun>>();
         var events = new TaskCompletionSource<OperateSectionResult<IReadOnlyList<OperateEventRow>>>();
-        if (earlierLoaded)
+        if (earlierState == "loaded")
         {
             earlier.SetResult(JobResult("earlier"));
         }
@@ -90,7 +90,7 @@ public sealed partial class OperateObservabilityPageRenderTests
         var page = router.FindComponent<OperateObservabilityPage>();
 
         await page.InvokeAsync(() => navigation.NavigateTo("/operate/jobs/current?correlationId=current-correlation"));
-        if (!earlierLoaded)
+        if (earlierState == "pending")
         {
             await page.InvokeAsync(() => earlier.SetResult(JobResult("earlier")));
         }
