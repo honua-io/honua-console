@@ -114,9 +114,9 @@ public sealed class ConsoleConnectionNoticeRenderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SupersedingReadAnnouncesOnlyItsSettledFailure(bool succeeded)
+    [InlineData(ReadOutcome.Failure)]
+    [InlineData(ReadOutcome.Success)]
+    public async Task SupersedingReadAnnouncesOnlyItsSettledFailure(ReadOutcome outcome)
     {
         using var context = new BunitContext();
         var host = context.Render<ClearingRetryHost>(p => p.Add(h => h.KeepReading, true));
@@ -126,18 +126,20 @@ public sealed class ConsoleConnectionNoticeRenderTests
         Assert.Equal("Reading…", host.Find("button").TextContent);
         Assert.Equal("", host.Find("[role=status]").TextContent);
 
-        await host.InvokeAsync(() => host.Instance.SettleRead(succeeded));
-        if (succeeded)
+        await host.InvokeAsync(() => host.Instance.SettleRead(outcome));
+        if (outcome == ReadOutcome.Success)
         {
             Assert.Empty(host.FindAll("[data-connection-notice]"));
         }
         else
         {
             Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
-            await host.InvokeAsync(() => host.Instance.SettleRead(succeeded: false));
+            await host.InvokeAsync(() => host.Instance.SettleRead(ReadOutcome.Failure));
             Assert.Contains("Attempt 2 did not complete", host.Find("[role=status]").TextContent);
         }
     }
+
+    public enum ReadOutcome { Failure, Success }
 
     private sealed class ClearingRetryHost : ComponentBase
     {
@@ -145,9 +147,9 @@ public sealed class ConsoleConnectionNoticeRenderTests
         [Parameter] public bool KeepReading { get; set; }
         public bool RetryReturned { get; private set; }
 
-        public void SettleRead(bool succeeded)
+        public void SettleRead(ReadOutcome outcome)
         {
-            _error = succeeded ? null : "Read failed again";
+            _error = outcome == ReadOutcome.Success ? null : "Read failed again";
             _loading = false;
             StateHasChanged();
         }
