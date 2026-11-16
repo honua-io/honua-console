@@ -1,5 +1,6 @@
 ---
 type: guide
+title: Manage Folders
 ---
 
 # Manage Folders
@@ -24,6 +25,11 @@ separate. The Folder picker distinguishes preserving membership from explicitly
 selecting Root. New Services default to Root when membership is omitted. A public
 Service name is immutable after assignment. The publishing wizard groups existing
 Services by their current Folder and reads Service endpoints after publishing.
+Refreshing Folders retains the selected destination and its previous authority
+review. To confirm the same Folder or Root in the refreshed environment, select
+**Use selected destination**. Refresh alone never confirms a new authority.
+If the selected Folder is unavailable, choose an available Folder or Root, or
+preserve membership. A refused catalog read cannot confirm a destination.
 
 Folder edits use the catalog ETag and the human/environment authority captured
 by the read. A changed catalog, expired sign-in or changed authority requires a
@@ -35,7 +41,8 @@ readback names the requested Service and Layer and shows the matching Service's
 layer count, or explains that the Service was not found on the first page.
 Inspect the requested Layer in **Open Service settings** before trying again;
 reading never resubmits the publish. Server-required approvals remain in
-the separate human approval channel, available from **Open approvals**.
+the separate human approval channel: Folder management links to **Open approvals**;
+the quick publishing page links to **Review approvals**.
 
 A connected agent workspace cannot retain Folder or public-name publishing
 choices yet. Its existing publish action refuses those choices. Use the publishing

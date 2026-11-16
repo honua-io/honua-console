@@ -745,7 +745,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         if (outcome == "denied") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Forbidden, "Catalog denied");
         if (outcome == "invalid-page") source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
         {
-            Items = [new() { ServiceName = "service-000", LayerCount = 10 }],
+            Items = [new() { ServiceName = "service-499", LayerCount = 10 }],
             Page = 2,
             PageSize = 100,
             Total = 1
@@ -756,7 +756,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         var verified = false;
         var panel = context.Render<PublishOutcomeVerification>(parameters => parameters
             .Add(component => component.AuthorityBinding, "original")
-            .Add(component => component.ServiceName, "service-000")
+            .Add(component => component.ServiceName, "service-499")
             .Add(component => component.LayerName, "Parcels")
             .Add(component => component.OnVerified, () => verified = true));
         panel.Find("[data-publish-verify]").Click();
@@ -770,6 +770,8 @@ public sealed class ConsolePublicationNavigationRenderTests
             Assert.NotEmpty(panel.Find("[data-publish-readback] a").GetAttribute("href")!);
         }
         Assert.Equal(outcome == "changed-before" ? 0 : 1, source.ServiceReads);
+        if (source.ServiceReads != 0)
+            Assert.Equal(HonuaAdminCatalogQuery.First with { NameQuery = "service-499" }, source.LastQuery);
     }
 
     private sealed class VerificationAuthority : IConsoleAuthorityBindingValidator
