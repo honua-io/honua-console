@@ -19,7 +19,7 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
         var authentication = context.Services.GetRequiredService<MutableAuthentication>();
         var shell = context.Render<ConsoleLayout>();
         var gate = context.Render<ConsoleCapabilityGate>(parameters => parameters
-            .Add(component => component.Capability, "console.content.persistent")
+            .Add(component => component.Capability, ConsoleCapabilityKeys.PersistentCatalog)
             .AddChildContent("<p id='authorized-content'>Authorized content</p>"));
         Assert.Empty(CatalogLinks(shell));
         Assert.Empty(gate.FindAll("#authorized-content"));
