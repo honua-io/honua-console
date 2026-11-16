@@ -94,6 +94,7 @@ public sealed class VersionConflictsPageRenderTests
     private static (BunitContext Context, ConsoleAgentContextRegistry Registry, ConflictOperation Operation) CreateContext(ConsoleV4Options options)
     {
         var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.AddConsoleNotifications();
         var registry = new ConsoleAgentContextRegistry();
         var operation = new ConflictOperation();

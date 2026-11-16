@@ -109,6 +109,7 @@ public sealed class LayerFilterPageRenderTests
     private static (BunitContext Context, ConsoleAgentContextRegistry Registry, FilterOperation Operation) CreateContext(ConsoleV4Options options)
     {
         var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.AddConsoleNotifications();
         var registry = new ConsoleAgentContextRegistry();
         var filter = new FilterOperation();

@@ -139,6 +139,7 @@ public sealed class OperatePublishingPageRenderTests
     public void OperatePublishingPage_Lookup_RendersReviewVersionsAndDrivesRepublishRollback(bool enabled)
     {
         using var ctx = new Bunit.BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
