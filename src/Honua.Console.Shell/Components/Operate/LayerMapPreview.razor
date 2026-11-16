@@ -76,15 +76,25 @@ else
             };
             return;
         }
-        var publication = result.Data?.AffectedPublications
-            .Where(p => string.Equals(p.ServiceName, layer.ServiceName, StringComparison.OrdinalIgnoreCase))
-            .Select(p => p.PublicationId).Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal).ToArray();
-        if (publication is not { Length: 1 }) return;
+        var publicationId = SelectPublication(result.Data?.AffectedPublications, layer);
+        if (publicationId is null) return;
         var address = Services.GetService<IConsolePreviewAddress>();
         _styleUrl = address is null
-            ? ConsoleProxyRoutes.MapStyle(environment, publication[0])
-            : address.LayerStyle(environment, publication[0]);
+            ? ConsoleProxyRoutes.MapStyle(environment, publicationId)
+            : address.LayerStyle(environment, publicationId);
+    }
+
+    private static string? SelectPublication(IReadOnlyList<DiscoveryPublicationImpact>? impacts, OperateServiceLayer layer)
+    {
+        var candidates = impacts?.Where(p =>
+            string.Equals(p.ServiceName, layer.ServiceName, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(p.PublicationId)).ToArray();
+        if (candidates is not { Length: > 0 }) return null;
+        if (candidates.Length == 1 && candidates[0].PreviewStorageLayerId is null)
+            return candidates[0].PublicationId;
+        if (candidates.Any(p => p.PreviewStorageLayerId is null or < 0)) return null;
+        return candidates.Where(p => p.PreviewStorageLayerId == layer.LayerId)
+            .Select(p => p.PublicationId).Order(StringComparer.Ordinal).FirstOrDefault();
     }
 
     private void InvalidatePreview()
