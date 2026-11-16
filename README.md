@@ -283,7 +283,7 @@ The following app routes are relative to `/console/` (full detail in the
 
 This repository does not accept outside code contributions. Bug reports, feature
 requests, and interoperability reports are welcome through GitHub Issues. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the policy and security-reporting guidance.
+[CONTRIBUTING.md](.github/CONTRIBUTING.md) for the policy and security-reporting guidance.
 
 For Honua Geo Inc. maintainers, before pushing, run the same gates CI enforces
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
