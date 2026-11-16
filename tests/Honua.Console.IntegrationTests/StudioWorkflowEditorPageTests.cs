@@ -345,7 +345,16 @@ public sealed class StudioWorkflowEditorPageTests
                 ? PendingLoad
                 : Task.FromResult(new StudioWorkflowEditorContext(null, [],
                     draftId is "earlier" or "current"
-                        ? new StudioWorkflowPackageDraft { DraftId = draftId, ContentItemId = draftId, Title = draftId, CurrentVersionId = "v1" }
+                        ? new StudioWorkflowPackageDraft
+                        {
+                            DraftId = draftId, ContentItemId = draftId, Title = draftId, CurrentVersionId = "v1",
+                            Nodes =
+                            [
+                                new() { Id = "source", Category = StudioWorkflowContractValues.NodeCategorySource },
+                                new() { Id = "sink", Category = StudioWorkflowContractValues.NodeCategorySink }
+                            ],
+                            Edges = [new() { FromNodeId = "source", ToNodeId = "sink" }]
+                        }
                         : Draft));
 
         public Task<IReadOnlyList<StudioWorkflowDraftSummary>> ListDraftsAsync(CancellationToken cancellationToken = default) =>
