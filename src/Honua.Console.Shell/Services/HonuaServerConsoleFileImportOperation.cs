@@ -115,6 +115,8 @@ public sealed class HonuaServerConsoleFileImportOperation(
                     : data.Success ? $"Imported {data.FeatureCount} feature(s) into the new table. Publish it to make it a live layer."
                     : data.ErrorMessage ?? "The Honua server could not import the file.",
                 TableName = data.TableName,
+                PhysicalTableName = data.PhysicalTableName,
+                Schema = data.Schema,
                 FeatureCount = data.FeatureCount,
                 SourceSrid = data.SourceSrid,
                 StoredSrid = data.StoredSrid,

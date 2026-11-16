@@ -26,6 +26,10 @@
     </div>
     }
 
+    @if (_importSelectionNotice is not null)
+    {
+        <p class="console-state-warning" role="status" data-import-publish-notice>@_importSelectionNotice</p>
+    }
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_connectionStates" OnRetry="LoadConnectionsAsync" />
     @if (_connections.Count == 0 && _connectionStates.Count == 0)
     {
@@ -199,7 +203,7 @@
     </text>;
 
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
-    private readonly ServiceLayerTableLoad _tableLoad = new();
+    private ServiceLayerTableLoad _tableLoad = new();
     private ServiceLayerPublishTable? _selectedTable;
 
     private string _connectionId = string.Empty;
@@ -251,6 +255,8 @@
 
     private Task OnConnectionChanged()
     {
+        _connectionChoiceVersion++;
+        _importSelectionNotice = null;
         ClearTableChoice();
         return _tableLoad.LoadAsync(PublishOperation, _connectionId);
     }

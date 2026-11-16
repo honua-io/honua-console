@@ -922,8 +922,13 @@ public sealed record HonuaAdminExternalLayerCandidate
     public string? ServiceUrl { get; init; }
 }
 
+// SHIM(honua-sdk-dotnet#166): Synchronous file-import receipts are not projected by the consumed SDK.
 public sealed record HonuaAdminImportResult
 {
+    public string? PhysicalTableName { get; init; }
+
+    public string? Schema { get; init; }
+
     public int? SourceSrid { get; init; }
 
     public int? StoredSrid { get; init; }
