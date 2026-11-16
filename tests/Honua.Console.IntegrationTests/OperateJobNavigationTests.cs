@@ -2,6 +2,8 @@ using Bunit;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -75,10 +77,19 @@ public sealed partial class OperateObservabilityPageRenderTests
         using var context = JobNavigationContext(mode, earlier, query => query.CorrelationId == "current-correlation"
             ? events.Task
             : Task.FromResult(OperateSectionResult<IReadOnlyList<OperateEventRow>>.Allowed([])));
-        var page = context.Render<OperateObservabilityPage>(p => p.Add(x => x.SelectedJobRunId, "earlier"));
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/operate/jobs/earlier");
+        var router = context.Render<Router>(p => p
+            .Add(x => x.AppAssembly, typeof(OperateObservabilityPage).Assembly)
+            .Add(x => x.Found, route => builder =>
+            {
+                builder.OpenComponent<RouteView>(0);
+                builder.AddComponentParameter(1, nameof(RouteView.RouteData), route);
+                builder.CloseComponent();
+            }));
+        var page = router.FindComponent<OperateObservabilityPage>();
 
-        page.Render(p => p.Add(x => x.SelectedJobRunId, "current")
-            .Add(x => x.CorrelationId, "current-correlation"));
+        await page.InvokeAsync(() => navigation.NavigateTo("/operate/jobs/current?correlationId=current-correlation"));
         if (!earlierLoaded)
         {
             await page.InvokeAsync(() => earlier.SetResult(JobResult("earlier")));
