@@ -153,7 +153,7 @@
             }
         }
     }
-<ConsoleConfirmDialog @key="_sourceGeneration" @ref="_confirm" />
+<ConsoleConfirmDialog @key="(_sourceGeneration, _rollbackSelectionGeneration)" @ref="_confirm" />
 </section>
 </ConsoleCapabilityGate>
 
@@ -296,7 +296,21 @@
     private TemporalFeatureTimeline? _timeline;
     private TemporalBindingState? _timelineBinding;
 
+    private void OnFromSelectionEdit()
+    {
+        OnDiffSelectionEdit();
+        OnRollbackSelectionEdit();
+    }
+
+    private void OnRollbackSelectionEdit()
+    {
+        _rollbackSelectionGeneration++;
+        _rollbackPlan = null;
+        _rollbackBinding = null;
+    }
+
     // Rollback review state.
+    private int _rollbackSelectionGeneration;
     private TemporalRollbackScope _rollbackScope = TemporalRollbackScope.ChangeSet;
     private bool _rollbackBusy;
     private TemporalRollbackPlan? _rollbackPlan;
@@ -589,7 +603,7 @@
                 <div class="operate-temporal-diff-controls">
                     <label>
                         <span>As-of (from)</span>
-                        <select class="console-input" @bind="_fromCheckpointId" @bind:after="OnDiffSelectionEdit" aria-label="From checkpoint">
+                        <select class="console-input" @bind="_fromCheckpointId" @bind:after="OnFromSelectionEdit" aria-label="From checkpoint">
                             @foreach (var checkpoint in _checkpoints)
                             {
                                 <option value="@checkpoint.CheckpointId">@checkpoint.Label</option>
@@ -789,7 +803,7 @@
             <div class="operate-temporal-rollback-controls">
                 <label>
                     <span>Scope</span>
-                    <select class="console-input" @bind="_rollbackScope" aria-label="Rollback scope">
+                    <select class="console-input" @bind="_rollbackScope" @bind:after="OnRollbackSelectionEdit" aria-label="Rollback scope">
                         @foreach (var scope in Enum.GetValues<TemporalRollbackScope>())
                         {
                             <option value="@scope">@scope</option>
@@ -1138,18 +1152,21 @@
 
     private async Task CreateRollbackPlanAsync()
     {
-        if (_selectedSource is null || string.IsNullOrWhiteSpace(_fromCheckpointId))
+        if (_rollbackBusy || _selectedSource is null || string.IsNullOrWhiteSpace(_fromCheckpointId))
         {
             return;
         }
 
         var generation = _sourceGeneration;
+        var selectionGeneration = _rollbackSelectionGeneration;
         _rollbackBusy = true;
         try
         {
+            _rollbackPlan = null;
+            _rollbackBinding = null;
             _rollbackOperation = null;
             var plan = await TemporalData.CreateRollbackPlanAsync(_selectedSource.SourceId, _rollbackScope, _fromCheckpointId);
-            if (generation != _sourceGeneration) return;
+            if (generation != _sourceGeneration || selectionGeneration != _rollbackSelectionGeneration) return;
             _rollbackBinding = plan.BindingState;
             _rollbackPlan = plan.BindingState is null ? plan : null;
         }
@@ -1161,7 +1178,7 @@
 
     private void ConfirmRollback()
     {
-        if (_confirm is null || _rollbackPlan is null) return;
+        if (_rollbackBusy || _confirm is null || _rollbackPlan is null) return;
         var generation = _sourceGeneration;
         var planId = _rollbackPlan.RollbackPlanId;
         _confirm.Open(
@@ -1174,7 +1191,7 @@
 
     private Task ExecuteRollbackAsync()
     {
-        if (_rollbackPlan is null) return Task.CompletedTask;
+        if (_rollbackBusy || _rollbackPlan is null) return Task.CompletedTask;
         var generation = _sourceGeneration;
         var planId = _rollbackPlan.RollbackPlanId;
         _rollbackOperation = null;
@@ -1280,7 +1297,7 @@
         // Aligning the as-of cursor also seeds the diff "from" side so the now-vs-as-of split compares
         // the scrubbed checkpoint against the latest state.
         _fromCheckpointId = checkpoint.CheckpointId;
-        OnDiffSelectionEdit();
+        OnFromSelectionEdit();
     }
 
     private void JumpToLatest()
