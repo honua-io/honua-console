@@ -128,8 +128,8 @@
 .console-contextbar li:last-child { display: flex; align-items: center; }
 .console-contextbar summary { white-space: normal; overflow-wrap: anywhere; }
 
-/* 66.75rem (1100px viewport at 16px text) follows the root font size, so enlarged text collapses this bar. */
-@container console-topbar (max-width: 66.75rem) {
+/* 84rem (1376px viewport at 16px text) follows the root font size, so enlarged text collapses this bar. */
+@container console-topbar (max-width: 84rem) {
     .console-menu-toggle {
         display: inline-grid;
         place-items: center;

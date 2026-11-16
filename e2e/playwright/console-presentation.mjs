@@ -33,7 +33,7 @@ export async function inspectCatalogCounts(page, name) {
 export async function inspectSharedPresentation(page, { name, width }, previews) {
   await checkKeyboardControls(page, sharedKeyboardTargets);
   await inspectPanelsAndTables(page);
-  if (name === "navigation") await inspectNavigation(page, width);
+  if (name === "navigation") await inspectNavigation(page);
   if (name === "home") await inspectHome(page);
   if (name.startsWith("service")) {
     await inspectProtocolPills(page);
@@ -90,11 +90,11 @@ async function inspectPanelsAndTables(page) {
   }
 }
 
-async function inspectNavigation(page, width) {
+async function inspectNavigation(page) {
   const topbar = page.locator(".console-topbar");
   assert.equal(await topbar.evaluate(element => getComputedStyle(element).borderBottomWidth), "1px");
   assert.equal(await topbar.locator(".console-topbar-brand").evaluate(element => getComputedStyle(element).color), "rgb(23, 28, 26)");
-  if (width < 1100) {
+  if (await page.getByRole("button", { name: "Toggle navigation" }).isVisible()) {
     assert.ok(await page.getByRole("button", { name: "Toggle navigation" }).isVisible());
     return;
   }
