@@ -178,7 +178,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     {
         var view = await GetDatasetsViewAsync(cancellationToken).ConfigureAwait(false);
         return view.DatasetEdits.FirstOrDefault(
-            resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
+            resource => string.Equals(resource.DatasetId, resourceId, StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<OperateServiceDetail?> FindServiceAsync(
@@ -334,7 +334,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                         normalizedLayer.LayerId,
                         Coalesce(normalizedLayer.LayerName, $"Layer {normalizedLayer.LayerId}"),
                         Coalesce(normalizedLayer.GeometryType, "Unknown"),
-                        resource.ResourceId,
+                        resource.DatasetId,
                         resource.Name,
                         normalizedLayer.Extent is { } ext
                             ? new[] { ext.MinX, ext.MinY, ext.MaxX, ext.MaxY }
@@ -407,13 +407,13 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     private static IReadOnlyList<OperateDatasetEditPreview> BuildDatasetEdits(IReadOnlyList<LayerRow> layerRows)
     {
         return layerRows
-            .GroupBy(row => row.Resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(row => row.Resource.DatasetId, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
             {
                 var resource = group
                     .Select(row => row.Resource)
                     .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(candidate => candidate.ResourceId, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(candidate => candidate.DatasetId, StringComparer.OrdinalIgnoreCase)
                     .First();
                 var blastRadius = resource.BlastRadius;
 
@@ -431,7 +431,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                 };
             })
             .OrderBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(resource => resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(resource => resource.DatasetId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
@@ -528,7 +528,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
 
     private static OperateConnectionSummary MapConnection(HonuaAdminConnectionSummary connection)
     {
-        var id = OperateResourceIdentity.ForConnection(connection);
+        var id = OperateDatasetIdentity.ForConnection(connection);
         var status = MapConnectionStatus(connection);
         var diagnostic = CreateConnectionDiagnostic(connection, status);
 
@@ -554,7 +554,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             return null;
         }
 
-        var failureCode = OperateResourceIdentity.NormalizeToken(Coalesce(connection.HealthStatus, status)).ToUpperInvariant();
+        var failureCode = OperateDatasetIdentity.NormalizeToken(Coalesce(connection.HealthStatus, status)).ToUpperInvariant();
         return new OperateConnectionDiagnostic(
             status,
             failureCode,
@@ -585,7 +585,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var source = string.IsNullOrWhiteSpace(layer.Schema) && string.IsNullOrWhiteSpace(layer.Table)
             ? connection.Name
             : $"{connection.Name} / {Coalesce(layer.Schema, "schema")}.{Coalesce(layer.Table, "table")}";
-        var resourceId = OperateResourceIdentity.ForPublishedLayer(connection.Id, layer.LayerId);
+        var resourceId = OperateDatasetIdentity.ForPublishedLayer(connection.Id, layer.LayerId);
         var serviceName = Coalesce(layer.ServiceName, "default");
 
         return new OperateDatasetEditPreview(

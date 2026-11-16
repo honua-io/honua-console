@@ -54,7 +54,7 @@ public sealed class OperateLayerLookupTests
         var view = ViewOf(Service("cadastre", ParcelsOnConnA), Service("transport", RoadsOnConnB));
 
         Assert.Empty(view.FindExposures("1"));
-        Assert.Equal(["conn-a-layer-1", "conn-b-layer-1"], view.MatchingCanonicalResourceIds("1"));
+        Assert.Equal(["conn-a-layer-1", "conn-b-layer-1"], view.MatchingDatasetIds("1"));
     }
 
     [Fact]
@@ -126,12 +126,12 @@ public sealed class OperateLayerLookupTests
     }
 
     [Fact]
-    public void GeometryByCanonicalResourceId_MatchesFindLayerForEveryServedResource()
+    public void GeometryByDatasetId_MatchesFindLayerForEveryServedResource()
     {
         var parcelsAsLines = ParcelsOnConnA with { Geometry = "LineString" };
         var view = ViewOf(Service("zoning", parcelsAsLines), Service("cadastre", ParcelsOnConnA, ShelterOnConnA));
 
-        var geometry = view.GeometryByCanonicalResourceId();
+        var geometry = view.GeometryByDatasetId();
 
         Assert.Equal(view.FindLayer("conn-a-layer-1")!.Geometry, geometry["conn-a-layer-1"]);
         Assert.Equal("Polygon", geometry["CONN-A-LAYER-1"]);

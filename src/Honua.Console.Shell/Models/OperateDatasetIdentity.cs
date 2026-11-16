@@ -4,7 +4,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.Shell.Models;
 
-public static class OperateResourceIdentity
+public static class OperateDatasetIdentity
 {
     public static string ForConnection(HonuaAdminConnectionSummary connection) => connection.ConnectionId == Guid.Empty
         ? NormalizeToken(new[] { connection.Name, connection.Host, "connection" }.First(value => !string.IsNullOrWhiteSpace(value))!)

@@ -537,8 +537,8 @@ public sealed class ResourceFirstPublishFlowTests
         new(id, name, "file", "—", "Valid",
             new OperateBlastRadius([], [], [], [], [], []), [], []);
 
-    private static OperateServiceLayer Layer(int layerId, string canonicalResourceId) =>
-        new(layerId, $"layer{layerId}", "Polygon", canonicalResourceId, canonicalResourceId);
+    private static OperateServiceLayer Layer(int layerId, string datasetId) =>
+        new(layerId, $"layer{layerId}", "Polygon", datasetId, datasetId);
 
     private static OperateServiceDetail Service(string name, string serviceType, params OperateServiceLayer[] layers) =>
         new(name, name, serviceType, "Running", "managed", layers, [], []);

@@ -114,7 +114,7 @@ public sealed record OperateDiagnosticSignal(
     string Message);
 
 public sealed record OperateDatasetEditPreview(
-    string ResourceId,
+    string DatasetId,
     string Name,
     string Source,
     string DraftChange,
@@ -162,8 +162,8 @@ public sealed record OperateServiceLayer(
     int LayerId,
     string Name,
     string Geometry,
-    string CanonicalResourceId,
-    string CanonicalResourceName,
+    string DatasetId,
+    string DatasetName,
     // Layer's cached extent as [minLng, minLat, maxLng, maxLat] in EPSG:4326, or null when the
     // server has no stored extent for it yet. Lets a map preview frame the data instead of the world.
     double[]? Extent = null,

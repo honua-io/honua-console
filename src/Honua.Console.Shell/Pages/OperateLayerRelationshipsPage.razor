@@ -25,7 +25,7 @@
         {
             <ConsolePageHeading Title="@($"{_layer.Name} · relationships")">
                 <ChildContent><p>Connect this layer to related records.</p></ChildContent>
-                <Actions><LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" /></Actions>
+                <Actions><LayerBackLink DatasetId="@_layer!.DatasetId" /></Actions>
             </ConsolePageHeading>
         }
         else
@@ -35,7 +35,7 @@
                 <h1>@_layer.Name · relationships</h1>
                 <p>Author origin/destination relationships on layer @_layer.LayerId. honua-server emits these as <code>relationships[]</code> on FeatureServer layer metadata and uses them to drive related-records / <code>$expand</code> / relationshipQuery.</p>
                 <div class="console-detail-actions">
-                    <LayerBackLink CanonicalResourceId="@_layer!.CanonicalResourceId" />
+                    <LayerBackLink DatasetId="@_layer!.DatasetId" />
                 </div>
             </div>
         }

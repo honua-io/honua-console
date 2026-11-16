@@ -7,7 +7,7 @@
     @if (V4Enabled)
     {
         <ConsolePageHeading Title="Layers">
-            <p>Browse layer geometry, service exposure and canonical resources.</p>
+            <p>Browse layer geometry, service exposure and datasets.</p>
         </ConsolePageHeading>
         <ConsoleAgentContext Context="@AgentContext" />
         <ConsolePanel Title="Layers" HeadingId="layers-list-heading">@LayerList</ConsolePanel>
@@ -17,7 +17,7 @@
     <div class="console-page-heading">
         <p class="console-kicker">Operate / Layers</p>
         <h1>Layers</h1>
-        <p>Layer rows show service exposure and point back to the canonical resource that owns metadata.</p>
+        <p>Layer rows show service exposure and point back to the dataset that owns metadata.</p>
     </div>
 
         @LayerList
@@ -50,7 +50,7 @@
                         <th>Name</th>
                         <th>Service</th>
                         <th>Geometry</th>
-                        <th>Canonical resource</th>
+                        <th>Dataset</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,7 +61,7 @@
                             <td>
                                 @if (V4Enabled)
                                 {
-                                    <ConsoleNameIdentifier Name="@row.Layer.Name" Identifier="@row.Layer.CanonicalResourceId"
+                                    <ConsoleNameIdentifier Name="@row.Layer.Name" Identifier="@row.Layer.DatasetId"
                                                            Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(row.Layer))" />
                                 }
                                 else
@@ -72,8 +72,8 @@
                             <td><a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(row.Service.Name)))">@row.Service.DisplayName</a></td>
                             <td>@row.Layer.Geometry</td>
                             <td>
-                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(row.Layer.CanonicalResourceId)}")">@row.Layer.CanonicalResourceName</a>
-                                <small>@row.Layer.CanonicalResourceId</small>
+                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(row.Layer.DatasetId)}")">@row.Layer.DatasetName</a>
+                                <small>@row.Layer.DatasetId</small>
                             </td>
                         </tr>
                     }

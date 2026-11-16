@@ -52,7 +52,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
             return new OperateLayerStyleOverrideView(resourceId, [], ToBindingState(DrawingContract, drawingIssue));
         }
 
-        // Every exposure shares the same canonical resource (and thus the same stored presentation), so
+        // Every exposure shares the same dataset (and thus the same stored presentation), so
         // one entry represents the layer; its service name is taken from the first exposure for display.
         var layer = new OperateLayerStyleOverride(
             LayerId: layerId.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -64,7 +64,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
         return new OperateLayerStyleOverrideView(resourceId, [layer])
         {
             LayerId = layerId,
-            CanonicalResourceId = first.Layer.CanonicalResourceId
+            DatasetId = first.Layer.DatasetId
         };
     }
 

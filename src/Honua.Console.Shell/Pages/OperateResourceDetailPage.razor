@@ -33,7 +33,7 @@
         <nav class="console-tab-row" aria-label="Dataset edit tabs">
             @foreach (var tab in _resource.EditTabs)
             {
-                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(_resource.ResourceId)}#{Uri.EscapeDataString(tab.ToLowerInvariant())}")">@tab</a>
+                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(_resource.DatasetId)}#{Uri.EscapeDataString(tab.ToLowerInvariant())}")">@tab</a>
             }
         </nav>
 
@@ -82,7 +82,7 @@
         Unsaved = new() { PendingOperationCount = _loading ? 1 : 0 }
     };
     private IReadOnlyList<ConsoleAgentEntity> ResourceSelection => _resource is null ? [] :
-        [new() { Kind = ConsoleAgentEntityKind.Item, Id = _resource.ResourceId, ResourceId = _resource.ResourceId }];
+        [new() { Kind = ConsoleAgentEntityKind.Item, Id = _resource.DatasetId, ResourceId = _resource.DatasetId }];
 
     private RenderFragment ValidationIssues => @<div>
         @if (_resource is { })
@@ -157,7 +157,7 @@
             var view = await OperateData.GetDatasetsViewAsync();
             if (generation != _generation) return;
             _resource = view.DatasetEdits.FirstOrDefault(
-                resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
+                resource => string.Equals(resource.DatasetId, resourceId, StringComparison.OrdinalIgnoreCase));
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
         }
         finally

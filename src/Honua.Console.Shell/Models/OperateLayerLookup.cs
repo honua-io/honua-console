@@ -10,14 +10,14 @@ public static class OperateLayerLookup
     public static IReadOnlyList<OperateLayerExposure> FindExposures(this OperateServicesView view, string? layerReference)
     {
         var exposures = AllExposures(view);
-        var canonicalIds = MatchingCanonicalResourceIds(exposures, layerReference);
+        var canonicalIds = MatchingDatasetIds(exposures, layerReference);
         if (canonicalIds.Count != 1)
         {
             return [];
         }
 
         return exposures
-            .Where(exposure => IsCanonicalResource(exposure, canonicalIds[0]))
+            .Where(exposure => IsDataset(exposure, canonicalIds[0]))
             .OrderBy(exposure => exposure.Service.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -25,17 +25,17 @@ public static class OperateLayerLookup
     public static OperateServiceLayer? FindLayer(this OperateServicesView view, string? layerReference) =>
         view.FindExposures(layerReference).FirstOrDefault()?.Layer;
 
-    public static IReadOnlyDictionary<string, string> GeometryByCanonicalResourceId(this OperateServicesView view) =>
+    public static IReadOnlyDictionary<string, string> GeometryByDatasetId(this OperateServicesView view) =>
         AllExposures(view)
-            .Where(exposure => !string.IsNullOrWhiteSpace(exposure.Layer.CanonicalResourceId))
+            .Where(exposure => !string.IsNullOrWhiteSpace(exposure.Layer.DatasetId))
             .OrderBy(exposure => exposure.Service.Name, StringComparer.OrdinalIgnoreCase)
-            .DistinctBy(exposure => exposure.Layer.CanonicalResourceId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(exposure => exposure.Layer.CanonicalResourceId, exposure => exposure.Layer.Geometry, StringComparer.OrdinalIgnoreCase);
+            .DistinctBy(exposure => exposure.Layer.DatasetId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(exposure => exposure.Layer.DatasetId, exposure => exposure.Layer.Geometry, StringComparer.OrdinalIgnoreCase);
 
-    public static IReadOnlyList<string> MatchingCanonicalResourceIds(this OperateServicesView view, string? layerReference) =>
-        MatchingCanonicalResourceIds(AllExposures(view), layerReference);
+    public static IReadOnlyList<string> MatchingDatasetIds(this OperateServicesView view, string? layerReference) =>
+        MatchingDatasetIds(AllExposures(view), layerReference);
 
-    private static IReadOnlyList<string> MatchingCanonicalResourceIds(
+    private static IReadOnlyList<string> MatchingDatasetIds(
         IReadOnlyList<OperateLayerExposure> exposures,
         string? layerReference)
     {
@@ -44,10 +44,10 @@ public static class OperateLayerLookup
             return [];
         }
 
-        var canonicalMatch = exposures.FirstOrDefault(exposure => IsCanonicalResource(exposure, layerReference));
+        var canonicalMatch = exposures.FirstOrDefault(exposure => IsDataset(exposure, layerReference));
         if (canonicalMatch is not null)
         {
-            return [canonicalMatch.Layer.CanonicalResourceId];
+            return [canonicalMatch.Layer.DatasetId];
         }
 
         if (!int.TryParse(layerReference, NumberStyles.None, CultureInfo.InvariantCulture, out var adminLayerId))
@@ -57,7 +57,7 @@ public static class OperateLayerLookup
 
         return exposures
             .Where(exposure => exposure.Layer.LayerId == adminLayerId)
-            .Select(exposure => exposure.Layer.CanonicalResourceId)
+            .Select(exposure => exposure.Layer.DatasetId)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -68,6 +68,6 @@ public static class OperateLayerLookup
             .SelectMany(service => service.Layers.Select(layer => new OperateLayerExposure(service, layer)))
             .ToArray();
 
-    private static bool IsCanonicalResource(OperateLayerExposure exposure, string canonicalResourceId) =>
-        string.Equals(exposure.Layer.CanonicalResourceId, canonicalResourceId, StringComparison.OrdinalIgnoreCase);
+    private static bool IsDataset(OperateLayerExposure exposure, string datasetId) =>
+        string.Equals(exposure.Layer.DatasetId, datasetId, StringComparison.OrdinalIgnoreCase);
 }

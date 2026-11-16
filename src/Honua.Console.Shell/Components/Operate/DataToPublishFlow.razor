@@ -184,8 +184,8 @@
         _layers = await OperateData.GetLayersViewAsync();
         _resourceOptions = _layers.Services
             .SelectMany(service => service.Layers)
-            .DistinctBy(layer => layer.CanonicalResourceId, StringComparer.OrdinalIgnoreCase)
-            .Select(layer => new AddDataIntake.IntakeOption(layer.CanonicalResourceId, layer.CanonicalResourceName))
+            .DistinctBy(layer => layer.DatasetId, StringComparer.OrdinalIgnoreCase)
+            .Select(layer => new AddDataIntake.IntakeOption(layer.DatasetId, layer.DatasetName))
             .ToArray();
 
         _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && _layers.CapabilityStates.Count == 0;
@@ -240,7 +240,7 @@
         _flow.Resource = new ResourceStaging
         {
             ResourceId = resourceId,
-            Name = current.Layer.CanonicalResourceName,
+            Name = current.Layer.DatasetName,
             LayerEnabled = current.Layer.Enabled,
         };
         _flow.ServiceName = current.Service.Name;

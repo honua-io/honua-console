@@ -96,7 +96,7 @@ public sealed class LayerMetadataPageRenderTests
         page.Find("[data-editing-save]").Click();
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-editing-result]")));
 
-        page.Render(p => p.Add(x => x.ResourceId, roads.CanonicalResourceId));
+        page.Render(p => p.Add(x => x.ResourceId, roads.DatasetId));
         page.WaitForAssertion(() => Assert.Contains("Roads", page.Find("h1").TextContent, StringComparison.Ordinal));
         Assert.Empty(page.FindAll("[data-editing-result]"));
         page.Find("[data-editing-save]").Click();

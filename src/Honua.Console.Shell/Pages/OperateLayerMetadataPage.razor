@@ -25,7 +25,7 @@
         {
             <ConsolePageHeading Title="@($"{Layer.Name} · editing")">
                 <ChildContent><p>Set the editing policy for this layer’s FeatureServer service.</p></ChildContent>
-                <Actions><LayerBackLink CanonicalResourceId="@Layer.CanonicalResourceId" /></Actions>
+                <Actions><LayerBackLink DatasetId="@Layer.DatasetId" /></Actions>
             </ConsolePageHeading>
         }
         else
@@ -35,7 +35,7 @@
                 <h1>@Layer.Name · editing</h1>
                 <p>Set the editing policy of layer @Layer.LayerId in one of its FeatureServer services. Fields left unchanged keep their current server value.</p>
                 <div class="console-detail-actions">
-                    <LayerBackLink CanonicalResourceId="@Layer.CanonicalResourceId" />
+                    <LayerBackLink DatasetId="@Layer.DatasetId" />
                 </div>
             </div>
         }

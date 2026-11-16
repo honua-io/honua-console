@@ -13,6 +13,6 @@ internal sealed class DatasetDataSource(int extraDrafts = 0) : IOperateTransitio
         [new("Public parcels", "Public parcels", "FeatureServer", "Running", "managed", [new(1, "Parcels", "Polygon", "parcels", "parcels")], [], [])], [], []);
     public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) => Task.FromResult(_workspace);
     public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => Task.FromResult<OperateConnectionSummary?>(null);
-    public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) => Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(x => x.ResourceId == resourceId));
+    public Task<OperateDatasetEditPreview?> FindDatasetEditAsync(string resourceId, CancellationToken cancellationToken = default) => Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(x => x.DatasetId == resourceId));
     public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => Task.FromResult(_workspace.Services.FirstOrDefault(x => x.Name == serviceName));
 }

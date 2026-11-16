@@ -336,8 +336,8 @@
                             <td>@layer.Name</td>
                             <td>@layer.Geometry</td>
                             <td>
-                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(layer.CanonicalResourceId)}")">@layer.CanonicalResourceName</a>
-                                <small>@layer.CanonicalResourceId</small>
+                                <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(layer.DatasetId)}")">@layer.DatasetName</a>
+                                <small>@layer.DatasetId</small>
                             </td>
                         </tr>
                     }

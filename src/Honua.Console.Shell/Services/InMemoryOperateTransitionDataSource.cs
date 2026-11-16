@@ -27,7 +27,7 @@ public sealed class InMemoryOperateTransitionDataSource : IOperateTransitionData
         string resourceId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(
-            resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase)));
+            resource => string.Equals(resource.DatasetId, resourceId, StringComparison.OrdinalIgnoreCase)));
 
     public Task<OperateServiceDetail?> FindServiceAsync(
         string serviceName,

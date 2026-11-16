@@ -36,15 +36,15 @@ public static class DatasetEndpointsTreeBuilder
         {
             foreach (var layer in service.Layers)
             {
-                if (string.IsNullOrWhiteSpace(layer.CanonicalResourceId))
+                if (string.IsNullOrWhiteSpace(layer.DatasetId))
                 {
                     continue;
                 }
 
-                if (!endpointsByDataset.TryGetValue(layer.CanonicalResourceId, out var list))
+                if (!endpointsByDataset.TryGetValue(layer.DatasetId, out var list))
                 {
                     list = [];
-                    endpointsByDataset[layer.CanonicalResourceId] = list;
+                    endpointsByDataset[layer.DatasetId] = list;
                 }
 
                 list.Add((service.ServiceType, service.PublicServiceName, service.FolderName, service.Name));
@@ -54,10 +54,10 @@ public static class DatasetEndpointsTreeBuilder
         var nodes = new List<DatasetTreeNode>(datasets.Count);
         foreach (var dataset in datasets)
         {
-            endpointsByDataset.TryGetValue(dataset.ResourceId, out var endpoints);
+            endpointsByDataset.TryGetValue(dataset.DatasetId, out var endpoints);
             var endpointNodes = BuildEndpointNodes(endpoints);
             nodes.Add(new DatasetTreeNode(
-                dataset.ResourceId,
+                dataset.DatasetId,
                 dataset.Name,
                 dataset.Source,
                 Status: endpointNodes.Count > 0 ? "Running" : "Draft",

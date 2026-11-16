@@ -31,7 +31,7 @@ public sealed class ConsolePublicationAncestryRecoveryTests
         source.FailNext = OperateSectionResult<Honua.Console.Contracts.HonuaAdminServicePage>.Denied(failure, "Ancestry unavailable.");
         var layer = new OperateServiceLayer(7, "Bridges", "LineString", "connection-one-layer-7", "bridges");
         var service = new OperateServiceDetail("service-499", "Parcels", "FeatureServer", "Running", "server", [layer], [], []);
-        await tree.InvokeAsync(() => selection.CompleteRead(selection.BeginRead(layer.CanonicalResourceId), [new(service, layer)]));
+        await tree.InvokeAsync(() => selection.CompleteRead(selection.BeginRead(layer.DatasetId), [new(service, layer)]));
         tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
         Assert.Empty(path);
         await tree.InvokeAsync(() => navigation.NavigateTo("/operate/layers/connection-one-layer-7?retry=1"));

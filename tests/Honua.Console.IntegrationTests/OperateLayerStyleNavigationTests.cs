@@ -86,7 +86,7 @@ public sealed class OperateLayerStyleNavigationTests
         [new("shared", resourceId, resourceId, PopupInfoJson: $"{resourceId}-popup")])
     {
         LayerId = resourceId == "first" ? 1 : 2,
-        CanonicalResourceId = resourceId
+        DatasetId = resourceId
     };
 
     private sealed class DelayedOverrides : IOperateLayerStyleOverrideDataSource

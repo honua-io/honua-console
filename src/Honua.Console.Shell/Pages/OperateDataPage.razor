@@ -216,7 +216,7 @@
 
     private static IReadOnlyList<LayerPreviewCatalog.Row> CatalogRows(IReadOnlyList<DatasetTreeNode> nodes, OperateServicesView servicesView)
     {
-        var geometry = servicesView.GeometryByCanonicalResourceId();
+        var geometry = servicesView.GeometryByDatasetId();
         return nodes.Select(node => new LayerPreviewCatalog.Row(node, geometry.GetValueOrDefault(node.DatasetId))).ToArray();
     }
 

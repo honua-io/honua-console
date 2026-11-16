@@ -20,7 +20,7 @@ public sealed record OperateLayerStyleOverrideView(
     OperateLayerStyleBindingState? BindingState = null)
 {
     public int? LayerId { get; init; }
-    public string? CanonicalResourceId { get; init; }
+    public string? DatasetId { get; init; }
 }
 
 // PopupInfoJson is the GeoServices popupInfo document and DrawingInfoJson is the drawingInfo renderer. Empty means nothing is stored.

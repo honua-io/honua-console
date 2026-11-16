@@ -84,7 +84,7 @@ public sealed class OperateLayerStylePageRenderTests
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var source = new FakeOverrideDataSource
         {
-            View = new("res-1", [new("layer-1", "parcels-fs", "Parcels FeatureServer")]) { LayerId = 7, CanonicalResourceId = "res-1" },
+            View = new("res-1", [new("layer-1", "parcels-fs", "Parcels FeatureServer")]) { LayerId = 7, DatasetId = "res-1" },
             SaveResult = new(true)
         };
         context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);

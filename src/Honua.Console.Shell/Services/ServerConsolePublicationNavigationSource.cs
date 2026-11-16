@@ -22,7 +22,7 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
         var result = await client.ListConnectionsAsync(cancellationToken);
         if (result.Issue is { } issue) return Denied<IReadOnlyList<string>>(issue);
         if (result.Data is null) return Unreadable<IReadOnlyList<string>>();
-        return OperateSectionResult<IReadOnlyList<string>>.Allowed(result.Data.Select(OperateResourceIdentity.ForConnection).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        return OperateSectionResult<IReadOnlyList<string>>.Allowed(result.Data.Select(OperateDatasetIdentity.ForConnection).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
@@ -56,7 +56,7 @@ public sealed class ServerConsolePublicationNavigationSource(IHonuaAdminOperateC
     private static IEnumerable<ConsolePublicationLayer> ProjectServiceLayers(
         string connectionKey, IReadOnlyList<HonuaAdminPublishedLayerSummary> layers, string serviceName) => layers
         .Where(layer => string.IsNullOrWhiteSpace(layer.ServiceName) || string.Equals(layer.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase))
-        .Select(layer => ConsolePublicationLayer.Project(OperateResourceIdentity.ForPublishedLayer(connectionKey, layer.LayerId),
+        .Select(layer => ConsolePublicationLayer.Project(OperateDatasetIdentity.ForPublishedLayer(connectionKey, layer.LayerId),
             string.IsNullOrWhiteSpace(layer.LayerName) ? $"Layer {layer.LayerId}" : layer.LayerName, layer.GeometryType));
 
     private static OperateSectionResult<T> Unreadable<T>() =>

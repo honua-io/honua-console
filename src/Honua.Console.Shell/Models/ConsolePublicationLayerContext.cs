@@ -40,7 +40,7 @@ public sealed class ConsolePublicationLayerContext
     {
         var exposure = exposures.FirstOrDefault();
         Complete(attempt, exposure is null ? null : new(
-            exposure.Layer.CanonicalResourceId, exposure.Service.Name, exposure.Layer.Name)
+            exposure.Layer.DatasetId, exposure.Service.Name, exposure.Layer.Name)
         { GeometryType = exposure.Layer.Geometry });
     }
 

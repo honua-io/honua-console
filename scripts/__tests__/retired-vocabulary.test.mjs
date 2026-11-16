@@ -21,7 +21,7 @@ const RULES = [
     use: "the kind itself (Map, App, Form, Workflow)",
   },
   { id: "package-family", expression: /\bpackage famil(?:y|ies)\b/iu, use: "content kind" },
-  { id: "dataset-tree-type", expression: /\b(?:record|class|interface|enum|struct)\s+(?:ResourceTreeNode|PublicationTreeNode|ResourcePublicationsTreeBuilder|OperateResourceEditPreview|OperateResourcesView)\b/u, use: "DatasetTreeNode, DatasetEndpointNode, DatasetEndpointsTreeBuilder, OperateDatasetEditPreview, OperateDatasetsView" },
+  { id: "dataset-tree-type", expression: /\b(?:record|class|interface|enum|struct)\s+(?:ResourceTreeNode|PublicationTreeNode|ResourcePublicationsTreeBuilder|OperateResourceEditPreview|OperateResourcesView|OperateResourceIdentity)\b/u, use: "DatasetTreeNode, DatasetEndpointNode, DatasetEndpointsTreeBuilder, OperateDatasetEditPreview, OperateDatasetsView" },
   { id: "envelope-type", expression: /\b(?:record|class|interface|enum|struct)\s+\w*(?:MapPackage|AppPackage|HostedMap|HonuaApiToken)/u, use: "Map, App, ApiKey" },
   {
     id: "workspace-tenancy",
@@ -84,6 +84,7 @@ test("retired phrases are caught and protocol or agent words are not", () => {
     "public sealed record PublicationTreeNode",
     "public sealed record OperateResourceEditPreview",
     "public sealed record OperateResourcesView",
+    "public static class OperateResourceIdentity",
     "public static class ResourcePublicationsTreeBuilder",
   ];
   for (const line of caught) {

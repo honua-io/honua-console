@@ -46,9 +46,9 @@
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private const string Intro = "Edit this layer's drawing and popup settings. Every service exposing the layer uses these shared settings. Author shared catalog Styles in Studio.";
-    private string LayerRoute => ConsoleAgentRoutes.ForRequestedLayer(_overrides.CanonicalResourceId ?? ResourceId);
+    private string LayerRoute => ConsoleAgentRoutes.ForRequestedLayer(_overrides.DatasetId ?? ResourceId);
     private string LayerHref => Navigation.ToConsoleHref(LayerRoute);
-    private ConsoleAgentEntity? LayerEntity => !_loading && _overrides.BindingState is null && _overrides.LayerId is { } id && _overrides.CanonicalResourceId is { } resource
+    private ConsoleAgentEntity? LayerEntity => !_loading && _overrides.BindingState is null && _overrides.LayerId is { } id && _overrides.DatasetId is { } resource
         ? ConsoleAgentEntity.ForLayer(id, resource)
         : null;
     private ConsoleAgentPageContext AgentContext => new()

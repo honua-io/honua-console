@@ -72,8 +72,8 @@ public sealed class ConsolePublicationNavigationSourceTests
         var read = await source.ReadLayersAsync("public roads", [first.ToString("D"), second.ToString("D")], CancellationToken.None);
         Assert.True(read.IsAllowed, read.Message);
         Assert.Equal(2, read.Value!.Count);
-        Assert.Contains(read.Value, layer => layer.ResourceId == OperateResourceIdentity.ForPublishedLayer(first.ToString("D"), 7));
-        Assert.Contains(read.Value, layer => layer.ResourceId == OperateResourceIdentity.ForPublishedLayer(second.ToString("D"), 7));
+        Assert.Contains(read.Value, layer => layer.ResourceId == OperateDatasetIdentity.ForPublishedLayer(first.ToString("D"), 7));
+        Assert.Contains(read.Value, layer => layer.ResourceId == OperateDatasetIdentity.ForPublishedLayer(second.ToString("D"), 7));
         Assert.All(read.Value, layer => Assert.Equal("Parcels", layer.Name));
         Assert.Equal(2, handler.Paths.Count);
         Assert.All(handler.Paths, path => Assert.EndsWith("/layers/?page=1&pageSize=100&serviceName=public%20roads", path));

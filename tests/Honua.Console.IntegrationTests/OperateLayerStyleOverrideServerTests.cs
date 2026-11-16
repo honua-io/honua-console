@@ -33,7 +33,7 @@ public sealed class OperateLayerStyleOverrideServerTests
 
         Assert.Null(view.BindingState);
         Assert.Equal(1, view.LayerId);
-        Assert.Equal(ResourceId, view.CanonicalResourceId);
+        Assert.Equal(ResourceId, view.DatasetId);
         var layer = Assert.Single(view.Layers);
         Assert.Equal("1", layer.LayerId);
         Assert.Equal("E2E Source", layer.LayerName);
@@ -130,7 +130,7 @@ public sealed class OperateLayerStyleOverrideServerTests
 
         Assert.Empty(view.Layers);
         Assert.Null(view.LayerId);
-        Assert.Null(view.CanonicalResourceId);
+        Assert.Null(view.DatasetId);
         Assert.NotNull(view.BindingState);
         Assert.Equal(OperateLayerStyleBindingState.MissingBinding, view.BindingState!.State);
     }
@@ -185,8 +185,8 @@ public sealed class OperateLayerStyleOverrideServerTests
                 LayerId: layerId,
                 Name: layerName,
                 Geometry: "Polygon",
-                CanonicalResourceId: resourceId,
-                CanonicalResourceName: layerName);
+                DatasetId: resourceId,
+                DatasetName: layerName);
             var service = new OperateServiceDetail(
                 Name: serviceName,
                 DisplayName: serviceName,

@@ -23,9 +23,9 @@
             <h1>Choose a layer</h1>
             <p>Layer id @ResourceId exists on more than one connection. Open the one you mean:</p>
             <ul>
-                @foreach (var canonicalResourceId in _ambiguousResourceIds)
+                @foreach (var datasetId in _ambiguousResourceIds)
                 {
-                    <li><a href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(canonicalResourceId)}")">@canonicalResourceId</a></li>
+                    <li><a href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(datasetId)}")">@datasetId</a></li>
                 }
             </ul>
         </div>
@@ -39,7 +39,7 @@
         @if (V4Enabled)
         {
             <ConsolePageHeading Title="@_exposures[0].Layer.Name">
-                <ChildContent><p><code>@CanonicalResourceId</code> · @_exposures[0].Layer.Geometry · @_serviceSummary</p></ChildContent>
+                <ChildContent><p><code>@DatasetId</code> · @_exposures[0].Layer.Geometry · @_serviceSummary</p></ChildContent>
                 <Actions>@LayerActions</Actions>
             </ConsolePageHeading>
             <ConsolePanel Title="Layer preview" HeadingId="layer-preview-heading">
@@ -56,7 +56,7 @@
             <div class="console-page-heading">
                 <p class="console-kicker">Operate / Layers</p>
                 <h1>@_exposures[0].Layer.Name</h1>
-                <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.CanonicalResourceName.</p>
+                <p>Admin layer @_exposures[0].Layer.LayerId is exposed by @_serviceSummary and reads metadata from @_exposures[0].Layer.DatasetName.</p>
                 @LayerActions
             </div>
             <div class="console-panel-grid">
@@ -78,12 +78,12 @@
 
                 <article class="console-panel">
                     <p class="console-kicker">Canonical Metadata</p>
-                    <h2>Resource Owner</h2>
+                    <h2>Dataset</h2>
                     <dl class="console-definition-list">
                         <dt>Resource</dt>
-                        <dd><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(CanonicalResourceId)}")">@_exposures[0].Layer.CanonicalResourceName</a></dd>
+                        <dd><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(DatasetId)}")">@_exposures[0].Layer.DatasetName</a></dd>
                         <dt>Console layer reference</dt>
-                        <dd>@_exposures[0].Layer.CanonicalResourceId</dd>
+                        <dd>@_exposures[0].Layer.DatasetId</dd>
                         <dt>Ownership</dt>
                         <dd>@_exposures[0].Service.MetadataOwnership</dd>
                     </dl>
@@ -108,10 +108,10 @@
 @code {
 
     private RenderFragment LayerActions => @<text>            <div class="console-detail-actions">
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/style")" data-layer-style-link>Resource presentation / style</a>
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/relationships")" data-layer-relationships-link>Relationships</a>
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/filter")" data-layer-filter-link>Permanent filter</a>
-                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/metadata")" data-layer-metadata-link>Editing policy →</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(DatasetId)}/style")" data-layer-style-link>Layer style</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(DatasetId)}/relationships")" data-layer-relationships-link>Relationships</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(DatasetId)}/filter")" data-layer-filter-link>Permanent filter</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(DatasetId)}/metadata")" data-layer-metadata-link>Editing policy →</a>
             </div></text>;
     private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-data-controls" : null)" data-fields-panel>
             @if (!V4Enabled)
@@ -295,10 +295,10 @@
                     </dl>
                 </ConsolePanel>
             }
-            <ConsolePanel Title="Resource owner" HeadingId="layer-resource-heading">
+            <ConsolePanel Title="Dataset" HeadingId="layer-resource-heading">
                 <dl class="console-definition-list">
-                    <dt>Resource</dt><dd><ConsoleNameIdentifier Name="@_exposures[0].Layer.CanonicalResourceName" Identifier="@CanonicalResourceId"
-                        Href="@($"/operate/resources/{Uri.EscapeDataString(CanonicalResourceId)}")" /></dd>
+                    <dt>Resource</dt><dd><ConsoleNameIdentifier Name="@_exposures[0].Layer.DatasetName" Identifier="@DatasetId"
+                        Href="@($"/operate/resources/{Uri.EscapeDataString(DatasetId)}")" /></dd>
                     <dt>Ownership</dt><dd>@_exposures[0].Service.MetadataOwnership</dd>
                 </dl>
             </ConsolePanel>
@@ -337,7 +337,7 @@
 
     private IReadOnlyList<OperateLayerExposure> _exposures = [];
     private IReadOnlyList<string> _ambiguousResourceIds = [];
-    private string CanonicalResourceId => _exposures[0].Layer.CanonicalResourceId;
+    private string DatasetId => _exposures[0].Layer.DatasetId;
     private string _serviceSummary = string.Empty;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
@@ -396,7 +396,7 @@
         _environmentId = environmentId;
         _exposures = view.FindExposures(resourceId);
         if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
-        _ambiguousResourceIds = view.MatchingCanonicalResourceIds(resourceId);
+        _ambiguousResourceIds = view.MatchingDatasetIds(resourceId);
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Layers", "Services");
 

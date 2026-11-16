@@ -116,7 +116,7 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.Equal("Published", resource.ValidationState);
         Assert.Equal(["planning", "public"], resource.BlastRadius.Services);
         Assert.Contains(workspace.Services, service => service.Name == "planning" && service.Layers.Any(layer => layer.Name == "Console Parcels"));
-        Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.CanonicalResourceId == resource.ResourceId));
+        Assert.Contains(workspace.Services, service => service.Name == "public" && service.Layers.Any(layer => layer.DatasetId == resource.DatasetId));
         Assert.Equal("planning", workspace.Services.Single(service => service.Name == "planning").Layers.Single().ServiceName);
         Assert.Equal("public", workspace.Services.Single(service => service.Name == "public").Layers.Single().ServiceName);
         Assert.True(workspace.Services.Single(service => service.Name == "planning").Layers.Single().Enabled);
@@ -256,9 +256,9 @@ public sealed partial class OperateTransitionDataSourceTests
             Assert.Equal([7, 8], layers.Select(layer => layer.LayerId));
             Assert.Equal(
                 new[] { $"{connectionId}-layer-7", $"{connectionId}-layer-8" },
-                layers.Select(layer => layer.CanonicalResourceId));
+                layers.Select(layer => layer.DatasetId));
         }
-        Assert.Equal(2, workspace.DatasetEdits.Select(resource => resource.ResourceId).Distinct().Count());
+        Assert.Equal(2, workspace.DatasetEdits.Select(resource => resource.DatasetId).Distinct().Count());
         // The service is derived from the layer's own service name, not the absent services endpoint.
         Assert.Contains(servicesView.Services, service => service.Name == "planning");
         // Resources read the same layer rows directly and must also keep the published layer.
@@ -340,8 +340,8 @@ public sealed partial class OperateTransitionDataSourceTests
     public async Task LayerDetailRendersAllServiceExposuresForSharedLayerId()
     {
         // Regression: layer 7 is published by both the planning and public services. Both exposures
-        // share one canonical resource id, the layers list links every exposure row to the same
-        // /operate/layers/{canonicalResourceId} route, and the detail page must render every matching
+        // share one dataset id, the layers list links every exposure row to the same
+        // /operate/layers/{datasetId} route, and the detail page must render every matching
         // service exposure, not an arbitrary first one.
         var connectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var handler = new JsonFixtureHandler(new Dictionary<string, string>(StringComparer.Ordinal)
@@ -371,7 +371,7 @@ public sealed partial class OperateTransitionDataSourceTests
         var resourceId = layersView.Services
             .SelectMany(service => service.Layers)
             .First(layer => layer.Name == "Console Parcels")
-            .CanonicalResourceId;
+            .DatasetId;
         var layerHtml = await RenderPageAsync<OperateLayerDetailPage>(
             dataSource,
             ParameterView.FromDictionary(new Dictionary<string, object?>
@@ -393,7 +393,7 @@ public sealed partial class OperateTransitionDataSourceTests
     {
         // Regression: layer ids are only unique within a connection, so connection A and connection B
         // can both publish a layer 7 that point at different resources. Keying the detail route on the
-        // bare integer conflated them; keying on the canonical resource id must render only the layer
+        // bare integer conflated them; keying on the dataset id must render only the layer
         // belonging to the requested connection.
         var connectionA = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var connectionB = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -427,11 +427,11 @@ public sealed partial class OperateTransitionDataSourceTests
         var connectionAResourceId = layersView.Services
             .SelectMany(service => service.Layers)
             .First(layer => layer.Name == "Connection A Parcels")
-            .CanonicalResourceId;
+            .DatasetId;
         var connectionBResourceId = layersView.Services
             .SelectMany(service => service.Layers)
             .First(layer => layer.Name == "Connection B Roads")
-            .CanonicalResourceId;
+            .DatasetId;
         var layerHtml = await RenderPageAsync<OperateLayerDetailPage>(
             dataSource,
             ParameterView.FromDictionary(new Dictionary<string, object?>
@@ -543,8 +543,8 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.All(service.Layers, layer =>
         {
             Assert.NotEqual(0, layer.LayerId);
-            Assert.False(string.IsNullOrWhiteSpace(layer.CanonicalResourceId));
-            Assert.False(string.IsNullOrWhiteSpace(layer.CanonicalResourceName));
+            Assert.False(string.IsNullOrWhiteSpace(layer.DatasetId));
+            Assert.False(string.IsNullOrWhiteSpace(layer.DatasetName));
         });
     }
 
@@ -740,7 +740,7 @@ public sealed partial class OperateTransitionDataSourceTests
             string resourceId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_workspace.DatasetEdits.FirstOrDefault(
-                resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase)));
+                resource => string.Equals(resource.DatasetId, resourceId, StringComparison.OrdinalIgnoreCase)));
 
         public Task<OperateServiceDetail?> FindServiceAsync(
             string serviceName,
