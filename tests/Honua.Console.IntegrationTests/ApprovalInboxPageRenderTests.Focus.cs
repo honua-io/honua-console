@@ -81,12 +81,15 @@ public sealed partial class ApprovalInboxPageRenderTests
         AssertFocused(FocusCalls(ctx)[1], references, Row(secondId));
     }
 
-    [Fact]
-    public void CloseReview_AfterTheRowIsFilteredOut_FocusesTheReviewHeading()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void CloseReview_AfterTheRowIsFilteredOut_FocusesAPersistentHeading(ConsolePresentationMode presentation)
     {
-        using var ctx = NewFocusContext(ConsolePresentationMode.V4, out var inbox);
+        using var ctx = NewFocusContext(presentation, out var inbox);
         var page = ctx.Render<ApprovalInboxPage>();
-        var references = TrackReferences(page, Heading);
+        var fallbackHeading = presentation == ConsolePresentationMode.V4 ? Heading : InboxHeading;
+        var references = TrackReferences(page, fallbackHeading);
         inbox.Open();
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll(Rows).Count));
         ClickCurrent(page, Row("deploy-1"));
@@ -97,12 +100,14 @@ public sealed partial class ApprovalInboxPageRenderTests
         ClickCurrent(page, CloseReview);
 
         page.WaitForAssertion(() => Assert.Equal(2, FocusCalls(ctx).Count));
-        AssertFocused(FocusCalls(ctx)[1], references, Heading);
+        AssertFocused(FocusCalls(ctx)[1], references, fallbackHeading);
         Assert.Empty(page.FindAll("[data-proposal-approve]"));
     }
 
-    [Fact]
-    public void DuplicateProposalIds_RenderAndCloseReviewFallsBackToTheHeading()
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public void DuplicateProposalIds_RenderAndCloseReviewFallsBackToTheHeading(ConsolePresentationMode presentation)
     {
         var server = FakeProposalFactory.Summary("dup-1", ConsoleProposalKind.Deploy, summary: "Upgrade the server");
         var devOps = server with { Source = ConsoleProposalSource.DevOps };
@@ -112,12 +117,13 @@ public sealed partial class ApprovalInboxPageRenderTests
         });
         using var ctx = NewContextWithInbox(inbox, registerServices: context =>
         {
-            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
             context.Services.AddSingleton<IConsoleProposalsClient>(new FakeConsoleProposalsClient(
                 proposals: [server], details: [FakeProposalFactory.Detail("dup-1", ConsoleProposalKind.Deploy)]));
         });
         var page = ctx.Render<ApprovalInboxPage>();
-        var references = TrackReferences(page, Heading);
+        var fallbackHeading = presentation == ConsolePresentationMode.V4 ? Heading : InboxHeading;
+        var references = TrackReferences(page, fallbackHeading);
         inbox.Open();
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll(Row("dup-1")).Count));
 
@@ -126,7 +132,7 @@ public sealed partial class ApprovalInboxPageRenderTests
         ClickCurrent(page, CloseReview);
 
         page.WaitForAssertion(() => Assert.Equal(2, FocusCalls(ctx).Count));
-        AssertFocused(FocusCalls(ctx)[1], references, Heading);
+        AssertFocused(FocusCalls(ctx)[1], references, fallbackHeading);
     }
 
     private static BunitContext NewFocusContext(ConsolePresentationMode presentation, out GatedApprovalInboxClient inbox)
@@ -152,6 +158,7 @@ public sealed partial class ApprovalInboxPageRenderTests
 
     private const string Rows = "button.approval-inbox-select[data-proposal-id]";
     private const string Heading = "[data-approval-review-heading]";
+    private const string InboxHeading = "[data-approval-inbox-heading]";
     private const string CloseReview = "[data-approval-review] > button.console-button-secondary";
 
     private static string Row(string proposalId) => $"button.approval-inbox-select[data-proposal-id='{proposalId}']";

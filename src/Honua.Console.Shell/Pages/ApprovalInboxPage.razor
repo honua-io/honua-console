@@ -35,7 +35,7 @@
     {
         <div class="console-page-heading operate-heading">
             <p class="console-kicker">Human-in-the-loop</p>
-            <h1>Approval inbox</h1>
+            <h1 tabindex="-1" @ref="_inboxHeading" data-approval-inbox-heading>Approval inbox</h1>
             <p>
                 The work queue for agent-proposed operations. Agents and APIs do the writing; you
                 review the plan, diff, dry-run, and risk here and authorize the outcome. Approve or
@@ -371,6 +371,7 @@
 
     private readonly Dictionary<string, ElementReference> _rowButtons = new(StringComparer.Ordinal);
     private ElementReference _reviewHeading;
+    private ElementReference _inboxHeading;
     private ElementReference _closeReviewButton;
     private bool _focusReviewPending;
     private string? _focusRowPendingId;
@@ -461,9 +462,9 @@
             {
                 await TryFocusAsync(row);
             }
-            else if (V4Enabled)
+            else
             {
-                await TryFocusAsync(_reviewHeading);
+                await TryFocusAsync(V4Enabled ? _reviewHeading : _inboxHeading);
             }
         }
     }
