@@ -11,6 +11,8 @@ public sealed partial class HttpConsoleDeployApprovalClient
 {
     private sealed record ReviewTarget(ConsoleEnvironmentProfile Profile, string OperationId);
 
+    private sealed record HumanResponse<T>(JsonTypeInfo<T> Type, ConsoleEnvironmentProfile Profile);
+
     private const string ReviewAgainMessage = "The deployment or session changed, or the review expired. Review the deployment again before approving.";
 
     public async Task<OperateSectionResult<ConsoleDeployApprovalReview>> OpenSubmitReviewAsync(
@@ -27,8 +29,9 @@ public sealed partial class HttpConsoleDeployApprovalClient
         using var request = new HttpRequestMessage(HttpMethod.Get,
             BuildUri(profile!.ServerBaseUri, DeployControlAdminRoutes.Operation(operationId.Trim()) + "/approval-review/submit"));
         request.Options.Set(ConsoleAuthorityRequestOptions.Capture, true);
-        var result = await ExchangeHumanAsync(request, DeployHumanReviewJsonContext.Default.DeployHumanReviewResponse,
-            profile!, cancellationToken).ConfigureAwait(false);
+        var result = await ExchangeHumanAsync(request,
+            new HumanResponse<DeployHumanReviewResponse>(DeployHumanReviewJsonContext.Default.DeployHumanReviewResponse, profile!),
+            cancellationToken).ConfigureAwait(false);
         if (!result.IsAllowed || result.Value is not { } response)
         {
             return OperateSectionResult<ConsoleDeployApprovalReview>.Denied(result.Status, result.Message);
@@ -78,8 +81,9 @@ public sealed partial class HttpConsoleDeployApprovalClient
         request.Content = new StringContent(JsonSerializer.Serialize(
             new SubmitDeployOperationRequest { Reason = NormalizeReason(reason) },
             DeployControlJsonContext.Default.SubmitDeployOperationRequest), Encoding.UTF8, "application/json");
-        var result = await ExchangeHumanAsync(request, MetadataReleaseJsonContext.Default.DeployOperationResponse,
-            profile, cancellationToken).ConfigureAwait(false);
+        var result = await ExchangeHumanAsync(request,
+            new HumanResponse<DeployOperationResponse>(MetadataReleaseJsonContext.Default.DeployOperationResponse, profile),
+            cancellationToken).ConfigureAwait(false);
         return result.IsAllowed && result.Value is { } operation
             ? OperateSectionResult<DeployOperationProposal>.Allowed(DeployApprovalMapper.MapProposal(operation))
             : OperateSectionResult<DeployOperationProposal>.Denied(result.Status, result.Message);
@@ -93,7 +97,7 @@ public sealed partial class HttpConsoleDeployApprovalClient
     }
 
     private async Task<OperateSectionResult<T>> ExchangeHumanAsync<T>(
-        HttpRequestMessage request, JsonTypeInfo<T> type, ConsoleEnvironmentProfile profile, CancellationToken cancellationToken)
+        HttpRequestMessage request, HumanResponse<T> expected, CancellationToken cancellationToken)
     {
         try
         {
@@ -105,9 +109,9 @@ public sealed partial class HttpConsoleDeployApprovalClient
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var value = await JsonSerializer.DeserializeAsync(stream, type, cancellationToken).ConfigureAwait(false);
+            var value = await JsonSerializer.DeserializeAsync(stream, expected.Type, cancellationToken).ConfigureAwait(false);
             var active = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-            var current = active?.Id == profile.Id && active.ServerBaseUri == profile.ServerBaseUri
+            var current = active?.Id == expected.Profile.Id && active.ServerBaseUri == expected.Profile.ServerBaseUri
                 && request.Options.TryGetValue(ConsoleAuthorityRequestOptions.Resolved, out var binding)
                 && _authority is not null && await _authority.IsCurrentAsync(binding, cancellationToken).ConfigureAwait(false);
             return value is null || !current
