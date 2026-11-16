@@ -306,12 +306,12 @@ export function zoomOut(container) {
     return false;
 }
 
-// Recenter returns the live map to the initial center/zoom it was mounted with.
+// Recenter restores the fitted layer view, or the initial camera when no extent was available.
 export function recenter(container, center, zoom) {
     const map = instances.get(container);
     if (map) {
         try {
-            map.easeTo({ center: center ?? [0, 0], zoom: zoom ?? 1 });
+            map.easeTo({ center: map._homeCenter ?? center ?? [0, 0], zoom: map._homeZoom ?? zoom ?? 1 });
             return true;
         } catch {
             return false;

@@ -29,11 +29,25 @@ async function fixture(phase, run) {
             constructor(options) {
                 this.style = options.style;
                 this.removed = 0;
+                this.events = new Map();
+                this.center = options.center;
+                this.zoom = options.zoom;
                 maps.push(this);
                 if (phase === 'constructed') queueMicrotask(() => onConstruct());
             }
             addControl() { if (phase === 'control-error') throw new Error('control failed'); }
-            on() {}
+            on(name, callback) { this.events.set(name, callback); }
+            off(name) { this.events.delete(name); }
+            fire(name) { this.events.get(name)?.(); }
+            getStyle() { return { sources: { base: { type: 'raster' } }, layers: [{ id: 'data', type: 'fill' }] }; }
+            queryRenderedFeatures() { return this.features ?? []; }
+            fitBounds(bounds) {
+                this.center = bounds[0].map((value, index) => (value + bounds[1][index]) / 2);
+                this.zoom = 16;
+            }
+            getCenter() { return { toArray: () => this.center }; }
+            getZoom() { return this.zoom; }
+            easeTo(camera) { this.center = camera.center; this.zoom = camera.zoom; }
             remove() { this.removed++; }
             zoomIn() {}
         },
@@ -139,5 +153,42 @@ test('disposal after construction releases the map before it can bind', async ()
         assert.equal(maps.length, 1);
         assert.equal(maps[0].removed, 1);
         assert.equal(releases(), 1);
+    });
+});
+
+for (const source of ['extent', 'features']) {
+    test(`Recenter restores the fitted ${source} view after panning`, async () => {
+        await fixture(`camera-${source}`, async ({ init, recenter, dispose, maps }) => {
+            const container = {};
+            const options = { styleUrl: 'https://api.example/styles/layer.json', center: [0, 0], zoom: 1 };
+            if (source === 'extent') options.bounds = [-124, 32, -114, 42];
+            assert.equal(await init(container, options), true);
+            const map = maps[0];
+            map.features = [{ geometry: { coordinates: [[-124, 32], [-114, 42]] } }];
+            map.fire('load');
+            map.fire('idle');
+            assert.deepEqual(map.center, [-119, 37]);
+            map.easeTo({ center: [10, 20], zoom: 4 });
+            assert.equal(recenter(container, options.center, options.zoom), true);
+            assert.deepEqual(map.center, [-119, 37]);
+            assert.equal(map.zoom, 16);
+            dispose(container);
+        });
+    });
+}
+
+test('Recenter preserves the initial camera when no feature extent is available', async () => {
+    await fixture('camera-empty', async ({ init, recenter, dispose, maps }) => {
+        const container = {};
+        assert.equal(await init(container, { styleUrl: 'https://api.example/styles/empty.json', center: [0, 0], zoom: 0 }), true);
+        const map = maps[0];
+        map.fire('load');
+        map.fire('idle');
+        map.easeTo({ center: [10, 20], zoom: 4 });
+        assert.equal(recenter(container, [0, 0], 0), true);
+        assert.deepEqual(map.center, [0, 0]);
+        assert.equal(map.zoom, 0);
+        dispose(container);
+        assert.equal(recenter(container, [0, 0], 0), false);
     });
 });
