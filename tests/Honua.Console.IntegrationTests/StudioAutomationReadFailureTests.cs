@@ -16,7 +16,7 @@ public sealed class StudioAutomationReadFailureTests
     [InlineData(true, "list")]
     public void ListReadFailureRendersUnavailableInsteadOfEmpty(bool v4, string failure)
     {
-        using var context = CreateContext(v4, new FailingReadClient(failure));
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, new FailingReadClient(failure));
         var page = context.Render<StudioAutomationsPage>();
 
         page.WaitForAssertion(() => Assert.Contains("Could not load automations", page.Markup));
@@ -24,7 +24,7 @@ public sealed class StudioAutomationReadFailureTests
         Assert.Empty(page.FindAll("section.console-state-empty"));
         Assert.Empty(page.FindAll("section.console-state-loading"));
         Assert.Empty(page.FindAll(".automation-card, .automation-table"));
-        CapturePreview($"list-{failure}", v4, page.Markup);
+        CapturePreview($"list-{failure}", context.Services.GetRequiredService<ConsoleV4Options>(), page.Markup);
     }
 
     [Theory]
@@ -32,7 +32,7 @@ public sealed class StudioAutomationReadFailureTests
     [InlineData(true)]
     public void EditorReadFailureRendersUnavailableInsteadOfMissingDraft(bool v4)
     {
-        using var context = CreateContext(v4, new FailingReadClient("open"));
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, new FailingReadClient("open"));
         var page = context.Render<StudioAutomationEditorPage>(p => p.Add(v => v.DraftId, "failed-draft"));
 
         page.WaitForAssertion(() => Assert.Contains("Could not load automation draft", page.Markup));
@@ -40,7 +40,7 @@ public sealed class StudioAutomationReadFailureTests
         Assert.Empty(page.FindAll("section.console-state-empty"));
         Assert.Empty(page.FindAll("section.console-state-loading"));
         Assert.Empty(page.FindAll(".automation-editor-header"));
-        CapturePreview("editor-open", v4, page.Markup);
+        CapturePreview("editor-open", context.Services.GetRequiredService<ConsoleV4Options>(), page.Markup);
     }
 
     [Theory]
@@ -50,7 +50,7 @@ public sealed class StudioAutomationReadFailureTests
     [InlineData(true, "history")]
     public void HistoryReadFailureRendersUnavailableInsteadOfNoVersions(bool v4, string failure)
     {
-        using var context = CreateContext(v4, new FailingReadClient(failure));
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, new FailingReadClient(failure));
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "failed-draft"));
 
         page.WaitForAssertion(() => Assert.Contains("Could not load automation versions", page.Markup));
@@ -58,7 +58,7 @@ public sealed class StudioAutomationReadFailureTests
         Assert.Empty(page.FindAll("section.console-state-empty"));
         Assert.Empty(page.FindAll("section.console-state-loading"));
         Assert.Empty(page.FindAll(".automation-version-item"));
-        CapturePreview($"history-{failure}", v4, page.Markup);
+        CapturePreview($"history-{failure}", context.Services.GetRequiredService<ConsoleV4Options>(), page.Markup);
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public sealed class StudioAutomationReadFailureTests
     public async Task EditorFailureFromPreviousDraftDoesNotReplaceNewDraft(bool v4)
     {
         var client = new FailingReadClient("delayed-open");
-        using var context = CreateContext(v4, client);
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, client);
         var page = context.Render<StudioAutomationEditorPage>(p => p.Add(v => v.DraftId, "failed-draft"));
         await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -93,7 +93,7 @@ public sealed class StudioAutomationReadFailureTests
     public async Task HistoryFailureFromPreviousDraftDoesNotReplaceNewHistory(bool v4, string failure)
     {
         var client = new FailingReadClient(failure);
-        using var context = CreateContext(v4, client);
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, client);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "failed-draft"));
         await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -116,7 +116,7 @@ public sealed class StudioAutomationReadFailureTests
     [InlineData(true)]
     public void EditorCanOpenAnotherDraftAfterReadFailure(bool v4)
     {
-        using var context = CreateContext(v4, new FailingReadClient("open"));
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, new FailingReadClient("open"));
         var page = context.Render<StudioAutomationEditorPage>(p => p.Add(v => v.DraftId, "failed-draft"));
         page.WaitForState(() => page.FindAll("section.console-state-error").Count == 1);
 
@@ -134,7 +134,7 @@ public sealed class StudioAutomationReadFailureTests
     [InlineData(true)]
     public void HistoryCanOpenAnotherDraftAfterReadFailure(bool v4)
     {
-        using var context = CreateContext(v4, new FailingReadClient("history"));
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, new FailingReadClient("history"));
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "failed-draft"));
         page.WaitForState(() => page.FindAll("section.console-state-error").Count == 1);
 
@@ -155,7 +155,7 @@ public sealed class StudioAutomationReadFailureTests
         var client = new FailingReadClient("after-restore");
         var draft = (await client.OpenEditorAsync(InMemoryCollectAutomationClient.SeedDraftId)).Draft!;
         await client.SaveVersionAsync(draft, "Second version");
-        using var context = CreateContext(v4, client);
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, client);
         context.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
         var restore = page.FindAll("button").First(b => b.TextContent.Trim() == "Restore");
@@ -171,7 +171,7 @@ public sealed class StudioAutomationReadFailureTests
         });
         Assert.Equal(1, client.RestoreCount);
         Assert.Equal(3, (await client.ReadSavedHistoryAsync(draft.ContentItemId)).Versions.Count);
-        CapturePreview("restore-refresh", v4, page.Markup);
+        CapturePreview("restore-refresh", context.Services.GetRequiredService<ConsoleV4Options>(), page.Markup);
     }
 
     [Theory]
@@ -179,7 +179,7 @@ public sealed class StudioAutomationReadFailureTests
     [InlineData(true)]
     public void FailedDraftNavigationDiscardsPreviousDraftDirtyState(bool v4)
     {
-        using var context = CreateContext(v4, new FailingReadClient("open"));
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, new FailingReadClient("open"));
         var page = context.Render<StudioAutomationEditorPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
         page.Find("input[aria-label='Automation name']").Input("Edited previous draft");
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
@@ -194,15 +194,15 @@ public sealed class StudioAutomationReadFailureTests
         });
     }
 
-    private static void CapturePreview(string name, bool v4, string markup) =>
-        CatalogAdminPreview.Capture($"automation-read-{name}-{(v4 ? "v4" : "legacy")}",
-            $"<div class=\"console-shell\" data-console-v4=\"{v4.ToString().ToLowerInvariant()}\">{markup}</div>");
+    private static void CapturePreview(string name, ConsoleV4Options options, string markup) =>
+        CatalogAdminPreview.Capture($"automation-read-{name}-{(options.Enabled ? "v4" : "legacy")}",
+            $"<div class=\"console-shell\" data-console-v4=\"{options.Enabled.ToString().ToLowerInvariant()}\">{markup}</div>");
 
-    private static BunitContext CreateContext(bool v4, ICollectAutomationClient client)
+    private static BunitContext CreateContext(ConsoleV4Options options, ICollectAutomationClient client)
     {
         var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
+        context.Services.AddSingleton(options);
         context.Services.AddSingleton(client);
         return context;
     }
