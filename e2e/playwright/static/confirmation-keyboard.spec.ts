@@ -16,6 +16,8 @@ test('confirmation keeps keyboard focus modal and restores its trigger', async (
             { type: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier', value: 'keyboard-operator' },
             { type: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role', value: 'admin' },
           ] }));
+        } else if (path.endsWith('/auth/csrf')) {
+          response.end(JSON.stringify({ requestToken: 'fixture-only' }));
         } else if (path.includes('/api-keys') && request.method === 'GET') {
           response.end(JSON.stringify({ success: true, data: [{
             id: 'b31be041-5f96-44d8-a1dc-d2bcb05fbf19', name: 'Synthetic audit key',
