@@ -384,7 +384,15 @@ public sealed partial class ShareManagePageRenderTests
         string itemId,
         RenderOptions? options = null)
     {
-        var ctx = new Bunit.BunitContext();
+        var ctx = CreateContext(data, options);
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(navigation.GetUriWithQueryParameter("itemId", itemId));
+        return ctx.Render<ShareManagePage>();
+    }
+
+    private static BunitContext CreateContext(FakeShareDataSource data, RenderOptions? options = null)
+    {
+        var ctx = new BunitContext();
         // The page now hosts an <UnsavedChangesGuard/> (Wave 5), which imports a JS module and may call
         // confirm() on navigation; run Loose JSInterop so those calls no-op in render tests.
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -394,9 +402,7 @@ public sealed partial class ShareManagePageRenderTests
         // The open-data editor reads server-owned content metadata through the catalog client. With no
         // server bound the page renders the missing-binding state; tests inject a fake to exercise the editor.
         ctx.Services.AddSingleton<IConsoleCatalogClient>(options?.Catalog ?? new UnsupportedConsoleCatalogClient());
-        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo(navigation.GetUriWithQueryParameter("itemId", itemId));
-        return ctx.Render<ShareManagePage>();
+        return ctx;
     }
 
     private sealed record RenderOptions
@@ -435,6 +441,7 @@ public sealed partial class ShareManagePageRenderTests
 
     private sealed class FakeCatalogClient(ConsoleContentDetail detail) : IConsoleCatalogClient
     {
+        public Func<string, Task<CatalogItemReadResult>>? OpenDataRead { get; init; }
         public Task<CatalogSearchResult> SearchAsync(CatalogListRequest request, CatalogReadContext context, CancellationToken cancellationToken = default) =>
             Task.FromResult(new CatalogSearchResult([], new Dictionary<string, int>(StringComparer.Ordinal), request));
 
@@ -442,7 +449,7 @@ public sealed partial class ShareManagePageRenderTests
             Task.FromResult(CatalogItemReadResult.Allowed(detail));
 
         public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
-            Task.FromResult(CatalogItemReadResult.Allowed(detail, anonymousRead: true));
+            OpenDataRead?.Invoke(idOrSlug) ?? Task.FromResult(CatalogItemReadResult.Allowed(detail, anonymousRead: true));
 
         public Task<MapReadResult> GetMapAsync(string mapId, CatalogReadContext context, CancellationToken cancellationToken = default) =>
             Task.FromResult(MapReadResult.Denied(CatalogReadStatus.Missing, "n/a"));
@@ -459,9 +466,10 @@ public sealed partial class ShareManagePageRenderTests
         public ShareAccessLoad Load { get; set; } = new(null, []);
         public ShareCommandResult Command { get; set; } = new(null, null, null, []);
         public Task<ShareCommandResult>? PendingMint { get; set; }
+        public Func<string, Task<ShareAccessLoad>>? LoadItem { get; init; }
 
         public Task<ShareAccessLoad> LoadAsync(string itemId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Load);
+            LoadItem?.Invoke(itemId) ?? Task.FromResult(Load);
 
         public Task<ShareCommandResult> UpdateAccessTierAsync(string itemId, string accessTier, bool allowDependencyConflicts, CancellationToken cancellationToken = default) =>
             Task.FromResult(Command);

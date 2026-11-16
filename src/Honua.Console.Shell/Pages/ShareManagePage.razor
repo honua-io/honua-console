@@ -708,6 +708,9 @@
     private bool _loading;
     private bool _busy;
     private bool _attempted;
+    private string? _lastQueryItemId;
+    private string? _selectedItemId;
+    private long _selectionRevision;
     private string _tab = "link";
     private string? _itemIdInput;
     private DateTime? _expiresAtInput;
@@ -757,16 +760,27 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!string.IsNullOrWhiteSpace(ItemId) && !_attempted)
+        var itemId = string.IsNullOrWhiteSpace(ItemId) ? null : ItemId;
+        if (string.Equals(itemId, _lastQueryItemId, StringComparison.Ordinal))
         {
-            _itemIdInput = ItemId;
-            await LoadAsync(ItemId);
+            return;
+        }
+
+        _lastQueryItemId = itemId;
+        _itemIdInput = itemId;
+        if (itemId is null)
+        {
+            ResetSelection(null);
+        }
+        else
+        {
+            await LoadAsync(itemId);
         }
     }
 
     private async Task OpenItem()
     {
-        if (!string.IsNullOrWhiteSpace(_itemIdInput))
+        if (!_busy && !string.IsNullOrWhiteSpace(_itemIdInput))
         {
             await LoadAsync(_itemIdInput);
         }
@@ -804,7 +818,13 @@
             return;
         }
 
+        var revision = _selectionRevision;
         var result = await Catalog.GetOpenDataItemAsync(share.ItemId);
+        if (revision != _selectionRevision)
+        {
+            return;
+        }
+
         if (result.Status == CatalogReadStatus.Unavailable)
         {
             _detailMissingBinding = true;
@@ -818,32 +838,45 @@
     private string TabClass(string tab) =>
         string.Equals(tab, _tab, StringComparison.Ordinal) ? "active" : string.Empty;
 
-    private async Task LoadAsync(string itemId)
+    private long ResetSelection(string? itemId)
     {
-        if (_busy)
+        _selectionRevision++;
+        if (!string.Equals(itemId, _selectedItemId, StringComparison.Ordinal) || itemId is null)
         {
-            return;
+            _expiresAtInput = null;
         }
 
+        _selectedItemId = itemId;
+        _share = null;
+        _detail = null;
+        _detailItemId = null;
+        _detailMissingBinding = false;
+        _busy = false;
+        _loading = false;
+        _attempted = itemId is not null;
+        ResetTransient();
+        _editRevision++;
+        _dirty.MarkClean();
+        _itemIdEdited = false;
+        Revalidate();
+        return _selectionRevision;
+    }
+
+    private async Task LoadAsync(string itemId)
+    {
+        var revision = ResetSelection(itemId);
         _busy = true;
         _loading = true;
-        _attempted = true;
-        ResetTransient();
         try
         {
             var load = await ShareData.LoadAsync(itemId);
+            if (revision != _selectionRevision)
+            {
+                return;
+            }
+
             _share = load.Share;
             ApplyStates(load.CapabilityStates);
-
-            // A freshly loaded item is the clean baseline; recompute findings against the opened id.
-            _dirty.MarkClean();
-            _itemIdEdited = false;
-            Revalidate();
-
-            // A newly loaded item invalidates any cached open-data detail; reload if the editor tab is open.
-            _detail = null;
-            _detailItemId = null;
-            _detailMissingBinding = false;
             if (string.Equals(_tab, "opendata", StringComparison.Ordinal))
             {
                 await EnsureDetailAsync();
@@ -851,8 +884,11 @@
         }
         finally
         {
-            _busy = false;
-            _loading = false;
+            if (revision == _selectionRevision)
+            {
+                _busy = false;
+                _loading = false;
+            }
         }
     }
 
@@ -899,39 +935,50 @@
             return null;
         }
 
+        var revision = _selectionRevision;
         _busy = true;
         ResetTransient();
         try
         {
             var result = await command();
-            if (result.Share is not null)
+            if (revision != _selectionRevision)
             {
-                _share = result.Share;
+                return null;
             }
 
-            _mintedSecret = result.MintedSecret;
-
-            // A closure result (from a preview or a blocked change) is compatible => OK banner; incompatible
-            // => blocking-dependency table. Both arrive on BlockedBy from the data source.
-            if (result.BlockedBy is { } closure)
-            {
-                if (closure.IsCompatible)
-                {
-                    _lastClosure = closure;
-                }
-                else
-                {
-                    _blockedBy = closure;
-                }
-            }
-
-            ApplyStates(result.CapabilityStates);
+            ApplyCommandResult(result);
             return result;
         }
         finally
         {
-            _busy = false;
+            if (revision == _selectionRevision)
+            {
+                _busy = false;
+            }
         }
+    }
+
+    private void ApplyCommandResult(ShareCommandResult result)
+    {
+        if (result.Share is not null)
+        {
+            _share = result.Share;
+        }
+
+        _mintedSecret = result.MintedSecret;
+        if (result.BlockedBy is { } closure)
+        {
+            if (closure.IsCompatible)
+            {
+                _lastClosure = closure;
+            }
+            else
+            {
+                _blockedBy = closure;
+            }
+        }
+
+        ApplyStates(result.CapabilityStates);
     }
 
     private void ApplyStates(IReadOnlyList<ShareCapabilityState> states)
