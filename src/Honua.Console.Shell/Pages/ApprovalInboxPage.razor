@@ -342,6 +342,7 @@
 
     private bool _loaded;
     private bool _busy;
+    private bool _refreshRequested;
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
@@ -528,6 +529,12 @@
 
     private async Task RefreshAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _refreshRequested = true;
         if (_busy)
         {
             return;
@@ -536,32 +543,36 @@
         _busy = true;
         try
         {
-            // Bounded loading (console#308): a hung or failing read resolves to an explicit,
-            // retryable Unavailable error rather than an endless spinner.
-            _result = await ConsoleReadBudget.RunAsync(
-                token => Inbox.GetInboxAsync(cancellationToken: token),
-                LoadBudget,
-                $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.");
-
-            if (_result.IsAllowed)
+            do
             {
-                // Only a real success advances the last-good marker; a failure keeps the prior time.
-                _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
-
-                ResolveSelectedProposalSource();
-
-                // A selected proposal can leave the pending queue while it is executing.
-                // Keep its server-backed detail visible until the operator closes it.
-                if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
-                {
-                    _filter = null;
-                }
+                _refreshRequested = false;
+                await ReadInboxAsync();
             }
+            while (_refreshRequested && !_disposed);
         }
         finally
         {
             _busy = false;
             _loaded = true;
+        }
+    }
+
+    private async Task ReadInboxAsync()
+    {
+        _result = await ConsoleReadBudget.RunAsync(
+            token => Inbox.GetInboxAsync(cancellationToken: token),
+            LoadBudget,
+            $"The approval queue did not respond within {LoadBudget.TotalSeconds:0} seconds.");
+
+        if (_result.IsAllowed)
+        {
+            _lastSuccessfulRefreshUtc = DateTimeOffset.UtcNow;
+            ResolveSelectedProposalSource();
+
+            if (_filter is { } filter && _result.Value?.PresentTicketTypes.Contains(filter) != true)
+            {
+                _filter = null;
+            }
         }
     }
 
