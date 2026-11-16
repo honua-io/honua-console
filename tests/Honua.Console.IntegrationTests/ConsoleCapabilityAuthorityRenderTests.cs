@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Bunit;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
@@ -17,12 +18,18 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
         await using var context = CreateContext();
         var authentication = context.Services.GetRequiredService<MutableAuthentication>();
         var shell = context.Render<ConsoleLayout>();
+        var gate = context.Render<ConsoleCapabilityGate>(parameters => parameters
+            .Add(component => component.Capability, "console.content.persistent")
+            .AddChildContent("<p id='authorized-content'>Authorized content</p>"));
         Assert.Empty(CatalogLinks(shell));
+        Assert.Empty(gate.FindAll("#authorized-content"));
 
         authentication.SignIn();
         shell.WaitForAssertion(() => Assert.Equal(2, CatalogLinks(shell).Count));
+        gate.WaitForAssertion(() => Assert.Single(gate.FindAll("#authorized-content")));
         authentication.SignOut();
         shell.WaitForAssertion(() => Assert.Empty(CatalogLinks(shell)));
+        gate.WaitForAssertion(() => Assert.Empty(gate.FindAll("#authorized-content")));
     }
 
     [Fact]
