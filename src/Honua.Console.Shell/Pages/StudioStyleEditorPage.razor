@@ -164,6 +164,7 @@
     private Honua.Console.Shell.Models.StudioMapStyleCatalog _catalog =
         Honua.Console.Shell.Models.StudioMapStyleCatalog.Empty;
     private string _styleId = string.Empty;
+    private string? _routeStyleId;
     private string _modeValue = "MapLibre";
     private HonuaOgcStyleEncoding _mode = HonuaOgcStyleEncoding.MapLibre;
     private string _content = string.Empty;
@@ -211,12 +212,12 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!string.IsNullOrWhiteSpace(StyleId) && !string.Equals(StyleId, _styleId, StringComparison.Ordinal))
-        {
-            if (RetainDirtyEdits()) return;
-            _styleId = StyleId;
-            await LoadAsync();
-        }
+        var routeStyleId = string.IsNullOrWhiteSpace(StyleId) ? string.Empty : StyleId;
+        if (string.Equals(routeStyleId, _routeStyleId, StringComparison.Ordinal)) return;
+        _routeStyleId = routeStyleId;
+        if (RetainDirtyEdits()) return;
+        _styleId = routeStyleId;
+        await LoadAsync();
     }
 
     private Task OnStyleSelectedAsync() => RetainDirtyEdits() ? Task.CompletedTask : LoadAsync();
@@ -257,9 +258,9 @@
         _entityTag = null;
         _impact = null;
         _impactIssue = null;
+        if (!retainCandidate) _content = string.Empty;
         if (string.IsNullOrWhiteSpace(styleId))
         {
-            if (!retainCandidate) _content = string.Empty;
             _loading = false;
             return false;
         }
