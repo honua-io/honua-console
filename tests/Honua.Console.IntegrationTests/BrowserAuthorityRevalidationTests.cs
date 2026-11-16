@@ -109,7 +109,10 @@ public sealed class BrowserAuthorityRevalidationTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Assert.Equal("api/v1/admin/auth/session", request.RequestUri!.AbsolutePath.TrimStart('/'));
-            NoCache = request.Headers.CacheControl is { NoCache: true, NoStore: true };
+            Assert.Null(request.Headers.CacheControl);
+            NoCache = request.Options.TryGetValue(
+                new HttpRequestOptionsKey<IDictionary<string, object>>("WebAssemblyFetchOptions"), out var options)
+                && options.TryGetValue("cache", out var cache) && Equals("no-store", cache);
             return send(request);
         }
     }
