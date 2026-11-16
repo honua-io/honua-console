@@ -71,6 +71,7 @@ export async function init(element, tilesetUrl, environmentId) {
         return false;
     }
 
+    dispose(element);
     const instance = { element, viewer: null, tileset: null, ready: false, releaseSceneGate: null };
     instances.set(element, instance);
     try {
