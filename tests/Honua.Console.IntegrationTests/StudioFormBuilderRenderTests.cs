@@ -253,6 +253,60 @@ public sealed class StudioFormBuilderRenderTests
         Assert.Contains("data-field-state=\"discovered\"", page.Markup, StringComparison.Ordinal);
     }
 
+    public static IEnumerable<object[]> PendingCommands() =>
+        from presentation in new[] { ConsolePresentationMode.Legacy, ConsolePresentationMode.V4 }
+        from command in new[] { "Save draft", "Validate", "Publish", "Reopen as draft" }
+        from outcome in new[] { "success", "failure" }
+        select new object[] { presentation, command, outcome };
+
+    [Theory]
+    [MemberData(nameof(PendingCommands))]
+    public async Task FormBuilder_PendingCommand_LocksEditsUntilCompletion(
+        ConsolePresentationMode presentation, string command, string outcome)
+    {
+        var editor = command == "Reopen as draft" ? PublishedEditor() : ReadyEditor();
+        var completion = new TaskCompletionSource<StudioFormCommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var data = new FakeFormDataSource
+        {
+            Workspace = new StudioFormWorkspace(
+                [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)], []),
+            EditorLoad = new StudioFormEditorLoad(editor, []),
+            PendingCommand = completion.Task
+        };
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+        var page = ctx.Render<StudioFormBuilderPage>();
+        FindButton(page, "Hydrant inspection").Click();
+        var title = page.Find("input[placeholder='Field inspection form']");
+        Assert.False(title.HasAttribute("disabled"));
+        Assert.False(FindButton(page, command).HasAttribute("disabled"));
+
+        var pending = FindButton(page, command).ClickAsync(new());
+        try
+        {
+            page.WaitForAssertion(() =>
+            {
+                Assert.True(FindButton(page, "Back to forms").HasAttribute("disabled"));
+                Assert.All(page.FindAll("[data-form-builder] input, [data-form-builder] textarea, [data-form-builder] select"),
+                    control => Assert.True(control.HasAttribute("disabled"), control.OuterHtml));
+            });
+        }
+        finally
+        {
+            completion.SetResult(new StudioFormCommandResult(outcome == "success", "Command finished.", editor));
+            await pending;
+        }
+
+        Assert.False(page.Find("input[placeholder='Field inspection form']").HasAttribute("disabled"));
+        Assert.False(FindButton(page, "Back to forms").HasAttribute("disabled"));
+        Assert.Contains("Command finished.", page.Markup, StringComparison.Ordinal);
+        page.Find("input[placeholder='Field inspection form']").Change("Edited after completion");
+        Assert.Equal("Edited after completion", editor.Title);
+        Assert.True(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -304,6 +358,8 @@ public sealed class StudioFormBuilderRenderTests
 
         public bool SimulateAsyncWorkspace { get; set; }
 
+        public Task<StudioFormCommandResult>? PendingCommand { get; set; }
+
         public async Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
         {
             if (SimulateAsyncWorkspace)
@@ -318,16 +374,16 @@ public sealed class StudioFormBuilderRenderTests
             Task.FromResult(EditorLoad);
 
         public Task<StudioFormCommandResult> SaveDraftAsync(StudioFormEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioFormCommandResult(true, "Saved.", state));
+            PendingCommand ?? Task.FromResult(new StudioFormCommandResult(true, "Saved.", state));
 
         public Task<StudioFormCommandResult> ValidateAsync(StudioFormEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioFormCommandResult(true, "Valid.", state, new StudioFormValidationView(true, [])));
+            PendingCommand ?? Task.FromResult(new StudioFormCommandResult(true, "Valid.", state, new StudioFormValidationView(true, [])));
 
         public Task<StudioFormCommandResult> PublishAsync(StudioFormEditorState state, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioFormCommandResult(true, "Published.", state));
+            PendingCommand ?? Task.FromResult(new StudioFormCommandResult(true, "Published.", state));
 
         public Task<StudioFormCommandResult> ReopenAsync(string formId, int version, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StudioFormCommandResult(true, "Reopened.", new StudioFormEditorState { FormId = formId, Version = version + 1 }));
+            PendingCommand ?? Task.FromResult(new StudioFormCommandResult(true, "Reopened.", new StudioFormEditorState { FormId = formId, Version = version + 1 }));
 
         public Task<StudioFormOfflinePolicyView> GetOfflinePolicyAsync(string formId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StudioFormOfflinePolicyView(true, ["feature-server-replica"]));
