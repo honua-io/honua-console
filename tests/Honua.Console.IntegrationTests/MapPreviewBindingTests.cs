@@ -183,7 +183,7 @@ public sealed class MapPreviewBindingTests
 
         Assert.Equal(2, module.Invocations["init"].Count);
         Assert.Single(module.Invocations["dispose"]);
-        return (cut, first.SetResult, latest.SetResult);
+        return (cut, value => { first.SetResult(value); }, value => { latest.SetResult(value); });
     }
 
     [Fact]
