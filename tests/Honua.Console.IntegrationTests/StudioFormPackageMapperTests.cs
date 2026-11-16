@@ -981,9 +981,9 @@ public sealed class StudioFormPackageMapperTests
     {
         var state = new StudioFormEditorState();
 
-        var empty = StudioFormPublishEvaluator.Evaluate(state);
+        var empty = StudioFormGoLiveEvaluator.Evaluate(state);
 
-        Assert.False(empty.CanPublish);
+        Assert.False(empty.CanGoLive);
         Assert.Contains(empty.UnmetRequirements, requirement => requirement.Contains("title", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(empty.UnmetRequirements, requirement => requirement.Contains("field", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(empty.UnmetRequirements, requirement => requirement.Contains("submit target", StringComparison.OrdinalIgnoreCase));
@@ -999,18 +999,18 @@ public sealed class StudioFormPackageMapperTests
         state.ReplicaTransportEnabled = false;
         state.FieldCollectionTransportEnabled = false;
 
-        var readiness = StudioFormPublishEvaluator.Evaluate(state);
+        var readiness = StudioFormGoLiveEvaluator.Evaluate(state);
 
-        Assert.False(readiness.CanPublish);
+        Assert.False(readiness.CanGoLive);
         Assert.Contains(readiness.UnmetRequirements, requirement => requirement.Contains("transport", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
     public void PublishEvaluator_AllowsPublishWhenGateSatisfied()
     {
-        var readiness = StudioFormPublishEvaluator.Evaluate(ReadyToPublishState());
+        var readiness = StudioFormGoLiveEvaluator.Evaluate(ReadyToPublishState());
 
-        Assert.True(readiness.CanPublish);
+        Assert.True(readiness.CanGoLive);
         Assert.Empty(readiness.UnmetRequirements);
     }
 
@@ -1022,9 +1022,9 @@ public sealed class StudioFormPackageMapperTests
         state.AllowUpdate = false;
         state.AllowDelete = false;
 
-        var readiness = StudioFormPublishEvaluator.Evaluate(state);
+        var readiness = StudioFormGoLiveEvaluator.Evaluate(state);
 
-        Assert.False(readiness.CanPublish);
+        Assert.False(readiness.CanGoLive);
         Assert.Contains(
             readiness.UnmetRequirements,
             requirement => requirement.Contains("submit operation", StringComparison.OrdinalIgnoreCase));
@@ -1053,15 +1053,15 @@ public sealed class StudioFormPackageMapperTests
     public void PublishEvaluator_ReGatesPublish_AfterEditFollowingValidation()
     {
         var state = ReadyToPublishState();
-        Assert.True(StudioFormPublishEvaluator.Evaluate(state).CanPublish);
+        Assert.True(StudioFormGoLiveEvaluator.Evaluate(state).CanGoLive);
 
         // Editing the submit target after the validated save moves the draft off its saved baseline, so
         // the gate must re-require a save + server validation instead of trusting the stale result.
         state.ServiceId = "different-service";
 
-        var readiness = StudioFormPublishEvaluator.Evaluate(state);
+        var readiness = StudioFormGoLiveEvaluator.Evaluate(state);
 
-        Assert.False(readiness.CanPublish);
+        Assert.False(readiness.CanGoLive);
         Assert.Contains(
             readiness.UnmetRequirements,
             requirement => requirement.Contains("Save your latest edits", StringComparison.OrdinalIgnoreCase));

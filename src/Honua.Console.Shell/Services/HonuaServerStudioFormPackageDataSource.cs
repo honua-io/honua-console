@@ -7,16 +7,16 @@ namespace Honua.Console.Shell.Services;
 public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageDataSource
 {
     private const string Surface = "Form builder";
-    private const string ListContract = "GET /api/v1/admin/forms/packages";
-    private const string LoadContract = "GET /api/v1/admin/forms/packages/{formId}";
-    private const string SaveContract = "POST/PUT /api/v1/admin/forms/packages";
-    private const string ValidateContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/validate";
-    private const string PublishContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish";
-    private const string ReopenContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/reopen";
-    private const string OfflineContract = "GET /api/v1/forms/packages/{formId}/offline-policy";
-    private const string GenProvidersContract = "GET /api/v1/admin/forms/packages/generation/providers";
-    private const string GenerateContract = "POST /api/v1/admin/forms/packages/generate";
-    private const string ImportXlsFormContract = "POST /api/v1/admin/forms/packages/import-xlsform";
+    private const string ListContract = "GET /api/v1/admin/forms";
+    private const string LoadContract = "GET /api/v1/admin/forms/{formId}";
+    private const string SaveContract = "POST/PUT /api/v1/admin/forms";
+    private const string ValidateContract = "POST /api/v1/admin/forms/{formId}/versions/{formVersion}/validate";
+    private const string PublishContract = "POST /api/v1/admin/forms/{formId}/versions/{formVersion}/publish";
+    private const string ReopenContract = "POST /api/v1/admin/forms/{formId}/versions/{formVersion}/reopen";
+    private const string OfflineContract = "GET /api/v1/forms/{formId}/offline-policy";
+    private const string GenProvidersContract = "GET /api/v1/admin/forms/generation/providers";
+    private const string GenerateContract = "POST /api/v1/admin/forms/generate";
+    private const string ImportXlsFormContract = "POST /api/v1/admin/forms/import-xlsform";
 
     private readonly IHonuaFormPackageClient _client;
 
@@ -66,9 +66,9 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (state.IsPublished)
+        if (state.IsReleased)
         {
-            return Failure("This version is published. Reopen it as a draft before editing.");
+            return Failure("This Version is Released. Reopen it as a Draft before editing.");
         }
 
         var document = StudioFormPackageMapper.ToDocument(state);
@@ -97,7 +97,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
 
         return new StudioFormCommandResult(
             true,
-            $"Saved draft version {saved.Version.ToString(CultureInfo.InvariantCulture)}. Validate before publishing.",
+            $"Saved Draft Version {saved.Version.ToString(CultureInfo.InvariantCulture)}. Validate before going live.",
             saved);
     }
 
@@ -109,9 +109,9 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
 
         // Validation, like save and publish, applies only to the open draft. A published version is terminal
         // in the builder, so refuse rather than validating an immutable version (matches SaveDraftAsync).
-        if (state.IsPublished)
+        if (state.IsReleased)
         {
-            return Failure("This version is published. Reopen it as a draft before validating.");
+            return Failure("This Version is Released. Reopen it as a Draft before validating.");
         }
 
         if (!state.IsExistingPackage)
@@ -154,18 +154,18 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         // here rather than sending a request the server rejects for an immutable version. The only forward
         // action is Reopen (matches the SaveDraftAsync guard). This also closes the path where editing the
         // offline-review flag (excluded from the dirty signature) on a published form re-satisfied the gate.
-        if (state.IsPublished)
+        if (state.IsReleased)
         {
-            return Failure("This version is published. Reopen it as a draft before publishing a new version.");
+            return Failure("This Version is Released. Reopen it as a Draft before going live with a new Version.");
         }
 
         // AC#2/AC#3: enforce the explicit offline-policy review and a configured + validated submit
         // target before the Console offers publish to the server.
-        var readiness = StudioFormPublishEvaluator.Evaluate(state);
-        if (!readiness.CanPublish)
+        var readiness = StudioFormGoLiveEvaluator.Evaluate(state);
+        if (!readiness.CanGoLive)
         {
             return Failure(
-                $"Resolve {readiness.UnmetRequirements.Count.ToString(CultureInfo.InvariantCulture)} requirement(s) before publish: "
+                $"Resolve {readiness.UnmetRequirements.Count.ToString(CultureInfo.InvariantCulture)} requirement(s) before going live: "
                 + string.Join(" ", readiness.UnmetRequirements));
         }
 
@@ -179,7 +179,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
                 state.LastValidation = validation;
                 return new StudioFormCommandResult(
                     false,
-                    $"Server publish validation reported {validation.Issues.Count.ToString(CultureInfo.InvariantCulture)} issue(s).",
+                    $"Server Go live validation reported {validation.Issues.Count.ToString(CultureInfo.InvariantCulture)} issue(s).",
                     state,
                     validation,
                     ToCapabilityState(PublishContract, issue));
@@ -192,7 +192,7 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
         published.OfflinePolicyReviewed = true;
         return new StudioFormCommandResult(
             true,
-            $"Published version {published.Version.ToString(CultureInfo.InvariantCulture)}.",
+            $"Released Version {published.Version.ToString(CultureInfo.InvariantCulture)}.",
             published);
     }
 

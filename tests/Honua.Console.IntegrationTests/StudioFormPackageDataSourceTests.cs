@@ -48,7 +48,7 @@ public sealed class StudioFormPackageDataSourceTests
         var client = new FakeFormPackageClient
         {
             Packages = HonuaAdminEndpointResult<HonuaFormPackageSummary[]>.FromIssue(
-                new HonuaAdminEndpointIssue("Missing permission", "GET /api/v1/admin/forms/packages", "Forbidden.", 403))
+                new HonuaAdminEndpointIssue("Missing permission", "GET /api/v1/admin/forms", "Forbidden.", 403))
         };
         var source = new HonuaServerStudioFormPackageDataSource(client);
 
@@ -85,7 +85,7 @@ public sealed class StudioFormPackageDataSourceTests
 
         Assert.False(result.Succeeded);
         Assert.False(client.PublishCalled);
-        Assert.Contains("before publish", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("before going live", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class StudioFormPackageDataSourceTests
         {
             FormId = "form-1",
             Version = 3,
-            Status = HonuaFormStatuses.Published,
+            Status = HonuaFormStatuses.Released,
             Title = "Published form",
             ServiceId = "svc",
             OfflinePolicyReviewed = true,
@@ -144,7 +144,7 @@ public sealed class StudioFormPackageDataSourceTests
                 },
                 new HonuaAdminEndpointIssue(
                     "Rejected",
-                    "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish",
+                    "POST /api/v1/admin/forms/{formId}/versions/{formVersion}/publish",
                     "The Honua server rejected the form package document.",
                     400))
         };
@@ -179,7 +179,7 @@ public sealed class StudioFormPackageDataSourceTests
     {
         var client = new FakeFormPackageClient();
         var source = new HonuaServerStudioFormPackageDataSource(client);
-        var state = new StudioFormEditorState { FormId = "form-1", Version = 3, Status = HonuaFormStatuses.Published };
+        var state = new StudioFormEditorState { FormId = "form-1", Version = 3, Status = HonuaFormStatuses.Released };
 
         var result = await source.ValidateAsync(state);
 

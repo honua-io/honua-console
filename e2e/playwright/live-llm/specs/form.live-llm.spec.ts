@@ -7,7 +7,7 @@ import { test, expect, classifyGeneration, GATE_REASON, LIVE_LLM_ENABLED } from 
 // providers endpoint and skip cleanly if a given server does not expose it.
 // Tolerant: prove a coherent generated form package came back, not its exact shape.
 
-const FORM_GENERATE = '/api/v1/admin/forms/packages/generate';
+const FORM_GENERATE = '/api/v1/admin/forms/generate';
 const FORM_PROVIDERS = '/api/v1/console/form-packages/generation/providers';
 const PROMPT =
   'An inspection form with a required "Asset name" text field, a "Condition" choice field ' +

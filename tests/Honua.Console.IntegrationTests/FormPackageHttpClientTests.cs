@@ -68,6 +68,60 @@ public sealed class FormPackageHttpClientTests
         Assert.Equal("asset_id", issue.FieldId);
     }
 
+    [Theory]
+    [InlineData("list", "GET", "/api/v1/admin/forms")]
+    [InlineData("create", "POST", "/api/v1/admin/forms")]
+    [InlineData("current", "GET", "/api/v1/admin/forms/field-form")]
+    [InlineData("versions", "GET", "/api/v1/admin/forms/field-form/versions")]
+    [InlineData("version", "GET", "/api/v1/admin/forms/field-form/versions/2")]
+    [InlineData("update", "PUT", "/api/v1/admin/forms/field-form/versions/2")]
+    [InlineData("validate", "POST", "/api/v1/admin/forms/field-form/versions/2/validate")]
+    [InlineData("publish", "POST", "/api/v1/admin/forms/field-form/versions/2/publish")]
+    [InlineData("reopen", "POST", "/api/v1/admin/forms/field-form/versions/2/reopen")]
+    [InlineData("offline", "GET", "/api/v1/forms/field-form/offline-policy")]
+    public async Task FormOperation_UsesCanonicalRoute(string operation, string method, string path)
+    {
+        using var client = CreateClient(new StaticResponseHandler(request =>
+        {
+            Assert.Equal(method, request.Method.Method);
+            Assert.Equal(new Uri(BaseAddress, path), request.RequestUri);
+            if (operation == "update")
+            {
+                Assert.Equal("\"v2\"", Assert.Single(request.Headers.GetValues("If-Match")));
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        }));
+
+        var issue = await SendFormOperationAsync(client, operation);
+
+        Assert.NotNull(issue);
+        Assert.DoesNotContain("/forms/packages", issue.Contract, StringComparison.Ordinal);
+        Assert.Equal(503, issue.StatusCode);
+    }
+
+    private static async Task<HonuaAdminEndpointIssue?> SendFormOperationAsync(
+        HonuaFormPackageHttpClient client,
+        string operation)
+    {
+        const string formId = "field-form";
+        var document = new HonuaFormPackageDocument { FormId = formId, Title = "Field inspection" };
+        return operation switch
+        {
+            "list" => (await client.ListPackagesAsync()).Issue,
+            "create" => (await client.CreateDraftAsync(document)).Issue,
+            "current" => (await client.GetCurrentAsync(formId)).Issue,
+            "versions" => (await client.ListVersionsAsync(formId)).Issue,
+            "version" => (await client.GetVersionAsync(formId, 2)).Issue,
+            "update" => (await client.UpdateDraftAsync(formId, 2, "\"v2\"", document)).Issue,
+            "validate" => (await client.ValidateAsync(formId, 2)).Issue,
+            "publish" => (await client.PublishAsync(formId, 2)).Issue,
+            "reopen" => (await client.ReopenAsync(formId, 2)).Issue,
+            "offline" => (await client.GetOfflinePolicyAsync(formId)).Issue,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown Form operation")
+        };
+    }
+
     private static HonuaFormPackageHttpClient CreateClient(HttpMessageHandler handler, TimeSpan? timeout = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseAddress };

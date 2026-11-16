@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 // literal list on changed lines; this guard keeps the whole Console source free of the
 // phrases below.
 const RULES = [
+  { id: "form-release-label", expression: />(?:Publish|Published)<|before publish(?:ing)?[ .<]/u, use: "Go live or Released", path: /StudioFormBuilderPage\.razor$/u },
+  { id: "form-package-route", expression: /\/forms\/packages\b/u, use: "/forms" },
   { id: "content-item", expression: /\bcontent items?\b/iu, use: "the actual kind (map, app, workflow) or item" },
   { id: "serving-target", expression: /\bserving targets?\b/iu, use: "Layer" },
   { id: "hosted-layer", expression: /\bhosted layers?\b/iu, use: "Layer" },
@@ -58,7 +60,7 @@ export function findRetiredVocabulary(path, text) {
   const findings = [];
   text.split("\n").forEach((line, index) => {
     for (const rule of RULES) {
-      if (rule.expression.test(line) && !isAllowed(path, rule.id, line)) {
+      if ((!rule.path || rule.path.test(path)) && rule.expression.test(line) && !isAllowed(path, rule.id, line)) {
         findings.push(`${path}:${index + 1} [${rule.id}] use ${rule.use}: ${line.trim().slice(0, 120)}`);
       }
     }
@@ -77,6 +79,8 @@ test("retired phrases are caught and protocol or agent words are not", () => {
     'Message="Reading your workspace content."',
     "<dt>Content item</dt>",
     "Create map package",
+    "GET /api/v1/admin/forms/packages",
+    "GET /api/v1/forms/packages/{formId}/offline-policy",
     "queryable through its FeatureServer slot.",
     'ContextRow Label="Tenant"',
     "public sealed record ConsoleMapPackage",
@@ -114,4 +118,15 @@ test("foreign-format readers may name the source Web Map", () => {
     [],
   );
   assert.notDeepEqual(findRetiredVocabulary("src/Honua.Console.Shell/Pages/SharePage.razor", "web map tiles"), []);
+});
+
+
+test("Form release labels follow the workflow vocabulary", () => {
+  const path = "src/Honua.Console.Shell/Pages/StudioFormBuilderPage.razor";
+  for (const text of ["<button>Publish</button>", "<th>Published</th>", "Validate before publishing."]) {
+    assert.notDeepEqual(findRetiredVocabulary(path, text), [], text);
+  }
+  for (const text of ["<button>Go live</button>", "<th>Released</th>", 'data-form-status="published"']) {
+    assert.deepEqual(findRetiredVocabulary(path, text), [], text);
+  }
 });

@@ -82,7 +82,7 @@ Covers map/dashboard/report/app/form/query/analysis/workflow. Routes in `FormPac
 | Cut content version | `POST /package-drafts/{id}/content-versions` | `GET /content-items/{id}/versions` lists it | version list | **GAP** (no independent content-item read) | P1 |
 | Publish-request | `POST /content-items/{id}/versions/{v}/publish-requests` | **content appears in catalog** with correct visibility/route (`GET /console/content/search`); FeatureServer/STAC route live for map/app | catalog tile + publish status | **GAP** (the round-trip "published content is now in the catalog and reachable" is unproven) | **P0** |
 | Reopen / Rollback-request | `.../reopen`, `/content-items/{id}/rollback-requests` | version state transitions | builder state | **GAP** | P2 |
-| Form publish | `POST /admin/forms/packages/{id}/versions/{v}/publish` | `GET /forms/packages/{id}/offline-policy` + catalog form item | form builder published badge | **PARTIAL** (`StudioFormBuilderIntegrationTests`) | P1 |
+| Form publish | `POST /admin/forms/{id}/versions/{v}/publish` | `GET /forms/{id}/offline-policy` + catalog form item | form builder published badge | **PARTIAL** (`StudioFormBuilderIntegrationTests`) | P1 |
 | Analysis run/preview/estimate | `POST /analysis/content/items/{id}/versions/{v}/runs|preview|estimate` | run artifact `GET /analysis/artifacts/{id}`; job failure read | analysis builder result panel | **PARTIAL** (`StudioAnalysisBuilderIntegrationTests`) | P1 |
 | Workflow publish + run | `POST /console/workflow-packages/{id}/versions/{v}/publish`, `/workflow-publications/{id}/runs` | `GET /console/workflow-publications` lists publication; run row appears | workflow editor/AI page | **PARTIAL** (`StudioWorkflowPackageIntegrationTests`) | P1 |
 

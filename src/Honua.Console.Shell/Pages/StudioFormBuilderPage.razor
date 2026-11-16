@@ -12,7 +12,7 @@
         <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/studio-builders-v4.css" />
         <ConsolePageHeading Title="Form builder">
-            <p>Edit form fields, review offline policy, and publish a validated form.</p>
+            <p>Edit form fields, review offline policy, and go live with a validated Form.</p>
         </ConsolePageHeading>
     }
     else
@@ -20,7 +20,7 @@
         <div class="console-page-heading">
             <p class="console-kicker">Builder workflow</p>
             <h1>Form builder</h1>
-            <p>Author a server-owned form — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before publishing to honua-server.</p>
+            <p>Author a server-owned form — fields, groups, validation, domains, conditional visibility, attachments, and privacy — then set an explicit offline/sync policy and a validated submit target before going live on honua-server.</p>
         </div>
     }
 
@@ -89,7 +89,7 @@
                                 <th>Title</th>
                                 <th>Submit target</th>
                                 <th>Draft</th>
-                                <th>Published</th>
+                                <th>Released</th>
                                 <th>Updated</th>
                             </tr>
                         </thead>
@@ -103,7 +103,7 @@
                                     </td>
                                     <td>@(string.IsNullOrWhiteSpace(package.ServiceId) ? "unset" : package.ServiceId) / layer @package.LayerId</td>
                                     <td>@(package.DraftVersion?.ToString() ?? "—")</td>
-                                    <td>@(package.PublishedVersion?.ToString() ?? "—")</td>
+                                    <td>@(package.ReleasedVersion?.ToString() ?? "—")</td>
                                     <td>@package.UpdatedAt.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
                                 </tr>
                             }
@@ -116,7 +116,7 @@
         {
             var editor = _editor;
             var hasUnsavedEdits = StudioFormPackageMapper.HasUnsavedEdits(editor);
-            var readiness = StudioFormPublishEvaluator.Evaluate(editor);
+            var readiness = StudioFormGoLiveEvaluator.Evaluate(editor);
 
             <div class="studio-form-editor" data-form-builder="form.package" data-form-status="@editor.Status">
                 <div class="console-panel-heading">
@@ -124,15 +124,15 @@
                         <p class="console-kicker">@(editor.IsExistingPackage ? $"{editor.FormId} · v{editor.Version}" : "New draft")</p>
                         <h2>@(string.IsNullOrWhiteSpace(editor.Title) ? "Untitled form" : editor.Title)</h2>
                     </div>
-                    <span class="console-status @(editor.IsPublished ? string.Empty : "console-status-warning")">@editor.Status</span>
+                    <span class="console-status @(editor.IsReleased ? string.Empty : "console-status-warning")">@editor.StatusLabel</span>
                 </div>
 
                 <div class="console-action-row">
                     <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="BackToList">Back to forms</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
-                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsPublished || hasUnsavedEdits)" @onclick="Validate">Validate</button>
-                    <button class="console-button" type="button" disabled="@(_busy || editor.IsPublished || !readiness.CanPublish)" @onclick="Publish">Publish</button>
-                    @if (editor.IsPublished)
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsReleased || _validation.HasBlockingClientErrors)" @onclick="Save">Save draft</button>
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || !editor.IsExistingPackage || editor.IsReleased || hasUnsavedEdits)" @onclick="Validate">Validate</button>
+                    <button class="console-button" type="button" disabled="@(_busy || editor.IsReleased || !readiness.CanGoLive)" @onclick="Publish">Go live</button>
+                    @if (editor.IsReleased)
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
                     }
@@ -157,11 +157,11 @@
                     </article>
                 }
 
-                @if (!editor.IsPublished && !readiness.CanPublish)
+                @if (!editor.IsReleased && !readiness.CanGoLive)
                 {
                     <article class="console-panel" aria-labelledby="form-publish-readiness-heading">
-                        <p class="console-kicker">Pre-publish gate</p>
-                        <h3 id="form-publish-readiness-heading">Resolve before publish</h3>
+                        <p class="console-kicker">Go live checks</p>
+                        <h3 id="form-publish-readiness-heading">Resolve before going live</h3>
                         <ul class="studio-compact-list">
                             @foreach (var requirement in readiness.UnmetRequirements)
                             {
@@ -173,7 +173,7 @@
 
                 @if (hasUnsavedEdits && editor.LastValidation is not null)
                 {
-                    <p class="console-warning" role="status" aria-live="polite">Server validation is out of date after your latest edits. Save the draft and validate again before publish.</p>
+                    <p class="console-warning" role="status" aria-live="polite">Server validation is out of date after your latest edits. Save the draft and validate again before going live.</p>
                 }
                 else if (editor.LastValidation is { } validation)
                 {
@@ -216,7 +216,7 @@
                     <article class="console-panel">
                         <p class="console-kicker">Submit target</p>
                         <h3>Feature service</h3>
-                        <p class="console-muted">The feature service and layer that accept submissions. Required and server-validated before publish.</p>
+                        <p class="console-muted">The Service and Layer that accept submissions. Required and server-validated before going live.</p>
                         <FieldStateRow State="FieldState.Input" Label="Service id" Errors="_validation.Errors(StudioFormFieldKeys.ServiceId)">
                             <input class="console-input" @bind="editor.ServiceId" @bind:after="OnEdit" disabled="@_busy" placeholder="inspections" />
                         </FieldStateRow>
@@ -240,12 +240,12 @@
                             <p class="console-kicker">Fields and groups</p>
                             <h3>Fields</h3>
                         </div>
-                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="AddField">Add field</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsReleased)" @onclick="AddField">Add field</button>
                     </div>
 
                     @if (editor.Fields.Count == 0)
                     {
-                        <p class="console-muted">No fields yet. Add at least one field before publishing.</p>
+                        <p class="console-muted">No fields yet. Add at least one field before going live.</p>
                         <ValidationMessageInline FieldKey="@StudioFormFieldKeys.Fields" State="_validation" />
                     }
 
@@ -350,7 +350,7 @@
                             <ValidationMessageInline FieldKey="@StudioFormFieldKeys.FieldVisibilityDependsOn(fieldIndex)" State="_validation" />
 
                             <div class="console-action-row">
-                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsPublished)" @onclick="() => RemoveField(field)">Remove field</button>
+                                <button class="console-button console-button-secondary" type="button" disabled="@(_busy || editor.IsReleased)" @onclick="() => RemoveField(field)">Remove field</button>
                             </div>
                         </fieldset>
                     }
@@ -398,7 +398,7 @@
                 <article class="console-panel studio-form-offline" aria-labelledby="form-offline-heading">
                     <p class="console-kicker">Offline and sync</p>
                     <h3 id="form-offline-heading">Offline policy</h3>
-                    <p class="console-muted">Field clients sync through honua-server transports. The offline policy must be an explicit, reviewed decision before publish.</p>
+                    <p class="console-muted">Field clients sync through honua-server transports. The offline policy must be an explicit, reviewed decision before going live.</p>
                     <div class="console-chip-row studio-form-toggles">
                         <label><input type="checkbox" @bind="editor.OfflineEnabled" @bind:after="OnEdit" disabled="@_busy" /> <span>Offline capture enabled</span></label>
                         <label><input type="checkbox" @bind="editor.ReplicaTransportEnabled" @bind:after="OnEdit" disabled="@_busy" /> <span>FeatureServer replica</span></label>
@@ -416,7 +416,7 @@
                     </label>
                     <label class="studio-form-review">
                         <input type="checkbox" @bind="editor.OfflinePolicyReviewed" @bind:after="OnEdit" disabled="@_busy" />
-                        <span>I reviewed the offline/sync policy for this form (required before publish).</span>
+                        <span>I reviewed the offline/sync policy for this form (required before going live).</span>
                     </label>
                 </article>
             </div>

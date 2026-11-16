@@ -76,14 +76,16 @@ public sealed class StudioFormEditorState
 
     public bool IsExistingPackage => !string.IsNullOrWhiteSpace(FormId);
 
-    public bool IsPublished =>
-        string.Equals(Status, HonuaFormStatuses.Published, StringComparison.OrdinalIgnoreCase);
+    public string StatusLabel => IsReleased ? "Released" : Status.Equals(HonuaFormStatuses.Draft, StringComparison.OrdinalIgnoreCase) ? "Draft" : Status;
+
+    public bool IsReleased =>
+        string.Equals(Status, HonuaFormStatuses.Released, StringComparison.OrdinalIgnoreCase);
 }
 
 public static class HonuaFormStatuses
 {
     public const string Draft = "draft";
-    public const string Published = "published";
+    public const string Released = "published";
     public const string Archived = "archived";
 }
 
@@ -162,7 +164,7 @@ public sealed record StudioFormPackageListItem(
     string ServiceId,
     int LayerId,
     int? DraftVersion,
-    int? PublishedVersion,
+    int? ReleasedVersion,
     DateTimeOffset UpdatedAt);
 
 public sealed record StudioFormCapabilityState(
@@ -200,11 +202,11 @@ public sealed record StudioFormOfflinePolicyView(
     IReadOnlyList<string> AvailableTransports,
     StudioFormCapabilityState? Issue = null);
 
-public sealed record StudioFormPublishReadiness(bool CanPublish, IReadOnlyList<string> UnmetRequirements);
+public sealed record StudioFormGoLiveReadiness(bool CanGoLive, IReadOnlyList<string> UnmetRequirements);
 
-public static class StudioFormPublishEvaluator
+public static class StudioFormGoLiveEvaluator
 {
-    public static StudioFormPublishReadiness Evaluate(StudioFormEditorState state)
+    public static StudioFormGoLiveReadiness Evaluate(StudioFormEditorState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
@@ -235,7 +237,7 @@ public static class StudioFormPublishEvaluator
 
         if (!state.OfflinePolicyReviewed)
         {
-            unmet.Add("Review the offline/sync policy before publish.");
+            unmet.Add("Review the offline/sync policy before going live.");
         }
         else if (state.OfflineEnabled
             && !state.ReplicaTransportEnabled
@@ -244,23 +246,23 @@ public static class StudioFormPublishEvaluator
             unmet.Add("Enable at least one offline sync transport, or turn offline use off.");
         }
 
-        // AC#3: the submit target must validate against the live server before publish, and that
+        // AC#3: the submit target must validate against the live server before going live, and that
         // validation must still match what is in the editor. Edits after the validated save move the
         // draft off its saved baseline, so re-require a save + server validation rather than trusting
         // the now-stale result (a validate runs against the saved version, not unsaved local edits).
         if (StudioFormPackageMapper.HasUnsavedEdits(state))
         {
-            unmet.Add("Save your latest edits, then validate the draft against the server before publish.");
+            unmet.Add("Save your latest edits, then validate the draft against the server before going live.");
         }
         else if (state.LastValidation is null)
         {
-            unmet.Add("Validate the draft against the server before publish.");
+            unmet.Add("Validate the draft against the server before going live.");
         }
         else if (!state.LastValidation.IsValid)
         {
-            unmet.Add("Resolve the server validation errors before publish.");
+            unmet.Add("Resolve the server validation errors before going live.");
         }
 
-        return new StudioFormPublishReadiness(unmet.Count == 0, unmet);
+        return new StudioFormGoLiveReadiness(unmet.Count == 0, unmet);
     }
 }

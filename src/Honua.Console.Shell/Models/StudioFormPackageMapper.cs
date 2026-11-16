@@ -617,7 +617,7 @@ public static class StudioFormPackageMapper
 
         // Persist exactly what the operator selected. Never silently fabricate a `create` when every
         // operation is unchecked — that would save a write the editor does not show. A form with no submit
-        // operation is instead blocked at the pre-publish gate (StudioFormPublishEvaluator), so the empty
+        // operation is instead blocked at the pre-publish gate (StudioFormGoLiveEvaluator), so the empty
         // selection surfaces as an explicit, fixable requirement rather than a hidden default.
         return operations.ToArray();
     }

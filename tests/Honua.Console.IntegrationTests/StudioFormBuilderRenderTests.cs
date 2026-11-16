@@ -68,7 +68,7 @@ public sealed class StudioFormBuilderRenderTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("Offline policy", page.Markup, StringComparison.Ordinal);
         Assert.Contains("I reviewed the offline/sync policy", page.Markup, StringComparison.Ordinal);
-        Assert.False(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.False(FindButton(page, "Go live").HasAttribute("disabled"));
 
         Assert.Equal(expectedV4Headings, page.FindAll(".console-page-heading-v4").Count);
         if (presentation == ConsolePresentationMode.V4)
@@ -105,9 +105,10 @@ public sealed class StudioFormBuilderRenderTests
         // A published version is terminal in the builder: Publish stays disabled even though the offline-review
         // flag is still editable (the case that previously re-enabled it), the only forward action is Reopen,
         // and the draft-only pre-publish gate is not shown.
-        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Go live").HasAttribute("disabled"));
         Assert.NotNull(FindButton(page, "Reopen as draft"));
-        Assert.DoesNotContain("Resolve before publish", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("Released", page.Find(".console-status").TextContent);
+        Assert.DoesNotContain("Resolve before going live", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -132,9 +133,9 @@ public sealed class StudioFormBuilderRenderTests
         FindButton(page, "Incomplete").Click();
 
         page.WaitForAssertion(
-            () => Assert.Contains("Resolve before publish", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Resolve before going live", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Go live").HasAttribute("disabled"));
     }
 
     [Theory]
@@ -162,14 +163,14 @@ public sealed class StudioFormBuilderRenderTests
         page.WaitForAssertion(() => FindButton(page, "Hydrant inspection"), TimeSpan.FromSeconds(5));
         FindButton(page, "Hydrant inspection").Click();
         page.WaitForAssertion(
-            () => Assert.False(FindButton(page, "Publish").HasAttribute("disabled")),
+            () => Assert.False(FindButton(page, "Go live").HasAttribute("disabled")),
             TimeSpan.FromSeconds(5));
 
         // Editing a bound field after the server validation invalidates that result: publish and the
         // (server-saved) validate must re-gate until the draft is saved and validated again.
         page.Find("input[placeholder='Field inspection form']").Change("Hydrant inspection v2");
 
-        Assert.True(FindButton(page, "Publish").HasAttribute("disabled"));
+        Assert.True(FindButton(page, "Go live").HasAttribute("disabled"));
         Assert.True(FindButton(page, "Validate").HasAttribute("disabled"));
         Assert.Contains("out of date", page.Markup, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
@@ -255,7 +256,7 @@ public sealed class StudioFormBuilderRenderTests
 
     public static IEnumerable<object[]> PendingCommands() =>
         from presentation in new[] { ConsolePresentationMode.Legacy, ConsolePresentationMode.V4 }
-        from command in new[] { "Save draft", "Validate", "Publish", "Reopen as draft" }
+        from command in new[] { "Save draft", "Validate", "Go live", "Reopen as draft" }
         from outcome in new[] { "success", "failure" }
         select new object[] { presentation, command, outcome };
 
@@ -340,7 +341,7 @@ public sealed class StudioFormBuilderRenderTests
     private static StudioFormEditorState PublishedEditor()
     {
         var state = ReadyEditor();
-        state.Status = HonuaFormStatuses.Published;
+        state.Status = HonuaFormStatuses.Released;
         // A published version carries no server-side offline-review acknowledgment, so a freshly opened
         // published form loads unreviewed — the exact case where checking the box used to re-enable Publish.
         // Recompute the baseline signature after flipping status so the form is not treated as dirty.
