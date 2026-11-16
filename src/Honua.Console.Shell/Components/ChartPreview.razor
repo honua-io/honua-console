@@ -138,6 +138,10 @@
         {
             // A failed preview leaves the schematic available.
         }
+        catch (OperationCanceledException)
+        {
+            // A timed-out import can be retried when the binding changes.
+        }
         catch (InvalidOperationException)
         {
             // Interop is unavailable during prerender.
@@ -153,7 +157,7 @@
 
     private async Task BindChartAsync(ChartBinding binding, int version)
     {
-        if (_moduleTask is null || _moduleTask.IsFaulted)
+        if (_moduleTask is null || _moduleTask.IsFaulted || _moduleTask.IsCanceled)
         {
             _moduleTask = ImportModuleAsync();
         }

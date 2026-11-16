@@ -69,6 +69,26 @@ public sealed class ChartPreviewRenderTests
     }
 
     [Fact]
+    public void CanceledImport_CanRecoverWhenBindingChanges()
+    {
+        using var ctx = new BunitContext();
+        var canceled = new TaskCompletionSource<IJSObjectReference>();
+        canceled.SetCanceled();
+        var runtime = new ChartRuntime { PendingImport = canceled };
+        ctx.Services.AddSingleton<IJSRuntime>(runtime);
+        var cut = ctx.Render<ChartPreview>(p => p.Add(x => x.Spec, Spec));
+        AssertBound(cut, "false");
+        Assert.Equal(1, runtime.Imports);
+
+        runtime.PendingImport = null;
+        cut.Render(p => p.Add(x => x.FeaturesUrl, "/rows/retry"));
+
+        cut.WaitForAssertion(() => AssertBound(cut, "true"));
+        Assert.Equal(2, runtime.Imports);
+        Assert.Single(runtime.Module.Requests);
+    }
+
+    [Fact]
     public async Task DisposingWhileImporting_ReleasesModuleWithoutInitializing()
     {
         using var ctx = new BunitContext();
@@ -146,7 +166,7 @@ public sealed class ChartPreviewRenderTests
     private sealed class ChartRuntime : IJSRuntime
     {
         public ChartModule Module { get; } = new();
-        public TaskCompletionSource<IJSObjectReference>? PendingImport { get; init; }
+        public TaskCompletionSource<IJSObjectReference>? PendingImport { get; set; }
         public int Imports { get; private set; }
 
         public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)

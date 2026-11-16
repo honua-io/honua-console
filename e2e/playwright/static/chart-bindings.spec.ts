@@ -53,7 +53,6 @@ for (const v4Enabled of [false, true]) {
   });
 
   test(`removed report panel ignores a delayed module with v4=${v4Enabled}`, async ({ page }) => {
-    const input = await openChartPanel(page, v4Enabled);
     let release!: () => void;
     let requested!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
@@ -64,12 +63,14 @@ for (const v4Enabled of [false, true]) {
       await held;
       await route.fulfill({ response });
     });
+    const input = await openChartPanel(page, v4Enabled);
     await input.fill(spec);
     await input.blur();
     await importing;
     await page.getByRole('button', { name: 'Remove panel', exact: true }).click();
+    const imported = page.waitForResponse(response => response.url().endsWith('/chart-preview.js'));
     release();
-    await page.waitForResponse(response => response.url().endsWith('/chart-preview.js'));
+    await imported;
     await expect(page.locator('.chart-preview')).toHaveCount(0);
     // Adding another chart uses the resolved module and still binds normally.
     await page.getByRole('button', { name: '+ Panel', exact: true }).click();
