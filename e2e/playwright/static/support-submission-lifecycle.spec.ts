@@ -35,6 +35,8 @@ for (const v4Enabled of [false, true]) {
       await expect(page.locator('.support-context-list')).toBeVisible();
       await page.getByLabel('Requested action', { exact: true }).fill('Diagnose synthetic errors');
       await page.getByLabel('Symptoms', { exact: true }).fill('Synthetic failure');
+      await page.getByLabel('Symptoms', { exact: true }).blur();
+      await expect(page.getByRole('button', { name: 'Submit ticket', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Submit ticket', exact: true }).click();
       await expect.poll(() => captures).toBe(2);
       for (const label of ['Severity', 'Service', 'Requested action', 'Allowed access mode',
