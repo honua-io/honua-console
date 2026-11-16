@@ -265,7 +265,23 @@
         _diffValidation.SetClientErrors(TemporalDiffSelectionValidator.Instance.Evaluate(
             new TemporalDiffSelection(_fromCheckpointId, _toCheckpointId, _checkpoints)));
 
-    private void OnDiffSelectionEdit() => RevalidateDiffSelection();
+    private int _diffSelectionGeneration;
+    private int _timelineSelectionGeneration;
+
+    private void OnDiffSelectionEdit()
+    {
+        _diffSelectionGeneration++;
+        _diff = null;
+        _diffBinding = null;
+        RevalidateDiffSelection();
+    }
+
+    private void OnTimelineSelectionEdit()
+    {
+        _timelineSelectionGeneration++;
+        _timeline = null;
+        _timelineBinding = null;
+    }
     private TemporalCheckpoint? _selectedCheckpoint =>
         _checkpoints.FirstOrDefault(c => string.Equals(c.CheckpointId, _selectedCheckpointId, StringComparison.Ordinal));
 
@@ -704,7 +720,7 @@
             <div class="operate-temporal-feature-controls">
                 <label>
                     <span>Feature id</span>
-                    <input class="console-input" @bind="_featureIdInput" @bind:event="oninput" aria-label="Feature id" />
+                    <input class="console-input" @bind="_featureIdInput" @bind:event="oninput" @bind:after="OnTimelineSelectionEdit" aria-label="Feature id" />
                 </label>
                 <button class="console-button" type="button"
                         disabled="@(_timelineBusy || string.IsNullOrWhiteSpace(_featureIdInput))"
@@ -1082,11 +1098,12 @@
         }
 
         var generation = _sourceGeneration;
+        var selectionGeneration = _diffSelectionGeneration;
         _diffBusy = true;
         try
         {
             var diff = await TemporalData.GetDiffAsync(_selectedSource.SourceId, _fromCheckpointId, _toCheckpointId);
-            if (generation != _sourceGeneration) return;
+            if (generation != _sourceGeneration || selectionGeneration != _diffSelectionGeneration) return;
             _diffBinding = diff.BindingState;
             _diff = diff.BindingState is null ? diff : null;
         }
@@ -1104,11 +1121,12 @@
         }
 
         var generation = _sourceGeneration;
+        var selectionGeneration = _timelineSelectionGeneration;
         _timelineBusy = true;
         try
         {
             var timeline = await TemporalData.GetFeatureTimelineAsync(_selectedSource.SourceId, _featureIdInput.Trim());
-            if (generation != _sourceGeneration) return;
+            if (generation != _sourceGeneration || selectionGeneration != _timelineSelectionGeneration) return;
             _timelineBinding = timeline.BindingState;
             _timeline = timeline.BindingState is null ? timeline : null;
         }
@@ -1262,7 +1280,7 @@
         // Aligning the as-of cursor also seeds the diff "from" side so the now-vs-as-of split compares
         // the scrubbed checkpoint against the latest state.
         _fromCheckpointId = checkpoint.CheckpointId;
-        RevalidateDiffSelection();
+        OnDiffSelectionEdit();
     }
 
     private void JumpToLatest()

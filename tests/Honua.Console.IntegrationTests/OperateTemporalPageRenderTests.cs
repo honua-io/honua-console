@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class OperateTemporalPageRenderTests
+public sealed partial class OperateTemporalPageRenderTests
 {
     // ---- AC #1: unsupported / unbound temporal sources render a capability explanation, not an empty viewer.
 
@@ -949,6 +949,8 @@ public sealed class OperateTemporalPageRenderTests
         public Dictionary<string, Task<TemporalCheckpointList>> PendingCheckpoints { get; } = new(StringComparer.Ordinal);
         public TemporalDiff? Diff { get; set; }
         public Dictionary<string, Task<TemporalDiff>> PendingDiffs { get; } = [];
+        public Task<TemporalFeatureTimeline>? PendingTimeline { get; set; }
+        public Task<TemporalRollbackPlan>? PendingPlan { get; set; }
         public TemporalFeatureTimeline? Timeline { get; set; }
         public TemporalRollbackPlan? RollbackPlan { get; set; }
         public TemporalRollbackOperation? RollbackOperation { get; set; }
@@ -978,10 +980,10 @@ public sealed class OperateTemporalPageRenderTests
         }
 
         public Task<TemporalFeatureTimeline> GetFeatureTimelineAsync(string sourceId, string featureId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Timeline ?? new TemporalFeatureTimeline(featureId, sourceId, [], MissingBinding));
+            PendingTimeline ?? Task.FromResult(Timeline ?? new TemporalFeatureTimeline(featureId, sourceId, [], MissingBinding));
 
         public Task<TemporalRollbackPlan> CreateRollbackPlanAsync(string sourceId, TemporalRollbackScope scope, string targetCheckpointId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(RollbackPlan ?? TemporalRollbackPlan.Blocked(MissingBinding));
+            PendingPlan ?? Task.FromResult(RollbackPlan ?? TemporalRollbackPlan.Blocked(MissingBinding));
 
         public Task<TemporalRollbackOperation> ExecuteRollbackAsync(string rollbackPlanId, CancellationToken cancellationToken = default)
         {
