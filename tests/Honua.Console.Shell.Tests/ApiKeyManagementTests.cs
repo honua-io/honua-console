@@ -36,6 +36,17 @@ public sealed class ApiKeyManagementTests
     }
 
     [Fact]
+    public void PopulatedListExposesNamedColumnHeaders()
+    {
+        using var fixture = new Fixture();
+        fixture.Handler.HasKey = true;
+        var page = fixture.Context.Render<OperateApiKeysPage>();
+        page.WaitForAssertion(() => Assert.Equal(["Name", "Prefix", "Permissions", "Status", "Expires", "Actions"], page.FindAll("thead th").Select(header => header.TextContent)));
+        Assert.All(page.FindAll("thead th"), header => Assert.Equal("col", header.GetAttribute("scope")));
+        V4PagePreview.Capture("api-keys-headers", page.Markup);
+    }
+
+    [Fact]
     public void RevocationNeedsConfirmationAndUsesTheOriginalKeyId()
     {
         using var fixture = new Fixture();
