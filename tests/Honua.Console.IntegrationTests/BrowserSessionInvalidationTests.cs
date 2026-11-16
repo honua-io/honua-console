@@ -46,7 +46,8 @@ public sealed class BrowserSessionInvalidationTests
             management ? BrowserApiAccess.Manager : BrowserApiAccess.Public)
         {
             InnerHandler = new ResponseHandler(HttpStatusCode.Unauthorized)
-        }) { BaseAddress = Api };
+        })
+        { BaseAddress = Api };
         using var response = await client.GetAsync("services");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.True(session.IsAuthenticated);
@@ -124,7 +125,8 @@ public sealed class BrowserSessionInvalidationTests
 
     private static HttpClient ProtectedClient(ConsoleBrowserSession session, HttpMessageHandler handler) => new(
         new BrowserApiHandler(new BrowserApiOrigins(Api, App), session, BrowserApiAccess.Authenticated)
-        { InnerHandler = handler }) { BaseAddress = Api };
+        { InnerHandler = handler })
+    { BaseAddress = Api };
 
     private static BrowserAuthenticationStateProvider Provider(HttpClient http, ConsoleBrowserSession session) =>
         new(new ConsoleApiClient(http) { UsesCookieSession = false }, session, new InMemoryConsoleAccountSessionStore());
