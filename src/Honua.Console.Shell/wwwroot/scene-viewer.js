@@ -71,55 +71,72 @@ export async function init(element, tilesetUrl, environmentId) {
         return false;
     }
 
-    const Cesium = await loadCesium();
-    if (!Cesium) {
-        return false;
-    }
-
-    let viewer;
-    let releaseSceneGate = null;
+    const instance = { element, viewer: null, tileset: null, ready: false, releaseSceneGate: null };
+    instances.set(element, instance);
     try {
-        const safeTilesetUrl = sameOriginTilesetUrl(tilesetUrl, environmentId);
-        const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
-            ? await globalThis.honuaConsoleCaptureResourceAuthorization()
-            : null;
-        const loaded = sceneTilesetSource(Cesium, safeTilesetUrl, authorize);
-        releaseSceneGate = loaded.release;
-        viewer = new Cesium.Viewer(element, {
-            // Cesium's implicit default is an Ion-backed base layer. The Console
-            // scene surface renders only the supplied candidate-owned tileset.
-            baseLayer: false,
-            baseLayerPicker: false,
-            geocoder: false,
-            homeButton: false,
-            sceneModePicker: false,
-            navigationHelpButton: false,
-            animation: false,
-            timeline: false,
-            fullscreenButton: false,
-            infoBox: false,
-        });
-
-        const tileset = await Cesium.Cesium3DTileset.fromUrl(loaded.source);
-        viewer.scene.primitives.add(tileset);
-        await viewer.zoomTo(tileset);
-
-        instances.set(element, { viewer, tileset, tilesetUrl: safeTilesetUrl, releaseSceneGate });
-        return true;
+        const Cesium = await loadCesium();
+        if (!Cesium || instances.get(element) !== instance) return false;
+        instance.tilesetUrl = sameOriginTilesetUrl(tilesetUrl, environmentId);
+        await initializeScene(Cesium, instance);
+        instance.ready = instances.get(element) === instance;
+        return instance.ready;
     } catch {
-        try {
-            if (viewer && !viewer.isDestroyed()) viewer.destroy();
-        } catch {
-            // Ignore teardown failures while reporting the initialization failure.
-        }
-        releaseSceneGate?.();
         return false;
+    } finally {
+        if (!instance.ready) {
+            if (instances.get(element) === instance) instances.delete(element);
+            destroyScene(instance);
+        }
+    }
+}
+
+async function initializeScene(Cesium, instance) {
+    const authorize = typeof globalThis.honuaConsoleCaptureResourceAuthorization === 'function'
+        ? await globalThis.honuaConsoleCaptureResourceAuthorization()
+        : null;
+    if (instances.get(instance.element) !== instance) return;
+    const loaded = sceneTilesetSource(Cesium, instance.tilesetUrl, authorize);
+    instance.releaseSceneGate = loaded.release;
+    const viewer = instance.viewer = new Cesium.Viewer(instance.element, {
+        // Render only the supplied tileset without Cesium's default Ion layer.
+        baseLayer: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        animation: false,
+        timeline: false,
+        fullscreenButton: false,
+        infoBox: false,
+    });
+    const tileset = await Cesium.Cesium3DTileset.fromUrl(loaded.source);
+    if (instances.get(instance.element) !== instance) {
+        tileset.destroy();
+        return;
+    }
+    instance.tileset = tileset;
+    viewer.scene.primitives.add(tileset);
+    await viewer.zoomTo(tileset);
+}
+
+function destroyScene(instance) {
+    const viewer = instance.viewer;
+    const release = instance.releaseSceneGate;
+    instance.viewer = null;
+    instance.releaseSceneGate = null;
+    try {
+        if (viewer && !viewer.isDestroyed()) viewer.destroy();
+    } catch {
+        // Continue releasing the request gate when viewer teardown fails.
+    } finally {
+        release?.();
     }
 }
 
 export function inspect(element) {
     const instance = instances.get(element);
-    if (!instance) {
+    if (!instance?.ready) {
         return null;
     }
     return {
@@ -133,13 +150,8 @@ export function inspect(element) {
 export function dispose(element) {
     const instance = instances.get(element);
     if (instance) {
-        try {
-            instance.viewer.destroy();
-        } catch {
-            // Ignore teardown failures.
-        }
-        instance.releaseSceneGate?.();
         instances.delete(element);
+        destroyScene(instance);
     }
 }
 

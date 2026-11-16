@@ -56,3 +56,31 @@ for (const failure of ['error', 'missing global', 'append exception']) {
     });
 }
 
+test('disposing during runtime loading never constructs a viewer', async () => {
+    const f = await fixture();
+    delete window.Cesium;
+    const element = {};
+    const initializing = f.module.init(element, '/scenes/a/tileset.json', 'env');
+    f.module.dispose(element);
+    window.Cesium = f.Cesium;
+    f.scripts[0].onload();
+    await flush();
+    assert.equal(f.viewers.length, 0);
+    assert.equal(await initializing, false);
+    assert.equal(f.module.inspect(element), null);
+});
+
+test('disposing during tileset loading destroys the pending viewer and late tileset', async () => {
+    const f = await fixture();
+    const element = {};
+    const initializing = f.module.init(element, '/scenes/a/tileset.json', 'env');
+    await flush();
+    f.module.dispose(element);
+    assert.equal(f.viewers[0].destroyed, true);
+    const late = tile();
+    f.pending[0].resolve(late);
+    assert.equal(await initializing, false);
+    assert.equal(late.destroyed, true);
+    assert.equal(f.module.inspect(element), null);
+});
+
