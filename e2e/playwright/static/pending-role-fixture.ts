@@ -16,6 +16,11 @@ export async function pendingRoleFixture(v4Enabled: boolean) {
       ] }));
     } else if (path.endsWith('/auth/csrf')) {
       response.end(JSON.stringify({ requestToken: 'fixture-only' }));
+    } else if (path.endsWith('/access/first/roles/audit') && request.method === 'GET') {
+      response.end(JSON.stringify({ success: true, data: { entries: [{
+        id: 1, timestamp: '2026-11-16T22:00:00Z', actor: 'fixture-operator',
+        action: 'role.created', roleId: 'synthetic-role', outcome: 'success',
+      }] } }));
     } else if (path.endsWith('/access/first/roles') && request.method === 'GET') {
       response.end(JSON.stringify({ success: true, data: { workspaceId: 'first', workspaceName: 'Synthetic workspace',
         permissions: [{ key: 'view', label: 'View' }], roles: [{ id: 'custom', name: 'Synthetic role', isCustom: true, grants: [] }],
