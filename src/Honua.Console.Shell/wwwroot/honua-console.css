@@ -2393,6 +2393,10 @@ p {
     margin-top: 18px;
 }
 
+.operate-import-page .studio-field-grid label {
+    overflow-wrap: anywhere;
+}
+
 .studio-field-grid label,
 .studio-stacked-field {
     display: grid;
@@ -4155,6 +4159,10 @@ p {
         width: min(100vw - 28px, 720px);
     }
 
+    .operate-import-page .studio-field-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .studio-page-heading,
     .studio-shell,
     .studio-preview-canvas,
@@ -5078,7 +5086,7 @@ p {
 
 @media (max-width: 1100px) {
     .publish-flow-map {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .publish-flow-arrow {
@@ -5094,6 +5102,8 @@ p {
 }
 
 .publish-flow-node {
+    min-width: 0;
+    overflow-wrap: anywhere;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
     background: var(--honua-surface);
@@ -5129,6 +5139,7 @@ p {
 .publish-slot-row,
 .publish-record-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
@@ -5136,6 +5147,12 @@ p {
     border-radius: 6px;
     margin-bottom: 6px;
     font-size: 0.82rem;
+}
+
+.publish-flow-map .console-status {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .publish-slot-dot {
@@ -6393,6 +6410,7 @@ p {
 
 .publish-wizard {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     margin-top: 16px;
     border: 1px solid var(--honua-border);
@@ -6419,6 +6437,7 @@ p {
 
 .publish-wizard-footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
 }
@@ -6465,10 +6484,14 @@ p {
     border: 1px solid var(--honua-text);
     border-radius: 7px;
     overflow: hidden;
-    width: max-content;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .publish-segment-option {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
     border: 0;
     border-right: 1px solid var(--honua-border);
     padding: 6px 14px;
@@ -6532,6 +6555,7 @@ p {
 
 .publish-tree-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -6543,6 +6567,7 @@ p {
     background: var(--honua-surface);
     font: inherit;
     cursor: pointer;
+    overflow-wrap: anywhere;
 }
 
 .publish-tree-row:hover {
@@ -6575,9 +6600,8 @@ p {
 .publish-tree-name {
     font-size: 0.86rem;
     font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .publish-tree-meta {

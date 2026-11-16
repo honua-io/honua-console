@@ -12,7 +12,7 @@
             <p>Requested Layer <strong>@_readLayerName</strong> in Service <strong>@_readServiceName</strong>.</p>
             @if (_service is { } service)
             {
-                <p>Service found with @service.LayerCount layers.</p>
+                <p>Service found with @service.LayerCount @(service.LayerCount == 1 ? "layer" : "layers").</p>
             }
             else
             {
