@@ -179,6 +179,7 @@ else
                             disabled="@(_busy || proposal.BlockingReasons.Count > 0)"
                             title="@(proposal.BlockingReasons.Count > 0
                                 ? "Resolve blocking findings before approving."
+                                : _review is null ? "Review the current deployment before approving."
                                 : "Approve and submit this operation for execution.")"
                             @onclick="ApproveAsync">
                         @(_review is null ? "Review deployment" : "Approve & submit")
