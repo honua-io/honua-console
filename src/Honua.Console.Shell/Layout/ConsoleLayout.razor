@@ -66,6 +66,7 @@
     {
         _layerContext.Invalidate();
         _publicationPath = [];
+        StartCapabilityRefresh();
         if (!_disposed) _ = InvokeAsync(StateHasChanged);
     }
 
@@ -107,16 +108,27 @@
         // Start fail-closed: navigation renders immediately while live capability truth is loaded.
         // A slow or unreachable server must not hold the prerendered shell behind HttpClient's long
         // default timeout.
-        _capabilityRefreshCancellation = new CancellationTokenSource(
-            TimeSpan.FromSeconds(CapabilityRefreshTimeoutSeconds));
-        _ = RefreshCapabilitiesAsync(_capabilityRefreshCancellation.Token);
+        StartCapabilityRefresh(_authentication?.GetAuthenticationStateAsync());
         return Task.CompletedTask;
     }
 
-    private async Task RefreshCapabilitiesAsync(CancellationToken cancellationToken)
+    private void StartCapabilityRefresh(Task<AuthenticationState>? initialAuthentication = null)
+    {
+        if (_disposed) return;
+        _capabilityRefreshCancellation?.Cancel();
+        _capabilityRefreshCancellation?.Dispose();
+        _capabilityRefreshCancellation = new CancellationTokenSource(
+            TimeSpan.FromSeconds(CapabilityRefreshTimeoutSeconds));
+        _ = RefreshCapabilitiesAsync(_capabilityRefreshCancellation.Token, initialAuthentication);
+    }
+
+    private async Task RefreshCapabilitiesAsync(CancellationToken cancellationToken, Task<AuthenticationState>? initialAuthentication)
     {
         try
         {
+            // Restored browser credentials must be ready before the privileged manifest request.
+            if (initialAuthentication is not null) await initialAuthentication.WaitAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await Capabilities.RefreshAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
