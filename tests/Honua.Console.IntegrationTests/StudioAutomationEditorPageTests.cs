@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -138,6 +139,65 @@ public sealed class StudioAutomationEditorPageTests
         Assert.DoesNotContain("Saved version", page.Markup, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task EarlierDraftLoad_CannotOverwriteCurrentRoute(ConsolePresentationMode presentation)
+    {
+        var earlierLoad = new TaskCompletionSource<CollectAutomationEditorContext>();
+        var client = new RecordingAutomationClient { PendingLoad = earlierLoad.Task };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioAutomationEditorPage>(parameters => parameters.Add(p => p.DraftId, "earlier"));
+
+        page.Render(parameters => parameters.Add(p => p.DraftId, "current"));
+        page.WaitForAssertion(() => Assert.Equal("current", page.Find("input[aria-label='Automation name']").GetAttribute("value")));
+        var renderCount = page.RenderCount;
+        await page.InvokeAsync(() => earlierLoad.SetResult(new CollectAutomationEditorContext(null,
+            new CollectAutomationDraft { DraftId = "earlier", Name = "Earlier automation" })));
+
+        page.WaitForState(() => page.RenderCount > renderCount);
+        Assert.Equal("current", page.Find("input[aria-label='Automation name']").GetAttribute("value"));
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task EarlierSave_CannotShowResultOnCurrentRoute(ConsolePresentationMode presentation)
+    {
+        var earlierSave = new TaskCompletionSource<CollectAutomationSaveResult>();
+        var client = new RecordingAutomationClient { PendingSave = earlierSave.Task };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioAutomationEditorPage>(parameters => parameters.Add(p => p.DraftId, "earlier"));
+        var saving = page.InvokeAsync(() => SaveButton(page).ClickAsync(new()));
+        page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+
+        page.Render(parameters => parameters.Add(p => p.DraftId, "current"));
+        page.Find("input[aria-label='Automation name']").Change("Edited current automation");
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        await page.InvokeAsync(() => earlierSave.SetResult(new CollectAutomationSaveResult
+        {
+            ContentItemId = "automation-earlier",
+            VersionId = "earlier-version",
+            VersionNumber = 1
+        }));
+        await saving;
+
+        Assert.Equal("Edited current automation", page.Find("input[aria-label='Automation name']").GetAttribute("value"));
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        Assert.Empty(page.FindAll("[data-automation-save]"));
+        Assert.DoesNotContain("earlier-version", page.Markup, StringComparison.Ordinal);
+        Assert.False(SaveButton(page).HasAttribute("disabled"));
+    }
+
+    private static BunitContext EditorContext(RecordingAutomationClient client, ConsolePresentationMode presentation)
+    {
+        var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<ICollectAutomationClient>(client);
+        return ctx;
+    }
+
     private static IElement SaveButton(IRenderedComponent<StudioAutomationEditorPage> page) =>
         page.FindAll("button").Single(b => b.TextContent.Contains("Save version", StringComparison.Ordinal));
 
@@ -147,6 +207,8 @@ public sealed class StudioAutomationEditorPageTests
         public const string DraftId = "draft-recording";
 
         public int SaveCalls { get; private set; }
+        public Task<CollectAutomationEditorContext>? PendingLoad { get; init; }
+        public Task<CollectAutomationSaveResult>? PendingSave { get; init; }
 
         private static CollectAutomationDraft BoundDraft() => new()
         {
@@ -178,8 +240,14 @@ public sealed class StudioAutomationEditorPageTests
         public Task<IReadOnlyList<CollectAutomationSummary>> ListAutomationsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CollectAutomationSummary>>([]);
 
-        public Task<CollectAutomationEditorContext> OpenEditorAsync(string? draftId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new CollectAutomationEditorContext(BindingState: null, BoundDraft()));
+        public Task<CollectAutomationEditorContext> OpenEditorAsync(string? draftId, CancellationToken cancellationToken = default)
+        {
+            if (draftId == "earlier" && PendingLoad is not null) return PendingLoad;
+            var draft = BoundDraft();
+            draft.DraftId = draftId ?? DraftId;
+            if (draftId is "earlier" or "current") draft.Name = draftId;
+            return Task.FromResult(new CollectAutomationEditorContext(BindingState: null, draft));
+        }
 
         public Task<CollectAutomationSaveResult> SaveVersionAsync(
             CollectAutomationDraft draft,
@@ -187,6 +255,7 @@ public sealed class StudioAutomationEditorPageTests
             CancellationToken cancellationToken = default)
         {
             SaveCalls++;
+            if (PendingSave is not null) return PendingSave;
             return Task.FromResult(new CollectAutomationSaveResult
             {
                 ContentItemId = draft.ContentItemId,

@@ -278,6 +278,7 @@
     [Parameter]
     public string? DraftId { get; set; }
 
+    private long _pageGeneration;
     private bool _loading = true;
     private bool _busy;
     private string? _busyLabel;
@@ -302,17 +303,20 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var generation = ++_pageGeneration;
         _loading = true;
+        _draft = null;
+        _binding = null;
         var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
         if (!string.Equals(_activeDraftRouteId, draftRouteId, StringComparison.Ordinal))
         {
             _lastSave = null;
             _errorMessage = null;
-            _binding = null;
             _activeDraftRouteId = draftRouteId;
         }
 
         var context = await Automations.OpenEditorAsync(DraftId);
+        if (generation != _pageGeneration) return;
         _binding = context.BindingState;
         _draft = context.Draft;
         _savedFingerprint = _draft is null ? null : CollectAutomationDraftContent.CreateFingerprint(_draft);
@@ -343,12 +347,16 @@
             return;
         }
 
+        var generation = _pageGeneration;
+        var draft = _draft;
         _busy = true;
         _busyLabel = "Saving version…";
         _errorMessage = null;
         try
         {
-            _lastSave = await Automations.SaveVersionAsync(_draft, "Saved from Studio automation editor.");
+            var result = await Automations.SaveVersionAsync(draft, "Saved from Studio automation editor.");
+            if (generation != _pageGeneration) return;
+            _lastSave = result;
             if (_lastSave.BindingState is not null)
             {
                 _binding = _lastSave.BindingState;
@@ -370,7 +378,7 @@
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            _errorMessage = $"Save failed: {ex.Message}";
+            if (generation == _pageGeneration) _errorMessage = $"Save failed: {ex.Message}";
         }
         finally
         {
