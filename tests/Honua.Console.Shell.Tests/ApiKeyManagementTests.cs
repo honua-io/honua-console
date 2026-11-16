@@ -150,6 +150,7 @@ public sealed class ApiKeyManagementTests
 
         public Fixture()
         {
+            Context.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
             var uri = new Uri("https://server.example");
             _client = new(new HttpClient(Handler), new(uri));
             Context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });

@@ -12,6 +12,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void AgentContextTracksDetailSelectionAndReturnToList()
     {
         using var context = new BunitContext();
+        context.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var registry = new ConsoleAgentContextRegistry();
         context.Services.AddSingleton(registry);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
@@ -37,6 +38,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public async Task ConfirmDialogPublishesPendingCancellationUntilCompletion()
     {
         using var context = new BunitContext();
+        context.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var registry = new ConsoleAgentContextRegistry();
         var cancellation = new TaskCompletionSource<OperateSectionResult<OperateJobControlOutcome>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new StubGeoprocessingClient
@@ -65,6 +67,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public async Task AgentContextTracksTheVisibleStateFilterAndClearsOnDisposal(ConsolePresentationMode mode)
     {
         using var context = new BunitContext();
+        context.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var registry = new ConsoleAgentContextRegistry();
         context.Services.AddSingleton(registry);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = mode == ConsolePresentationMode.V4 });
