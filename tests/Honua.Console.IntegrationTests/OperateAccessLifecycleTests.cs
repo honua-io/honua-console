@@ -14,7 +14,8 @@ public sealed class OperateAccessLifecycleTests
     [InlineData(true)]
     public async Task Roles_IgnoreOverviewFromPreviousWorkspace(bool v4)
     {
-        using var context = Context(v4, out var data);
+        using var context = Context(v4);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldLoad = new TaskCompletionSource<RbacOverviewLoad>();
         data.Overview = workspace => workspace == "first" ? oldLoad.Task : Task.FromResult(Overview(workspace));
         Navigate(context, "first");
@@ -33,7 +34,8 @@ public sealed class OperateAccessLifecycleTests
     [InlineData(true)]
     public async Task Members_IgnoreRosterFromPreviousWorkspace(bool v4)
     {
-        using var context = Context(v4, out var data);
+        using var context = Context(v4);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldLoad = new TaskCompletionSource<TeamMembershipLoad>();
         data.Membership = workspace => workspace == "first" ? oldLoad.Task : Task.FromResult(Membership(workspace));
         Navigate(context, "first");
@@ -51,7 +53,8 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public async Task Roles_IgnoreAuditFromPreviousWorkspace()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldAudit = new TaskCompletionSource<RbacAuditLoad>();
         data.Audit = _ => oldAudit.Task;
         Navigate(context, "first");
@@ -69,7 +72,8 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public void Roles_ConfirmingPreviousWorkspaceRoleDoesNotDeleteInCurrentWorkspace()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         Navigate(context, "first");
         var page = context.Render<OperateAccessRolesPage>();
         page.Find("[data-rbac-delete-role]").Click();
@@ -83,7 +87,8 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public async Task Roles_PendingCreationLocksDraftAndToggle()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var created = new TaskCompletionSource<RbacRoleMutationResult>();
         data.Create = () => created.Task;
         Navigate(context, "first");
@@ -103,7 +108,8 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public async Task Roles_PreviousCreationCannotCloseNewWorkspaceDraft()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var created = new TaskCompletionSource<RbacRoleMutationResult>();
         data.Create = () => created.Task;
         Navigate(context, "first");
@@ -123,23 +129,27 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public async Task Members_IgnorePreviousWorkspaceOverviewAfterRosterLoaded()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldOverview = new TaskCompletionSource<RbacOverviewLoad>();
         data.Overview = workspace => workspace == "first" ? oldOverview.Task : Task.FromResult(Overview(workspace));
         Navigate(context, "first");
         var page = context.Render<OperateAccessMembersPage>();
         Navigate(context, "second");
         page.WaitForAssertion(() => Assert.Contains("second user", page.Markup));
+        page.Find("[data-rbac-invite-open]").Click();
+        Assert.Equal("second role", page.Find("[data-rbac-invite-group=role] option").TextContent);
         await page.InvokeAsync(() => oldOverview.SetResult(Overview("first")));
 
         Assert.Contains("second user", page.Markup);
-        Assert.DoesNotContain("first role", page.Markup);
+        Assert.Equal("second role", page.Find("[data-rbac-invite-group=role] option").TextContent);
     }
 
     [Fact]
     public async Task Roles_CurrentCreationReloadsAndClosesDraft()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         Navigate(context, "first");
         var page = context.Render<OperateAccessRolesPage>();
         OpenDraft(page, "new custom role");
@@ -153,7 +163,8 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public void Roles_CurrentConfirmationDeletesInOriginWorkspace()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         Navigate(context, "first");
         var page = context.Render<OperateAccessRolesPage>();
         page.Find("[data-rbac-delete-role]").Click();
@@ -166,7 +177,8 @@ public sealed class OperateAccessLifecycleTests
     [Fact]
     public async Task Roles_DisposedPendingCreationDoesNotReload()
     {
-        using var context = Context(true, out var data);
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
         var created = new TaskCompletionSource<RbacRoleMutationResult>();
         data.Create = () => created.Task;
         Navigate(context, "first");
@@ -189,14 +201,14 @@ public sealed class OperateAccessLifecycleTests
     private static void Navigate(BunitContext context, string workspace) =>
         context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/operate/access?workspace={workspace}");
 
-    private static BunitContext Context(bool v4, out DeferredRbac data)
+    private static BunitContext Context(bool v4)
     {
         var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.AddConsoleNotifications();
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
-        data = new DeferredRbac();
-        context.Services.AddSingleton<IRbacAccessDataSource>(data);
+        context.Services.AddSingleton<DeferredRbac>();
+        context.Services.AddSingleton<IRbacAccessDataSource>(services => services.GetRequiredService<DeferredRbac>());
         return context;
     }
 
