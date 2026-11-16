@@ -14,18 +14,8 @@ function restoreGlobals(names, previous) {
     });
 }
 
-async function fixture(phase, run) {
-    const names = ['window', 'document', 'honuaConsoleCaptureResourceAuthorization', 'honuaConsoleSubscribeSession'];
-    const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
-    const gate = deferred();
-    const started = deferred();
-    const maps = [];
-    let script;
-    let releases = 0;
-    let captures = 0;
-    let onConstruct = () => {};
-    const runtime = {
-        Map: class {
+function mapRuntime(phase, maps, onConstruct) {
+    return class {
             constructor(options) {
                 this.style = options.style;
                 this.removed = 0;
@@ -33,7 +23,7 @@ async function fixture(phase, run) {
                 this.center = options.center;
                 this.zoom = options.zoom;
                 maps.push(this);
-                if (phase === 'constructed') queueMicrotask(() => onConstruct());
+                if (phase === 'constructed') queueMicrotask(onConstruct);
             }
             addControl() { if (phase === 'control-error') throw new Error('control failed'); }
             on(name, callback) { this.events.set(name, callback); }
@@ -50,7 +40,21 @@ async function fixture(phase, run) {
             easeTo(camera) { this.center = camera.center; this.zoom = camera.zoom; }
             remove() { this.removed++; }
             zoomIn() {}
-        },
+        };
+}
+
+async function fixture(phase, run) {
+    const names = ['window', 'document', 'honuaConsoleCaptureResourceAuthorization', 'honuaConsoleSubscribeSession'];
+    const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+    const gate = deferred();
+    const started = deferred();
+    const maps = [];
+    let script;
+    let releases = 0;
+    let captures = 0;
+    let onConstruct = () => {};
+    const runtime = {
+        Map: mapRuntime(phase, maps, () => onConstruct()),
         NavigationControl: class {},
         prewarm() {},
         async importScriptInWorkers() {
