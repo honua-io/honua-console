@@ -281,6 +281,64 @@ public sealed class StudioWorkflowEditorPageTests
         Assert.False(FindButton(page, "Save draft").HasAttribute("disabled"));
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, "Save draft", "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, "Save draft", "saved-version")]
+    [InlineData(ConsolePresentationMode.Legacy, "Save draft", null)]
+    [InlineData(ConsolePresentationMode.V4, "Save draft", null)]
+    [InlineData(ConsolePresentationMode.Legacy, "Run once", "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, "Run once", "saved-version")]
+    [InlineData(ConsolePresentationMode.Legacy, "Publish", "saved-version")]
+    [InlineData(ConsolePresentationMode.V4, "Publish", "saved-version")]
+    public async Task PendingCommand_DisablesEditsUntilCompletion(ConsolePresentationMode presentation, string command, string? versionId)
+    {
+        var save = new TaskCompletionSource<StudioWorkflowSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new TaskCompletionSource<StudioWorkflowDryRunResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publish = new TaskCompletionSource<StudioWorkflowPublishResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingWorkflowPackageClient
+        {
+            PendingSave = save.Task,
+            PendingRun = run.Task,
+            PendingPublish = publish.Task,
+            NodeDefinitions = [new() { Type = "source", Label = "Source", Category = StudioWorkflowContractValues.NodeCategorySource }]
+        };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioWorkflowEditorPage>(p => p.Add(x => x.DraftId, "current"));
+        TitleInput(page).Input("Edited before command");
+        var running = FindButton(page, command).ClickAsync(new());
+        try
+        {
+            page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+            AssertWorkflowInputsDisabled(page);
+            Assert.True(page.Find(".workflow-palette-item").HasAttribute("disabled"));
+            Assert.True(FindButton(page, "Add Parameter").HasAttribute("disabled"));
+            save.SetResult(new() { ContentItemId = "current", VersionId = versionId });
+            if (command != "Save draft")
+            {
+                page.WaitForAssertion(() => Assert.Equal(1, command == "Run once" ? client.DryRunCalls : client.PublishCalls));
+                AssertWorkflowInputsDisabled(page);
+            }
+        }
+        finally
+        {
+            save.TrySetResult(new());
+            run.SetResult(new() { Status = "succeeded" });
+            publish.SetResult(new() { PublicationId = "publication-current", Status = "queued" });
+            await running;
+        }
+
+        page.WaitForAssertion(() => Assert.False(TitleInput(page).HasAttribute("disabled")));
+        await TitleInput(page).InputAsync(new() { Value = "Edited after completion" });
+        page.WaitForAssertion(() => Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty));
+    }
+
+    private static void AssertWorkflowInputsDisabled(IRenderedComponent<StudioWorkflowEditorPage> page)
+    {
+        var inputs = page.FindAll(".workflow-page input, .workflow-page textarea, .workflow-page select");
+        Assert.NotEmpty(inputs);
+        Assert.All(inputs, input => Assert.True(input.HasAttribute("disabled"), input.OuterHtml));
+    }
+
     private static BunitContext EditorContext(RecordingWorkflowPackageClient client, ConsolePresentationMode presentation)
     {
         var ctx = new BunitContext();
@@ -314,6 +372,8 @@ public sealed class StudioWorkflowEditorPageTests
 
         public StudioWorkflowPackageDraft Draft { get; } = CreateBoundDraft();
 
+        public IReadOnlyList<StudioWorkflowNodeDefinition> NodeDefinitions { get; init; } = [];
+
         public Task<StudioWorkflowEditorContext>? PendingLoad { get; init; }
         public Task<StudioWorkflowSaveResult>? PendingSave { get; init; }
         public Task<StudioWorkflowRunHistory>? PendingHistory { get; init; }
@@ -343,7 +403,7 @@ public sealed class StudioWorkflowEditorPageTests
             CancellationToken cancellationToken = default) =>
             draftId == "earlier" && PendingLoad is not null
                 ? PendingLoad
-                : Task.FromResult(new StudioWorkflowEditorContext(null, [],
+                : Task.FromResult(new StudioWorkflowEditorContext(null, NodeDefinitions,
                     draftId is "earlier" or "current"
                         ? new StudioWorkflowPackageDraft
                         {

@@ -58,7 +58,7 @@
     {
         <header class="workflow-editor-header" aria-label="Workflow header">
             <span class="workflow-editor-glyph" aria-hidden="true">⇋</span>
-            <input class="console-input workflow-title-input" aria-label="Workflow name" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
+            <input disabled="@_busy" class="console-input workflow-title-input" aria-label="Workflow name" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
             <span class="console-status workflow-badge-draft">@DraftStatusBadge(_draft)</span>
             <span class="console-status @(IsGraphValid ? string.Empty : "console-status-warning") workflow-badge-dag">@(IsGraphValid ? "DAG valid · acyclic" : "DAG needs a sink")</span>
             <div class="workflow-editor-header-spacer"></div>
@@ -98,7 +98,7 @@
                 <div class="workflow-palette">
                     @foreach (var definition in _nodeDefinitions)
                     {
-                        <button class="workflow-palette-item workflow-palette-item-@definition.Category" type="button" @onclick="() => AddNode(definition.Type)">
+                        <button class="workflow-palette-item workflow-palette-item-@definition.Category" type="button" disabled="@_busy" @onclick="() => AddNode(definition.Type)">
                             <span class="workflow-step-glyph" aria-hidden="true">@StepGlyph(definition.Category, definition.Type)</span>
                             <strong>@definition.Label</strong>
                             <span>@definition.Category</span>
@@ -113,11 +113,11 @@
                     <div class="workflow-form-grid">
                         <label>
                             <span>Title</span>
-                            <input class="console-input" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
+                            <input disabled="@_busy" class="console-input" @bind="_draft.Title" @bind:event="oninput" @bind:after="OnEdit" />
                         </label>
                         <label>
                             <span>Summary</span>
-                            <textarea class="console-input" rows="3" @bind="_draft.Summary" @bind:event="oninput" @bind:after="OnEdit"></textarea>
+                            <textarea disabled="@_busy" class="console-input" rows="3" @bind="_draft.Summary" @bind:event="oninput" @bind:after="OnEdit"></textarea>
                         </label>
                         <dl class="console-definition-list">
                             <dt>Type</dt>
@@ -204,7 +204,7 @@
                         @if (SelectedNode is not null)
                         {
                             <FieldStateRow State="FieldState.Input" Label="Node label">
-                                <input class="console-input" @bind="SelectedNode.Label" @bind:event="oninput" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" @bind="SelectedNode.Label" @bind:event="oninput" @bind:after="OnEdit" />
                             </FieldStateRow>
                             <FieldStateRow State="FieldState.System" Label="Type" Value="@SelectedNode.Type" />
                             <FieldStateRow State="FieldState.System" Label="Inputs" Value="@FormatPorts(SelectedNode.InputPorts)" Hint="from node type" />
@@ -225,22 +225,22 @@
                             @foreach (var parameter in _draft.Parameters)
                             {
                                 <div class="workflow-table-row">
-                                    <input class="console-input" aria-label="Parameter name" @bind="parameter.Name" @bind:event="oninput" @bind:after="OnEdit" />
-                                    <select class="console-input" aria-label="Parameter type" @bind="parameter.Type">
+                                    <input disabled="@_busy" class="console-input" aria-label="Parameter name" @bind="parameter.Name" @bind:event="oninput" @bind:after="OnEdit" />
+                                    <select disabled="@_busy" class="console-input" aria-label="Parameter type" @bind="parameter.Type">
                                         @foreach (var type in ParameterTypes)
                                         {
                                             <option value="@type">@type</option>
                                         }
                                     </select>
                                     <label class="workflow-checkbox">
-                                        <input type="checkbox" @bind="parameter.Required" />
+                                        <input disabled="@_busy" type="checkbox" @bind="parameter.Required" />
                                         <span>Required</span>
                                     </label>
-                                    <input class="console-input" aria-label="Parameter default value" @bind="parameter.DefaultValue" @bind:event="oninput" @bind:after="OnEdit" />
+                                    <input disabled="@_busy" class="console-input" aria-label="Parameter default value" @bind="parameter.DefaultValue" @bind:event="oninput" @bind:after="OnEdit" />
                                 </div>
                             }
                         </div>
-                        <button class="console-button console-button-secondary" type="button" @onclick="AddParameter">Add Parameter</button>
+                        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="AddParameter">Add Parameter</button>
                         <ul class="workflow-compact-list">
                             @foreach (var validation in ParameterValidationPreview)
                             {
@@ -261,7 +261,7 @@
                         <div class="workflow-form-grid workflow-form-grid-compact">
                             <label>
                                 <span>Schedule mode</span>
-                                <select class="console-input" @bind="_draft.Schedule.Mode" @bind:after="OnEdit">
+                                <select disabled="@_busy" class="console-input" @bind="_draft.Schedule.Mode" @bind:after="OnEdit">
                                     <option value="manual">manual</option>
                                     <option value="cron">cron</option>
                                     <option value="event">event</option>
@@ -269,16 +269,16 @@
                             </label>
                             <label>
                                 <span>Cron</span>
-                                <input class="console-input" @bind="_draft.Schedule.Cron" @bind:event="oninput" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" @bind="_draft.Schedule.Cron" @bind:event="oninput" @bind:after="OnEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.Cron" State="_validation" />
                             </label>
                             <label>
                                 <span>Time zone</span>
-                                <input class="console-input" @bind="_draft.Schedule.TimeZone" @bind:event="oninput" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" @bind="_draft.Schedule.TimeZone" @bind:event="oninput" @bind:after="OnEdit" />
                             </label>
                             <label>
                                 <span>Worker profile</span>
-                                <select class="console-input" @bind="_draft.WorkerProfile.ProfileId" @bind:after="OnEdit">
+                                <select disabled="@_busy" class="console-input" @bind="_draft.WorkerProfile.ProfileId" @bind:after="OnEdit">
                                     <option value="standard-geospatial">standard-geospatial</option>
                                     <option value="memory-optimized">memory-optimized</option>
                                     <option value="high-throughput">high-throughput</option>
@@ -286,21 +286,21 @@
                             </label>
                             <label>
                                 <span>Runtime</span>
-                                <input class="console-input" @bind="_draft.WorkerProfile.Runtime" @bind:event="oninput" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" @bind="_draft.WorkerProfile.Runtime" @bind:event="oninput" @bind:after="OnEdit" />
                             </label>
                             <label>
                                 <span>CPU</span>
-                                <input class="console-input" type="number" min="1" max="32" @bind="_draft.WorkerProfile.Cpu" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" type="number" min="1" max="32" @bind="_draft.WorkerProfile.Cpu" @bind:after="OnEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.Cpu" State="_validation" />
                             </label>
                             <label>
                                 <span>Memory GB</span>
-                                <input class="console-input" type="number" min="2" max="256" @bind="_draft.WorkerProfile.MemoryGb" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" type="number" min="2" max="256" @bind="_draft.WorkerProfile.MemoryGb" @bind:after="OnEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MemoryGb" State="_validation" />
                             </label>
                             <label>
                                 <span>Max parallelism</span>
-                                <input class="console-input" type="number" min="1" max="64" @bind="_draft.WorkerProfile.MaxParallelism" @bind:after="OnEdit" />
+                                <input disabled="@_busy" class="console-input" type="number" min="1" max="64" @bind="_draft.WorkerProfile.MaxParallelism" @bind:after="OnEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MaxParallelism" State="_validation" />
                             </label>
                         </div>
@@ -314,17 +314,17 @@
                         <div class="workflow-form-grid workflow-form-grid-compact">
                             <label>
                                 <span>Attempts</span>
-                                <input class="console-input" type="number" min="1" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnRetryEdit" />
+                                <input disabled="@_busy" class="console-input" type="number" min="1" max="10" @bind="_draft.RetryPolicy.MaxAttempts" @bind:after="OnRetryEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.MaxAttempts" State="_validation" />
                             </label>
                             <label>
                                 <span>Backoff seconds</span>
-                                <input class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnRetryEdit" />
+                                <input disabled="@_busy" class="console-input" type="number" min="0" max="3600" @bind="_draft.RetryPolicy.BackoffSeconds" @bind:after="OnRetryEdit" />
                                 <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.BackoffSeconds" State="_validation" />
                             </label>
                             <label>
                                 <span>Failure mode</span>
-                                <select class="console-input" @bind="_draft.RetryPolicy.FailureMode" @bind:after="OnEdit">
+                                <select disabled="@_busy" class="console-input" @bind="_draft.RetryPolicy.FailureMode" @bind:after="OnEdit">
                                     <option value="route-failure-edges">route-failure-edges</option>
                                     <option value="fail-fast">fail-fast</option>
                                     <option value="quarantine-artifacts">quarantine-artifacts</option>
@@ -362,7 +362,7 @@
                     <div class="workflow-form-grid workflow-form-grid-compact">
                         <label>
                             <span>Mode</span>
-                            <select class="console-input" @bind="_draft.PublicationIntent.Mode">
+                            <select disabled="@_busy" class="console-input" @bind="_draft.PublicationIntent.Mode">
                                 <option value="@StudioWorkflowContractValues.PublicationModeBatchWorkflow">Batch workflow</option>
                                 <option value="@StudioWorkflowContractValues.PublicationModeScheduledJob">Scheduled job</option>
                                 <option value="@StudioWorkflowContractValues.PublicationModeProcessEndpoint">Process endpoint</option>
@@ -370,7 +370,7 @@
                         </label>
                         <label>
                             <span>Visibility</span>
-                            <select class="console-input" @bind="_draft.PublicationIntent.Visibility">
+                            <select disabled="@_busy" class="console-input" @bind="_draft.PublicationIntent.Visibility">
                                 <option value="private">private</option>
                                 <option value="org">org</option>
                                 <option value="group">group</option>
@@ -378,15 +378,15 @@
                         </label>
                         <label>
                             <span>Route slug</span>
-                            <input class="console-input" @bind="_draft.PublicationIntent.RouteSlug" @bind:event="oninput" @bind:after="OnEdit" />
+                            <input disabled="@_busy" class="console-input" @bind="_draft.PublicationIntent.RouteSlug" @bind:event="oninput" @bind:after="OnEdit" />
                             <ValidationMessageInline FieldKey="@StudioWorkflowFieldKeys.RouteSlug" State="_validation" />
                         </label>
                         <label class="workflow-checkbox">
-                            <input type="checkbox" @bind="_draft.PublicationIntent.ExposeInvocationEndpoint" />
+                            <input disabled="@_busy" type="checkbox" @bind="_draft.PublicationIntent.ExposeInvocationEndpoint" />
                             <span>Expose invocation endpoint</span>
                         </label>
                         <label class="workflow-checkbox">
-                            <input type="checkbox" @bind="_draft.PublicationIntent.RequiresApproval" />
+                            <input disabled="@_busy" type="checkbox" @bind="_draft.PublicationIntent.RequiresApproval" />
                             <span>Require approval before publish</span>
                         </label>
                     </div>
