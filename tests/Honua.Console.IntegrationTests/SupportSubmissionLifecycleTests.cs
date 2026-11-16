@@ -137,9 +137,16 @@ public sealed class SupportSubmissionLifecycleTests
 
     private static SupportTicketResult Success() => SupportTicketResult.Allowed(new SupportTicketResponse
     {
-        Id = "created-ticket", CustomerId = "test", Severity = "sev3", Environment = "production",
-        Service = "honua-server", Symptoms = "errors", RequestedAction = "diagnose",
-        AllowedAccessMode = "read-only", Phase = "new", CustomerStatus = "open"
+        Id = "created-ticket",
+        CustomerId = "test",
+        Severity = "sev3",
+        Environment = "production",
+        Service = "honua-server",
+        Symptoms = "errors",
+        RequestedAction = "diagnose",
+        AllowedAccessMode = "read-only",
+        Phase = "new",
+        CustomerStatus = "open"
     });
 
     private sealed class DeferredClient : IConsoleSupportTicketClient
