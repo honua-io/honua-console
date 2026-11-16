@@ -106,7 +106,7 @@ public sealed class ImportPublishHandoffRenderTests
         public Task<ServiceLayerPublishResult> PublishAsync(ServiceLayerPublishCommand command, CancellationToken cancellationToken = default)
         {
             Commands.Add(command);
-            return Task.FromResult(new ServiceLayerPublishResult { Succeeded = true });
+            return Task.FromResult(new ServiceLayerPublishResult { Succeeded = true, State = "Published" });
         }
     }
 
