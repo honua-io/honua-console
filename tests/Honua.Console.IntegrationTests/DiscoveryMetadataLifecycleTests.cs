@@ -253,7 +253,9 @@ public sealed class DiscoveryMetadataLifecycleTests
             var id = address == Address(address.Kind, 1) ? 1 : 2;
             return Task.FromResult(HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(new()
             {
-                EntityId = $"resource-{id}", Etag = $"etag-{id}", Title = $"Resource {id}"
+                EntityId = $"resource-{id}",
+                Etag = $"etag-{id}",
+                Title = $"Resource {id}"
             }));
         }
 
@@ -272,7 +274,9 @@ public sealed class DiscoveryMetadataLifecycleTests
             var write = Writes[index];
             _saves[index].SetResult(HonuaAdminEndpointResult<DiscoveryMetadataResponse>.FromData(new()
             {
-                EntityId = "stored", Etag = "stored-etag", Title = write.Request.Title
+                EntityId = "stored",
+                Etag = "stored-etag",
+                Title = write.Request.Title
             }));
         }
     }
