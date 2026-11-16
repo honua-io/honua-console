@@ -9,7 +9,7 @@ using Honua.Console.Shell.Models;
 namespace Honua.Console.Shell.Services;
 
 // A 403 from the server approval gate is Forbidden and is not bypassed.
-public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClient
+public sealed partial class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClient
 {
     private const string NoProfileMessage =
         "No active environment profile is selected. Connect an environment to review deploy approvals.";
@@ -108,31 +108,6 @@ public sealed class HttpConsoleDeployApprovalClient : IConsoleDeployApprovalClie
             pending,
             partialResult: anyFailed,
             message: anyFailed ? "One or more deploy operations could not be read and were omitted." : string.Empty);
-    }
-
-    public async Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(
-        string operationId,
-        string? reason,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
-
-        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        if (profile is null)
-        {
-            return OperateSectionResult<DeployOperationProposal>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
-        }
-
-        var body = JsonSerializer.Serialize(
-            new SubmitDeployOperationRequest { Reason = NormalizeReason(reason) },
-            DeployControlJsonContext.Default.SubmitDeployOperationRequest);
-
-        return await SendAsync(
-            profile,
-            HttpMethod.Post,
-            DeployControlAdminRoutes.Submit(operationId.Trim()),
-            body,
-            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<OperateSectionResult<DeployOperationProposal>> RollbackAsync(

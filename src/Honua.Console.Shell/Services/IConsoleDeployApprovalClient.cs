@@ -14,8 +14,12 @@ public interface IConsoleDeployApprovalClient
         IReadOnlyList<string> operationIds,
         CancellationToken cancellationToken = default);
 
-    Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(
+    Task<OperateSectionResult<ConsoleDeployApprovalReview>> OpenSubmitReviewAsync(
         string operationId,
+        CancellationToken cancellationToken = default);
+
+    Task<OperateSectionResult<DeployOperationProposal>> SubmitAsync(
+        ConsoleDeployApprovalReview review,
         string? reason,
         CancellationToken cancellationToken = default);
 

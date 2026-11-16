@@ -60,6 +60,9 @@ public sealed class OperateDeploymentApprovalTests
             TimeSpan.FromSeconds(5));
 
         panel.Find("button.console-button").Click();
+        panel.WaitForAssertion(() => Assert.Contains("Approve &amp; submit", panel.Markup));
+        Assert.Contains("awaiting approval", panel.Markup, StringComparison.Ordinal);
+        panel.Find("button.console-button").Click();
 
         panel.WaitForAssertion(
             () =>
