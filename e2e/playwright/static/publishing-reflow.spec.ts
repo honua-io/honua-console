@@ -58,9 +58,9 @@ for (const v4Enabled of [false, true]) {
               await review.click();
               await expect(folder).toHaveValue('root:');
             }
-            const bounds = await page.locator('[data-quick-step="service"]').evaluate(section => ({
+            const bounds = await page.locator('main').evaluate(section => ({
               viewport: innerWidth, rootWidth: document.documentElement.scrollWidth,
-              elements: [...section.querySelectorAll('.publish-segment, .publish-segment-option, .publish-tree-row, .publish-tree-name, .publish-tree-display-name, [data-publish-folders] button')]
+              elements: [...section.querySelectorAll('.publish-segment, .publish-segment-option, .publish-tree-row, .publish-tree-name, .publish-tree-display-name, [data-publish-folders] button, .publish-flow-node, .publish-slot-row, .publish-record-row, .publish-flow-map .console-status')]
                 .map(element => { const rect = element.getBoundingClientRect(); return {
                   text: element.textContent, left: rect.left, right: rect.right, width: rect.width,
                   scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
