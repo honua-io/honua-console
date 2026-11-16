@@ -21,7 +21,9 @@ public sealed class ConsoleApiClient(HttpClient http)
 
     public async Task<ConsoleApiSession> GetSessionAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync("api/v1/admin/auth/session", cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/admin/auth/session");
+        request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
+        using var response = await http.SendAsync(request, cancellationToken);
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             return new ConsoleApiSession(new ClaimsPrincipal(new ClaimsIdentity()));

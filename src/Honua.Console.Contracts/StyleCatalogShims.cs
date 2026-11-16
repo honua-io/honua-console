@@ -13,6 +13,7 @@ public sealed record HonuaOgcStylesClientOptions(Uri BaseUri, string? ApiKey = n
 public interface IConsoleAuthorityBindingValidator
 {
     Task<bool> IsCurrentAsync(string binding, CancellationToken cancellationToken = default);
+    Task<bool> RevalidateAsync(string binding, CancellationToken cancellationToken = default) => IsCurrentAsync(binding, cancellationToken);
     Task<string?> CaptureAsync(CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
 }
 

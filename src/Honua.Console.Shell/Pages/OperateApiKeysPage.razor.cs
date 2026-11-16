@@ -103,6 +103,8 @@ public partial class OperateApiKeysPage
             };
             var result = await _client.CreateApiKeyAsync(new(binding, request));
             if (generation != _generation || !await CurrentAsync(binding)) return;
+            if (_authority is null || !await _authority.RevalidateAsync(binding)) { TargetChanged(); return; }
+            if (_disposed || generation != _generation) return;
             AcceptCreatedKey(result);
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException) { Unverified(); }
