@@ -104,7 +104,7 @@
     private bool _disposed;
     private bool _inboxLoaded;
     private bool _inboxBusy;
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly ConsoleRefreshCoalescer _refreshGate = new();
     private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
@@ -128,10 +128,10 @@
         await _updates.StartAsync(_lifetime.Token);
     }
 
-    private async Task RefreshInboxAsync()
-    {
-        await _refreshGate.WaitAsync();
+    private Task RefreshInboxAsync() => _refreshGate.RunAsync(ReadInboxCoreAsync);
 
+    private async Task ReadInboxCoreAsync()
+    {
         _inboxBusy = true;
         try
         {
@@ -152,7 +152,6 @@
         finally
         {
             _inboxBusy = false;
-            _refreshGate.Release();
             _inboxLoaded = true;
         }
     }

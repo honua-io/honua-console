@@ -31,7 +31,7 @@ public sealed partial class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Equal(2, calls));
         await page.InvokeAsync(() =>
         {
-            for (var i = 0; i < 3; i++)
+            for (var i = 0; i < 100; i++)
             {
                 realtime.Raise(new ConsoleProposalEvent(
                     ConsoleProposalEventKind.Pending, "late-op", ConsoleProposalKind.Deploy,
@@ -43,6 +43,6 @@ public sealed partial class ApprovalInboxPageRenderTests
         await refresh;
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-proposal-id='late-op']")));
-        Assert.Equal(5, calls);
+        Assert.Equal(3, calls);
     }
 }

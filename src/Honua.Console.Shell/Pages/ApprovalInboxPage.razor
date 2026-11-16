@@ -331,7 +331,7 @@
 
     private bool _loaded;
     private bool _busy;
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly ConsoleRefreshCoalescer _refreshGate = new();
     private OperateSectionResult<ApprovalInboxSnapshot> _result =
         OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty);
 
@@ -516,10 +516,10 @@
         }
     }
 
-    private async Task RefreshAsync()
-    {
-        await _refreshGate.WaitAsync();
+    private Task RefreshAsync() => _refreshGate.RunAsync(ReadInboxCoreAsync);
 
+    private async Task ReadInboxCoreAsync()
+    {
         _busy = true;
         try
         {
@@ -549,7 +549,6 @@
         finally
         {
             _busy = false;
-            _refreshGate.Release();
             _loaded = true;
         }
     }
