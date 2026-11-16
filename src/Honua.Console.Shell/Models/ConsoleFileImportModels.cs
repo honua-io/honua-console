@@ -31,6 +31,10 @@ public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFil
 
     public string? TableName { get; init; }
 
+    public string? PhysicalTableName { get; init; }
+
+    public string? Schema { get; init; }
+
     public long FeatureCount { get; init; }
 
     public int? StoredSrid { get; init; }

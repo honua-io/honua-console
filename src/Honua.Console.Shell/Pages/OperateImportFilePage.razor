@@ -27,6 +27,14 @@
 </section>
 
 @code {
+    private string PublishHref(ConsoleFileImportResult result)
+    {
+        const string route = "/operate/publishing/quick";
+        return Nav.ToConsoleHref(string.IsNullOrWhiteSpace(result.Schema) || string.IsNullOrWhiteSpace(result.PhysicalTableName)
+            ? route
+            : $"{route}?schema={Uri.EscapeDataString(result.Schema)}&table={Uri.EscapeDataString(result.PhysicalTableName)}");
+    }
+
     private const string Intro = "Upload a geospatial file to import it into a new PostGIS table. Supported formats are read live from honua-server; the table can then be published as a service layer.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private RenderFragment ImportForm => @<text>
@@ -123,7 +131,7 @@
                     </dl>
                     @if (r.Succeeded)
                     {
-                        <a class="console-button" href="@Nav.ToConsoleHref("/operate/publishing/quick")">Publish this table</a>
+                        <a class="console-button" href="@PublishHref(r)">Publish this table</a>
                     }
                 }
                 @if (r.Warnings.Count > 0)

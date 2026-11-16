@@ -26,6 +26,10 @@
     </div>
     }
 
+    @if (_importSelectionNotice is not null)
+    {
+        <p class="console-state-warning" role="status" data-import-publish-notice>@_importSelectionNotice</p>
+    }
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_connectionStates" OnRetry="LoadConnectionsAsync" />
     @if (_connections.Count == 0 && _connectionStates.Count == 0)
     {
@@ -199,7 +203,7 @@
     </text>;
 
     private IReadOnlyList<OperateConnectionSummary> _connections = Array.Empty<OperateConnectionSummary>();
-    private readonly ServiceLayerTableLoad _tableLoad = new();
+    private ServiceLayerTableLoad _tableLoad = new();
     private ServiceLayerPublishTable? _selectedTable;
 
     private string _connectionId = string.Empty;
@@ -249,10 +253,13 @@
         }
     }
 
-    private Task OnConnectionChanged()
+    private async Task OnConnectionChanged()
     {
+        var choiceVersion = ++_connectionChoiceVersion;
+        _importSelectionNotice = null;
         ClearTableChoice();
-        return _tableLoad.LoadAsync(PublishOperation, _connectionId);
+        await _tableLoad.LoadAsync(PublishOperation, _connectionId);
+        if (_connectionChoiceVersion == choiceVersion) SelectImportedTable();
     }
 
     private Task RetryTablesAsync()
@@ -271,6 +278,8 @@
 
     private void OnTableChanged()
     {
+        _connectionChoiceVersion++;
+        _importSelectionNotice = null;
         ClearResult();
         _geometryTypeOverride = string.Empty;
         _selectedTable = _tableLoad.Tables.FirstOrDefault(table =>
@@ -306,7 +315,6 @@
             GeometryColumn = table.GeometryColumn,
             GeometryType = RequiresGeometryChoice(table) ? _geometryTypeOverride : table.GeometryType,
             Srid = table.Srid,
-            Fields = table.Columns,
             Enabled = true
         };
 

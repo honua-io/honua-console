@@ -46,6 +46,9 @@ public interface IOperateTransitionDataSource
         return new OperateServicesView(workspace.Services, workspace.CapabilityStates);
     }
 
+    Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default) =>
+        GetLayersViewAsync(cancellationToken);
+
     async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
     {
         var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);

@@ -125,7 +125,12 @@ public sealed class ImportCoordinateSystemRenderTests
     {
         using var context = new BunitContext();
         var import = Register(context);
-        import.Outcome = import.Outcome with { Warnings = ["<b>One feature has no optional name.</b>"] };
+        import.Outcome = import.Outcome with
+        {
+            Schema = "import & data",
+            PhysicalTableName = "physical+projected",
+            Warnings = ["<b>One feature has no optional name.</b>"]
+        };
         var page = context.Render<OperateImportFilePage>();
         page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("projected", "projected.gpkg"));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-import-coordinate-system]")));
@@ -136,7 +141,8 @@ public sealed class ImportCoordinateSystemRenderTests
         Assert.Equal("<b>One feature has no optional name.</b>", page.Find("[aria-label='Import warnings'] li").TextContent);
         Assert.Empty(page.FindAll("[aria-label='Import warnings'] b"));
         Assert.Equal("projected", page.Find("[data-imported-table]").TextContent);
-        Assert.Contains(page.FindAll("a"), link => link.TextContent == "Publish this table");
+        Assert.EndsWith("/operate/publishing/quick?schema=import%20%26%20data&table=physical%2Bprojected",
+            page.FindAll("a").Single(link => link.TextContent == "Publish this table").GetAttribute("href"));
     }
 
     [Fact]

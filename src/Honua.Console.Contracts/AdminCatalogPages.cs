@@ -6,6 +6,11 @@ namespace Honua.Console.Contracts;
 
 public readonly record struct HonuaAdminCatalogQuery(int Page, int PageSize, string? NameQuery)
 {
+    // SHIM(honua-sdk-dotnet#166): The published Admin catalog query has no paired physical-layer scope.
+    public Guid? ConnectionId { get; init; }
+
+    public int? StorageLayerId { get; init; }
+
     public const int MaxPageSize = 100;
 
     public static HonuaAdminCatalogQuery First { get; } = new(1, MaxPageSize, null);
@@ -19,6 +24,12 @@ public readonly record struct HonuaAdminCatalogQuery(int Page, int PageSize, str
             "page=" + Page.ToString(CultureInfo.InvariantCulture),
             "pageSize=" + PageSize.ToString(CultureInfo.InvariantCulture),
         };
+        if (ConnectionId is { } connectionId && StorageLayerId is { } layerId)
+        {
+            parts.Add("connectionId=" + connectionId.ToString("D"));
+            parts.Add("storageLayerId=" + layerId.ToString(CultureInfo.InvariantCulture));
+        }
+
         if (!string.IsNullOrWhiteSpace(serviceName))
         {
             parts.Add("serviceName=" + Uri.EscapeDataString(serviceName));

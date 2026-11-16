@@ -201,8 +201,6 @@ else
             setBusy: busy => { _publishing = busy; StateHasChanged(); },
             failureMessage: "Couldn't publish the layer");
 
-    // Builds the command from the operator's actual selection. Geometry, SRID and the field list
-    // come from the table honua-server reported, so the POST describes a table that exists.
     private async Task PublishAsync()
     {
         if (SelectedTable is not { } table || string.IsNullOrWhiteSpace(_connectionId))
@@ -233,7 +231,6 @@ else
             GeometryColumn = table.GeometryColumn,
             GeometryType = table.GeometryType,
             Srid = table.Srid,
-            Fields = table.Columns,
             Enabled = true
         };
 
@@ -505,7 +502,7 @@ else
                             <dt>Table</dt><dd>@Unknown(SelectedTable?.QualifiedName)</dd>
                             <dt>Geometry</dt><dd>@Unknown(SelectedTable?.GeometryColumn) · @Unknown(SelectedTable?.GeometryType)</dd>
                             <dt>SRID</dt><dd>@(SelectedTable?.Srid?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—")</dd>
-                            <dt>Fields sent</dt><dd>@(SelectedTable?.Columns.Count ?? 0)</dd>
+                            <dt>Fields</dt><dd>Server default</dd>
                         </dl>
                     </article>
                     <div class="publish-review-bind">↓ publishes into ↓</div>
