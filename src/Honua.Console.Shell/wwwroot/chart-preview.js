@@ -44,6 +44,7 @@ const VEGA_EMBED_JS = 'vega-embed/vega-embed.min.js';
 // MapLibre there is no stylesheet to link.
 
 const instances = new Map();
+const initializations = new WeakMap();
 let vegaEmbedPromise = null;
 
 function loadScript(path) {
@@ -143,85 +144,88 @@ export async function init(container, options) {
     if (!container || !options) {
         return false;
     }
+    dispose(container);
+    const token = {};
+    initializations.set(container, token);
+    const isCurrent = () => initializations.get(container) === token;
     const spec = parseSpec(options.spec);
     if (!spec) {
         return false;
     }
 
-    // CON-005: vega-embed merges spec.usermeta.embedOptions over the options supplied below.
-    // Stored/model-authored specs must not be able to re-enable actions (whose source/editor
-    // features create or navigate documents), so remove that control plane before embedding.
+    try {
+        const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
+        const authorize = typeof capture === 'function' ? await capture() : null;
+        if (!isCurrent()) return false;
+        const rows = await fetchRows(options.featuresUrl, authorize);
+        if (!isCurrent() || !prepareSpec(spec, rows)) return false;
+        const vegaEmbed = await loadVegaEmbed();
+        if (!vegaEmbed || !isCurrent()) return false;
+        if (authorize && options.featuresUrl) authorize(options.featuresUrl);
+        return await mountChart(container, { spec, vegaEmbed, isCurrent });
+    } catch {
+        return false;
+    }
+}
+
+function prepareSpec(spec, rows) {
+    // Stored embed options override our options unless removed before embedding.
     if (spec.usermeta && typeof spec.usermeta === 'object') {
         delete spec.usermeta.embedOptions;
     }
-
-    // Bind the bound layer's real rows. If the feature query returns nothing, honour any inline data the
-    // server already put in the spec; if neither exists there is nothing real to chart — bail.
-    const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
-    const authorize = typeof capture === 'function' ? await capture() : null;
-    const rows = await fetchRows(options.featuresUrl, authorize);
     if (rows.length > 0) {
         spec.data = { values: rows };
     } else if (!spec.data || (Array.isArray(spec.data.values) && spec.data.values.length === 0)) {
         return false;
     }
 
-    // Auto-dimension: callers that don't know the layer's field names (e.g. the analysis input chart)
-    // mark the x-encoding field as "__auto__"; resolve it from the real rows — the first string-valued
-    // attribute, else the first attribute. Keeps the spec grounded in the actual data, never invented.
     if (rows.length > 0 && spec.encoding?.x?.field === '__auto__') {
         const keys = Object.keys(rows[0]);
         const dimension = keys.find(k => typeof rows[0][k] === 'string') ?? keys[0];
-        if (dimension) {
-            spec.encoding.x.field = dimension;
-            if (spec.encoding.x.title === '__auto__') {
-                spec.encoding.x.title = dimension;
-            }
-        } else {
-            return false;
-        }
+        if (!dimension) return false;
+        spec.encoding.x.field = dimension;
+        if (spec.encoding.x.title === '__auto__') spec.encoding.x.title = dimension;
     }
-
-    // Let the chart fill the stage; the schematic uses a fixed aspect so width/height autosizing here
-    // keeps the live chart visually consistent with the placeholder it replaces.
     spec.width = spec.width ?? 'container';
     spec.height = spec.height ?? 'container';
-    if (!spec.autosize) {
-        spec.autosize = { type: 'fit', contains: 'padding' };
-    }
+    spec.autosize = spec.autosize ?? { type: 'fit', contains: 'padding' };
+    return true;
+}
 
-    const vegaEmbed = await loadVegaEmbed();
-    if (!vegaEmbed) {
-        return false;
-    }
+async function mountChart(container, { spec, vegaEmbed, isCurrent }) {
+    const mount = document.createElement('div');
+    mount.style.width = '100%';
+    mount.style.height = '100%';
+    container.appendChild(mount);
     try {
-        if (authorize && options.featuresUrl) authorize(options.featuresUrl);
-        const result = await vegaEmbed(container, spec, {
-            actions: false,
-            renderer: 'svg',
-        });
+        const result = await vegaEmbed(mount, spec, { actions: false, renderer: 'svg' });
+        if (!isCurrent()) {
+            finalize(result);
+            return false;
+        }
         instances.set(container, result);
         return true;
     } catch {
+        if (isCurrent()) dispose(container);
         return false;
     }
 }
 
-export function dispose(container) {
-    const result = instances.get(container);
-    if (result) {
-        try {
-            result.finalize?.();
-        } catch {
-            /* ignore teardown failures */
-        }
-        instances.delete(container);
-    }
+function finalize(result) {
     try {
-        if (container) {
-            container.replaceChildren();
-        }
+        result?.finalize?.();
     } catch {
-        /* ignore */
+        /* ignore teardown failures */
+    }
+}
+
+export function dispose(container) {
+    initializations.delete(container);
+    finalize(instances.get(container));
+    instances.delete(container);
+    try {
+        container?.replaceChildren();
+    } catch {
+        /* ignore teardown failures */
     }
 }
