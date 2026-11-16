@@ -224,7 +224,8 @@
     private OperateAlertRuleSaveResult? _saveResult;
     private OperateAlertRuleTestResult? _testResult;
 
-    private bool _enabled;
+    private string? _loadedRuleId;
+    private long _viewGeneration;
     private string _name = string.Empty;
     private string _subject = string.Empty;
     private string _operator = string.Empty;
@@ -246,52 +247,50 @@
             return;
         }
 
+        if (string.Equals(_loadedRuleId, RuleId, StringComparison.Ordinal)) return;
+        _loadedRuleId = RuleId;
+        var generation = ++_viewGeneration;
         _loading = true;
+        _saving = _testing = _enabling = false;
+        _rule = null;
         _saveResult = null;
         _testResult = null;
         _explicitTestPassed = false;
         _testedEdit = null;
-        _view = await RulesData.GetRuleAsync(RuleId);
-        _rule = _view.Rule;
-        if (_rule is not null)
-        {
-            _enabled = _rule.Enabled;
-            _name = _rule.Name;
-            _subject = _rule.Condition.Subject;
-            _operator = _rule.Condition.Operator;
-            _threshold = _rule.Condition.Threshold;
-            _window = _rule.Condition.Window;
-            _geofenceZoneId = _rule.Condition.GeofenceZoneId ?? string.Empty;
-            _dwellMinutes = _rule.Condition.DwellMinutes;
-            _deliveryChannels = string.Join(", ", _rule.DeliveryChannels);
-        }
-
+        var view = await RulesData.GetRuleAsync(RuleId);
+        if (generation != _viewGeneration) return;
+        _view = view;
+        _rule = view.Rule;
+        if (_rule is not null) SeedDraft(_rule);
         _loading = false;
+    }
+
+    private void SeedDraft(OperateAlertRuleDefinition rule)
+    {
+        _name = rule.Name;
+        _subject = rule.Condition.Subject;
+        _operator = rule.Condition.Operator;
+        _threshold = rule.Condition.Threshold;
+        _window = rule.Condition.Window;
+        _geofenceZoneId = rule.Condition.GeofenceZoneId ?? string.Empty;
+        _dwellMinutes = rule.Condition.DwellMinutes;
+        _deliveryChannels = string.Join(", ", rule.DeliveryChannels);
     }
 
     private Task SaveAsync()
     {
+        var generation = _viewGeneration;
+        var edit = CurrentEdit();
         _saveResult = null;
-        return Notifications.RunGuardedAsync(
-            async () =>
-            {
-                var channels = _deliveryChannels
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var condition = new OperateAlertRuleCondition(
-                    _subject, _operator, _threshold, _window,
-                    string.IsNullOrWhiteSpace(_geofenceZoneId) ? null : _geofenceZoneId,
-                    _dwellMinutes);
-                var edit = new OperateAlertRuleEdit(RuleId, _name, _enabled, condition, channels);
-                _saveResult = await RulesData.SaveRuleAsync(edit);
-                _explicitTestPassed = false;
-                _testedEdit = null;
-                if (_saveResult.Succeeded)
-                {
-                    _rule = _saveResult.Rule;
-                }
-            },
-            setBusy: busy => { _saving = busy; StateHasChanged(); },
-            failureMessage: "Couldn't save alert rule");
+        return Notifications.RunGuardedAsync(async () =>
+        {
+            var result = await RulesData.SaveRuleAsync(edit);
+            if (generation != _viewGeneration) return;
+            _saveResult = result;
+            _explicitTestPassed = false;
+            _testedEdit = null;
+            if (result.Succeeded) _rule = result.Rule;
+        }, BusyForView(generation, busy => _saving = busy), "Couldn't save alert rule");
     }
 
     private OperateAlertRuleEdit CurrentEdit() => new(
@@ -305,46 +304,55 @@
         && _testedEdit is not null
         && EditsEqual(_testedEdit, CurrentEdit());
 
-    private Task TestAsync() => Notifications.RunGuardedAsync(async () =>
+    private Task TestAsync()
     {
+        var generation = _viewGeneration;
         var testedEdit = CurrentEdit();
-        _testResult = await RulesData.TestRuleAsync(testedEdit);
-        _explicitTestPassed = _testResult.Succeeded;
-        _testedEdit = _testResult.Succeeded ? testedEdit : null;
-    }, busy => { _testing = busy; StateHasChanged(); }, "Couldn't test alert rule");
+        return Notifications.RunGuardedAsync(async () =>
+        {
+            var result = await RulesData.TestRuleAsync(testedEdit);
+            if (generation != _viewGeneration) return;
+            _testResult = result;
+            _explicitTestPassed = result.Succeeded;
+            _testedEdit = result.Succeeded ? testedEdit : null;
+        }, BusyForView(generation, busy => _testing = busy), "Couldn't test alert rule");
+    }
 
-    private Task ToggleEnabledAsync() => Notifications.RunGuardedAsync(async () =>
+    private Task ToggleEnabledAsync()
     {
-        var enabling = !_rule!.Enabled;
-        if (enabling)
+        var generation = _viewGeneration;
+        var edit = CurrentEdit();
+        var enabling = !edit.Enabled;
+        if (enabling && !CanEnable) return Task.CompletedTask;
+        return Notifications.RunGuardedAsync(async () =>
         {
-            // Qualification applies to the exact draft the operator tested. Persist that disabled
-            // snapshot before enabling so the server cannot activate an older definition by ID.
-            if (!CanEnable)
+            if (enabling)
             {
-                return;
+                var persisted = await RulesData.SaveRuleAsync(edit);
+                if (generation != _viewGeneration) return;
+                _saveResult = persisted;
+                if (!persisted.Succeeded) return;
+                _rule = persisted.Rule;
             }
 
-            var persisted = await RulesData.SaveRuleAsync(CurrentEdit());
-            _saveResult = persisted;
-            if (!persisted.Succeeded)
+            var result = await RulesData.SetRuleEnabledAsync(edit.RuleId, enabling);
+            if (generation != _viewGeneration) return;
+            _saveResult = result;
+            if (result.Succeeded)
             {
-                return;
+                _rule = result.Rule;
+                _explicitTestPassed = false;
+                _testedEdit = null;
             }
+        }, BusyForView(generation, busy => _enabling = busy), "Couldn't update alert rule state");
+    }
 
-            _rule = persisted.Rule;
-        }
-
-        var result = await RulesData.SetRuleEnabledAsync(RuleId, enabling);
-        _saveResult = result;
-        if (result.Succeeded)
-        {
-            _rule = result.Rule;
-            _enabled = _rule!.Enabled;
-            _explicitTestPassed = false;
-            _testedEdit = null;
-        }
-    }, busy => { _enabling = busy; StateHasChanged(); }, "Couldn't update alert rule state");
+    private Action<bool> BusyForView(long generation, Action<bool> update) => busy =>
+    {
+        if (generation != _viewGeneration) return;
+        update(busy);
+        StateHasChanged();
+    };
 
     private static bool EditsEqual(OperateAlertRuleEdit left, OperateAlertRuleEdit right) =>
         string.Equals(left.RuleId, right.RuleId, StringComparison.Ordinal)

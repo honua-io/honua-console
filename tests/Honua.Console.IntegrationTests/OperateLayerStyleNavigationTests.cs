@@ -72,6 +72,76 @@ public sealed class OperateLayerStyleNavigationTests
             edit => Assert.Equal(new OperateLayerStyleOverrideEdit("second", "shared", PopupInfoJson: "second draft", DrawingInfoJson: ""), edit));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SameLayerParametersPreserveBothDraftsAndDirtyContext(bool enabled)
+    {
+        using var context = Context(enabled);
+        var source = new DelayedOverrides { DelayFirstRead = false };
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
+        var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
+        page.Find("[data-layer-style-popup]").Change("popup draft");
+        page.Find("[data-layer-style-drawing]").Change("drawing draft");
+
+        page.Render(p => p.Add(c => c.ResourceId, "first"));
+
+        Assert.Equal("popup draft", page.Find("[data-layer-style-popup]").GetAttribute("value"));
+        Assert.Equal("drawing draft", page.Find("[data-layer-style-drawing]").GetAttribute("value"));
+        Assert.Equal(["first"], source.Reads);
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SameLayerParametersDoNotRestartPendingRead(bool enabled)
+    {
+        using var context = Context(enabled);
+        var source = new DelayedOverrides();
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
+        var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
+
+        page.Render(p => p.Add(c => c.ResourceId, "first"));
+        Assert.Equal(["first"], source.Reads);
+        await page.InvokeAsync(() => source.FirstRead.SetResult(View("first")));
+        page.WaitForAssertion(() => Assert.Equal("first-popup", page.Find("[data-layer-style-popup]").GetAttribute("value")));
+        Assert.Empty(page.FindAll("[data-layer-style-saved]"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SameLayerParametersPreserveNewerEditsDuringSave(bool enabled)
+    {
+        using var context = Context(enabled);
+        var source = new DelayedOverrides { DelayFirstRead = false };
+        context.Services.AddSingleton<IOperateLayerStyleOverrideDataSource>(source);
+        var page = context.Render<OperateLayerStylePage>(p => p.Add(c => c.ResourceId, "first"));
+        page.Find("[data-layer-style-popup]").Change("submitted popup");
+        var save = page.Find("[data-layer-style-save]").ClickAsync(new());
+        page.Find("[data-layer-style-popup]").Change("newer popup");
+        page.Find("[data-layer-style-drawing]").Change("newer drawing");
+
+        page.Render(p => p.Add(c => c.ResourceId, "first"));
+        Assert.True(page.Find("[data-layer-style-save]").HasAttribute("disabled"));
+        Assert.Equal("newer popup", page.Find("[data-layer-style-popup]").GetAttribute("value"));
+        Assert.Equal("newer drawing", page.Find("[data-layer-style-drawing]").GetAttribute("value"));
+        await page.InvokeAsync(() => source.FirstSave.SetResult(new(true)));
+        await save;
+
+        Assert.Equal("newer popup", page.Find("[data-layer-style-popup]").GetAttribute("value"));
+        Assert.Equal("newer drawing", page.Find("[data-layer-style-drawing]").GetAttribute("value"));
+        Assert.Single(page.FindAll("[data-layer-style-saved]"));
+        Assert.Equal(["first"], source.Reads);
+        Assert.Equal("submitted popup", Assert.Single(source.Edits).PopupInfoJson);
+        var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
+        Assert.Equal(enabled ? 2 : 0, registry.Current.Unsaved.ChangedFieldCount);
+        Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
+    }
+
     private static BunitContext Context(bool enabled)
     {
         var context = new BunitContext();
@@ -92,12 +162,16 @@ public sealed class OperateLayerStyleNavigationTests
     private sealed class DelayedOverrides : IOperateLayerStyleOverrideDataSource
     {
         public bool DelayFirstRead { get; init; } = true;
+        public List<string> Reads { get; } = [];
         public List<OperateLayerStyleOverrideEdit> Edits { get; } = [];
         public TaskCompletionSource<OperateLayerStyleOverrideView> FirstRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<OperateLayerStyleOverrideSaveResult> FirstSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<OperateLayerStyleOverrideSaveResult> SecondSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<OperateLayerStyleOverrideView> GetOverridesAsync(string resourceId, CancellationToken cancellationToken = default) =>
-            resourceId == "first" && DelayFirstRead ? FirstRead.Task : Task.FromResult(View(resourceId));
+        public Task<OperateLayerStyleOverrideView> GetOverridesAsync(string resourceId, CancellationToken cancellationToken = default)
+        {
+            Reads.Add(resourceId);
+            return resourceId == "first" && DelayFirstRead ? FirstRead.Task : Task.FromResult(View(resourceId));
+        }
         public Task<OperateLayerStyleOverrideSaveResult> SaveOverrideAsync(OperateLayerStyleOverrideEdit edit, CancellationToken cancellationToken = default)
         {
             Edits.Add(edit);
