@@ -165,6 +165,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void StateFilterExposesTheSelectedFilterAsPressed(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(new StubGeoprocessingClient
         {
@@ -201,6 +202,7 @@ public sealed partial class OperateGeoprocessingPageTests
     {
         // Succeeded is terminal but not retryable: no Retry, no Cancel.
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
@@ -223,6 +225,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailModeRetryOnFailedJobCallsRetryEndpointAndSurfacesResult(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
@@ -253,6 +256,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void TerminalJobDoesNotOfferCancelWhenDiagnosticsRetainsCancelLink(string state)
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -274,6 +278,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailModeCancelOnRunningJobCallsCancelEndpoint()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -303,6 +308,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailModeSurfacesApprovalRequiredFromForbiddenResult()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -329,6 +335,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void ListModeShowsTruncationIndicatorWhenMoreJobsExist()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed(
@@ -347,6 +354,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailTimelineOffersRetryOnlyWhenTheProjectionAllowsIt()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -368,6 +376,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailTimelineHidesCancelWhenTheProjectionHasNoCancelLink()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(
@@ -424,6 +433,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailTimelineAppendsTheNextEventPageWithoutDroppingTheCursor(bool v4Enabled)
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
         var client = new StubGeoprocessingClient
         {
@@ -456,6 +466,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailTimelineKeepsEarlierEventsWhileALaterPollRefreshesPhaseAndActions()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var releaseLaterProjection = false;
         var client = new StubGeoprocessingClient
         {
@@ -527,6 +538,7 @@ public sealed partial class OperateGeoprocessingPageTests
     public void DetailTimelineRefreshesActionsAfterCancel()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var client = new StubGeoprocessingClient
         {
             Detail = OperateSectionResult<OperateJobRun>.Allowed(

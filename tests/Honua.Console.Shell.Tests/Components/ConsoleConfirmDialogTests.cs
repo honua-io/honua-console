@@ -1,11 +1,17 @@
 using Bunit;
 using Honua.Console.Shell.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace Honua.Console.Shell.Tests.Components;
 
 // Open runs inside InvokeAsync because StateHasChanged must run on the Blazor dispatcher.
 public sealed class ConsoleConfirmDialogTests : ConsoleComponentTestBase
 {
+    public ConsoleConfirmDialogTests()
+    {
+        JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
+    }
+
     [Fact]
     public void Dialog_is_hidden_before_Open_is_called()
     {
@@ -113,12 +119,47 @@ public sealed class ConsoleConfirmDialogTests : ConsoleComponentTestBase
     }
 
     [Fact]
-    public async Task Dialog_has_alertdialog_role_on_inner_container()
+    public async Task Dialog_has_alertdialog_role_and_modal_semantics()
     {
         var cut = Render<ConsoleConfirmDialog>();
 
         await cut.InvokeAsync(() => cut.Instance.Open("Publish?", () => Task.CompletedTask));
 
         Assert.Equal("alertdialog", cut.Find("[aria-modal='true']").GetAttribute("role"));
+    }
+
+    [Fact]
+    public async Task Escape_cancels_without_invoking_the_action()
+    {
+        var calls = 0;
+        var cut = Render<ConsoleConfirmDialog>();
+        await cut.InvokeAsync(() => cut.Instance.Open("Delete?", () => { calls++; return Task.CompletedTask; }));
+
+        cut.Find("dialog").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Empty(cut.FindAll("[data-console-confirm]"));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task Pending_action_blocks_escape_backdrop_and_duplicate_confirmation()
+    {
+        var completion = new TaskCompletionSource();
+        var calls = 0;
+        var cut = Render<ConsoleConfirmDialog>();
+        await cut.InvokeAsync(() => cut.Instance.Open("Delete?", () => { calls++; return completion.Task; }));
+        var confirmation = cut.Find("[data-console-confirm-accept]").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Assert.Equal(1, calls));
+
+        cut.Find("dialog").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        cut.Find("[data-console-confirm]").Click();
+        await cut.Find("[data-console-confirm-accept]").ClickAsync(new MouseEventArgs());
+
+        Assert.NotEmpty(cut.FindAll("[data-console-confirm]"));
+        Assert.All(cut.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
+        Assert.Equal(1, calls);
+        completion.SetResult();
+        await confirmation;
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[data-console-confirm]")));
     }
 }
