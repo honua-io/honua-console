@@ -39,10 +39,10 @@ public sealed class EsriContentImportParserTests
         Assert.Equal(ImportFidelity.Clean, parcels.Fidelity);
         Assert.Equal("parcels/fill", parcels.TargetName);
 
-        // Hydrants: no resolvable source -> manual (needs a data-resource binding).
+        // Hydrants: no resolvable source -> manual (needs a Dataset binding).
         var hydrants = result.Rows.Single(r => r.SourceName == "Hydrants");
         Assert.Equal(ImportFidelity.Manual, hydrants.Fidelity);
-        Assert.Contains("resource", hydrants.Note, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Dataset", hydrants.Note, StringComparison.OrdinalIgnoreCase);
 
         // Land use: uniqueValue + Arcade label -> degrade, with the named reason.
         var landuse = result.Rows.Single(r => r.SourceName == "Land use");
