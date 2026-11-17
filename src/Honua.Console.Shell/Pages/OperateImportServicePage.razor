@@ -308,6 +308,7 @@
 
     private long _sourceRevision;
     private bool _busy;
+    private CancellationTokenSource? _discovery;
     private string? _clientError;
     private ConsoleServiceImportResult? _result;
 
@@ -333,6 +334,8 @@
     private void ClearResult()
     {
         _sourceRevision++;
+        CancelDiscovery();
+        _busy = false;
         _clientError = null;
         _importError = null;
         _result = null;
@@ -371,9 +374,10 @@
 
         _busy = true;
         var revision = _sourceRevision;
+        var discovery = _discovery = new CancellationTokenSource();
         try
         {
-            var result = await ServiceImport.DiscoverAsync(url, auth);
+            var result = await ServiceImport.DiscoverAsync(url, auth, discovery.Token);
             if (revision != _sourceRevision)
             {
                 return;
@@ -385,10 +389,23 @@
                 BuildTree(_result);
             }
         }
+        catch (OperationCanceledException) when (revision != _sourceRevision)
+        {
+        }
         finally
         {
-            _busy = false;
+            if (revision == _sourceRevision) _busy = false;
+            if (ReferenceEquals(_discovery, discovery)) _discovery = null;
+            discovery.Dispose();
         }
+    }
+
+    // A source edit or leaving the page abandons the discovery: cancel its request so it neither keeps
+    // "Discovering…" locked for the new source nor runs on after the page is gone.
+    private void CancelDiscovery()
+    {
+        _discovery?.Cancel();
+        _discovery = null;
     }
 
     private bool TryBuildAuth(out ConsoleServiceImportAuth? auth, out string? error)
@@ -910,6 +927,7 @@
     public void Dispose()
     {
         _sourceRevision++;
+        CancelDiscovery();
         StopPolling();
     }
 
