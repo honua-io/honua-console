@@ -146,6 +146,20 @@ public sealed class ConsoleOperatorBearerProviderTests
         Assert.False(handler.Requests[^1].Headers.Contains("X-Honua-CSRF"));
     }
 
+    [Fact]
+    public async Task HttpExchange_UnreadableCsrfResponse_PostsWithoutCsrfHeader()
+    {
+        var handler = new RecordingHandler(request => request.Method == HttpMethod.Get
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html></html>") }
+            : Json(IssuedBearerBody));
+        var exchange = new HttpConsoleOperatorBearerExchange(new HttpClient(handler));
+
+        var result = await exchange.ExchangeAsync(Profile("env-a"));
+
+        Assert.Equal(ConsoleOperatorBearerExchangeStatus.Issued, result.Status);
+        Assert.False(handler.Requests[^1].Headers.Contains("X-Honua-CSRF"));
+    }
+
     private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(body, Encoding.UTF8, "application/json")

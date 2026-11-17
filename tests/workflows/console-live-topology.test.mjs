@@ -44,7 +44,9 @@ test('the live Console host reaches the server over the TLS listener the bearer 
     .filter(line => line.includes('docker compose') && !line.includes('studio-customer'));
   assert.ok(ordinary.length >= 4);
   for (const line of ordinary) assert.match(line, /-f e2e\/docker-compose\.server-tls\.yml /, line.trim());
-  assert.match(read('e2e/run-live.mjs'), /'docker-compose\.server-tls\.yml'/);
+  const runner = read('e2e/run-live.mjs');
+  assert.match(runner, /'docker-compose\.server-tls\.yml'/);
+  assert.match(runner, /HONUA_SERVER_BASE_URL: CONSOLE_SERVER_URL,/);
   const config = read('e2e/playwright/playwright.live.config.ts');
   assert.match(config, /const LOCAL_TLS_SERVER_URL = 'https:\/\/127\.0\.0\.1:8445';/);
   assert.match(config, /HONUA_SERVER_BASE_URL: CONSOLE_SERVER_URL,/);

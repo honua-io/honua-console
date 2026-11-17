@@ -74,11 +74,18 @@ internal sealed class HttpConsoleOperatorBearerExchange : IConsoleOperatorBearer
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var value = await JsonSerializer.DeserializeAsync(
-            stream,
-            ConsoleOperatorBearerJsonContext.Default.ConsoleServerCsrfResponseWire,
-            cancellationToken).ConfigureAwait(false);
-        return value is { RequestToken.Length: > 0 } ? value.RequestToken : null;
+        try
+        {
+            var value = await JsonSerializer.DeserializeAsync(
+                stream,
+                ConsoleOperatorBearerJsonContext.Default.ConsoleServerCsrfResponseWire,
+                cancellationToken).ConfigureAwait(false);
+            return value is { RequestToken.Length: > 0 } ? value.RequestToken : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static async Task<ConsoleOperatorBearerExchangeResult> ReadExchangeResponseAsync(
