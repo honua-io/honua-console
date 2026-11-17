@@ -265,7 +265,7 @@
     private double CameraZoom => Zoom ?? DefaultCameraZoom;
 
     // A bound map moves its camera (fit to the layer, the zoom buttons), so the caller's initial zoom
-    // no longer describes it; MapLibre's own scale bar reports the live scale instead.
+    // describes only the unbound placeholder; MapLibre's own scale bar reports the live scale.
     private int? DisplayedZoom => _liveMapBound ? null : Zoom;
 
     /// <summary>Toggle the feature labels (layer mode).</summary>
