@@ -529,6 +529,12 @@ export function studioResourceRefs(targets, layers, catalog) {
 }
 
 let activeWorkspace;
+// Studio's manual controls also need the workspace when conversation is unsupported.
+export function getAgentWorkspace() {
+    const workspace = activeWorkspace ||= new AgentWorkspace();
+    Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
+    return workspace;
+}
 const mountedWorkspaceHosts = new WeakSet();
 export function mountWorkspace() {
     const host = document.querySelector('[data-agent-workspace]');
@@ -598,7 +604,7 @@ export function mountWorkspace() {
         target.title = state.context ? `Target ${state.context.targetId}; tenant ${state.context.tenantId ?? 'unbound'}; revision ${state.context.revision}` : '';
 
     };
-    const workspace = activeWorkspace ||= new AgentWorkspace();
+    const workspace = getAgentWorkspace();
     workspace.focusPrompt=()=>host.querySelector('[data-workspace-prompt]')?.focus();
     host.querySelector('[data-workspace-reply-cancel]')?.addEventListener('click',()=>workspace.questionReplies.cancel(),{signal:lifetime.signal});
     host.querySelector('[data-workspace-reply-open]')?.addEventListener('click',()=>workspace.questionReplies.openOriginal()
@@ -646,8 +652,6 @@ export function mountWorkspace() {
     if (connectionPanel) connectionPanel.open = false;
     workspace.sharedStyleProvider ||= () => readSharedStyleFocus(document, workspace.session?.principalId);
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
-    // One session instance lives above route components; embedded Studio receives this same object.
-    Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
     attachConsolePageContext(workspace);
     const report = error => { status.textContent = error.message; };
     const review = new GaSpecReview(workspace);

@@ -4,7 +4,7 @@ import { mountStudioDraftCreate } from './studio-draft-create.mjs';
 import {processTask} from './workflow-task.mjs';
 import { capturedProcessFetch, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal } from './cookie-workspace-transport.mjs';
 import { captureWorkspaceFollow, queueWorkspaceFollow } from './workspace-follow.mjs';
-import { selectedResource, studioResourceRefs } from './agent-workspace.mjs';
+import { getAgentWorkspace, selectedResource, studioResourceRefs } from './agent-workspace.mjs';
 import { mountStudioVersionControls } from './studio-version-controls.mjs';
 import { mountStudioSavedMaps } from './studio-saved-maps.mjs';
 import { mountStudioStyleControls } from './studio-style-controls.mjs';
@@ -89,7 +89,7 @@ async function studioElement(session) {
     // Native process reads use the captured Console transport; legacy hosts omit this binding.
     app.workspaceProcessBinding = session.transport ? {...app.workspaceCookieBinding, transport:session.transport} : undefined;
     app.workspaceSavedMaps?.sessionChanged();
-    app.workspace = window.honuaAgentWorkspace;
+    app.workspace = getAgentWorkspace();
     if (app.workspace) app.workspace.studioBindingProvider = () => app.isConnected ? app.workspaceCookieBinding : undefined;
     if (app.workspace) app.workspace.authorityChangeGuard = () => app.prepareWorkspaceTurn();
     if (app.workspace) app.workspace.studioDesignFocusProvider = () => app.isConnected
