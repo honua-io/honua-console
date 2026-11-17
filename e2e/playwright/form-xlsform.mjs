@@ -15,14 +15,6 @@ const WORKBOOK_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheet
 const BASE = '/api/v1/admin/forms/packages';
 const results = [];
 const cases = [false, true].flatMap(v4 => [1280, 390].map(width => ({ v4, width })));
-try {
-  for (const scenario of cases) await runCase(scenario);
-} finally {
-  await browser.close();
-  await fs.writeFile(`${output}/results.json`, JSON.stringify(results, null, 2));
-}
-assert.equal(results.filter(row => !row.passed).length, 0, 'Every XLSForm case must pass');
-
 function packageVersion({ formId, title, version, status }) {
   return {
     formId, version, status, etag: `"${formId}-${version}"`, createdAt: '2026-11-17T00:00:00Z',
@@ -154,3 +146,11 @@ async function exercise({ page, fixture, row }) {
   assert.equal(fixture.state.exports, 1);
   await page.screenshot({ path: `${prefix}-exported.png`, fullPage: true });
 }
+
+try {
+  for (const scenario of cases) await runCase(scenario);
+} finally {
+  await browser.close();
+  await fs.writeFile(`${output}/results.json`, JSON.stringify(results, null, 2));
+}
+assert.equal(results.filter(row => !row.passed).length, 0, 'Every XLSForm case must pass');
