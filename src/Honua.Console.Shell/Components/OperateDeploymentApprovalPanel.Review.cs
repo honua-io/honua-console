@@ -28,10 +28,11 @@ public partial class OperateDeploymentApprovalPanel
         _busy = true;
         _actionMessage = null;
         var generation = ++_reviewGeneration;
+        var operationGeneration = _operationGeneration;
         try
         {
             var result = await ApprovalClient.OpenSubmitReviewAsync(OperationId);
-            if (generation != _reviewGeneration) return;
+            if (!IsCurrentOperation(operationGeneration) || generation != _reviewGeneration) return;
             if (result.IsAllowed && result.Value is { } opened)
             {
                 _review = opened;
@@ -45,7 +46,7 @@ public partial class OperateDeploymentApprovalPanel
         }
         finally
         {
-            _busy = false;
+            if (IsCurrentOperation(operationGeneration)) _busy = false;
         }
     }
 }
