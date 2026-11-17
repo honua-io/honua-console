@@ -122,7 +122,7 @@
         Unsaved = new() { PendingOperationCount = (_result is null ? 1 : 0) + (_pending ? 1 : 0) }
     };
 
-    // Re-read only when the route names another Export; a reply for an Export no longer shown is dropped.
+    // Re-read only when the route names another Export; a reply for a different Export is dropped.
     protected override async Task OnParametersSetAsync()
     {
         if (ExportId == _loadedExportId)

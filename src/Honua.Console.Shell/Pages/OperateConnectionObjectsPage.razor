@@ -90,7 +90,7 @@
         Unsaved = new() { PendingOperationCount = _result is null ? 1 : 0 }
     };
 
-    // Re-read only when the folder changes; a slow listing for a folder no longer shown is dropped.
+    // Re-read only when the folder changes; a slow listing for another folder is dropped.
     protected override async Task OnParametersSetAsync()
     {
         var target = (ConnectionId, CurrentPrefix);
