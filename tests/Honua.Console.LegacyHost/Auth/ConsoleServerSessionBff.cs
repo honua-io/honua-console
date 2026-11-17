@@ -528,14 +528,15 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 };
             }
 
-            using var authorizeResponse = await PostWithCsrfAsync(
-                partition.Client,
-                profile.ServerBaseUri,
-                $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url",
-                JsonContent.Create(
+            using var authorizeResponse = await new ConsoleServerSessionPost
+            {
+                Client = partition.Client,
+                ServerBaseUri = profile.ServerBaseUri,
+                RelativePath = $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url",
+                Content = JsonContent.Create(
                     new ConsoleServerAuthAuthorizeRequestWire(),
-                    ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthAuthorizeRequestWire),
-                cancellationToken).ConfigureAwait(false);
+                    ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthAuthorizeRequestWire)
+            }.SendAsync(cancellationToken).ConfigureAwait(false);
             if (!authorizeResponse.IsSuccessStatusCode)
             {
                 authorizeResponse.Dispose();
@@ -706,24 +707,6 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
     }
 
-    // A partition that already holds the server session cookie needs the server's CSRF token on
-    // browser-session POSTs (authorize-url, logout); without the cookie the token is harmless.
-    private static async Task<HttpResponseMessage> PostWithCsrfAsync(
-        HttpClient client,
-        Uri serverBaseUri,
-        string relativePath,
-        HttpContent? content,
-        CancellationToken cancellationToken)
-    {
-        var token = await ConsoleServerCsrf.TryGetTokenAsync(client, serverBaseUri, cancellationToken).ConfigureAwait(false);
-        using var request = new HttpRequestMessage(HttpMethod.Post, ConsoleServerHttp.BuildUri(serverBaseUri, relativePath))
-        {
-            Content = content
-        };
-        ConsoleServerCsrf.AddToken(request, token);
-        return await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
-    }
-
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
     {
         var operatorKey = _operatorContext.RequireOperatorKey();
@@ -734,12 +717,12 @@ internal sealed class ConsoleServerSessionBffCoordinator
             {
                 try
                 {
-                    using var response = await PostWithCsrfAsync(
-                        partition.Client,
-                        profile.ServerBaseUri,
-                        "api/v1/admin/auth/logout",
-                        content: null,
-                        cancellationToken).ConfigureAwait(false);
+                    using var response = await new ConsoleServerSessionPost
+                    {
+                        Client = partition.Client,
+                        ServerBaseUri = profile.ServerBaseUri,
+                        RelativePath = "api/v1/admin/auth/logout"
+                    }.SendAsync(cancellationToken).ConfigureAwait(false);
                 }
                 catch (HttpRequestException)
                 {
@@ -1035,3 +1018,27 @@ internal sealed record ConsoleServerAuthTokenRequestWire
 [JsonSerializable(typeof(ConsoleServerAuthAuthorizeResponseWire))]
 [JsonSerializable(typeof(ConsoleServerAuthTokenRequestWire))]
 internal sealed partial class ConsoleServerSessionBffJsonContext : JsonSerializerContext;
+
+// A partition that already holds the server session cookie needs the server's CSRF token on
+// browser-session POSTs (authorize-url, logout); without the cookie the token is harmless.
+internal sealed class ConsoleServerSessionPost
+{
+    public required HttpClient Client { get; init; }
+
+    public required Uri ServerBaseUri { get; init; }
+
+    public required string RelativePath { get; init; }
+
+    public HttpContent? Content { get; init; }
+
+    public async Task<HttpResponseMessage> SendAsync(CancellationToken cancellationToken)
+    {
+        var token = await ConsoleServerCsrf.TryGetTokenAsync(Client, ServerBaseUri, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Post, ConsoleServerHttp.BuildUri(ServerBaseUri, RelativePath))
+        {
+            Content = Content
+        };
+        ConsoleServerCsrf.AddToken(request, token);
+        return await Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+}
