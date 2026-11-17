@@ -102,6 +102,27 @@ public sealed class ConsoleReleaseWitnessClientTests
         Assert.Equal(2, handler.Requests.Count(request => request.RequestUri!.AbsolutePath == "/api/v1/studio/content-items"));
     }
 
+    [Theory]
+    [InlineData("transport")]
+    [InlineData("body")]
+    public async Task ObserveFailureOffersReloadWithoutClientInternalDetail(string failure)
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/v1/admin/version" => Json("{\"data\":{\"sourceRevision\":\"" + new string('a', 40) + "\"}}"),
+            "/api/v1/studio/content-items" when failure == "transport" => throw new HttpRequestException("TypeError: Failed to fetch"),
+            "/api/v1/studio/content-items" => Json("{\"items\":[{\"itemId\":"),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-content", "proposal-1"));
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal("The candidate release evidence could not be read. Reload to try again.", result.Message);
+        Assert.Null(result.Detail);
+    }
+
     private static HttpConsoleReleaseWitnessClient CreateClient(HttpMessageHandler handler)
     {
         var profile = new ConsoleEnvironmentProfile

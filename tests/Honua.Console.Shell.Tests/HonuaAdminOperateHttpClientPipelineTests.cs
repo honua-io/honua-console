@@ -5,8 +5,8 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class HonuaAdminOperateHttpClientPipelineTests
 {
-    private const string Unreachable = "The Honua server endpoint could not be reached: ";
-    private const string EnvelopeMismatch = "The Honua server response did not match the expected admin API shape: ";
+    private const string Unreachable = "The Honua server endpoint could not be reached. Check that the server is running and try again.";
+    private const string EnvelopeMismatch = "The Honua server response did not match the expected admin API shape.";
     private const string MissingData = "The Honua server response did not include data.";
 
     private const string GetEnvelope = "GET envelope";
@@ -58,7 +58,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Throwing(new HttpRequestException("connection refused")));
 
-        AssertIssue(outcome, new("Unavailable", Unreachable + "connection refused", StatusCode: null));
+        AssertIssue(outcome, new("Unavailable", Unreachable, StatusCode: null));
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
     {
         var outcome = await SendAsync(call, ScriptedHttpHandler.Throwing(new TaskCanceledException("timed out")));
 
-        AssertIssue(outcome, new("Unavailable", Unreachable + "timed out", StatusCode: null));
+        AssertIssue(outcome, new("Unavailable", Unreachable, StatusCode: null));
     }
 
     [Theory]
@@ -82,7 +82,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
         var outcome = await pending;
 
         Assert.Equal("Unavailable", outcome.Issue?.State);
-        Assert.StartsWith(Unreachable, outcome.Issue?.Detail);
+        Assert.Equal(Unreachable, outcome.Issue?.Detail);
     }
 
     [Theory]
@@ -185,7 +185,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.OK, "{not json"));
 
         Assert.Equal("Unsupported", outcome.Issue?.State);
-        Assert.StartsWith(EnvelopeMismatch, outcome.Issue?.Detail);
+        Assert.Equal(EnvelopeMismatch, outcome.Issue?.Detail);
         Assert.Equal(200, outcome.Issue?.StatusCode);
     }
 
@@ -195,7 +195,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
         var outcome = await SendAsync(GetEnvelope, ScriptedHttpHandler.Returning(HttpStatusCode.OK));
 
         Assert.Equal("Unsupported", outcome.Issue?.State);
-        Assert.StartsWith(EnvelopeMismatch, outcome.Issue?.Detail);
+        Assert.Equal(EnvelopeMismatch, outcome.Issue?.Detail);
     }
 
     [Theory]
@@ -233,7 +233,7 @@ public sealed class HonuaAdminOperateHttpClientPipelineTests
         var outcome = await SendAsync(call, ScriptedHttpHandler.Returning(HttpStatusCode.OK, "{not json"));
 
         Assert.Equal("Unsupported", outcome.Issue?.State);
-        Assert.StartsWith($"The Honua server response did not match the expected {shape} shape: ", outcome.Issue?.Detail);
+        Assert.Equal($"The Honua server response did not match the expected {shape} shape.", outcome.Issue?.Detail);
         Assert.Equal(200, outcome.Issue?.StatusCode);
     }
 
