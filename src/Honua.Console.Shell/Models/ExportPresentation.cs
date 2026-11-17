@@ -51,6 +51,7 @@ public static partial class ExportPresentation
         "cog" => "Cloud-optimized GeoTIFF",
         "geotiff" => "GeoTIFF",
         "collection" => "Collection document",
+        "other" => "Other",
         _ => string.IsNullOrWhiteSpace(kind) ? "Other" : kind
     };
 

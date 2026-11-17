@@ -64,7 +64,7 @@ public sealed class ExportsDraftGuardTests
 
         var page = fixture.Context.Render<OperateExportsPage>();
 
-        var buttons = page.FindAll("[data-export-unpublish]");
+        var buttons = page.FindAll("tbody tr button");
         Assert.Equal(2, buttons.Count);
         Assert.True(buttons[0].HasAttribute("disabled"));
         Assert.False(buttons[1].HasAttribute("disabled"));
