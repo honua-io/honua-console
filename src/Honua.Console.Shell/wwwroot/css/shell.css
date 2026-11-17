@@ -11,6 +11,8 @@
     border-bottom: var(--accent-line-h) solid var(--c-accent-line);
     background: var(--c-topbar-bg);
     color: var(--c-topbar-text);
+    /* A wrapped second row (long identity, enlarged text) stays with the trailing controls. */
+    justify-content: flex-end;
     container: console-topbar / inline-size;
     /* Size containment makes a stacking context; lift it so open menus stay above page content. */
     position: relative;
@@ -125,8 +127,11 @@
 }
 
 .console-account-identity {
+    min-width: 0;
     max-width: 12rem;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .console-account-control button,
