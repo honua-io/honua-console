@@ -84,6 +84,139 @@ public sealed class ConsoleSettingsV4Tests
         Assert.Equal(baseUri + "operate/settings", new Uri(new Uri(baseUri), link.GetAttribute("href")!).AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PendingReadDoesNotClaimConfigurationIsEmpty(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var response = new TaskCompletionSource<OperateSettingsView>();
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new DelayedSettingsSource(_ => response.Task));
+
+        var page = context.Render<OperateSettingsPage>();
+
+        Assert.Contains("Reading settings", page.Find("[role=status]").TextContent);
+        Assert.Empty(page.FindAll(".console-state-empty,table"));
+        response.SetResult(new([], []));
+        page.WaitForAssertion(() =>
+        {
+            Assert.Empty(page.FindAll("[role=status]"));
+            Assert.Single(page.FindAll(".console-state-empty"));
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedReadCanRetryWithoutExposingExceptionDetails(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var reads = 0;
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new DelayedSettingsSource(_ => ++reads == 1
+            ? Task.FromException<OperateSettingsView>(new HttpRequestException("private diagnostic"))
+            : Task.FromResult(new OperateSettingsView([], []))));
+
+        var page = context.Render<OperateSettingsPage>();
+
+        Assert.Contains("Could not read settings", page.Find("[data-connection-notice]").TextContent);
+        Assert.DoesNotContain("private diagnostic", page.Markup);
+        Assert.Empty(page.FindAll(".console-state-empty,table"));
+        page.Find("[data-connection-notice] button").Click();
+        Assert.Equal(2, reads);
+        Assert.Empty(page.FindAll("[data-connection-notice]"));
+        Assert.Single(page.FindAll(".console-state-empty"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LeavingSettingsCancelsThePendingRead(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var response = new TaskCompletionSource<OperateSettingsView>();
+        CancellationToken requestToken = default;
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new DelayedSettingsSource(token =>
+        {
+            requestToken = token;
+            return response.Task;
+        }));
+        context.Render<OperateSettingsPage>();
+
+        await context.DisposeComponentsAsync();
+
+        Assert.True(requestToken.IsCancellationRequested);
+        response.SetException(new OperationCanceledException(requestToken));
+        await context.Renderer.Dispatcher.InvokeAsync(() => Task.CompletedTask);
+        Assert.False(context.Renderer.UnhandledException.IsCompleted);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingRetryRetainsFailureAndPreventsDuplicateReads(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var retry = new TaskCompletionSource<OperateSettingsView>();
+        var reads = 0;
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new DelayedSettingsSource(_ => ++reads == 1
+            ? Task.FromException<OperateSettingsView>(new HttpRequestException("initial failure"))
+            : retry.Task));
+        var page = context.Render<OperateSettingsPage>();
+        var pendingClick = page.Find("[data-connection-notice] button").ClickAsync(new());
+
+        Assert.Contains("Could not read settings", page.Find("[data-connection-notice]").TextContent);
+        Assert.Contains("Reading settings", page.FindAll("[role=status]").Single(element => element.TextContent.Contains("Reading settings")).TextContent);
+        Assert.Empty(page.FindAll(".console-state-empty,table"));
+        await page.Find("[data-connection-notice] button").ClickAsync(new());
+        Assert.Equal(2, reads);
+        retry.SetException(new HttpRequestException("private retry diagnostic"));
+        await pendingClick;
+
+        Assert.Single(page.FindAll("[data-connection-notice]"));
+        Assert.DoesNotContain("private retry diagnostic", page.Markup);
+        Assert.Empty(page.FindAll(".console-state-empty,table"));
+        Assert.False(page.Find("[data-connection-notice] button").HasAttribute("disabled"));
+        Assert.Null(page.Find("[data-connection-notice] button").GetAttribute("aria-disabled"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RetryPreservesReturnedCapabilityEvidenceWithoutClaimingEmptyConfiguration(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var reads = 0;
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new DelayedSettingsSource(_ => ++reads == 1
+            ? Task.FromException<OperateSettingsView>(new HttpRequestException("initial failure"))
+            : Task.FromResult(new OperateSettingsView([], [
+                new("Settings", "forbidden", "GET /api/v1/admin/version", "Settings access is denied."),
+                new("Services", "unavailable", "Services contract", "Unrelated Services diagnostic.")]))));
+        var page = context.Render<OperateSettingsPage>();
+
+        page.Find("[data-connection-notice] button").Click();
+
+        Assert.Equal(2, reads);
+        Assert.Empty(page.FindAll("[data-connection-notice],.console-state-empty,table"));
+        Assert.Contains("forbidden", page.Markup);
+        Assert.Contains("GET /api/v1/admin/version", page.Markup);
+        Assert.Contains("Settings access is denied.", page.Markup);
+        Assert.DoesNotContain("Unrelated Services diagnostic.", page.Markup);
+    }
+
+    private sealed class DelayedSettingsSource(Func<CancellationToken, Task<OperateSettingsView>> read) : IOperateTransitionDataSource
+    {
+        public Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default) => read(cancellationToken);
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private sealed class HostedNavigationManager : NavigationManager
     {
         public HostedNavigationManager(string baseUri) => Initialize(baseUri, baseUri);

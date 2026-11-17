@@ -44,6 +44,30 @@ public sealed class SceneIngestRequestRenderTests
         Assert.Equal("Edited survey", page.Find("[data-pointcloud-display-name]").GetAttribute("value"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LeavingDuringFileCopyDoesNotSubmitAnIngest(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var client = new RecordingSceneClient();
+        ctx.Services.AddSingleton<IConsoleSceneClient>(client);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var page = ctx.Render<OperateScenesPage>();
+        var file = new DeferredFile();
+        var input = page.FindComponent<InputFile>();
+        await input.InvokeAsync(() => input.Instance.OnChange.InvokeAsync(new InputFileChangeEventArgs([file])));
+        var pending = page.Find("[data-pointcloud-ingest-button]").ClickAsync(new MouseEventArgs());
+        await file.CopyStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await ctx.DisposeComponentsAsync();
+        file.ContinueCopy.SetResult();
+        await pending;
+
+        Assert.Null(client.Request);
+    }
+
     private sealed class DeferredFile : IBrowserFile
     {
         public TaskCompletionSource CopyStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
