@@ -127,7 +127,7 @@
                                         <td>@job.SubmittedAt</td>
                                         <td>
                                             <div class="operate-action-row">
-                                                @if (job.CanCancel)
+                                                @if (CancelOffered(job))
                                                 {
                                                     <button type="button"
                                                         class="console-button console-button-secondary"
@@ -191,7 +191,7 @@
             else
             {
                 <JobDiagnosticsTimeline View="_diagnostics.Value"
-                    CancelAllowed="job.CanCancel"
+                    CancelAllowed="CancelOffered(job)"
                     Busy="_actionBusy"
                     ReadingEarlier="_diagnosticsReadingEarlier"
                     OnCancel="() => ConfirmCancelJob(job.JobRunId)"
@@ -303,6 +303,10 @@
     private string _actionMessageClass = string.Empty;
     private ConsoleConfirmDialog? _confirm;
 
+    // Jobs whose cancel the server acknowledged. Cancellation completes asynchronously, so the job
+    // can stay Running until the worker stops; Cancel is not offered again meanwhile.
+    private readonly HashSet<string> _cancelRequested = new(StringComparer.Ordinal);
+
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _pollCts;
 
@@ -339,6 +343,7 @@
             var jobs = await OperateClient.GetGeoprocessingJobsAsync();
             if (request != _viewRequest) return;
             _jobs = jobs;
+            ForgetFinishedCancels();
             _listLoaded = true;
         }
 
@@ -366,6 +371,7 @@
         var detail = await OperateClient.GetJobDetailAsync(jobId);
         if (request != _viewRequest) return false;
         _detail = detail;
+        ForgetFinishedCancels();
         _detailLoaded = true;
 
         var steps = await OperateClient.GetJobStepsAsync(jobId);
@@ -390,10 +396,44 @@
     }
 
     private Task CancelJobAsync(string jobRunId) =>
-        RunJobActionAsync(jobRunId, OperateClient.CancelJobAsync, "Cancel requested.");
+        RunJobActionAsync(jobRunId, RequestCancelAsync, "Cancel requested.");
 
     private Task RetryJobAsync(string jobRunId) =>
-        RunJobActionAsync(jobRunId, OperateClient.RetryJobAsync, "Retry requested.");
+        RunJobActionAsync(jobRunId, RequestRetryAsync, "Retry requested.");
+
+    // A job seen in a terminal state has no pending cancel left; a later retry (from any client)
+    // starts an attempt that can be cancelled again.
+    private void ForgetFinishedCancels() =>
+        _cancelRequested.ExceptWith(AllJobs.Append(_detail?.Value)
+            .OfType<OperateJobRun>()
+            .Where(job => OperateJobStatuses.IsTerminal(job.Status.State))
+            .Select(job => job.JobRunId.Trim()));
+
+    private bool CancelOffered(OperateJobRun job) =>
+        job.CanCancel && !_cancelRequested.Contains(job.JobRunId.Trim());
+
+    private async Task<OperateSectionResult<OperateJobControlOutcome>> RequestCancelAsync(string jobRunId, CancellationToken cancellationToken)
+    {
+        var result = await OperateClient.CancelJobAsync(jobRunId, cancellationToken);
+        if (result.IsAllowed && result.Value is not null)
+        {
+            _cancelRequested.Add(jobRunId.Trim());
+        }
+
+        return result;
+    }
+
+    // A retried job starts a new attempt that can be cancelled again.
+    private async Task<OperateSectionResult<OperateJobControlOutcome>> RequestRetryAsync(string jobRunId, CancellationToken cancellationToken)
+    {
+        var result = await OperateClient.RetryJobAsync(jobRunId, cancellationToken);
+        if (result.IsAllowed && result.Value is not null)
+        {
+            _cancelRequested.Remove(jobRunId.Trim());
+        }
+
+        return result;
+    }
 
     private async Task RunJobActionAsync(
         string jobRunId,
@@ -431,6 +471,7 @@
                     var diagnostics = await OperateClient.GetJobDiagnosticsAsync(jobRunId);
                     if (request != _viewRequest) return;
                     _detail = detail;
+                    ForgetFinishedCancels();
                     ApplyDiagnostics(diagnostics);
                 }
                 else
@@ -438,6 +479,7 @@
                     var jobs = await OperateClient.GetGeoprocessingJobsAsync();
                     if (request != _viewRequest) return;
                     _jobs = jobs;
+                    ForgetFinishedCancels();
                 }
 
                 StartPolling();
@@ -549,6 +591,7 @@
                     {
                         if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;
                         _detail = detail;
+                        ForgetFinishedCancels();
                         _steps = steps;
                         _stepsLoaded = true;
                         ApplyDiagnostics(diagnostics);
@@ -568,6 +611,7 @@
                     {
                         if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;
                         _jobs = jobs;
+                        ForgetFinishedCancels();
                         StateHasChanged();
                     });
                 }

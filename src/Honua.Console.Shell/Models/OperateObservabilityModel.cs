@@ -510,7 +510,10 @@ public sealed record OperateJobRun(
     public OperateJobIdentity EffectiveIdentity => Identity ?? OperateJobIdentity.Empty;
 
     // The server remains the authority and rejects a denied cancel; this only controls the affordance.
-    public bool CanCancel => !OperateJobStatuses.IsTerminal(Status.State);
+    // A cancel action the server lists as not allowed (for example, one already requested) is not offered.
+    public bool CanCancel =>
+        !OperateJobStatuses.IsTerminal(Status.State)
+        && !AllowedActions.Any(action => string.Equals(action.Label, "Cancel", StringComparison.Ordinal) && !action.IsAllowed);
 
     // Only a failed or cancelled job can be retried; other states get 409 from the server.
     public bool CanRetry =>
