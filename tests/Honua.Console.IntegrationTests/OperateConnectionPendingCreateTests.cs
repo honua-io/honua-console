@@ -112,6 +112,27 @@ public sealed class OperateConnectionPendingCreateTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task DisposedSuccessfulCreateKeepsTheCurrentRoute(bool enabled)
+    {
+        using var context = Context(enabled, "/console/");
+        var operations = RegisterPendingCreate(context);
+        var page = RenderValidConnectionDraft(context);
+        var pending = CreateButton(page).ClickAsync(new());
+        Assert.Single(operations.CreatedCommands);
+        await context.DisposeComponentsAsync();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("operate/services");
+
+        operations.Create.SetResult(CreatedConnection());
+        await pending;
+
+        Assert.Equal("http://localhost/console/operate/services", navigation.Uri);
+        Assert.Single(operations.CreatedCommands);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task UnchangedRejectedCreateKeepsTheCurrentFieldErrors(bool enabled)
     {
         using var context = Context(enabled);

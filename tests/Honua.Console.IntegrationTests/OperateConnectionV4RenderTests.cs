@@ -123,6 +123,28 @@ public sealed class OperateConnectionV4RenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisposedConnectionTestDoesNotStartAnotherRead(bool enabled)
+    {
+        using var context = Context(enabled);
+        var operations = new Operations();
+        var source = new Source();
+        context.Services.AddSingleton<IConsoleConnectionCreateOperation>(operations);
+        context.Services.AddSingleton<IOperateTransitionDataSource>(source);
+        var page = context.Render<OperateConnectionDetailPage>(p => p.Add(c => c.ConnectionId, Connection.Id));
+        Assert.Equal(1, source.Loads);
+        var pending = page.Find("button").ClickAsync(new());
+
+        await context.DisposeComponentsAsync();
+        operations.Test.SetResult(ConsoleConnectionTestOutcome.MissingBinding("Completed after leaving"));
+        await pending;
+
+        Assert.Equal([Connection.Id], operations.TestedConnections);
+        Assert.Equal(1, source.Loads);
+    }
+
     [Fact]
     public void DetailPublishesPendingTestUntilCompletion()
     {
