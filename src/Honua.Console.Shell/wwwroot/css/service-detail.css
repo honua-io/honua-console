@@ -13,7 +13,7 @@ dl.console-protocols {
 
 .console-protocol-pill {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: var(--space-2);
     min-width: 0;
     max-width: 100%;
@@ -21,34 +21,43 @@ dl.console-protocols {
     border: 1px solid var(--c-border);
     border-radius: var(--radius-pill);
     font-size: var(--text-sm);
-    white-space: nowrap;
 }
 
+/* The name and its values share a row. While a pill fits it stays on one line; when it does not, the
+   status and URL wrap within the values column instead of being cut off, so the whole endpoint URL stays
+   readable and selectable on a phone or with enlarged text. */
 .console-protocol-pill dt {
-    flex-shrink: 0;
+    flex: 0 0 auto;
     max-width: 50%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .console-protocol-pill dd {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-2);
     min-width: 0;
+    margin: 0;
+}
+
+.console-protocol-pill strong,
+.console-protocols .console-protocol-pill small {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .console-protocols .console-protocol-pill small {
     margin: 0;
     color: var(--c-text-3);
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.console-protocol-pill strong {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+@media (max-width: 640px) {
+    .console-protocol-pill {
+        border-radius: var(--radius-md);
+    }
 }
 
 .console-data-controls input[type="checkbox"] {

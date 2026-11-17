@@ -242,6 +242,24 @@ public sealed class AdminContractClientPipelineTests
             failure.Issue?.Detail);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, "grants must contain unique, supported permission keys.")]
+    [InlineData(HttpStatusCode.Conflict, "Role name 'Editors' is already in use. Role names must be unique across workspaces.")]
+    public async Task RbacWriteRejection_PrefersTheServerMessage(HttpStatusCode status, string message)
+    {
+        var body = $$"""{"success":false,"data":null,"message":"{{message}}"}""";
+        using var creating = new HonuaConsoleRbacHttpClient(
+            Http(ScriptedHttpHandler.Returning(status, body)), new HonuaConsoleRbacClientOptions(BaseUri, "key"));
+        using var deleting = new HonuaConsoleRbacHttpClient(
+            Http(ScriptedHttpHandler.Returning(status, body)), new HonuaConsoleRbacClientOptions(BaseUri, "key"));
+
+        var created = await creating.CreateRoleAsync("ws-1", new HonuaConsoleRoleWriteRequest { Name = "Editors" });
+        var deleted = await deleting.DeleteRoleAsync("ws-1", "role-1");
+
+        Assert.Equal(("Rejected", message), (created.Issue?.State, created.Issue?.Detail));
+        Assert.Equal(("Rejected", message), (deleted.Issue?.State, deleted.Issue?.Detail));
+    }
+
     [Fact]
     public async Task FormPackagePublishRejection_CarriesTheValidationResult()
     {
