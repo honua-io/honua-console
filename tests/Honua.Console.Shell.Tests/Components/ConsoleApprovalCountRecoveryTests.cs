@@ -8,17 +8,21 @@ namespace Honua.Console.Shell.Tests.Components;
 
 public sealed partial class ConsoleApprovalCountTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task IncompleteRead_RecoversWithoutNavigationOrProposalEvent(bool partial)
+    [Fact]
+    public Task PartialRead_RecoversWithoutNavigationOrProposalEvent() =>
+        AssertIncompleteReadRecoversAsync(Count(0) with { PartialResult = true });
+
+    [Fact]
+    public Task UnavailableRead_RecoversWithoutNavigationOrProposalEvent() =>
+        AssertIncompleteReadRecoversAsync(
+            OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Unavailable, "Offline"));
+
+    private async Task AssertIncompleteReadRecoversAsync(OperateSectionResult<ApprovalInboxSnapshot> incomplete)
     {
         var clock = new RecoveryClock();
         Services.AddSingleton<TimeProvider>(clock);
         var (inbox, _) = Register();
-        inbox.Read = _ => Task.FromResult(partial
-            ? Count(0) with { PartialResult = true }
-            : OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Unavailable, "Offline"));
+        inbox.Read = _ => Task.FromResult(incomplete);
         var component = Render<ConsoleApprovalCount>();
         Assert.Empty(component.FindAll("[data-count]"));
         inbox.Read = _ => Task.FromResult(Count(12));

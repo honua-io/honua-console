@@ -55,14 +55,20 @@ public sealed class ConsoleConnectedHomeTests
         });
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RolloutSwitch_CompleteQueueCapturesPresentationPreview(bool enabled)
+    [Fact]
+    public void V4CompleteQueue_CapturesPresentationPreview() =>
+        CaptureCompleteQueuePreview(new ConsoleV4Options { Enabled = true });
+
+    [Fact]
+    public void LegacyCompleteQueue_CapturesPresentationPreview() =>
+        CaptureCompleteQueuePreview(new ConsoleV4Options { Enabled = false });
+
+    private static void CaptureCompleteQueuePreview(ConsoleV4Options options)
     {
+        var enabled = options.Enabled;
         var snapshot = FakeProposalFactory.Snapshot(FakeProposalFactory.Summary("pending", ConsoleProposalKind.Deploy));
         using var context = CreateContext(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(snapshot));
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(options);
         var home = context.Render<ConsoleHomePage>();
 
         home.WaitForAssertion(() =>
