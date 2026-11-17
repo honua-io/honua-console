@@ -322,6 +322,7 @@
         _lookup = null;
         _republishTitle = string.Empty;
         _lookupGeneration++;
+        _busy = false;
         _lookingUp = false;
         OnLookupEdit();
         if (!string.IsNullOrWhiteSpace(publicationId)) await LoadLookupAsync();
@@ -412,7 +413,7 @@
                 _lookup = lookup;
                 _republishTitle = string.Empty;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: BusyFor(generation),
             failureMessage: "Couldn't release the new version",
             onSuccess: "New version released.");
     }
@@ -433,10 +434,17 @@
                 var lookup = await PublishingData.RollbackAsync(resourceId, command);
                 if (generation == _lookupGeneration) _lookup = lookup;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: BusyFor(generation),
             failureMessage: "Couldn't restore the previous version",
             onSuccess: "Previous version restored.");
     }
+
+    private Action<bool> BusyFor(int generation) => busy =>
+    {
+        if (_disposed || generation != _lookupGeneration) return;
+        _busy = busy;
+        StateHasChanged();
+    };
 
     public void Dispose()
     {

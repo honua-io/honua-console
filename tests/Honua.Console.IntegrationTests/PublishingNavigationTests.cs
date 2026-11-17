@@ -130,6 +130,7 @@ public sealed partial class PublishingNavigationTests
         public CancellationToken WorkspaceToken { get; private set; }
         public CancellationToken LookupToken { get; private set; }
         public TaskCompletionSource<PublishingLookupResult> Republish { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Dictionary<string, TaskCompletionSource<PublishingLookupResult>> PendingRepublishes { get; } = [];
         public List<string> Lookups { get; } = [];
         public List<string> Writes { get; } = [];
         public Task<PublishingWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
@@ -148,7 +149,7 @@ public sealed partial class PublishingNavigationTests
         public Task<PublishingLookupResult> RepublishAsync(string publicationId, PublishingRepublishCommand command, CancellationToken cancellationToken = default)
         {
             Writes.Add(publicationId);
-            return Republish.Task;
+            return PendingRepublishes.GetValueOrDefault(publicationId, Republish).Task;
         }
         public Task<PublishingLookupResult> RollbackAsync(string publicationId, PublishingRollbackCommand command, CancellationToken cancellationToken = default)
         {
