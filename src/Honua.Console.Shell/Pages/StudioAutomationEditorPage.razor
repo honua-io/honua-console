@@ -1,6 +1,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @page "/studio/automations/new"
 @page "/studio/automations/{DraftId}"
+@implements IDisposable
 @using Honua.Console.Shell.Validation
 @inject ICollectAutomationClient Automations
 @inject NavigationManager Navigation
@@ -498,6 +499,8 @@
         actions.RemoveAt(actionIndex);
         OnEdit();
     }
+
+    public void Dispose() => _pageGeneration++;
 
     private static bool SaveProducedVersion(CollectAutomationSaveResult save) =>
         save.BindingState is null && !string.IsNullOrWhiteSpace(save.VersionId);
