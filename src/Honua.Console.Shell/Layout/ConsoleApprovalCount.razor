@@ -9,7 +9,9 @@
 
 @code {
     private readonly CancellationTokenSource _lifetime = new();
-    private IConsoleProposalRealtimeClient? _realtime;
+    private ConsoleProposalSubscription? _updates;
+    private ConsoleEnvironmentSubscription? _environment;
+    private AuthenticationStateProvider? _authentication;
     private int? _count;
     private bool _partial;
     private int _readRevision;
@@ -18,23 +20,13 @@
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
-        _realtime = Services.GetService<IConsoleProposalRealtimeClient>();
-        if (_realtime is not null) _realtime.ProposalChanged += OnProposalChanged;
-        _ = StartRealtimeAsync();
+        _authentication = Services.GetService<AuthenticationStateProvider>();
+        _environment = new ConsoleEnvironmentSubscription(Services.GetService<IConsoleEnvironmentProfileStore>(),
+            _authentication, OnAuthorityChanged);
+        _updates = new ConsoleProposalSubscription(Services.GetService<IConsoleProposalRealtimeClient>(),
+            new ConsoleProposalObservers(OnProposalChanged, _ => { }, OnRefreshRequiredAsync));
+        _ = _updates.StartAsync(_lifetime.Token);
         _ = RefreshAndRenderAsync();
-    }
-
-    private async Task StartRealtimeAsync()
-    {
-        if (_realtime is null) return;
-        try
-        {
-            await _realtime.StartAsync(_lifetime.Token);
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-            return;
-        }
     }
 
     private async Task RefreshAndRenderAsync()
@@ -43,33 +35,73 @@
         if (!_disposed) await InvokeAsync(StateHasChanged);
     }
 
-    private async Task RefreshAsync()
+    private async Task<bool> RefreshAsync()
     {
-        if (_disposed) return;
+        if (_disposed) return false;
         var revision = ++_readRevision;
         _count = null;
+        var token = _lifetime.Token;
+        if (_authentication is not null)
+        {
+            AuthenticationState authentication;
+            try
+            {
+                authentication = await (_environment?.AuthenticationState ?? _authentication.GetAuthenticationStateAsync()).WaitAsync(token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                return false;
+            }
+            if (_disposed || revision != _readRevision || authentication.User.Identity?.IsAuthenticated != true) return false;
+        }
         var inbox = Services.GetService<IConsoleApprovalInboxClient>();
-        if (inbox is null) return;
+        if (inbox is null) return false;
         var result = await ConsoleReadBudget.RunAsync(
-            token => inbox.GetInboxAsync(cancellationToken: token), ConsoleReadBudget.Default,
-            "The approval count is unavailable.", _lifetime.Token);
-        if (_disposed || revision != _readRevision) return;
+            cancellation => inbox.GetInboxAsync(cancellationToken: cancellation), ConsoleReadBudget.Default,
+            "The approval count is unavailable.", token);
+        if (_disposed || revision != _readRevision) return false;
         if (result.IsAllowed && result.Value is { } snapshot)
         {
             _count = snapshot.AwaitingApprovalCount;
             _partial = result.PartialResult;
+            return !result.PartialResult;
         }
+        return false;
     }
 
+    private Task OnRefreshRequiredAsync() => _disposed ? Task.CompletedTask : InvokeAsync(async () =>
+    {
+        var refresh = RefreshAsync();
+        StateHasChanged();
+        var reconciled = await refresh;
+        if (!_disposed) StateHasChanged();
+        if (!reconciled) throw new IOException("The approval count could not be reconciled.");
+    });
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => QueueRefresh();
     private void OnProposalChanged(ConsoleProposalEvent proposal) => QueueRefresh();
-    private void QueueRefresh() => _ = InvokeAsync(RefreshAndRenderAsync);
+    private void OnAuthorityChanged()
+    {
+        if (_disposed) return;
+        // Invalidate before dispatching, so an earlier read cannot commit for the previous authority.
+        _readRevision++;
+        QueueRefresh();
+    }
+    private void QueueRefresh()
+    {
+        if (!_disposed) _ = InvokeAsync(async () =>
+        {
+            var refresh = RefreshAndRenderAsync();
+            StateHasChanged();
+            await refresh;
+        });
+    }
 
     public void Dispose()
     {
         _disposed = true;
         Navigation.LocationChanged -= OnLocationChanged;
-        if (_realtime is not null) _realtime.ProposalChanged -= OnProposalChanged;
+        _environment?.Dispose();
+        _updates?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }
