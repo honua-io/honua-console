@@ -112,7 +112,15 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // Drive the real console service-config UI to add WMS/WFS/WMTS/OData on top of the default protocols,
     // then confirm honua-server persisted the change (read back through the admin settings endpoint).
     await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
-    await expect(page.locator('[data-service-config]')).toBeVisible();
+    // v4 moves the protocol editor under a Protocols tab; the legacy layout keeps [data-service-config].
+    const protocolsTab = page.locator('#service-protocols-tab');
+    await expect(page.locator('[data-service-config], #service-protocols-tab').first()).toBeVisible();
+    if (await protocolsTab.count() > 0) {
+      await expect(async () => {
+        await protocolsTab.click();
+        await expect(protocolsTab).toHaveAttribute('aria-selected', 'true', { timeout: 2_000 });
+      }).toPass({ timeout: 15_000 });
+    }
     await expect(page.locator('[data-protocol="FeatureServer"]')).toBeChecked();
 
     for (const protocol of ['Wms', 'Wfs20', 'Wmts', 'OData', 'OgcFeatures']) {
