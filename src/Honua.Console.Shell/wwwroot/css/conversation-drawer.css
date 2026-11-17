@@ -1,4 +1,7 @@
 .console-conversation-toggle {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     min-height: 44px;
     padding: .5rem .75rem;
     border: 1px solid var(--honua-border);
