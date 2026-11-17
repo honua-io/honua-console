@@ -9526,3 +9526,30 @@ button.console-chip:focus-visible {
         animation: none !important;
     }
 }
+
+/* Global, not *.razor.css: the static index links no scoped-CSS bundle. */
+[data-discovery-metadata] {
+    min-width: 0;
+}
+
+[data-discovery-resource],
+[data-discovery-impact] li {
+    overflow-wrap: anywhere;
+}
+
+[data-discovery-metadata] fieldset {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.console-folder-fields {
+    border: 0;
+    padding: 0;
+    margin: 1rem 0;
+    min-width: 0;
+}
+
+.console-folder-fields legend {
+    font-weight: 600;
+    margin-bottom: 1rem;
+}

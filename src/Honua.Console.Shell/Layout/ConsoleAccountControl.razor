@@ -7,7 +7,8 @@
     <AuthorizeView>
         <Authorized Context="account">
             <div class="console-account-control">
-                <span class="console-account-identity">@(account.User.Identity?.Name ?? account.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Signed in")</span>
+                @{ var identity = account.User.Identity?.Name ?? account.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Signed in"; }
+                <span class="console-account-identity" title="@identity">@identity</span>
                 <button type="button" class="console-button" data-console-signout disabled="@_signingOut"
                         @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
                 @if (_error is not null)
