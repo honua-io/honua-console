@@ -1,5 +1,6 @@
 @page "/operate/connections/{ConnectionId}"
 @page "/operate/connections/{ConnectionId}/diagnostics"
+@implements IDisposable
 @using Honua.Console.Shell.Models
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleConnectionCreateOperation ConnectionOps
@@ -241,6 +242,12 @@
         {
             if (generation == _connectionGeneration) _testing = false;
         }
+    }
+
+    public void Dispose()
+    {
+        _connectionGeneration++;
+        _loadGeneration++;
     }
 
     private static string StatusClass(string status) =>

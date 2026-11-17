@@ -55,12 +55,12 @@ internal static class ConnectionRenderTestSupport
     {
         public TaskCompletionSource<OperateTransitionWorkspace>? Load { get; init; }
         public TaskCompletionSource Requested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int _loads;
+        public int Loads { get; private set; }
         public IReadOnlyList<OperateConnectionSummary> Connections { get; init; } = [Connection];
         public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
         {
             Requested.TrySetResult();
-            return ++_loads == 1 && Load is { } load
+            return ++Loads == 1 && Load is { } load
                 ? load.Task
                 : Task.FromResult(new OperateTransitionWorkspace(Connections, [], [], [], []));
         }
