@@ -55,7 +55,7 @@ async function fixture(phase, run) {
     let onConstruct = () => {};
     const runtime = {
         Map: mapRuntime(phase, maps, () => onConstruct()),
-        NavigationControl: class {},
+        ScaleControl: class {},
         prewarm() {},
         async importScriptInWorkers() {
             if (phase === 'worker') { started.resolve(); await gate.promise; }
@@ -140,7 +140,8 @@ test('reinitializing a bound container releases its previous map', async () => {
 test('a failed initialization releases a partially created map', async () => {
     await fixture('control-error', async ({ init, dispose, maps, releases }) => {
         const container = {};
-        assert.equal(await init(container, { styleUrl: 'https://api.example/styles/first.json' }), false);
+        const options = { styleUrl: 'https://api.example/styles/first.json', showScale: true };
+        assert.equal(await init(container, options), false);
         assert.equal(maps.length, 1);
         assert.equal(maps[0].removed, 1);
         assert.equal(releases(), 1);

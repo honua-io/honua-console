@@ -53,6 +53,24 @@ public sealed class MapPreviewBindingTests
     }
 
     [Fact]
+    public void MapPreview_BoundMap_DropsTheInitialZoomChipButKeepsTheCrs()
+    {
+        using var ctx = new BunitContext();
+        var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/map-preview.js");
+        module.Setup<bool>("init", _ => true).SetResult(true);
+        var cut = ctx.Render<MapPreview>(parameters => parameters
+            .Add(p => p.StyleUrl, "/style.json")
+            .Add(p => p.Crs, "EPSG:3857")
+            .Add(p => p.Zoom, 1));
+
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
+
+        var scale = cut.Find("[data-map-scale]");
+        Assert.Contains("EPSG:3857", scale.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("z 1", scale.TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MapPreview_ClearingStyleWhileImporting_DoesNotInitializeMap()
     {
         using var ctx = new BunitContext();

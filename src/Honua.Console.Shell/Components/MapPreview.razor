@@ -86,14 +86,14 @@
            describes the preview it accompanies instead of asserting a scale, CRS and zoom nothing
            read. The schematic placeholder has no camera and therefore no scale of its own; a caller
            that knows the real figures (a live style, a layer's declared CRS) passes them. *@
-        @if (ScaleText is not null || Crs is not null || Zoom is not null)
+        @if (ScaleText is not null || Crs is not null || DisplayedZoom is not null)
         {
             <div class="map-preview-scale" data-map-scale>
                 @{
                     var chips = new List<string>();
                     if (ScaleText is { Length: > 0 }) chips.Add(ScaleText);
                     if (Crs is { Length: > 0 }) chips.Add(Crs);
-                    if (Zoom is { } zoom) chips.Add($"z {zoom}");
+                    if (DisplayedZoom is { } zoom) chips.Add($"z {zoom}");
                 }
                 @for (var index = 0; index < chips.Count; index++)
                 {
@@ -263,6 +263,10 @@
     private const double DefaultCameraZoom = 14d;
 
     private double CameraZoom => Zoom ?? DefaultCameraZoom;
+
+    // A bound map moves its camera (fit to the layer, the zoom buttons), so the caller's initial zoom
+    // describes only the unbound placeholder; MapLibre's own scale bar reports the live scale.
+    private int? DisplayedZoom => _liveMapBound ? null : Zoom;
 
     /// <summary>Toggle the feature labels (layer mode).</summary>
     [Parameter]
