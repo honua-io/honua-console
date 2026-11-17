@@ -66,6 +66,10 @@ public sealed class OperateObservabilityTestcontainersTests
                 .WithNetwork(network)
                 .WithPortBinding(8080, assignRandomHostPort: true)
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Test")
+                // appsettings.Test.json turns these experimental warehouse providers on, and the
+                // PostGIS-only serving image refuses to start with any additional data store enabled.
+                .WithEnvironment("Experimental__Features__RedshiftProvider", "false")
+                .WithEnvironment("Experimental__Features__SnowflakeProvider", "false")
                 .WithEnvironment("HONUA_DEV_AUTH", "true")
                 .WithEnvironment("HONUA_DEV_AUTH_ALLOW_BYPASS", "true")
                 // Alert processing refuses to start with tenant resolution on (the server
