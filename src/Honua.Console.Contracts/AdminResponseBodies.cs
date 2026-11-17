@@ -12,7 +12,8 @@ internal interface IAdminResponseEnvelope<out T>
     string? Message { get; }
 }
 
-// Mismatch is the operator-facing prefix of a JSON shape failure; the parser message follows it.
+// Mismatch is the operator-facing sentence of a JSON shape failure; the parser message (reader path and
+// byte position) is client-internal and is not shown.
 internal sealed record AdminBodyFormat(JsonSerializerOptions Json, AdminBodyRead Read, string Mismatch);
 
 internal abstract class AdminBodyRead
@@ -93,9 +94,9 @@ internal static class AdminResponseBodies
             {
                 body = await format.Read.ReadAsync<TBody>(response, format.Json, cancellationToken).ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            catch (JsonException)
             {
-                return context.Unsupported<T>($"{format.Mismatch}: {ex.Message}");
+                return context.Unsupported<T>($"{format.Mismatch}.");
             }
 
             return interpret(body, context);

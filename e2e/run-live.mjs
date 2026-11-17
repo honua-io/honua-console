@@ -25,6 +25,7 @@ const REPO_ROOT = join(SCRIPT_DIR, '..');
 const COMPOSE_ARGS = [
   '-f', join(SCRIPT_DIR, 'docker-compose.yml'),
   '-f', join(SCRIPT_DIR, 'docker-compose.auth.yml'),
+  '-f', join(SCRIPT_DIR, 'docker-compose.server-tls.yml'),
 ];
 if (process.env.HONUA_CONSOLE_E2E_NATIVE_PROBE === 'true') {
   COMPOSE_ARGS.push('-f', join(SCRIPT_DIR, 'docker-compose.native-probe.yml'));
@@ -36,6 +37,10 @@ const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1
 const ADMIN_KEY  = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY  ?? 'honua-console-dev-key';
 const CONSOLE_PORT = process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5274';
 const CONSOLE_BASE = `http://127.0.0.1:${CONSOLE_PORT}`;
+// The Console host's bearer exchange needs HTTPS (docker-compose.server-tls.yml); the
+// specs' direct API calls keep SERVER_URL. Trust the test certificate next to the system store.
+const CONSOLE_SERVER_URL = process.env.HONUA_CONSOLE_E2E_CONSOLE_SERVER_URL ?? 'https://127.0.0.1:8445';
+const CONSOLE_CERT_DIR = `${process.env.SSL_CERT_DIR ?? '/etc/ssl/certs'}:${join(SCRIPT_DIR, 'playwright', 'live-auth', 'certs')}`;
 
 if (!process.env.HONUA_CONSOLE_E2E_SERVER_IMAGE) {
   console.error('[e2e-live] Set HONUA_CONSOLE_E2E_SERVER_IMAGE to the chosen immutable server image.');
@@ -119,7 +124,7 @@ if (upCode !== 0) {
 // so we pre-start the Console here with the correct HONUA_SERVER_BASE_URL so Playwright's
 // URL check finds it live. We spawn dotnet directly (not via shell) to avoid cmd.exe issues
 // in Git Bash / Unix-like environments on Windows.
-console.log(`\n[e2e-live] starting Console on ${CONSOLE_BASE} (server → ${SERVER_URL})...`);
+console.log(`\n[e2e-live] starting Console on ${CONSOLE_BASE} (server → ${CONSOLE_SERVER_URL})...`);
 const CONSOLE_PROJECT = join(REPO_ROOT, 'tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj');
 const consoleProcOptions = {
   stdio: 'inherit',
@@ -129,7 +134,8 @@ const consoleProcOptions = {
     ASPNETCORE_ENVIRONMENT: 'Development',
     DOTNET_CLI_TELEMETRY_OPTOUT: '1',
     ASPNETCORE_URLS: CONSOLE_BASE,          // belt-and-suspenders alongside --urls arg below
-    HONUA_SERVER_BASE_URL: SERVER_URL,
+    HONUA_SERVER_BASE_URL: CONSOLE_SERVER_URL,
+    SSL_CERT_DIR: CONSOLE_CERT_DIR,
     // Same as playwright.live.config.ts: the Console host gets no service key. Privileged
     // browser calls go through the governed operator bearer; only the verifier uses ADMIN_KEY.
     HONUA_ADMIN_API_KEY: '',
@@ -162,6 +168,7 @@ try {
       env: {
         ...process.env,
         HONUA_CONSOLE_E2E_SERVER_URL: SERVER_URL,
+        HONUA_CONSOLE_E2E_CONSOLE_SERVER_URL: CONSOLE_SERVER_URL,
         HONUA_CONSOLE_E2E_ADMIN_KEY:  ADMIN_KEY,
         HONUA_CONSOLE_E2E_LIVE_PORT:  CONSOLE_PORT,
       },

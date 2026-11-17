@@ -52,6 +52,38 @@ public sealed class UnsavedChangesGuardTests
         Assert.Equal(NavigationState.Succeeded, nav.History.Last().State);
     }
 
+    [Theory]
+    [InlineData("/studio/forms/edit?form=a")]
+    [InlineData("/studio/forms/edit?form=a#fields")]
+    public void Dirty_NavigationToTheCurrentUrl_KeepsTheDraftWithoutPrompting(string target)
+    {
+        using var ctx = CreateContext();
+        var nav = Nav(ctx);
+        nav.NavigateTo("/studio/forms/edit?form=a");
+        ctx.Render<UnsavedChangesGuard>(parameters => parameters
+            .Add(p => p.IsDirty, true));
+
+        nav.NavigateTo(target);
+
+        Assert.Equal(NavigationState.Succeeded, nav.History.First().State);
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "confirm");
+    }
+
+    [Fact]
+    public void Dirty_QueryChangeOnTheSamePath_StillPrompts()
+    {
+        using var ctx = CreateContext();
+        ctx.JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        var nav = Nav(ctx);
+        nav.NavigateTo("/studio/forms/edit?form=a");
+        ctx.Render<UnsavedChangesGuard>(parameters => parameters
+            .Add(p => p.IsDirty, true));
+
+        nav.NavigateTo("/studio/forms/edit?form=b");
+
+        Assert.Equal(NavigationState.Prevented, nav.History.First().State);
+    }
+
     [Fact]
     public void Clean_NeverPromptsAndAllowsNavigation()
     {

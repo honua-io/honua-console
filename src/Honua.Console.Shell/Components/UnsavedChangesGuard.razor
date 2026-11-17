@@ -48,7 +48,11 @@
 
     private async ValueTask OnLocationChangingAsync(LocationChangingContext context)
     {
-        if (!IsDirty)
+        // The same URL keeps the same page component, so nothing would be discarded. A different
+        // query still prompts: an editor may load another record from it. The workflow and automation
+        // editors reload on every parameter set and rely on Blazor skipping an unchanged string
+        // parameter; a page that reloads on a same-URL render must not use this guard as is.
+        if (!IsDirty || IsCurrentUrl(context.TargetLocation))
         {
             return;
         }
@@ -59,6 +63,13 @@
             context.PreventNavigation();
         }
     }
+
+    private bool IsCurrentUrl(string target) =>
+        string.Equals(WithoutFragment(Navigation.ToAbsoluteUri(target).AbsoluteUri),
+            WithoutFragment(Navigation.ToAbsoluteUri(Navigation.Uri).AbsoluteUri), StringComparison.Ordinal);
+
+    private static string WithoutFragment(string uri) =>
+        uri.IndexOf('#') is var hash and >= 0 ? uri[..hash] : uri;
 
     private async Task<bool> ConfirmAsync()
     {

@@ -98,17 +98,30 @@
             _settingsChanges = view.SettingsChanges;
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Settings");
             _loadError = null;
+            if (_settingsChanges.Count == 0 && _states.Count > 0 && _states.All(IsReadFailure))
+            {
+                _states = Array.Empty<OperateCapabilityState>();
+                _loadError = ReadFailedMessage;
+            }
         }
         catch (Exception) when (_disposed) { }
         catch (Exception)
         {
-            _loadError = "The settings request did not complete. Retry to read the current configuration.";
+            _loadError = ReadFailedMessage;
         }
         finally
         {
             if (!_disposed) _loading = false;
         }
     }
+
+    private const string ReadFailedMessage = "The settings request did not complete. Retry to read the current configuration.";
+
+    // A transport failure carries no HTTP status; a malformed success body is "Unsupported" with a 2xx
+    // status. Both mean the read did not complete, so show the retry notice instead of raw client text.
+    private static bool IsReadFailure(OperateCapabilityState state) =>
+        (string.Equals(state.State, "Unavailable", StringComparison.OrdinalIgnoreCase) && state.StatusCode is null)
+        || (string.Equals(state.State, "Unsupported", StringComparison.OrdinalIgnoreCase) && state.StatusCode is >= 200 and < 300);
 
     public void Dispose()
     {

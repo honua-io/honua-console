@@ -16,7 +16,6 @@ public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageD
     private const string OfflineContract = "GET /api/v1/forms/packages/{formId}/offline-policy";
     private const string GenProvidersContract = "GET /api/v1/admin/forms/packages/generation/providers";
     private const string GenerateContract = "POST /api/v1/admin/forms/packages/generate";
-    private const string ImportXlsFormContract = "POST /api/v1/admin/forms/packages/import-xlsform";
 
     private readonly IHonuaFormPackageClient _client;
 

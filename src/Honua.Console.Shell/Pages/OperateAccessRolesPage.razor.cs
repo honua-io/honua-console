@@ -78,8 +78,13 @@ public partial class OperateAccessRolesPage
             _newRoleName = string.Empty;
             _newRoleDescription = string.Empty;
             _newRoleGrants.Clear();
-            // Default a sensible baseline grant so a new role is never empty.
-            _newRoleGrants.Add("view");
+            // Default the server's first (baseline) permission so a new role is never empty. Only listed keys
+            // may be sent: the server refuses the whole request for an unknown one, and the operator could not
+            // see or untick a key that has no checkbox.
+            if (_overview?.Permissions.FirstOrDefault() is { } baseline)
+            {
+                _newRoleGrants.Add(baseline.Key);
+            }
         }
     }
 

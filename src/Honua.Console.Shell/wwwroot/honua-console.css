@@ -5764,7 +5764,9 @@ p {
     background: #eef3ee;
 }
 
-.map-preview-canvas {
+/* Stage-qualified so it outranks `.maplibregl-map { position: relative }`, which map-preview.js
+   loads after this file; the map container otherwise collapses to 0 px. */
+.map-preview-stage .map-preview-canvas {
     position: absolute;
     inset: 0;
     z-index: 1;
@@ -7362,16 +7364,20 @@ p {
    against the --honua-* tokens with `console-field-state` BEM classes (not the wireframe's raw fs-*
    palette). Rendered by Components/FieldStateRow.razor. */
 .console-field-state {
-    display: grid;
-    grid-template-columns: 22px minmax(140px, 200px) 1fr auto;
-    align-items: start;
+    /* A wrapping row rather than a fixed grid: in a narrow host (report inspector, 390px) the
+       control drops below its label instead of shrinking to a sliver, and the pill stays inside. */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     column-gap: 12px;
+    row-gap: 4px;
     padding: 8px 0;
     border-bottom: 1px dashed var(--honua-surface-strong);
     font-size: 0.9rem;
 }
 
 .console-field-state__icon {
+    flex: 0 0 22px;
     text-align: center;
     padding-top: 4px;
     color: var(--honua-muted);
@@ -7387,6 +7393,8 @@ p {
 
 .console-field-state__label {
     display: grid;
+    flex: 0 1 200px;
+    min-width: 140px;
     gap: 2px;
     padding-top: 4px;
 }
@@ -7404,10 +7412,11 @@ p {
 
 .console-field-state__value {
     display: flex;
+    flex: 999 1 12rem;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    min-width: 0;
+    min-width: min(12rem, 100%);
 }
 
 .console-field-state__value .console-input {
@@ -7448,6 +7457,8 @@ p {
 }
 
 .console-field-state__meta {
+    order: 1;
+    margin-inline-start: auto;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -8175,9 +8186,11 @@ p {
     width: 100%;
 }
 
-/* Row-level error list sits below the field, spanning the content columns (the row is a 4-col grid). */
+/* Row-level error list sits on its own line below the field, indented past the state icon. */
 .console-field-state__errors {
-    grid-column: 2 / -1;
+    order: 2;
+    flex-basis: calc(100% - 34px);
+    margin-inline-start: 34px;
 }
 
 .console-field-state__error {
@@ -9557,4 +9570,31 @@ button.console-chip:focus-visible {
         transition: none !important;
         animation: none !important;
     }
+}
+
+/* Global, not *.razor.css: the static index links no scoped-CSS bundle. */
+[data-discovery-metadata] {
+    min-width: 0;
+}
+
+[data-discovery-resource],
+[data-discovery-impact] li {
+    overflow-wrap: anywhere;
+}
+
+[data-discovery-metadata] fieldset {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.console-folder-fields {
+    border: 0;
+    padding: 0;
+    margin: 1rem 0;
+    min-width: 0;
+}
+
+.console-folder-fields legend {
+    font-weight: 600;
+    margin-bottom: 1rem;
 }

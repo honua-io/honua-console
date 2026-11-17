@@ -48,7 +48,7 @@ public sealed class ConsoleSettingsV4Tests
     [InlineData(true, "unavailable")]
     public void UnreadableConfigurationKeepsCapabilityEvidenceAndSurfaceFiltering(bool enabled, string state)
     {
-        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new([], [new("Settings", state, "GET /api/v1/admin/version", "Settings could not be read."), new("Operate", "missing", "Server binding", "No server is bound."), new("Services", "unavailable", "Services contract", "Unrelated Services diagnostic.")]));
+        using var context = Context(new ConsoleV4Options { Enabled = enabled }, new([], [new OperateCapabilityState("Settings", state, "GET /api/v1/admin/version", "Settings could not be read.") { StatusCode = 503 }, new("Operate", "missing", "Server binding", "No server is bound."), new("Services", "unavailable", "Services contract", "Unrelated Services diagnostic.")]));
         var page = context.Render<OperateSettingsPage>();
         Assert.Contains(state, page.Markup);
         Assert.Contains("Settings could not be read.", page.Markup);
@@ -58,6 +58,34 @@ public sealed class ConsoleSettingsV4Tests
         Assert.Empty(page.FindAll("table"));
         Assert.Empty(page.FindAll(".console-panel .console-panel"));
         Assert.Empty(page.FindAll("#server-configuration-heading"));
+    }
+
+    [Theory]
+    [InlineData("legacy", "Unavailable", null)]
+    [InlineData("v4", "Unavailable", null)]
+    [InlineData("legacy", "Unsupported", 200)]
+    [InlineData("v4", "Unsupported", 200)]
+    public void IncompleteReadsOfferRetryWithoutClientInternalText(string layout, string state, int? status)
+    {
+        var failed = new OperateSettingsView([], [
+            new OperateCapabilityState("Settings", state, "GET /api/v1/admin/version", "TypeError: Failed to fetch") { StatusCode = status },
+            new OperateCapabilityState("Settings", state, "GET /api/v1/admin/license", "Path: $.data | LineNumber: 0") { StatusCode = status }]);
+        var reads = 0;
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = layout == "v4" });
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new DelayedSettingsSource(_ =>
+            Task.FromResult(++reads == 1 ? failed : new OperateSettingsView([], []))));
+
+        var page = context.Render<OperateSettingsPage>();
+
+        Assert.Contains("Could not read settings", page.Find("[data-connection-notice]").TextContent);
+        Assert.DoesNotContain("Failed to fetch", page.Markup);
+        Assert.DoesNotContain("LineNumber", page.Markup);
+        Assert.Empty(page.FindAll(".console-state-empty,table"));
+        page.Find("[data-connection-notice] button").Click();
+        Assert.Equal(2, reads);
+        Assert.Empty(page.FindAll("[data-connection-notice]"));
+        Assert.Single(page.FindAll(".console-state-empty"));
     }
 
     [Theory]

@@ -59,13 +59,26 @@
             : toggle;
         if (target?.checkVisibility()) target.focus();
     }
-    const chromeResize = new ResizeObserver(restoreResponsiveFocus);
+    // Sticky panes sit below the sticky top bar; publish its real height, which grows past the
+    // 48px token when its controls wrap. An expanded compact menu scrolls away, so keep the last value.
+    function publishTopbarHeight() {
+        const topbar = document.querySelector('.console-topbar');
+        const toggle = topbar?.querySelector('[data-navigation-toggle][aria-expanded="true"]');
+        if (!topbar || toggle?.checkVisibility()) return;
+        const height = Math.ceil(topbar.getBoundingClientRect().height);
+        if (height > 0) document.documentElement.style.setProperty('--topbar-h', `${height}px`);
+    }
+    const chromeResize = new ResizeObserver(() => {
+        publishTopbarHeight();
+        restoreResponsiveFocus();
+    });
     function observeResponsiveChrome() {
         const chrome = [...document.querySelectorAll('.console-topbar, #console-primary, [data-navigation-toggle]')];
         if (chrome.length === observedChrome.length && chrome.every((element, index) => element === observedChrome[index])) return;
         chromeResize.disconnect();
         observedChrome = chrome;
-        for (const element of chrome) chromeResize.observe(element);
+        // Border box: padding changes at the sticky breakpoint must republish the top bar height.
+        for (const element of chrome) chromeResize.observe(element, {box: 'border-box'});
     }
     function collectControls() {
         const next = new Map([...document.querySelectorAll(menuSelector)].map(element => [element.dataset.navigationMenu, element]));

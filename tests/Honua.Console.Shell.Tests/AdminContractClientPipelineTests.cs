@@ -13,7 +13,7 @@ public sealed class AdminContractClientPipelineTests
             "content GET",
             (handler, token) => Run(new HonuaConsoleContentHttpClient(Http(handler), new HonuaConsoleContentClientOptions(BaseUri, "key")).GetAsync("item-1", token)),
             Endpoint: "The Honua server Console content endpoint",
-            Mismatch: "The Honua server Console content response did not match the expected contract: ",
+            Mismatch: "The Honua server Console content response did not match the expected contract.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console content response did not include data.",
             NotFound: "The Honua server does not expose this admin API contract."),
@@ -22,7 +22,7 @@ public sealed class AdminContractClientPipelineTests
             (handler, token) => Run(new HonuaConsoleContentHttpClient(Http(handler), new HonuaConsoleContentClientOptions(BaseUri, "key"))
                 .CreateAsync(new HonuaCreateConsoleContentItemRequest { Name = "roads" }, token)),
             Endpoint: "The Honua server Console content endpoint",
-            Mismatch: "The Honua server Console content response did not match the expected contract: ",
+            Mismatch: "The Honua server Console content response did not match the expected contract.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console content response did not include data.",
             NotFound: "The Honua server does not expose this admin API contract."),
@@ -30,7 +30,7 @@ public sealed class AdminContractClientPipelineTests
             "catalog discovery GET",
             (handler, token) => Run(new HonuaCatalogDiscoveryHttpClient(Http(handler), new HonuaCatalogDiscoveryClientOptions(BaseUri, "key")).GetRegistryAsync("ws-1", token)),
             Endpoint: "The Honua server catalog discovery endpoint",
-            Mismatch: "The Honua server catalog discovery response did not match the expected contract: ",
+            Mismatch: "The Honua server catalog discovery response did not match the expected contract.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server catalog discovery response did not include data.",
             NotFound: "The Honua server does not expose the catalog discovery-endpoints registry (honua-server#1279)."),
@@ -38,7 +38,7 @@ public sealed class AdminContractClientPipelineTests
             "rbac GET",
             (handler, token) => Run(new HonuaConsoleRbacHttpClient(Http(handler), new HonuaConsoleRbacClientOptions(BaseUri, "key")).GetOverviewAsync("ws-1", token)),
             Endpoint: "The Honua server Console Access endpoint",
-            Mismatch: "The Honua server Console Access response did not match the expected contract: ",
+            Mismatch: "The Honua server Console Access response did not match the expected contract.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console Access response did not include data.",
             NotFound: "The Honua server does not expose the Console Access (RBAC) contract."),
@@ -47,7 +47,7 @@ public sealed class AdminContractClientPipelineTests
             (handler, token) => Run(new HonuaConsoleRbacHttpClient(Http(handler), new HonuaConsoleRbacClientOptions(BaseUri, "key"))
                 .CreateRoleAsync("ws-1", new HonuaConsoleRoleWriteRequest { Name = "Editors" }, token)),
             Endpoint: "The Honua server Console Access endpoint",
-            Mismatch: "The Honua server Console Access response did not match the expected contract: ",
+            Mismatch: "The Honua server Console Access response did not match the expected contract.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console Access response did not include data.",
             NotFound: "The role was not found, or the Console Access contract is not exposed."),
@@ -55,7 +55,7 @@ public sealed class AdminContractClientPipelineTests
             "share GET",
             (handler, token) => Run(new HonuaConsoleShareHttpClient(Http(handler), new HonuaConsoleShareClientOptions(BaseUri, "key")).GetShareAsync("item-1", token)),
             Endpoint: "The Honua server Console share endpoint",
-            Mismatch: "The Honua server Console share response did not match the expected contract: ",
+            Mismatch: "The Honua server Console share response did not match the expected contract.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server Console share response did not include data.",
             NotFound: "The Honua server has no Console item or share token with that ID."),
@@ -63,7 +63,7 @@ public sealed class AdminContractClientPipelineTests
             "form package GET",
             (handler, token) => Run(new HonuaFormPackageHttpClient(Http(handler), new HonuaFormPackageClientOptions(BaseUri, "key")).ListPackagesAsync(token)),
             Endpoint: "The Honua server form endpoint",
-            Mismatch: "The Honua server form response did not match the expected contract: ",
+            Mismatch: "The Honua server form response did not match the expected contract.",
             MissingBody: "null",
             Missing: "The Honua server form response body was empty.",
             NotFound: "The Honua server does not expose this admin API contract."),
@@ -71,7 +71,7 @@ public sealed class AdminContractClientPipelineTests
             "content publication GET",
             (handler, token) => Run(new HonuaContentPublicationHttpClient(Http(handler), new HonuaContentPublicationClientOptions(BaseUri, "key")).GetAsync("pub-1", token)),
             Endpoint: "The Honua server content publication endpoint",
-            Mismatch: "The Honua server content publication response did not match the expected contract: ",
+            Mismatch: "The Honua server content publication response did not match the expected contract.",
             MissingBody: "null",
             Missing: "The Honua server content publication response body was empty.",
             NotFound: "The Honua server does not expose this admin API contract."),
@@ -79,7 +79,7 @@ public sealed class AdminContractClientPipelineTests
             "temporal bare GET",
             (handler, token) => Run(new HonuaTemporalHttpClient(Http(handler), new HonuaTemporalClientOptions(BaseUri, "key")).GetCapabilityAsync("svc", 1, token)),
             Endpoint: "The Honua server temporal endpoint",
-            Mismatch: "The Honua server temporal response did not match the expected contract: ",
+            Mismatch: "The Honua server temporal response did not match the expected contract.",
             MissingBody: "null",
             Missing: "The Honua server temporal response body was empty.",
             NotFound: "The Honua server temporal service, layer, or replica was not found."),
@@ -87,7 +87,7 @@ public sealed class AdminContractClientPipelineTests
             "temporal envelope GET",
             (handler, token) => Run(new HonuaTemporalHttpClient(Http(handler), new HonuaTemporalClientOptions(BaseUri, "key")).ListReplicasAsync("svc", token)),
             Endpoint: "The Honua server temporal endpoint",
-            Mismatch: "The Honua server response did not match the expected admin API shape: ",
+            Mismatch: "The Honua server response did not match the expected admin API shape.",
             MissingBody: EnvelopeWithoutData,
             Missing: "The Honua server response did not include data.",
             NotFound: "The Honua server temporal service, layer, or replica was not found."),
@@ -95,11 +95,13 @@ public sealed class AdminContractClientPipelineTests
             "version management GET",
             (handler, token) => Run(new HonuaVersionManagementHttpClient(Http(handler), new HonuaVersionManagementClientOptions(BaseUri, "key")).ListVersionsAsync("svc", token)),
             Endpoint: "The Honua server endpoint",
-            Mismatch: "The Honua server VersionManagementServer response did not match the expected contract: ",
+            Mismatch: "The Honua server VersionManagementServer response did not match the expected contract.",
             MissingBody: "",
             Missing: "The Honua server VersionManagementServer response did not include a body.",
             NotFound: "The Honua server does not expose the VersionManagementServer for this service."),
     ];
+
+    private const string RetryGuidance = "Check that the server is running and try again.";
 
     private const string EnvelopeWithoutData = """{"success":true,"data":null}""";
 
@@ -114,7 +116,7 @@ public sealed class AdminContractClientPipelineTests
         var outcome = await call.Send(ScriptedHttpHandler.Throwing(new HttpRequestException("connection refused")));
 
         Assert.Equal("Unavailable", outcome.Issue?.State);
-        Assert.Equal($"{call.Endpoint} could not be reached: connection refused", outcome.Issue?.Detail);
+        Assert.Equal($"{call.Endpoint} could not be reached. {RetryGuidance}", outcome.Issue?.Detail);
         Assert.Null(outcome.Issue?.StatusCode);
     }
 
@@ -126,7 +128,7 @@ public sealed class AdminContractClientPipelineTests
 
         var outcome = await call.Send(ScriptedHttpHandler.Throwing(new TaskCanceledException("timed out")));
 
-        Assert.Equal($"{call.Endpoint} could not be reached: timed out", outcome.Issue?.Detail);
+        Assert.Equal($"{call.Endpoint} could not be reached. {RetryGuidance}", outcome.Issue?.Detail);
     }
 
     [Theory]
@@ -163,7 +165,7 @@ public sealed class AdminContractClientPipelineTests
         var outcome = await call.Send(ScriptedHttpHandler.Returning(HttpStatusCode.OK, "{not json"));
 
         Assert.Equal("Unsupported", outcome.Issue?.State);
-        Assert.StartsWith(call.Mismatch, outcome.Issue?.Detail);
+        Assert.Equal(call.Mismatch, outcome.Issue?.Detail);
         Assert.Equal(200, outcome.Issue?.StatusCode);
     }
 
@@ -240,6 +242,24 @@ public sealed class AdminContractClientPipelineTests
         Assert.Equal(
             "The Honua server rejected the role change (e.g. blank name, or a built-in role cannot be edited or deleted).",
             failure.Issue?.Detail);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, "grants must contain unique, supported permission keys.")]
+    [InlineData(HttpStatusCode.Conflict, "Role name 'Editors' is already in use. Role names must be unique across workspaces.")]
+    public async Task RbacWriteRejection_PrefersTheServerMessage(HttpStatusCode status, string message)
+    {
+        var body = $$"""{"success":false,"data":null,"message":"{{message}}"}""";
+        using var creating = new HonuaConsoleRbacHttpClient(
+            Http(ScriptedHttpHandler.Returning(status, body)), new HonuaConsoleRbacClientOptions(BaseUri, "key"));
+        using var deleting = new HonuaConsoleRbacHttpClient(
+            Http(ScriptedHttpHandler.Returning(status, body)), new HonuaConsoleRbacClientOptions(BaseUri, "key"));
+
+        var created = await creating.CreateRoleAsync("ws-1", new HonuaConsoleRoleWriteRequest { Name = "Editors" });
+        var deleted = await deleting.DeleteRoleAsync("ws-1", "role-1");
+
+        Assert.Equal(("Rejected", message), (created.Issue?.State, created.Issue?.Detail));
+        Assert.Equal(("Rejected", message), (deleted.Issue?.State, deleted.Issue?.Detail));
     }
 
     [Fact]

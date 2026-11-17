@@ -44,7 +44,7 @@ test.describe('Operate · Add Connection (live)', () => {
       });
       // Draft test (POST /api/v1/admin/connections/test → PostgresConnectionDriver).
       await page.getByRole('button', { name: 'Test connection' }).click();
-      await expect(page.getByText('Connection test passed')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('heading', { name: 'Connection test passed' })).toBeVisible({ timeout: 15_000 });
     }).toPass({ timeout: 45_000 });
 
     // Create → navigates to the new connection's detail page.
@@ -59,7 +59,7 @@ test.describe('Operate · Add Connection (live)', () => {
 
     // Existing-connection test on the detail page persists health → badge flips to Passed.
     await page.getByRole('button', { name: 'Test connection' }).click();
-    await expect(page.getByText('Connection test passed')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Connection test passed' })).toBeVisible();
     await expect(page.getByText('Passed', { exact: true })).toBeVisible();
 
     const tested = await admin.findConnectionByName(name);
@@ -91,7 +91,7 @@ test.describe('Operate · Add Connection (live)', () => {
       await page.getByPlaceholder('prod-postgis').fill(name);
       await page.locator('[data-secret-reference]').fill('env:HONUA_TEST_DB_DSN');
       await page.getByRole('button', { name: 'Test connection' }).click();
-      await expect(page.getByText('Connection test passed')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('heading', { name: 'Connection test passed' })).toBeVisible({ timeout: 15_000 });
     }).toPass({ timeout: 45_000 });
 
     // Create → detail page. The server stores only the reference (external storage), never the secret.

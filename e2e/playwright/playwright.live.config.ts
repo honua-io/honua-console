@@ -30,7 +30,8 @@ import { defineConfig, devices } from '@playwright/test';
 //   - Source database inputs (HONUA_CONSOLE_E2E_SOURCE_*) and HONUA_TEST_DB_DSN inside
 //     the server, as before.
 // Playwright boots ONLY the Console on HONUA_CONSOLE_E2E_LIVE_PORT. `npm run e2e:live`
-// (e2e/run-live.mjs) stands up all of the above from docker-compose.yml + docker-compose.auth.yml.
+// (e2e/run-live.mjs) stands up all of the above from docker-compose.yml + docker-compose.auth.yml
+// + docker-compose.server-tls.yml.
 
 const IDP_HOST = process.env.HONUA_CONSOLE_E2E_IDP_HOST ?? 'host.docker.internal:8443';
 const IDP_HOSTNAME = IDP_HOST.replace(/:\d+$/, '');
@@ -41,6 +42,16 @@ const PORT = Number(process.env.HONUA_CONSOLE_E2E_LIVE_PORT ?? '5274');
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const SERVER_URL = process.env.HONUA_CONSOLE_E2E_SERVER_URL ?? 'http://127.0.0.1:8088';
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
+// honua-server accepts the Console host's session-cookie bearer exchange only over HTTPS with
+// a CSRF token, so the local stack's Console host uses the TLS listener from
+// e2e/docker-compose.server-tls.yml and trusts the live-auth test certificate alongside the
+// system store. An explicit HONUA_CONSOLE_E2E_SERVER_URL keeps an external harness's server.
+const LOCAL_TLS_SERVER_URL = 'https://127.0.0.1:8445';
+const CONSOLE_SERVER_URL = process.env.HONUA_CONSOLE_E2E_CONSOLE_SERVER_URL
+  ?? (process.env.HONUA_CONSOLE_E2E_SERVER_URL ? SERVER_URL : LOCAL_TLS_SERVER_URL);
+const LOCAL_TLS_TRUST = CONSOLE_SERVER_URL === LOCAL_TLS_SERVER_URL
+  ? { SSL_CERT_DIR: `${process.env.SSL_CERT_DIR ?? '/etc/ssl/certs'}:${REPO_ROOT}e2e/playwright/live-auth/certs` }
+  : {};
 
 export default defineConfig({
   testDir: './live/specs',
@@ -112,7 +123,8 @@ export default defineConfig({
       ASPNETCORE_ENVIRONMENT: 'Development',
       DOTNET_CLI_TELEMETRY_OPTOUT: '1',
       // Bind the Console to the live honua-server so Operate/Catalog surfaces hit real endpoints.
-      HONUA_SERVER_BASE_URL: SERVER_URL,
+      HONUA_SERVER_BASE_URL: CONSOLE_SERVER_URL,
+      ...LOCAL_TLS_TRUST,
       // The service key must not be available to the browser host. live/admin-api.ts reads
       // HONUA_CONSOLE_E2E_ADMIN_KEY itself for the independent verifier. An empty value
       // overrides a leaked parent HONUA_ADMIN_API_KEY, and the Console treats it as no key.

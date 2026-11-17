@@ -43,6 +43,14 @@ internal static class AdminFailureMappings
     public static AdminFailureMapping FromStatus(Func<string, HttpStatusCode, HonuaAdminEndpointIssue> createIssue) =>
         (contract, response, _) => Task.FromResult(createIssue(contract, response.StatusCode));
 
+    // A status-specific issue whose detail is replaced by the server's own message when the body carries one.
+    public static AdminFailureMapping FromStatusWithServerMessage(Func<string, HttpStatusCode, HonuaAdminEndpointIssue> createIssue) =>
+        async (contract, response, cancellationToken) =>
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return WithServerMessage(createIssue(contract, response.StatusCode), payload);
+        };
+
     public static AdminResponseReader<T> AsReader<T>(AdminFailureMapping mapFailure) =>
         async (contract, response, cancellationToken) => HonuaAdminEndpointResult<T>.FromIssue(
             await mapFailure(contract, response, cancellationToken).ConfigureAwait(false));
