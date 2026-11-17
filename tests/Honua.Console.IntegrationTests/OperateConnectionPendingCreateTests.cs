@@ -186,7 +186,8 @@ public sealed class OperateConnectionPendingCreateTests
         await pending;
 
         var second = CreateButton(page).ClickAsync(new());
-        Assert.Equal(new[] { "submitted-name", "newer-name" }, operations.CreatedCommands.Select(command => command.Name));
+        await page.InvokeAsync(() =>
+            Assert.Equal(new[] { "submitted-name", "newer-name" }, operations.CreatedCommands.Select(command => command.Name)));
         await page.InvokeAsync(() => operations.SecondCreate.SetResult(CreatedConnection() with { ConnectionId = "new-id" }));
         await second;
 
