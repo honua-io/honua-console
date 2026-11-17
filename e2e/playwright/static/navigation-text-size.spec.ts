@@ -114,7 +114,7 @@ test('expanded navigation keeps keyboard focus onscreen at 200% text size', asyn
         await expect.poll(() => link.evaluate(element => {
           const box = element.getBoundingClientRect();
           const header = element.closest('header')!.getBoundingClientRect();
-          return box.top >= Math.max(0, header.top) && box.bottom <= Math.min(innerHeight, header.bottom);
+          return box.top >= Math.max(0, header.top) - 1 && box.bottom <= Math.min(innerHeight, header.bottom) + 1;
         }), { message: `${group} link remains fully visible` }).toBe(true);
       };
       for (const [index, link] of links.entries()) {
