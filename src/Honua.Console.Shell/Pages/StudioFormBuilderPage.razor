@@ -1,6 +1,7 @@
 @page "/studio/form"
 @implements IDisposable
 @using Honua.Console.Shell.Validation
+@using Microsoft.JSInterop
 @inject IStudioFormPackageDataSource FormData
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
@@ -75,7 +76,16 @@
         {
             <div class="console-toolbar">
                 <button class="console-button" type="button" disabled="@_busy" @onclick="NewForm">New form</button>
+                @if (XlsForm is not null)
+                {
+                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" aria-expanded="@(_importOpen ? "true" : "false")" @onclick="ToggleImport">Import XLSForm</button>
+                }
             </div>
+
+            @if (_importOpen && XlsForm is not null)
+            {
+                <StudioFormXlsFormImportPanel DataSource="XlsForm" OnImported="OpenImportedForm" OnClose="ToggleImport" />
+            }
 
             @if (_workspace.Packages.Count == 0)
             {
@@ -136,6 +146,10 @@
                     @if (editor.IsPublished)
                     {
                         <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="Reopen">Reopen as draft</button>
+                        @if (XlsForm is not null)
+                        {
+                            <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="ExportXlsForm">Export XLSForm</button>
+                        }
                     }
                 </div>
 
@@ -143,6 +157,8 @@
                 {
                     <p class="@(_statusFailed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_status</p>
                 }
+
+                <StudioFormXlsFormDiagnostics Diagnostics="_exportDiagnostics" Caption="XLSForm cannot represent these parts of the published form." />
 
                 @if (_validation.HasBlockingClientErrors)
                 {
@@ -440,6 +456,11 @@
     private StudioFormCapabilityState? _bindingState;
     private IReadOnlyList<StudioFormCapabilityState> _states = [];
     private StudioFormEditorState? _editor;
+    private bool _importOpen;
+    private IReadOnlyList<StudioFormXlsFormDiagnostic> _exportDiagnostics = [];
+
+    // Optional: registered only when a server is bound, so the actions never render against nothing.
+    private IStudioFormXlsFormDataSource? XlsForm => Services.GetService<IStudioFormXlsFormDataSource>();
     private string? _status;
     private bool _statusFailed;
     private readonly ValidationState _validation = new();
@@ -490,6 +511,7 @@
     private void ResetEditor()
     {
         _editor = null;
+        _exportDiagnostics = [];
         _status = null;
         _statusFailed = false;
         _validation.Clear();
@@ -607,6 +629,66 @@
         OnEdit();
     }
 
+    private void ToggleImport() => _importOpen = !_importOpen;
+
+    private async Task OpenImportedForm(string formId)
+    {
+        _importOpen = false;
+        await LoadWorkspaceAsync();
+        await OpenForm(formId);
+    }
+
+    private async Task ExportXlsForm()
+    {
+        if (_busy || _editor?.FormId is not { } formId || XlsForm is not { } xlsForm)
+        {
+            return;
+        }
+
+        var visit = _viewGeneration;
+        _busy = true;
+        try
+        {
+            var outcome = await xlsForm.ExportAsync(formId);
+            if (visit != _viewGeneration)
+            {
+                return;
+            }
+
+            _status = outcome.Message;
+            _statusFailed = !outcome.Succeeded;
+            _exportDiagnostics = outcome.Diagnostics;
+            ApplyStates(outcome.Issue is null ? [] : [outcome.Issue]);
+            if (outcome.Workbook is { } workbook && !await SaveWorkbookAsync(workbook))
+            {
+                _status = $"The browser could not save {workbook.FileName}. Try Export XLSForm again.";
+                _statusFailed = true;
+            }
+        }
+        finally
+        {
+            if (visit == _viewGeneration)
+            {
+                _busy = false;
+            }
+        }
+    }
+
+    private async Task<bool> SaveWorkbookAsync(HonuaFormXlsFormWorkbook workbook)
+    {
+        try
+        {
+            await using var download = await Services.GetRequiredService<IJSRuntime>()
+                .InvokeAsync<IJSObjectReference>("import", "./_content/Honua.Console.Shell/console-file-download.js");
+            await download.InvokeVoidAsync("save", workbook.FileName, workbook.ContentType, workbook.Content);
+            return true;
+        }
+        catch (JSException)
+        {
+            return false;
+        }
+    }
+
     private Task Save() => RunCommandAsync(() => FormData.SaveDraftAsync(_editor!));
 
     private Task Validate() => RunCommandAsync(() => FormData.ValidateAsync(_editor!));
@@ -624,6 +706,7 @@
 
         var visit = _viewGeneration;
         _busy = true;
+        _exportDiagnostics = [];
         try
         {
             var result = await command();

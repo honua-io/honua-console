@@ -1,0 +1,38 @@
+@* Blocking workbook cells reported by honua-server for an XLSForm import or export. *@
+@if (Diagnostics.Count > 0)
+{
+    <div class="console-table-wrap" data-xlsform-diagnostics>
+        <table class="console-table">
+            <caption>@Caption</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Sheet</th>
+                    <th scope="col">Row</th>
+                    <th scope="col">Column</th>
+                    <th scope="col">Problem</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var diagnostic in Diagnostics)
+                {
+                    <tr>
+                        <td>@Display(diagnostic.Sheet)</td>
+                        <td>@(diagnostic.Row > 0 ? diagnostic.Row.ToString(System.Globalization.CultureInfo.InvariantCulture) : "—")</td>
+                        <td>@Display(diagnostic.Column)</td>
+                        <td>@diagnostic.Message</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<StudioFormXlsFormDiagnostic> Diagnostics { get; set; } = [];
+
+    [Parameter]
+    public string Caption { get; set; } = "Fix these workbook cells";
+
+    private static string Display(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}

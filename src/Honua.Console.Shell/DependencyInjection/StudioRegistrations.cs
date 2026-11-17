@@ -31,6 +31,17 @@ internal static class StudioRegistrations
         }
 
         services.AddServerBound<IStudioFormPackageDataSource, HonuaServerStudioFormPackageDataSource, UnsupportedStudioFormPackageDataSource>(server);
+
+        // XLSForm import/export has no unbound fallback: without a server the builder shows its missing-binding
+        // state and never offers the actions.
+        if (server.BaseUri is { } xlsFormBaseUri)
+        {
+            services.TryAddSingleton<IHonuaFormXlsFormClient>(serviceProvider =>
+                new HonuaFormXlsFormHttpClient(
+                    HonuaServerClientFactory.Create(serviceProvider, xlsFormBaseUri, ShellHttpClients.LongRequestTimeout),
+                    new HonuaFormPackageClientOptions(xlsFormBaseUri, server.AdminApiKey)));
+            services.TryAddSingleton<IStudioFormXlsFormDataSource, HonuaServerStudioFormXlsFormDataSource>();
+        }
     }
 
     // OGC API - Styles is a public read, so it uses the anonymous-capable client instead of failing closed.

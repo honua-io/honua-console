@@ -1,0 +1,108 @@
+@* XLSForm import: the builder picks a workbook and the layer its questions bind to; honua-server converts it
+   into a new draft form package. On success the page opens the draft; on failure every blocking cell is listed
+   and no draft exists. *@
+<article class="console-panel" aria-labelledby="xlsform-import-heading" data-xlsform-import>
+    <div class="console-panel-heading">
+        <div>
+            <p class="console-kicker">Forms are authored in XLSForm</p>
+            <h2 id="xlsform-import-heading">Import XLSForm</h2>
+        </div>
+    </div>
+    <p class="console-muted">Upload an XLSForm workbook (.xlsx, up to 8 MB). The server creates a draft form for the layer you choose; nothing is published until you review and publish it.</p>
+
+    <FieldStateRow State="FieldState.Input" Label="XLSForm workbook">
+        <InputFile @key="_fileInputKey" class="console-input" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" OnChange="OnFileSelected" disabled="@_busy" />
+    </FieldStateRow>
+    <FieldStateRow State="FieldState.Input" Label="Service id">
+        <input class="console-input" @bind="_serviceId" @bind:event="oninput" disabled="@_busy" placeholder="inspections" />
+    </FieldStateRow>
+    <FieldStateRow State="FieldState.Input" Label="Layer id">
+        <input class="console-input" type="number" min="0" @bind="_layerId" disabled="@_busy" />
+    </FieldStateRow>
+
+    <div class="console-action-row">
+        <button class="console-button" type="button" disabled="@(!CanImport)" @onclick="ImportAsync">Import</button>
+        <button class="console-button console-button-secondary" type="button" disabled="@_busy" @onclick="OnClose">Close</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p class="@(_failed ? "console-warning" : "console-status")" role="status" aria-live="polite">@_message</p>
+    }
+
+    <StudioFormXlsFormDiagnostics Diagnostics="_diagnostics" Caption="No draft was created. Fix these workbook cells and import again." />
+</article>
+
+@code {
+    private const long MaxWorkbookBytes = 8 * 1024 * 1024;
+
+    private IBrowserFile? _file;
+    private string _serviceId = string.Empty;
+    private int _layerId;
+    private bool _busy;
+    private bool _failed;
+    private string? _message;
+    private object _fileInputKey = new();
+    private IReadOnlyList<StudioFormXlsFormDiagnostic> _diagnostics = [];
+
+    [Parameter, EditorRequired]
+    public IStudioFormXlsFormDataSource DataSource { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<string> OnImported { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private bool CanImport => !_busy && _file is not null && !string.IsNullOrWhiteSpace(_serviceId) && _layerId >= 0;
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        _file = args.File;
+        _diagnostics = [];
+        _failed = _file.Size > MaxWorkbookBytes;
+        _message = _failed ? $"{_file.Name} is larger than the 8 MB workbook limit." : null;
+        if (_failed)
+        {
+            _file = null;
+            _fileInputKey = new();
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (!CanImport)
+        {
+            return;
+        }
+
+        _busy = true;
+        _message = $"Importing {_file!.Name}…";
+        _failed = false;
+        _diagnostics = [];
+        try
+        {
+            var content = await ReadAsync(_file);
+            var outcome = await DataSource.ImportAsync(new StudioFormXlsFormRequest(_serviceId, _layerId, _file.Name, content));
+            _message = outcome.Message;
+            _failed = !outcome.Succeeded;
+            _diagnostics = outcome.Diagnostics;
+            if (outcome.Succeeded && outcome.FormId is { } formId)
+            {
+                await OnImported.InvokeAsync(formId);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static async Task<byte[]> ReadAsync(IBrowserFile file)
+    {
+        await using var stream = file.OpenReadStream(MaxWorkbookBytes);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        return buffer.ToArray();
+    }
+}
