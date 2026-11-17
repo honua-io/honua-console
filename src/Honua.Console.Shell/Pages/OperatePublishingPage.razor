@@ -1,4 +1,5 @@
 @page "/operate/publishing"
+@implements IDisposable
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Validation
@@ -267,6 +268,8 @@
     private PublishingLookupResult? _lookup;
     private string _lookupId = string.Empty;
     private string _republishTitle = string.Empty;
+    private readonly CancellationTokenSource _lifetime = new();
+    private bool _disposed;
     private bool _busy;
     private bool _loaded;
     private bool _parametersApplied;
@@ -299,8 +302,16 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (_disposed) return;
         var publicationId = PublicationId?.Trim();
-        _workspace = await (_workspaceRead ??= PublishingData.GetWorkspaceAsync());
+        PublishingWorkspace workspace;
+        try
+        {
+            workspace = await (_workspaceRead ??= PublishingData.GetWorkspaceAsync(_lifetime.Token));
+        }
+        catch (OperationCanceledException) when (_disposed) { return; }
+        if (_disposed) return;
+        _workspace = workspace;
         _states = OperateCapabilityStateFilters.ForSurface(_workspace.CapabilityStates, "Publishing");
         _loaded = true;
         if (publicationId != PublicationId?.Trim() || (_parametersApplied && _publicationId == publicationId)) return;
@@ -311,6 +322,7 @@
         _lookup = null;
         _republishTitle = string.Empty;
         _lookupGeneration++;
+        _busy = false;
         _lookingUp = false;
         OnLookupEdit();
         if (!string.IsNullOrWhiteSpace(publicationId)) await LoadLookupAsync();
@@ -320,6 +332,7 @@
 
     private async Task LoadLookupAsync()
     {
+        if (_disposed) return;
         OnLookupEdit();
         if (string.IsNullOrWhiteSpace(_lookupId)
             || _validation.Errors(PublishingLookupFieldKeys.LookupId).Any(e => e.IsBlocking)) return;
@@ -331,9 +344,10 @@
         _lookingUp = true;
         try
         {
-            var lookup = await PublishingData.LookupAsync(publicationId);
+            var lookup = await PublishingData.LookupAsync(publicationId, _lifetime.Token);
             if (generation == _lookupGeneration) _lookup = lookup;
         }
+        catch (OperationCanceledException) when (_disposed) { }
         finally
         {
             if (generation == _lookupGeneration) _lookingUp = false;
@@ -346,7 +360,7 @@
     // failure surfaces as a toast (and disables the controls while in flight) instead of vanishing silently.
     private void ConfirmRepublish()
     {
-        if (_lookup?.Review is null || _busy || _confirm is null)
+        if (_disposed || _lookup?.Review is null || _busy || _confirm is null)
         {
             return;
         }
@@ -364,7 +378,7 @@
 
     private void ConfirmRollback(string targetVersionId, long revision)
     {
-        if (_lookup?.Review is null || _busy || _confirm is null)
+        if (_disposed || _lookup?.Review is null || _busy || _confirm is null)
         {
             return;
         }
@@ -382,7 +396,7 @@
 
     private Task RepublishAsync()
     {
-        if (_lookup?.Review is null || _busy)
+        if (_disposed || _lookup?.Review is null || _busy)
         {
             return Task.CompletedTask;
         }
@@ -399,14 +413,14 @@
                 _lookup = lookup;
                 _republishTitle = string.Empty;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: BusyFor(generation),
             failureMessage: "Couldn't release the new version",
             onSuccess: "New version released.");
     }
 
     private Task RollbackAsync(string targetVersionId)
     {
-        if (_lookup?.Review is null || _busy)
+        if (_disposed || _lookup?.Review is null || _busy)
         {
             return Task.CompletedTask;
         }
@@ -420,8 +434,24 @@
                 var lookup = await PublishingData.RollbackAsync(resourceId, command);
                 if (generation == _lookupGeneration) _lookup = lookup;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: BusyFor(generation),
             failureMessage: "Couldn't restore the previous version",
             onSuccess: "Previous version restored.");
+    }
+
+    private Action<bool> BusyFor(int generation) => busy =>
+    {
+        if (_disposed || generation != _lookupGeneration) return;
+        _busy = busy;
+        StateHasChanged();
+    };
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _lookupGeneration++;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
     }
 }
