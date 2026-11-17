@@ -4,6 +4,13 @@
     padding: 0 var(--space-4);
 }
 
+/* An expanded menu must scroll when enlarged text makes it taller than the viewport. */
+.console-shell[data-console-v4="true"] .console-topbar:has(.console-menu-toggle[aria-expanded="true"]) {
+    max-block-size: 100dvh;
+    overflow-y: auto;
+    scroll-padding-block: var(--space-2);
+}
+
 .console-shell[data-console-v4="true"] .console-topbar-brand {
     margin-inline-end: var(--space-4);
     font-size: var(--text-md);

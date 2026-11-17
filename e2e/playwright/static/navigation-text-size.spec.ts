@@ -99,6 +99,38 @@ test('top navigation keeps its default layout at normal text size', async ({ pag
   }
 });
 
+test('expanded navigation keeps keyboard focus onscreen at 200% text size', async ({ page }) => {
+  const close = await startSignedInConsole(page);
+  try {
+    await page.evaluate(() => { document.documentElement.style.fontSize = '32px'; });
+    await page.getByRole('button', { name: 'Toggle navigation' }).press('Enter');
+    for (const group of ['Operate', 'Access', 'Settings']) {
+      const menu = page.locator(`[data-navigation-menu="${group}"]`);
+      const summary = menu.locator(':scope > summary');
+      await summary.press('Enter');
+      const links = await menu.locator('.console-navigation-items a').all();
+      const expectVisibleFocus = async (link: typeof links[number]) => {
+        await expect(link).toBeFocused();
+        await expect.poll(() => link.evaluate(element => {
+          const box = element.getBoundingClientRect();
+          const header = element.closest('header')!.getBoundingClientRect();
+          return box.top >= Math.max(0, header.top) && box.bottom <= Math.min(innerHeight, header.bottom);
+        }), { message: `${group} link remains fully visible` }).toBe(true);
+      };
+      for (const [index, link] of links.entries()) {
+        if (index > 0) await page.keyboard.press('Tab');
+        await expectVisibleFocus(link);
+      }
+      for (const link of links.slice(0, -1).reverse()) {
+        await page.keyboard.press('Shift+Tab');
+        await expectVisibleFocus(link);
+      }
+      await summary.press('Enter');
+    }
+  } finally {
+    await close();
+  }
+});
 
 for (const width of [390, 1101, 1280, 1376, 1377, 1440]) {
   for (const increasedSpacing of [false, true]) {
