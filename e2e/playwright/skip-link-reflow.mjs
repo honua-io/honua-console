@@ -46,10 +46,12 @@ try {
           const r = element.getBoundingClientRect();
           return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
         });
+        await page.screenshot({ path: path.join(output, `${v4}-${width}-${mode}.png`) });
         await page.keyboard.press('Enter');
         const targetsMain = await page.evaluate(() => document.activeElement?.id === 'console-main');
-        await page.screenshot({ path: path.join(output, `${v4}-${width}-${mode}.png`), fullPage: true });
-        results.push({ v4, width, mode, hidden, focused, targetsMain, pass: hidden && focused && targetsMain });
+        const hiddenAfterActivation = await link.evaluate(element => element.getBoundingClientRect().bottom <= 0);
+        results.push({ v4, width, mode, hidden, focused, targetsMain, hiddenAfterActivation,
+          pass: hidden && focused && targetsMain && hiddenAfterActivation });
         await style.evaluate(element => element.remove());
       }
       assert.deepEqual(errors, []);
