@@ -189,17 +189,11 @@
         StateHasChanged();
     });
 
-    private void OnProposalEvent(ConsoleProposalEvent proposal)
-    {
-        if (_disposed) return;
-        _ = InvokeAsync(async () =>
-        {
-            await RefreshInboxAsync();
-            if (!_disposed) StateHasChanged();
-        });
-    }
+    private void OnProposalEvent(ConsoleProposalEvent proposal) => QueueInboxRefresh();
 
-    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state)
+    private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state) => QueueInboxRefresh();
+
+    private void QueueInboxRefresh()
     {
         if (_disposed) return;
         _ = InvokeAsync(async () =>
