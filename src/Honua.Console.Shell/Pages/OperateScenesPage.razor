@@ -1,5 +1,6 @@
 @page "/operate/scenes"
 @page "/operate/scenes/{SceneId}"
+@implements IDisposable
 @using System.Globalization
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
@@ -247,6 +248,7 @@
     private string _description = string.Empty;
     private int? _sourceCrs;
     private bool _ingesting;
+    private bool _disposed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -293,7 +295,7 @@
 
     private async Task IngestAsync()
     {
-        if (_selectedFile is null || _ingesting)
+        if (_disposed || _selectedFile is null || _ingesting)
         {
             return;
         }
@@ -315,6 +317,8 @@
                 content = buffer.ToArray();
             }
 
+            if (_disposed) return;
+
             var request = new PointCloudIngestRequest
             {
                 Content = content,
@@ -325,6 +329,8 @@
             };
 
             _ingestResult = await Scenes.IngestPointCloudAsync(request).ConfigureAwait(false);
+
+            if (_disposed) return;
 
             if (_ingestResult.IsOk)
             {
@@ -351,6 +357,12 @@
         {
             _ingesting = false;
         }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _viewerGeneration++;
     }
 
     private static OperateSectionStatus MapStatus(SceneReadStatus status) => status switch

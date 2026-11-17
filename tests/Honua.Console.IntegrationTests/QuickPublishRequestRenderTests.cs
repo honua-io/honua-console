@@ -18,14 +18,7 @@ public sealed class QuickPublishRequestRenderTests
     public async Task AuthorityCaptureKeepsTheSubmittedConnectionAndForm(bool enabled, string nextConnection)
     {
         using var ctx = new BunitContext();
-        ctx.AddConsoleNotifications();
-        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        var authority = new DeferredAuthority();
-        var publish = new RecordingPublish();
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new Connections());
-        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
-        ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        var (authority, publish) = Register(ctx, enabled);
         var cut = ctx.Render<OperatePublishLayerPage>();
         cut.Find("[data-workspace-field='connectionId']").Change("conn-a");
         cut.Find("[data-workspace-field='table']").Change("hydro.streams");
@@ -47,6 +40,41 @@ public sealed class QuickPublishRequestRenderTests
         Assert.Equal("reviewed-service", command.ServiceName);
         Assert.Equal("reviewed-layer", command.LayerName);
         Assert.Equal("reviewed-environment", command.AuthorityBinding);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LeavingDuringAuthorityCaptureDoesNotPublish(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        var (authority, publish) = Register(ctx, enabled);
+        var page = ctx.Render<OperatePublishLayerPage>();
+        page.Find("[data-workspace-field='connectionId']").Change("conn-a");
+        page.Find("[data-workspace-field='table']").Change("hydro.streams");
+        page.Find("[data-workspace-field='serviceName']").Input("reviewed-service");
+        page.Find("[data-workspace-field='layerName']").Input("reviewed-layer");
+        var pending = page.Find("[data-workspace-publish]").ClickAsync(new MouseEventArgs());
+        page.WaitForAssertion(() => Assert.Equal(1, authority.Captures));
+
+        await ctx.DisposeComponentsAsync();
+        authority.Completion.SetResult("reviewed-environment");
+        await pending;
+
+        Assert.Empty(publish.Commands);
+    }
+
+    private static (DeferredAuthority Authority, RecordingPublish Publish) Register(BunitContext ctx, bool enabled)
+    {
+        ctx.AddConsoleNotifications();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var authority = new DeferredAuthority();
+        var publish = new RecordingPublish();
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new Connections());
+        ctx.Services.AddSingleton<IServiceLayerPublishOperation>(publish);
+        ctx.Services.AddSingleton<IConsoleAuthorityBindingValidator>(authority);
+        return (authority, publish);
     }
 
     private sealed class DeferredAuthority : IConsoleAuthorityBindingValidator
