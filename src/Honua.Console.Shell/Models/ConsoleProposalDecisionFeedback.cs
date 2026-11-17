@@ -18,7 +18,7 @@ internal sealed record ConsoleProposalDecisionFeedback(string Message, string Cs
             ConsoleProposalStatus.Reconciling => ("Approval recorded — execution is being reconciled.", "warning"),
             ConsoleProposalStatus.Planned => ("Approval recorded — execution is planned.", "warning"),
             ConsoleProposalStatus.AwaitingApproval => ("Decision returned — proposal is still awaiting approval.", "warning"),
-            _ => ("Approval recorded — execution status is unknown.", "warning"),
+            _ => ("Approval recorded — execution status is unknown.", "neutral"),
         };
         var reason = ResolutionReason(proposal);
         return new(string.IsNullOrWhiteSpace(reason) ? message : $"{message} {reason}", $"console-state-{style}");

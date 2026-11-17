@@ -97,7 +97,7 @@ public sealed class ProposalApprovalOutcomeTests
     [InlineData(ConsoleProposalStatus.RolledBack, "change was rolled back", "console-state-danger")]
     [InlineData(ConsoleProposalStatus.Indeterminate, "execution outcome is indeterminate", "console-state-warning")]
     [InlineData(ConsoleProposalStatus.Reconciling, "execution is being reconciled", "console-state-warning")]
-    [InlineData(ConsoleProposalStatus.Unknown, "execution status is unknown", "console-state-warning")]
+    [InlineData(ConsoleProposalStatus.Unknown, "execution status is unknown", "console-state-neutral")]
     [InlineData(ConsoleProposalStatus.Planned, "execution is planned", "console-state-warning")]
     [InlineData(ConsoleProposalStatus.AwaitingApproval, "still awaiting approval", "console-state-warning")]
     public async Task ApprovalFeedbackUsesActualExecutionState(ConsoleProposalStatus status, string expected, string style)
