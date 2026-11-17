@@ -112,6 +112,31 @@ public sealed class BrowserSignInPageTests
         Assert.Contains("Identity providers could not be loaded", page.Markup);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("discovery")]
+    public async Task PasswordServerWithoutProvidersShowsNoProviderWarning(string? timeoutAt)
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(new PendingAuthentication());
+        context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc { TimeoutAt = timeoutAt, NoProviders = true });
+        var page = context.Render<AuthSignInPage>();
+        Assert.Empty(page.FindAll("[role=alert], [role=status], button[type=button]"));
+        Assert.Single(page.FindAll("input[type=password]"));
+    }
+
+    [Fact]
+    public async Task ProviderButtonsPrecedeThePasswordField()
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(new PendingAuthentication());
+        context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc());
+        var page = context.Render<AuthSignInPage>();
+        var controls = page.FindAll("form button[type=button], form input[type=password]");
+        Assert.Equal(["BUTTON", "INPUT"], controls.Select(control => control.TagName).ToArray());
+        Assert.Equal("Continue with Organization", controls[0].TextContent);
+    }
+
     [Fact]
     public async Task ProviderInitiationTimeoutAllowsRetry()
     {
@@ -150,12 +175,13 @@ public sealed class BrowserSignInPageTests
     {
         public bool IsAvailable => true;
         public string? TimeoutAt { get; init; }
+        public bool NoProviders { get; init; }
         public string? Provider { get; private set; }
         public string? ReturnTo { get; private set; }
         public Task<IReadOnlyList<ConsoleIdentityProvider>> GetProvidersAsync(CancellationToken cancellationToken = default) =>
             TimeoutAt == "discovery"
                 ? Task.FromException<IReadOnlyList<ConsoleIdentityProvider>>(new TaskCanceledException())
-                : Task.FromResult<IReadOnlyList<ConsoleIdentityProvider>>([new("entra", "Organization")]);
+                : Task.FromResult<IReadOnlyList<ConsoleIdentityProvider>>(NoProviders ? [] : [new("entra", "Organization")]);
         public Task<Uri> BeginAsync(string providerKey, string returnTo, CancellationToken cancellationToken = default)
         {
             if (TimeoutAt == "begin") return Task.FromException<Uri>(new TaskCanceledException());

@@ -54,14 +54,6 @@
             </dl>
 
             <form @onsubmit="SignInAsync" @onsubmit:preventDefault>
-                @if (_browserAuth?.SupportsPasswordSignIn == true)
-                {
-                    <label class="console-field">
-                        <span>Password</span>
-                        <input class="console-input" type="password" autocomplete="current-password" required
-                               @bind="_password" disabled="@_signingIn" />
-                    </label>
-                }
                 @if (_oidc?.IsAvailable == true)
                 {
                     @foreach (var provider in _providers)
@@ -69,7 +61,7 @@
                         <button class="console-button" type="button" disabled="@_signingIn"
                                 @onclick="() => BeginOidcAsync(provider.Key)">Continue with @provider.DisplayName</button>
                     }
-                    @if (_providers.Count == 0)
+                    @if (_providers.Count == 0 && !PasswordSignIn)
                     {
                         <p role="status">No identity providers are available. Contact your deployment administrator.</p>
                     }
@@ -77,6 +69,14 @@
                 else if (_browserAuth is not null && !_browserAuth.SupportsPasswordSignIn)
                 {
                     <p role="status">Identity provider sign-in is not available in this Console build yet.</p>
+                }
+                @if (_browserAuth?.SupportsPasswordSignIn == true)
+                {
+                    <label class="console-field">
+                        <span>Password</span>
+                        <input class="console-input" type="password" autocomplete="current-password" required
+                               @bind="_password" disabled="@_signingIn" />
+                    </label>
                 }
                 @if (_browserAuth?.SupportsPasswordSignIn ?? (_oidc?.IsAvailable != true))
                 {
@@ -96,6 +96,7 @@
     private string _returnTo = "/";
     private string? _serverAuthMessage;
     private IConsoleBrowserAuthentication? _browserAuth;
+    private bool PasswordSignIn => _browserAuth?.SupportsPasswordSignIn == true;
     private string _password = string.Empty;
     private bool _signingIn;
     private IConsoleOidcAuthentication? _oidc;
@@ -121,7 +122,12 @@
             }
             catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or OperationCanceledException)
             {
-                _serverAuthMessage = "Identity providers could not be loaded. Check the server connection and try again.";
+                // Password sign-in still works, so a missing provider list is not an error for this server.
+                _providers = [];
+                if (!PasswordSignIn)
+                {
+                    _serverAuthMessage = "Identity providers could not be loaded. Check the server connection and try again.";
+                }
             }
         }
     }

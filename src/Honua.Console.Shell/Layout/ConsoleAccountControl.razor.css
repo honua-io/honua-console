@@ -13,7 +13,8 @@
     overflow-wrap: anywhere;
 }
 
-.console-account-control button {
+.console-account-control button,
+.console-account-control a {
     min-height: 44px;
     white-space: nowrap;
 }

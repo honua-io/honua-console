@@ -1,5 +1,6 @@
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
+@implements IDisposable
 
 @if (Services.GetService<IConsoleBrowserAuthentication>() is { } authentication)
 {
@@ -15,12 +16,33 @@
                 }
             </div>
         </Authorized>
+        <NotAuthorized>
+            @if (!OnSignInPage)
+            {
+                <div class="console-account-control">
+                    <a class="console-button" data-console-signin href="@SignInHref">Sign in</a>
+                </div>
+            }
+        </NotAuthorized>
     </AuthorizeView>
 }
 
 @code {
     private bool _signingOut;
     private string? _error;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += LocationChanged;
+
+    private void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args) =>
+        _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= LocationChanged;
+
+    private string CurrentRoute => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
+    private bool OnSignInPage => CurrentRoute == "/auth/signin";
+    private string SignInHref => Navigation.ToConsoleHref(CurrentRoute == "/"
+        ? "/auth/signin"
+        : $"/auth/signin?returnTo={Uri.EscapeDataString(CurrentRoute)}");
 
     private async Task SignOutAsync(IConsoleBrowserAuthentication authentication)
     {

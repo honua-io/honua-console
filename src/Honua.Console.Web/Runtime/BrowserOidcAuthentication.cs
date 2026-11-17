@@ -9,7 +9,8 @@ public sealed class BrowserOidcAuthentication(
     BrowserAuthenticationStateProvider authentication,
     NavigationManager navigation) : IConsoleOidcAuthentication
 {
-    public bool IsAvailable => api.UsesCookieSession && !api.SupportsPasswordSignIn;
+    // Built-in password sign-in does not exclude providers: the server's /auth/config decides which it lists.
+    public bool IsAvailable => api.UsesCookieSession;
 
     public async Task<IReadOnlyList<ConsoleIdentityProvider>> GetProvidersAsync(CancellationToken cancellationToken = default)
     {
