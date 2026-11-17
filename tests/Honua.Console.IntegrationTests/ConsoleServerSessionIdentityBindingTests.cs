@@ -78,6 +78,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
 
         Assert.Equal(ConsoleServerSignInStatus.Redirect, result.Status);
         Assert.Equal(new[] { "token", "session", "bearer" }, harness.Handler.Requests);
+        Assert.Equal("server-csrf", harness.Handler.BearerCsrfToken);
         Assert.Equal("opaque-bearer-1", (await harness.Sessions.GetSessionAsync("env"))!.AccessToken);
     }
 
@@ -875,6 +876,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         public bool Disposed { get; private set; }
         private int _issued;
         public bool PauseBearer { get; set; }
+        public string? BearerCsrfToken { get; private set; }
         public bool PauseToken { get; set; }
         public bool PauseApply { get; set; }
         public bool PauseSession { get; set; }
@@ -899,6 +901,10 @@ public sealed class ConsoleServerSessionIdentityBindingTests
             if (operation == "authorize-url")
             {
                 return Json("""{"authorizeUrl":"https://idp.example/authorize?state=state"}""");
+            }
+            if (operation == "csrf")
+            {
+                return Json("""{"requestToken":"server-csrf"}""");
             }
             Requests.Add(operation);
             if (operation == "token")
@@ -940,6 +946,7 @@ public sealed class ConsoleServerSessionIdentityBindingTests
                 return response;
             }
             Assert.Equal("bearer", operation);
+            BearerCsrfToken = request.Headers.TryGetValues("X-Honua-CSRF", out var csrf) ? csrf.Single() : null;
             if (PauseBearer)
             {
                 BearerEntered.TrySetResult();
