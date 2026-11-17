@@ -893,7 +893,21 @@ internal static class ConsoleServerSessionBffExtensions
         builder.Services.TryAddSingleton<ConsoleServerSessionBffCoordinator>();
         builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleOperatorBearerExchange,
             PartitionedConsoleOperatorBearerExchange>());
+        DecorateProposalsWithSessionApproval(builder.Services);
         return builder;
+    }
+
+    private static void DecorateProposalsWithSessionApproval(IServiceCollection services)
+    {
+        var original = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IConsoleProposalsClient));
+        if (original?.ImplementationFactory is not { } factory)
+        {
+            return;
+        }
+
+        services.Remove(original);
+        services.AddSingleton<IConsoleProposalsClient>(provider =>
+            new ConsoleSessionApprovalProposalsClient((IConsoleProposalsClient)factory(provider), provider));
     }
 
     public static WebApplication MapConsoleServerSessionBff(this WebApplication app)
