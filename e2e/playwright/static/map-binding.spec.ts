@@ -53,11 +53,13 @@ test('mounted layer map fills its preview stage', async ({ page }) => {
   await page.goto(`http://127.0.0.1:5185/console/operate/layers/${connection}-layer-7`);
   const map = page.getByRole('figure', { name: 'Map preview of layer Parcels', exact: true });
   await expect(map).toHaveAttribute('data-map-bound', 'true');
-  await expect(page.locator('link[data-honua-maplibre]')).toHaveCount(1);
-  const stage = await map.locator('.map-preview-stage').boundingBox();
-  await expect.poll(async () => (await map.locator('[data-map-preview-canvas]').boundingBox())?.height)
-    .toBeGreaterThanOrEqual((stage?.height ?? 0) - 2);
-  expect(stage?.height).toBeGreaterThan(100);
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelector<HTMLLinkElement>('link[data-honua-maplibre]')?.sheet != null)).toBe(true);
+  const stageHeight = (await map.locator('.map-preview-stage').boundingBox())?.height ?? 0;
+  expect(stageHeight).toBeGreaterThan(100);
+  const canvas = map.locator('[data-map-preview-canvas]');
+  await expect(canvas).toHaveCSS('position', 'absolute');
+  expect((await canvas.boundingBox())?.height).toBeGreaterThanOrEqual(stageHeight - 2);
 });
 
 async function routeLayerFixture(page: Page, v4Enabled: boolean) {
