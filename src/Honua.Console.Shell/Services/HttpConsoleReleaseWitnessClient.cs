@@ -152,7 +152,13 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
             {
                 return Denied("The active publication does not expose a public route.");
             }
-            var publicUrl = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, routePath.TrimStart('/')).AbsoluteUri;
+            // An absolute route path would replace the server address; only a link on this server is offered.
+            var publicUri = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, routePath.TrimStart('/'));
+            if (!IsOnServer(publicUri, profile.ServerBaseUri))
+            {
+                return Denied("The active publication's public route is not on this server.");
+            }
+            var publicUrl = publicUri.AbsoluteUri;
             return OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(new(
                 sourceRevision,
                 request.Family,
@@ -224,6 +230,9 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
     }
 
     private static bool IsFamily(string value) => value is "map" or "app" or "dashboard";
+    private static bool IsOnServer(Uri candidate, Uri server) =>
+        string.Equals(candidate.Scheme, server.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(candidate.Authority, server.Authority, StringComparison.OrdinalIgnoreCase);
     private static bool HasBlank(params string[] values) => values.Any(string.IsNullOrWhiteSpace);
     private static string Required(string? value, string label) =>
         !string.IsNullOrWhiteSpace(value) ? value.Trim() : throw new InvalidOperationException($"Missing {label}.");

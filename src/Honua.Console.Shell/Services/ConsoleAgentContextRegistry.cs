@@ -58,7 +58,7 @@ public sealed class ConsoleAgentContextRegistry
         lock (_gate)
         {
             if (_active != registration) return;
-            if (SameContext(context)) return;
+            if (SameContext(ConsoleAgentContextBounds.Apply(context))) return;
             _current = Snapshot(context);
         }
         Changed?.Invoke();
@@ -85,6 +85,7 @@ public sealed class ConsoleAgentContextRegistry
 
     private ConsoleAgentContextSnapshot Snapshot(ConsoleAgentPageContext context)
     {
+        context = ConsoleAgentContextBounds.Apply(context);
         var route = NormalizeRoute(context.Route);
         if (context.Unsaved.ChangedFieldCount < 0 || context.Unsaved.PendingOperationCount < 0)
             throw new ArgumentException("Unsaved counts cannot be negative.", nameof(context));
