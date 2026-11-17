@@ -382,9 +382,10 @@
     private void ConfirmCancelJob(string jobRunId)
     {
         if (_confirm is null) return;
+        var request = _viewRequest;
         _confirm.Open(
             title: "Cancel this job?",
-            onConfirm: () => CancelJobAsync(jobRunId),
+            onConfirm: () => request == _viewRequest ? CancelJobAsync(jobRunId) : Task.CompletedTask,
             body: "This will abort the running job. Work completed so far may be partially applied. This cannot be undone.",
             confirmLabel: "Cancel job");
     }
