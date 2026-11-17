@@ -12,12 +12,12 @@ public sealed class UnsupportedCatalogDiscoveryDataSource : ICatalogDiscoveryDat
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the Catalogs surface can bind the server-owned catalog discovery-endpoints registry (honua-server#1279). honua-server does not yet expose this contract.");
 
-    public Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+    public Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string environmentId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new CatalogDiscoveryRegistryLoad(null, [MissingBinding]));
 
-    public Task<CatalogEndpointDetailLoad> LoadEndpointAsync(string workspaceId, string endpointKey, CancellationToken cancellationToken = default) =>
+    public Task<CatalogEndpointDetailLoad> LoadEndpointAsync(string environmentId, string endpointKey, CancellationToken cancellationToken = default) =>
         Task.FromResult(new CatalogEndpointDetailLoad(null, [MissingBinding]));
 
-    public Task<CatalogItemLoad> LoadItemAsync(string workspaceId, string endpointKey, string itemId, CancellationToken cancellationToken = default) =>
+    public Task<CatalogItemLoad> LoadItemAsync(string environmentId, string endpointKey, string itemId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new CatalogItemLoad(null, [MissingBinding]));
 }

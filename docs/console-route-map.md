@@ -203,6 +203,8 @@ Services and Layers lists at `/operate/services` and `/operate/layers`,
 and Connections at `/operate/connections`. The old `/operate/resources`
 list route redirects into `/operate/data`.
 
+Catalog discovery routes use `?environment=<id>` for the registry selection and preserve it through endpoint/item links and breadcrumbs. An omitted selection keeps the `current` default. Configured identifiers and item handles are unchanged.
+
 Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
 (`honua-console#125`): which catalog dialects the server publishes
 (GeoServices service catalog / OGC API Records / OData / STAC / DCAT), their server-wide on/off
