@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, request } from '@playwright/test';
+import { withLayerId } from '../layer-identity';
 import { sourceConnectionBody } from '../source-db';
 import { accessibility, createRecipe, customerIdentity, identity, observeHealth, observeLifecycle, paintedFeatures, read, scrollForMilestone, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
@@ -583,7 +584,7 @@ test('widget transport control: real recipe table and filter use the host sessio
         geometryColumn: 'geom', primaryKey: 'id', srid: 4326,
       } });
       expect(publication.status()).toBe(201);
-      layerId = (await publication.json()).data.layerId;
+      layerId = withLayerId((await publication.json()).data).layerId;
     }
     const features = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}/query?where=1%3D1&outFields=*&f=json`);
     expect(features.status()).toBe(200);
@@ -695,7 +696,7 @@ test('import typing control: published GeoJSON retains scalar attribute fields',
       schema: physical.schema, table: physical.table, layerName: 'Typed imported regions', serviceName: service, enabled: true,
     } });
     expect(publication.status()).toBe(201);
-    const layerId = (await publication.json()).data.layerId;
+    const layerId = withLayerId((await publication.json()).data).layerId;
     const metadataResponse = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}?f=json`);
     expect(metadataResponse.status()).toBe(200);
     const metadata = await metadataResponse.json();
