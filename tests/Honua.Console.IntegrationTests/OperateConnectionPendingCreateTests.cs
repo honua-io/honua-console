@@ -235,6 +235,26 @@ public sealed class OperateConnectionPendingCreateTests
         Assert.DoesNotContain("SUBMITTED_DSN", page.Find("[data-created-connection]").TextContent, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CreateWaitsForExistingNamesSoTheDuplicateGuardCannotBeSkipped()
+    {
+        using var context = Context(enabled: true);
+        var source = new Source { Load = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        context.Services.AddSingleton<IOperateTransitionDataSource>(source);
+        var operations = RegisterPendingCreate(context);
+        var page = RenderValidConnectionDraft(context);
+        page.Find("input[placeholder='prod-postgis']").Input(Connection.Name);
+
+        Assert.True(CreateButton(page).HasAttribute("disabled"));
+
+        await page.InvokeAsync(() => source.Load!.SetResult(new OperateTransitionWorkspace([Connection], [], [], [], [])));
+        page.WaitForAssertion(() => Assert.False(CreateButton(page).HasAttribute("disabled")));
+        await CreateButton(page).ClickAsync(new());
+
+        Assert.Empty(operations.CreatedCommands);
+        Assert.Contains($"A connection named '{Connection.Name}' already exists.", string.Concat(page.Nodes.Select(node => node.TextContent)), StringComparison.Ordinal);
+    }
+
     private static Operations RegisterPendingCreate(BunitContext context)
     {
         context.JSInterop.Mode = JSRuntimeMode.Loose;
