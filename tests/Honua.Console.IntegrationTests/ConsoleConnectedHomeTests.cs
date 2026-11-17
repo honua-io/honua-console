@@ -48,18 +48,10 @@ public sealed class ConsoleConnectedHomeTests
             Assert.Equal("/inbox", home.Find("[data-open-inbox]").GetAttribute("href"));
             Assert.Equal("/environments", home.Find(".console-home-administration a[href='/environments']").GetAttribute("href"));
             Assert.Contains("supplementary proposal source", home.Find("[data-home-inbox-partial]").TextContent);
-            Assert.Contains("in returned sources", home.Find("[data-home-total-count]").TextContent);
-            Assert.Equal(enabled ? 1 : 0, home.FindAll("[data-home-awaiting-count] .console-metric-tile").Count);
+            Assert.Contains("Couldn't read the approval queue from", home.Find("[data-home-inbox-error-title]").TextContent);
+            Assert.False(home.Find("[data-home-inbox-retry]").HasAttribute("disabled"));
+            Assert.Empty(home.FindAll("[data-home-awaiting-count], [data-home-total-count]"));
             Assert.Equal(enabled ? 1 : 0, home.FindAll(".console-page-heading-copy").Count);
-            if (enabled)
-            {
-                Assert.Equal("0", home.Find("[data-home-awaiting-count] dd").TextContent);
-                Assert.Contains("returned sources", home.Find("[data-home-awaiting-count] dt").TextContent);
-            }
-            else
-            {
-                Assert.Equal("0", home.Find("[data-home-awaiting-count] strong").TextContent);
-            }
         });
         CatalogAdminPreview.Capture($"home-v4-{enabled.ToString().ToLowerInvariant()}",
             $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><main class=\"console-main\">{home.Markup}</main></div>");
@@ -86,7 +78,7 @@ public sealed class ConsoleConnectedHomeTests
     }
 
     [Fact]
-    public void PartialEmptyQueue_ShowsSourceWarningWithoutClaimingNoPendingWork()
+    public void PartialEmptyQueue_ShowsRetryWithoutClaimingNoPendingWork()
     {
         var result = OperateSectionResult<ApprovalInboxSnapshot>.Allowed(ApprovalInboxSnapshot.Empty,
             partialResult: true, message: "The supplementary proposal source could not be read.");
@@ -96,9 +88,11 @@ public sealed class ConsoleConnectedHomeTests
         home.WaitForAssertion(() =>
         {
             Assert.Contains("supplementary proposal source", home.Find("[data-home-inbox-partial]").TextContent);
-            Assert.Contains("No pending approvals in the sources returned.", home.Markup);
+            Assert.NotNull(home.Find("[data-home-inbox-error]"));
+            Assert.NotNull(home.Find("[data-home-inbox-retry]"));
+            Assert.DoesNotContain("No pending approvals", home.Markup);
             Assert.DoesNotContain("No agent-proposed operations are awaiting a decision right now.", home.Markup);
-            Assert.Contains("in returned sources", home.Find("[data-home-total-count]").TextContent);
+            Assert.Empty(home.FindAll("[data-home-awaiting-count], [data-home-total-count]"));
             Assert.Contains("Partial queue", home.Find("[data-summary-tile='approvals']").TextContent);
         });
     }
