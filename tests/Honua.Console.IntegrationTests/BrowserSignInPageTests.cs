@@ -194,6 +194,7 @@ public sealed class BrowserSignInPageTests
 
     private sealed class PendingAuthentication : IConsoleBrowserAuthentication
     {
+        public Task SignOutAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool SupportsPasswordSignIn { get; init; } = true;
         public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? Password { get; private set; }
