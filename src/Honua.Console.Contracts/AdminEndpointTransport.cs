@@ -43,7 +43,7 @@ internal sealed class AdminEndpointTransport(HttpClient httpClient, string? apiK
         }
         catch (Exception ex) when (transportFailure.Matches(ex, cancellationToken))
         {
-            return HonuaAdminEndpointResult<T>.FromIssue(transportFailure.CreateIssue(call.Contract, ex));
+            return HonuaAdminEndpointResult<T>.FromIssue(transportFailure.CreateIssue(call.Contract));
         }
     }
 }
@@ -71,6 +71,10 @@ internal sealed class AdminTransportFailure
     public bool Matches(Exception exception, CancellationToken cancellationToken) =>
         exception is IOException || _matches(exception, cancellationToken);
 
-    public HonuaAdminEndpointIssue CreateIssue(string contract, Exception exception) =>
-        new("Unavailable", contract, $"{_endpoint} could not be reached: {exception.Message}");
+    // The client exception text (browser fetch errors, socket messages) is not operator guidance and can
+    // leak client internals, so the detail stops at the operator sentence.
+    public HonuaAdminEndpointIssue CreateIssue(string contract) =>
+        new("Unavailable", contract, $"{_endpoint} could not be reached. {RetryGuidance}");
+
+    private const string RetryGuidance = "Check that the server is running and try again.";
 }
