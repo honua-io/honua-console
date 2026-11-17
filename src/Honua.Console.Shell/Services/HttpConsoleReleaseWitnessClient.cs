@@ -174,7 +174,9 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
             ex is HttpRequestException or JsonException or OperationCanceledException
             && !cancellationToken.IsCancellationRequested)
         {
-            return Denied("The candidate release evidence could not be read.", ex.Message);
+            // Transport and body failures carry client-internal text (fetch errors, JSON reader positions);
+            // keep it out of the page and offer the same reload guidance as the page-level catch.
+            return Denied("The candidate release evidence could not be read. Reload to try again.");
         }
     }
 
