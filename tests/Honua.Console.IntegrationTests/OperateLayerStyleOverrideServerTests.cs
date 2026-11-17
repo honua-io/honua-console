@@ -177,6 +177,23 @@ public sealed class OperateLayerStyleOverrideServerTests
         Assert.DoesNotContain("did not answer in time", view.BindingState.Detail, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(null, "honua-server did not answer in time")]
+    [InlineData(503, "The Honua server returned HTTP 503")]
+    public async Task GetOverrides_WhenLayerProjectionUnavailable_ReportsTemporaryFailureNotMissingBinding(int? statusCode, string detailStart)
+    {
+        var source = new ServerOperateLayerStyleOverrideDataSource(
+            new UnavailableLayersSource(statusCode),
+            CreateClient(_ => OkDocument(1, null)));
+
+        var view = await source.GetOverridesAsync(ResourceId);
+
+        Assert.Empty(view.Layers);
+        Assert.Equal(OperateLayerStyleBindingState.Unavailable, view.BindingState!.State);
+        Assert.StartsWith(detailStart, view.BindingState.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("net_http", view.BindingState.Detail, StringComparison.Ordinal);
+    }
+
     private static HttpResponseMessage OkDocument(int layerId, JsonElement? document) =>
         new(HttpStatusCode.OK)
         {
@@ -202,6 +219,37 @@ public sealed class OperateLayerStyleOverrideServerTests
             _ = request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
             return Task.FromResult(responder(request));
         }
+    }
+
+    // A layer projection read that failed: no services, one Unavailable state as the admin client reports it.
+    private sealed class UnavailableLayersSource(int? statusCode) : IOperateTransitionDataSource
+    {
+        public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateServicesView([],
+            [
+                new OperateCapabilityState(
+                    "Services",
+                    "Unavailable",
+                    "GET /api/v1/admin/services",
+                    statusCode is null
+                        ? "The Honua server endpoint could not be reached: net_http_request_timedout, 30"
+                        : $"The Honua server returned HTTP {statusCode} (ServiceUnavailable).")
+                {
+                    StatusCode = statusCode
+                }
+            ]));
+
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     // Minimal live-layers projection: only GetLayersViewAsync is exercised by the data source.

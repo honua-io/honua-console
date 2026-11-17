@@ -121,6 +121,12 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
     {
         var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
         var exposures = view.FindExposures(resourceId);
+        if (exposures.Count == 0 && view.CapabilityStates.FirstOrDefault(state => state.State == "Unavailable") is { } unavailable)
+        {
+            // The layer projection itself could not be read, so the layer may well exist.
+            return ([], ToUnavailable(unavailable.Contract, unavailable.StatusCode, unavailable.Detail));
+        }
+
         if (exposures.Count == 0)
         {
             return ([], new OperateLayerStyleBindingState(
@@ -175,19 +181,22 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
             ? JsonSerializer.Serialize(element, WriteOptions)
             : string.Empty;
 
+    // A temporary failure, not a missing binding. Only a transport failure (no HTTP status) carries a raw
+    // client error, so only that one is reworded; a server error keeps the server's own detail.
+    private static OperateLayerStyleBindingState ToUnavailable(string contract, int? statusCode, string detail) =>
+        new(
+            Surface,
+            OperateLayerStyleBindingState.Unavailable,
+            contract,
+            statusCode is null
+                ? "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment."
+                : detail);
+
     private static OperateLayerStyleBindingState ToBindingState(string contract, HonuaAdminEndpointIssue issue)
     {
         if (issue.State == "Unavailable")
         {
-            // A temporary failure, not a missing binding. Only a transport failure (no HTTP status) carries a raw
-            // client error, so only that one is reworded; a server error keeps the server's own detail.
-            return new OperateLayerStyleBindingState(
-                Surface,
-                OperateLayerStyleBindingState.Unavailable,
-                contract,
-                issue.StatusCode is null
-                    ? "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment."
-                    : issue.Detail);
+            return ToUnavailable(contract, issue.StatusCode, issue.Detail);
         }
 
         var state = issue.State switch
