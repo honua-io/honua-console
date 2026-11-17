@@ -68,6 +68,7 @@ public sealed class StudioFormXlsFormRenderTests
         page.WaitForAssertion(() => Assert.Contains("data-form-builder", page.Markup, StringComparison.Ordinal));
         Assert.Equal(["hydrants"], forms.Loaded);
         Assert.Empty(page.FindAll("[data-xlsform-import]"));
+        Assert.Contains("Imported hydrants.xlsx as draft version 1 of hydrants.", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -105,7 +106,8 @@ public sealed class StudioFormXlsFormRenderTests
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-xlsform-diagnostics] tbody tr")));
         Assert.Contains("cannot be written as XLSForm", page.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain(ctx.JSInterop.Invocations, invocation => invocation.Identifier == "save");
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, invocation =>
+            invocation.Identifier == "import" && Equals(invocation.Arguments[0], "./_content/Honua.Console.Shell/console-file-download.js"));
     }
 
     [Fact]
@@ -154,7 +156,7 @@ public sealed class StudioFormXlsFormRenderTests
         page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary("PK-workbook"u8.ToArray(), "hydrants.xlsx"));
         var inputs = page.FindAll("[data-xlsform-import] input.console-input:not([type=file])");
         inputs[0].Input(serviceId);
-        page.FindAll("[data-xlsform-import] input[type=number]")[0].Change(layerId);
+        page.FindAll("[data-xlsform-import] input[type=number]")[0].Input(layerId);
         FindButton(page, "Import").Click();
     }
 

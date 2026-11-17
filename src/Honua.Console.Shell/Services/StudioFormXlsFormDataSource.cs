@@ -28,9 +28,17 @@ public sealed class HonuaServerStudioFormXlsFormDataSource(IHonuaFormXlsFormClie
         }
 
         var version = result.Data!.Version!;
+        if (string.IsNullOrWhiteSpace(version.FormId))
+        {
+            return StudioFormXlsFormOutcome.Rejected(
+                "The server accepted the workbook but returned no form id, so the draft cannot be opened.",
+                [],
+                new StudioFormCapabilityState(Surface, "Unavailable", HonuaFormXlsFormHttpClient.ImportContract, "Import response had no formId."));
+        }
+
         return StudioFormXlsFormOutcome.Imported(
             $"Imported {upload.FileName} as draft version {version.Version.ToString(CultureInfo.InvariantCulture)} of {version.FormId}.",
-            version.FormId!);
+            version.FormId);
     }
 
     public async Task<StudioFormXlsFormOutcome> ExportAsync(string formId, CancellationToken cancellationToken = default)

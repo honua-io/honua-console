@@ -35,6 +35,19 @@ public sealed class FormXlsFormHttpClientTests
     }
 
     [Fact]
+    public async Task Import_CreatedWithoutFormId_IsReportedInsteadOfOpeningNothing()
+    {
+        var client = CreateClient(new RecordingHandler(_ => Json(HttpStatusCode.Created, """{"version":1,"status":"draft"}""")));
+        var dataSource = new Honua.Console.Shell.Services.HonuaServerStudioFormXlsFormDataSource(client);
+
+        var outcome = await dataSource.ImportAsync(Upload("inspections", "hydrants.xlsx", [80, 75]));
+
+        Assert.False(outcome.Succeeded);
+        Assert.Null(outcome.FormId);
+        Assert.Equal("Unavailable", outcome.Issue!.State);
+    }
+
+    [Fact]
     public async Task Import_RejectedWorkbook_ReturnsEveryDiagnosticWithTheServerDetail()
     {
         var client = CreateClient(new RecordingHandler(_ => Json(HttpStatusCode.BadRequest, RejectedWorkbook)));

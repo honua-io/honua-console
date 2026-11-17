@@ -78,13 +78,13 @@
                 <button class="console-button" type="button" disabled="@_busy" @onclick="NewForm">New form</button>
                 @if (XlsForm is not null)
                 {
-                    <button class="console-button console-button-secondary" type="button" disabled="@_busy" aria-expanded="@(_importOpen ? "true" : "false")" @onclick="ToggleImport">Import XLSForm</button>
+                    <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _importBusy)" aria-expanded="@(_importOpen ? "true" : "false")" @onclick="ToggleImport">Import XLSForm</button>
                 }
             </div>
 
             @if (_importOpen && XlsForm is not null)
             {
-                <StudioFormXlsFormImportPanel DataSource="XlsForm" OnImported="OpenImportedForm" OnClose="ToggleImport" />
+                <StudioFormXlsFormImportPanel DataSource="XlsForm" OnImported="OpenImportedForm" OnBusyChanged="busy => _importBusy = busy" OnClose="ToggleImport" />
             }
 
             @if (_workspace.Packages.Count == 0)
@@ -457,6 +457,7 @@
     private IReadOnlyList<StudioFormCapabilityState> _states = [];
     private StudioFormEditorState? _editor;
     private bool _importOpen;
+    private bool _importBusy;
     private IReadOnlyList<HonuaFormXlsFormDiagnostic> _exportDiagnostics = [];
 
     // Optional: registered only when a server is bound, so the actions never render against nothing.
@@ -629,13 +630,16 @@
         OnEdit();
     }
 
-    private void ToggleImport() => _importOpen = !_importOpen;
+    private void ToggleImport() => _importOpen = !_importOpen && !_importBusy;
 
-    private async Task OpenImportedForm(string formId)
+    private async Task OpenImportedForm(StudioFormXlsFormOutcome outcome)
     {
         _importOpen = false;
+        _importBusy = false;
         await LoadWorkspaceAsync();
-        await OpenForm(formId);
+        await OpenForm(outcome.FormId!);
+        _status = outcome.Message;
+        _statusFailed = false;
     }
 
     private async Task ExportXlsForm()

@@ -1,3 +1,4 @@
+@using Microsoft.JSInterop
 @* XLSForm import: the builder picks a workbook and the layer its questions bind to; honua-server converts it
    into a new draft form package. On success the page opens the draft; on failure every blocking cell is listed
    and no draft exists. *@
@@ -17,7 +18,7 @@
         <input class="console-input" @bind="_serviceId" @bind:event="oninput" disabled="@_busy" placeholder="inspections" />
     </FieldStateRow>
     <FieldStateRow State="FieldState.Input" Label="Layer id">
-        <input class="console-input" type="number" min="0" @bind="_layerId" disabled="@_busy" />
+        <input class="console-input" type="number" min="0" @bind="_layerId" @bind:event="oninput" disabled="@_busy" />
     </FieldStateRow>
 
     <div class="console-action-row">
@@ -38,7 +39,7 @@
 
     private IBrowserFile? _file;
     private string _serviceId = string.Empty;
-    private int _layerId;
+    private int? _layerId;
     private bool _busy;
     private bool _failed;
     private string? _message;
@@ -49,12 +50,15 @@
     public IStudioFormXlsFormDataSource DataSource { get; set; } = default!;
 
     [Parameter]
-    public EventCallback<string> OnImported { get; set; }
+    public EventCallback<StudioFormXlsFormOutcome> OnImported { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnBusyChanged { get; set; }
 
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private bool CanImport => !_busy && _file is not null && !string.IsNullOrWhiteSpace(_serviceId) && _layerId >= 0;
+    private bool CanImport => !_busy && _file is not null && !string.IsNullOrWhiteSpace(_serviceId) && _layerId is >= 0;
 
     private void OnFileSelected(InputFileChangeEventArgs args)
     {
@@ -76,7 +80,7 @@
             return;
         }
 
-        _busy = true;
+        await SetBusyAsync(true);
         _message = $"Importing {_file!.Name}…";
         _failed = false;
         _diagnostics = [];
@@ -86,22 +90,34 @@
             var outcome = await DataSource.ImportAsync(new HonuaFormXlsFormUpload
             {
                 ServiceId = _serviceId,
-                LayerId = _layerId,
+                LayerId = _layerId!.Value,
                 FileName = _file.Name,
                 Content = content
             });
             _message = outcome.Message;
             _failed = !outcome.Succeeded;
             _diagnostics = outcome.Diagnostics;
-            if (outcome.Succeeded && outcome.FormId is { } formId)
+            if (outcome.Succeeded)
             {
-                await OnImported.InvokeAsync(formId);
+                await OnImported.InvokeAsync(outcome);
             }
+        }
+        catch (Exception ex) when (ex is IOException or JSException or OperationCanceledException)
+        {
+            // The workbook changed or vanished after it was picked, or the upload timed out.
+            _message = $"{_file.Name} could not be read or sent. Choose the workbook again and retry.";
+            _failed = true;
         }
         finally
         {
-            _busy = false;
+            await SetBusyAsync(false);
         }
+    }
+
+    private async Task SetBusyAsync(bool busy)
+    {
+        _busy = busy;
+        await OnBusyChanged.InvokeAsync(busy);
     }
 
     private static async Task<byte[]> ReadAsync(IBrowserFile file)
