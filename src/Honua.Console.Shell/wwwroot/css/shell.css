@@ -197,3 +197,39 @@
     background: var(--c-count-bg);
     color: var(--c-count-text);
 }
+
+.console-account {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.console-account-name {
+    min-width: 0;
+    max-width: 12rem;
+    overflow-wrap: anywhere;
+}
+
+.console-account button {
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+.console-account-error {
+    flex-basis: 100%;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .console-account {
+        flex-basis: 100%;
+    }
+
+    .console-account-name {
+        flex: 1;
+        max-width: none;
+    }
+}

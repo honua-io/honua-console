@@ -1,0 +1,41 @@
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+@if (Authentication is { } authentication)
+{
+    <AuthorizeView Context="account">
+        <Authorized>
+            <div class="console-account">
+                <span class="console-account-name">@(account.User.Identity?.Name ?? "Signed-in operator")</span>
+                <button type="button" class="console-button" disabled="@_signingOut" @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
+                @if (_error is not null)
+                {
+                    <span class="console-account-error" role="alert">@_error</span>
+                }
+            </div>
+        </Authorized>
+    </AuthorizeView>
+}
+
+@code {
+    private IConsoleBrowserAuthentication? Authentication => Services.GetService<IConsoleBrowserAuthentication>();
+    private bool _signingOut;
+    private string? _error;
+
+    private async Task SignOutAsync(IConsoleBrowserAuthentication authentication)
+    {
+        if (_signingOut) return;
+        _signingOut = true;
+        _error = null;
+        try
+        {
+            await authentication.SignOutAsync();
+            Navigation.NavigateTo(Navigation.ToConsoleHref("/auth/signin"), forceLoad: true);
+        }
+        catch
+        {
+            _error = "Sign out failed. Try again.";
+            _signingOut = false;
+        }
+    }
+}
