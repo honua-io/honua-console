@@ -165,20 +165,9 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
                 return await DeniedAsync<T>(response, call.NotFound, cancellationToken).ConfigureAwait(false);
             }
 
-            if (response.StatusCode == HttpStatusCode.NoContent && call.NoContent is { } noContent)
-            {
-                return OperateSectionResult<T>.Allowed(noContent(), message: string.Empty);
-            }
-
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var envelope = await JsonSerializer.DeserializeAsync(stream, call.Response, cancellationToken).ConfigureAwait(false);
-            return envelope is { Success: true, Data: { } data }
-                ? OperateSectionResult<T>.Allowed(data, message: envelope.Message ?? string.Empty)
-                : OperateSectionResult<T>.Denied(
-                    OperateSectionStatus.Unavailable,
-                    string.IsNullOrWhiteSpace(envelope?.Message)
-                        ? "The honua-server admin API reported the request as unsuccessful."
-                        : envelope!.Message!);
+            return response.StatusCode == HttpStatusCode.NoContent && call.NoContent is { } noContent
+                ? OperateSectionResult<T>.Allowed(noContent(), message: string.Empty)
+                : await ReadEnvelopeAsync(response, call, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -240,6 +229,23 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
         HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed => OperateSectionStatus.Conflict,
         _ => OperateSectionStatus.Unavailable
     };
+
+    private static async Task<OperateSectionResult<T>> ReadEnvelopeAsync<T>(
+        HttpResponseMessage response,
+        ServerCall<T> call,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var envelope = await JsonSerializer.DeserializeAsync(stream, call.Response, cancellationToken).ConfigureAwait(false);
+        return envelope is { Success: true, Data: { } data }
+            ? OperateSectionResult<T>.Allowed(data, message: envelope.Message ?? string.Empty)
+            : OperateSectionResult<T>.Denied(
+                OperateSectionStatus.Unavailable,
+                string.IsNullOrWhiteSpace(envelope?.Message)
+                    ? "The honua-server admin API reported the request as unsuccessful."
+                    : envelope!.Message!);
+    }
 
     // One admin call: a 404 means Missing unless the route is the probe for the whole surface.
     private sealed record ServerCall<T>(string Route, JsonTypeInfo<ConsoleApiEnvelope<T>> Response)
