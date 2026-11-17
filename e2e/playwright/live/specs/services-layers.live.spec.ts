@@ -278,14 +278,15 @@ test.describe('Operate · Publish layer workflow (live)', () => {
       headers,
       data: { title: '{name}', fieldInfos: [{ fieldName: 'name', label: 'Name', visible: true }] },
     });
-    await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/relationships`, {
+    const relationships = await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/relationships`, {
       headers,
       data: {
         relationships: [
-          { id: 'rel0', name: 'self', relatedLayerId: LID, role: 'origin', cardinality: 'one-to-many', originField: 'id', destinationField: 'id', esriRelationshipId: 7 },
+          { id: 'rel0', name: 'self', relatedStorageLayerId: LID, role: 'origin', cardinality: 'one-to-many', originField: 'id', destinationField: 'id', esriRelationshipId: 7 },
         ],
       },
     });
+    expect(relationships.ok(), `relationships PUT -> ${relationships.status()} ${await relationships.text()}`).toBeTruthy();
 
     // The FeatureServer layer metadata now carries all three (poll absorbs the post-write cache invalidation).
     await expect

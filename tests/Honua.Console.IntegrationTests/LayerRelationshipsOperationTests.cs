@@ -96,7 +96,7 @@ public sealed class LayerRelationshipsOperationTests
         Assert.Equal(1, rels.GetArrayLength());
         var rel = rels[0];
         Assert.Equal("self", rel.GetProperty("name").GetString());
-        Assert.Equal(1, rel.GetProperty("relatedLayerId").GetInt32());
+        Assert.Equal(1, rel.GetProperty("relatedStorageLayerId").GetInt32());
         Assert.Equal("origin", rel.GetProperty("role").GetString());
         Assert.Equal("one-to-many", rel.GetProperty("cardinality").GetString());
         Assert.Equal("id", rel.GetProperty("originField").GetString());
@@ -127,7 +127,7 @@ public sealed class LayerRelationshipsOperationTests
         var operation = new HonuaServerConsoleLayerRelationshipsOperation(CreateClient(_ =>
             new HttpResponseMessage(HttpStatusCode.BadRequest)
             {
-                Content = JsonContent.Create(new { success = false, message = "relatedLayerId 99 does not exist." })
+                Content = JsonContent.Create(new { success = false, message = "relatedStorageLayerId 99 does not exist." })
             }));
 
         var result = await operation.SetRelationshipsAsync(1,
