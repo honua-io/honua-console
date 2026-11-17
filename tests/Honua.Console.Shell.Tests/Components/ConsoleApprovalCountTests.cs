@@ -7,7 +7,6 @@ using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Honua.Console.Shell.Tests.Components;
 
@@ -45,21 +44,59 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
         Assert.Equal("1", component.Find("[data-count]").TextContent);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReplayReset_IncompleteReadDoesNotAcknowledgeReconciliation(bool partial)
+    {
+        var (inbox, realtime) = Register();
+        var component = Render<ConsoleApprovalCount>();
+        inbox.Read = _ => Task.FromResult(partial
+            ? Count(1) with { PartialResult = true }
+            : OperateSectionResult<ApprovalInboxSnapshot>.Denied(OperateSectionStatus.Unavailable, "Unavailable"));
+
+        await Assert.ThrowsAsync<IOException>(() => component.InvokeAsync(realtime.ResetAsync));
+
+        if (partial) Assert.Equal("1+", component.Find("[data-count]").TextContent);
+        else Assert.Empty(component.FindAll("[data-count]"));
+        inbox.Read = _ => Task.FromResult(Count(0));
+        await component.InvokeAsync(realtime.ResetAsync);
+        Assert.Equal("0", component.Find("[data-count]").TextContent);
+    }
+
+    [Fact]
+    public async Task ReplayReset_TimeoutCancelsReadWithoutAcknowledgement()
+    {
+        var (inbox, realtime) = Register();
+        var component = Render<ConsoleApprovalCount>();
+        var pending = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken readToken = default;
+        inbox.Read = token => { readToken = token; return pending.Task; };
+
+        await Assert.ThrowsAsync<IOException>(() => component.InvokeAsync(realtime.ResetAsync));
+
+        Assert.True(readToken.IsCancellationRequested);
+        Assert.Empty(component.FindAll("[data-count]"));
+        pending.SetResult(Count(1));
+    }
+
     [Fact]
     public async Task OlderRead_CannotOverwriteTheReconciledCount()
     {
         var (inbox, realtime) = Register();
+        var component = Render<ConsoleApprovalCount>();
         var pending = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         inbox.Read = _ => pending.Task;
-        var component = Render<ConsoleApprovalCount>();
-        component.WaitForAssertion(() => Assert.Equal(1, inbox.Reads));
+        var olderReset = component.InvokeAsync(realtime.ResetAsync);
+        component.WaitForAssertion(() => Assert.Equal(2, inbox.Reads));
         inbox.Read = _ => Task.FromResult(Count(1));
 
         await component.InvokeAsync(realtime.ResetAsync);
-        component.WaitForAssertion(() => Assert.Equal("1", component.Find("[data-count]").TextContent));
+        Assert.Equal("1", component.Find("[data-count]").TextContent);
         pending.SetResult(Count(0));
-        await component.InvokeAsync(() => Task.CompletedTask);
+        await Assert.ThrowsAsync<IOException>(() => olderReset);
 
         Assert.Equal("1", component.Find("[data-count]").TextContent);
     }
@@ -105,18 +142,19 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
     {
         var profiles = new Profiles();
         Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
-        var (inbox, _) = Register();
+        var (inbox, realtime) = Register();
+        var component = Render<ConsoleApprovalCount>();
         var pending = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         inbox.Read = _ => pending.Task;
-        var component = Render<ConsoleApprovalCount>();
-        component.WaitForAssertion(() => Assert.Equal(1, inbox.Reads));
+        var olderReset = component.InvokeAsync(realtime.ResetAsync);
+        component.WaitForAssertion(() => Assert.Equal(2, inbox.Reads));
         inbox.Read = _ => Task.FromResult(Count(0));
 
         await component.InvokeAsync(profiles.Change);
         component.WaitForAssertion(() => Assert.Equal("0", component.Find("[data-count]").TextContent));
         pending.SetResult(Count(1));
-        await component.InvokeAsync(() => Task.CompletedTask);
+        await Assert.ThrowsAsync<IOException>(() => olderReset);
 
         Assert.Equal("0", component.Find("[data-count]").TextContent);
     }
@@ -124,8 +162,7 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
     [Fact]
     public void AnonymousShell_DoesNotReadThePrivilegedInbox()
     {
-        Services.AddSingleton<AuthenticationStateProvider>(new Authentication(false));
-        var (inbox, _) = Register();
+        var (inbox, _) = Register(new Authentication(false));
         var component = Render<ConsoleApprovalCount>();
 
         Assert.Empty(component.FindAll("[data-count]"));
@@ -136,8 +173,7 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
     public async Task SignOut_ClearsTheCountAndRejectsInFlightResults()
     {
         var authentication = new Authentication(true);
-        Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var (inbox, realtime) = Register();
+        var (inbox, realtime) = Register(authentication);
         inbox.Read = _ => Task.FromResult(Count(1));
         var component = Render<ConsoleApprovalCount>();
         component.WaitForAssertion(() => Assert.Equal("1", component.Find("[data-count]").TextContent));
@@ -150,7 +186,7 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
         await component.InvokeAsync(() => authentication.Change(false));
         Assert.Empty(component.FindAll("[data-count]"));
         pending.SetResult(Count(1));
-        await reset;
+        await Assert.ThrowsAsync<IOException>(() => reset);
 
         Assert.Empty(component.FindAll("[data-count]"));
         Assert.Equal(2, inbox.Reads);
@@ -160,8 +196,7 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
     public async Task SignIn_RefreshesWithoutRequiringNavigation()
     {
         var authentication = new Authentication(false);
-        Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        var (inbox, _) = Register();
+        var (inbox, _) = Register(authentication);
         inbox.Read = _ => Task.FromResult(Count(1));
         var component = Render<ConsoleApprovalCount>();
 
@@ -171,9 +206,9 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
         Assert.Equal(1, inbox.Reads);
     }
 
-    private (Inbox Inbox, Realtime Realtime) Register()
+    private (Inbox Inbox, Realtime Realtime) Register(Authentication? authentication = null)
     {
-        Services.TryAddSingleton<AuthenticationStateProvider>(new Authentication(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication ?? new Authentication(true));
         var inbox = new Inbox();
         var realtime = new Realtime();
         Services.AddSingleton<IConsoleApprovalInboxClient>(inbox);

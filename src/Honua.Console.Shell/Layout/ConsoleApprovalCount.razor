@@ -37,9 +37,9 @@
         if (!_disposed) await InvokeAsync(StateHasChanged);
     }
 
-    private async Task RefreshAsync()
+    private async Task<bool> RefreshAsync()
     {
-        if (_disposed) return;
+        if (_disposed) return false;
         var revision = ++_readRevision;
         _count = null;
         var token = _lifetime.Token;
@@ -52,24 +52,33 @@
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                return;
+                return false;
             }
-            if (_disposed || revision != _readRevision || authentication.User.Identity?.IsAuthenticated != true) return;
+            if (_disposed || revision != _readRevision || authentication.User.Identity?.IsAuthenticated != true) return false;
         }
         var inbox = Services.GetService<IConsoleApprovalInboxClient>();
-        if (inbox is null) return;
+        if (inbox is null) return false;
         var result = await ConsoleReadBudget.RunAsync(
             cancellation => inbox.GetInboxAsync(cancellationToken: cancellation), ConsoleReadBudget.Default,
             "The approval count is unavailable.", token);
-        if (_disposed || revision != _readRevision) return;
+        if (_disposed || revision != _readRevision) return false;
         if (result.IsAllowed && result.Value is { } snapshot)
         {
             _count = snapshot.AwaitingApprovalCount;
             _partial = result.PartialResult;
+            return !result.PartialResult;
         }
+        return false;
     }
 
-    private Task OnRefreshRequiredAsync() => _disposed ? Task.CompletedTask : InvokeAsync(RefreshAndRenderAsync);
+    private Task OnRefreshRequiredAsync() => _disposed ? Task.CompletedTask : InvokeAsync(async () =>
+    {
+        var refresh = RefreshAsync();
+        StateHasChanged();
+        var reconciled = await refresh;
+        if (!_disposed) StateHasChanged();
+        if (!reconciled) throw new IOException("The approval count could not be reconciled.");
+    });
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => QueueRefresh();
     private void OnProposalChanged(ConsoleProposalEvent proposal) => QueueRefresh();
     private void OnAuthenticationChanged(Task<AuthenticationState> state)
