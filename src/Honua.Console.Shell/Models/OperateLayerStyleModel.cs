@@ -12,6 +12,9 @@ public sealed record OperateLayerStyleBindingState(string Surface, string State,
     public const string MissingBinding = "Missing binding";
     public const string Forbidden = "Forbidden";
     public const string Unsupported = "Unsupported";
+
+    // The server did not answer (timeout or connection failure): temporary, so the page offers Retry.
+    public const string Unavailable = "Unavailable";
 }
 
 public sealed record OperateLayerStyleOverrideView(

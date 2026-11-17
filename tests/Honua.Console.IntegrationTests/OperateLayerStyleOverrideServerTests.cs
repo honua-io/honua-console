@@ -148,6 +148,22 @@ public sealed class OperateLayerStyleOverrideServerTests
         Assert.Equal(OperateLayerStyleBindingState.Forbidden, view.BindingState!.State);
     }
 
+    [Fact]
+    public async Task GetOverrides_WhenServerTimesOut_SurfacesTemporaryUnavailableStateWithoutClientErrorCode()
+    {
+        // HttpClient reports its own timeout as a TaskCanceledException that the caller did not request.
+        var source = new ServerOperateLayerStyleOverrideDataSource(
+            new FakeLayersSource(1, ResourceId, "e2e_src_fs", "E2E Source"),
+            CreateClient(_ => throw new TaskCanceledException("net_http_request_timedout, 30")));
+
+        var view = await source.GetOverridesAsync(ResourceId);
+
+        Assert.Empty(view.Layers);
+        Assert.Equal(OperateLayerStyleBindingState.Unavailable, view.BindingState!.State);
+        Assert.StartsWith("honua-server did not answer in time", view.BindingState.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("net_http", view.BindingState.Detail, StringComparison.Ordinal);
+    }
+
     private static HttpResponseMessage OkDocument(int layerId, JsonElement? document) =>
         new(HttpStatusCode.OK)
         {

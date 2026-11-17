@@ -100,8 +100,14 @@
         {
             <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="@StateKind(binding.State)"
                               Kicker="@binding.State"
-                              Title="Layer overrides are not available"
+                              Title="@StateTitle(binding.State)"
                               Message="@(binding.Detail + " (contract: " + binding.Contract + ")")" />
+            @if (binding.State == OperateLayerStyleBindingState.Unavailable)
+            {
+                <div class="console-action-row">
+                    <button class="console-button" type="button" @onclick="LoadAsync" data-layer-style-retry>Retry</button>
+                </div>
+            }
         }
         else if (_overrides.Layers.Count == 0)
         {
@@ -188,6 +194,11 @@
         _drawingEdits.Clear();
         _saving = false;
         _saveResult = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         var generation = ++_loadGeneration;
         var resourceId = ResourceId;
         var publication = PublicationContext;
@@ -267,6 +278,11 @@
     {
         OperateLayerStyleBindingState.Forbidden => "forbidden",
         OperateLayerStyleBindingState.Unsupported => "unsupported",
+        OperateLayerStyleBindingState.Unavailable => "error",
         _ => "missing"
     };
+
+    private static string StateTitle(string state) => state == OperateLayerStyleBindingState.Unavailable
+        ? "Layer overrides could not be loaded"
+        : "Layer overrides are not available";
 }
