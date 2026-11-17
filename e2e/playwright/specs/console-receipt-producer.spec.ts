@@ -291,7 +291,7 @@ function operationChip(family: string) {
 }
 
 function html(body: string) {
-  return `<!doctype html><html><body>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body>${body}</body></html>`;
 }
 
 function candidateBoundary() {
