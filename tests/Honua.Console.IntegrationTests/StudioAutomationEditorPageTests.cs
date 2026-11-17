@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class StudioAutomationEditorPageTests
+public sealed partial class StudioAutomationEditorPageTests
 {
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
