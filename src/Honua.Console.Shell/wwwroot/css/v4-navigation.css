@@ -4,6 +4,11 @@
     padding: 0 var(--space-4);
 }
 
+/* Let expanded navigation scroll with the document when enlarged text exceeds the viewport. */
+.console-shell[data-console-v4="true"] .console-topbar:has(.console-menu-toggle[aria-expanded="true"]) {
+    position: relative;
+}
+
 .console-shell[data-console-v4="true"] .console-topbar-brand {
     margin-inline-end: var(--space-4);
     font-size: var(--text-md);
