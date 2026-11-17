@@ -160,7 +160,8 @@ public sealed class BrowserSignOutTests
             http = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(origin, origin), Session, BrowserApiAccess.Public)
             {
                 InnerHandler = Handler
-            }) { BaseAddress = origin };
+            })
+            { BaseAddress = origin };
             Session.Set(new ClaimsPrincipal(new ClaimsIdentity([
                 new Claim(ClaimTypes.NameIdentifier, "operator"),
                 new Claim(ClaimTypes.Name, "Test operator")
