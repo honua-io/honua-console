@@ -1,4 +1,5 @@
 @page "/maps/new"
+@implements IDisposable
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
@@ -59,6 +60,7 @@
 @code {
     private string _sourceItemId = string.Empty;
     private MapReadResult? _result;
+    private long _loadGeneration;
     private bool _accessResolved;
     private bool _requiresAuthentication;
 
@@ -66,12 +68,19 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        var generation = ++_loadGeneration;
         _sourceItemId = ConsoleUrlQuery.GetValue(Navigation.Uri, "from") ?? string.Empty;
+        var sourceItemId = _sourceItemId;
         _accessResolved = false;
         _requiresAuthentication = false;
         _result = null;
 
         var context = await ReadContexts.ResolveAsync(publicLinkToken: null);
+        if (generation != _loadGeneration)
+        {
+            return;
+        }
+
         _accessResolved = true;
         if (context.Anonymous)
         {
@@ -79,9 +88,13 @@
             return;
         }
 
-        _result = string.IsNullOrWhiteSpace(_sourceItemId)
+        var result = string.IsNullOrWhiteSpace(sourceItemId)
             ? null
-            : await Catalog.GetDraftMapAsync(_sourceItemId, context);
+            : await Catalog.GetDraftMapAsync(sourceItemId, context);
+        if (generation == _loadGeneration)
+        {
+            _result = result;
+        }
     }
 
     private string BuildSignInHref()
@@ -99,6 +112,8 @@
             CatalogReadStatus.UnsupportedServiceMetadata => ("unsupported-service", "Unsupported source", "Cannot hydrate map draft", message),
             _ => ("unavailable", "Unavailable", "Cannot hydrate map draft", "Sign in or choose a catalog item that can be opened in the viewer.")
         };
+
+    public void Dispose() => ++_loadGeneration;
 
     private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
     {
