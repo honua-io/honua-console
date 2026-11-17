@@ -41,9 +41,9 @@ public sealed class OperateAccessPageRenderTests
 
         Assert.Empty(page.FindAll("[data-rbac-scope-filter]"));
 
-        // Five-level scope hierarchy strip.
+        // Canonical four-level scope hierarchy strip.
         Assert.Contains("data-rbac-scope-strip", page.Markup, StringComparison.Ordinal);
-        foreach (var level in new[] { "workspace", "environment", "content", "publication", "resource-field" })
+        foreach (var level in new[] { "environment", "content", "layer", "dataset-field" })
         {
             Assert.Contains($"data-rbac-scope=\"{level}\"", page.Markup, StringComparison.Ordinal);
         }
@@ -362,15 +362,14 @@ public sealed class OperateAccessPageRenderTests
 
     private static RbacOverviewView SampleOverview() => RbacAccessMapper.ToView(new HonuaConsoleRbacOverview
     {
-        WorkspaceId = "ws-public-works",
-        WorkspaceName = "Public Works",
+        EnvironmentId = "ws-public-works",
+        EnvironmentName = "Public Works",
         Scopes =
         [
-            new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.Workspace, Label = "Workspace", Description = "the cohort of envs" },
             new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.Environment, Label = "Environment", Description = "dev / staging / prod" },
             new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.Content, Label = "Content", Description = "map / dashboard / report" },
-            new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.Publication, Label = "Publication", Description = "service slot / share link" },
-            new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.ResourceField, Label = "Resource field", Description = "PII redaction" },
+            new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.Layer, Label = "Layer", Description = "Dataset exposure through a Service" },
+            new HonuaConsoleAccessScope { Level = HonuaConsoleAccessScopeLevels.DatasetField, Label = "Dataset field", Description = "Field-level policy override" },
         ],
         Permissions =
         [
@@ -436,8 +435,8 @@ public sealed class OperateAccessPageRenderTests
 
     private static TeamMembershipView SampleMembership() => RbacAccessMapper.ToView(new HonuaConsoleTeamMembership
     {
-        WorkspaceId = "ws-public-works",
-        WorkspaceName = "Public Works",
+        EnvironmentId = "ws-public-works",
+        EnvironmentName = "Public Works",
         Members =
         [
             new HonuaConsoleTeamMember { Id = "jamie", DisplayName = "jamie", Identity = "jamie@example.gov", RoleName = "Workspace owner", IsCustomRole = false, Scope = "all envs", LastActive = "now", Source = "OIDC · Entra", PrincipalKind = "user" },
@@ -461,23 +460,23 @@ public sealed class OperateAccessPageRenderTests
         public RbacOverviewLoad OverviewLoad { get; set; } = new(null, []);
         public TeamMembershipLoad MembershipLoad { get; set; } = new(null, []);
 
-        public Task<RbacOverviewLoad> LoadOverviewAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+        public Task<RbacOverviewLoad> LoadOverviewAsync(string environmentId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OverviewLoad);
 
-        public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+        public Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default) =>
             Task.FromResult(MembershipLoad);
 
         public RbacRoleMutationResult CreateResult { get; set; } = new(true, null);
         public RbacRoleMutationResult DeleteResult { get; set; } = new(true, null);
         public RbacAuditLoad AuditLoad { get; set; } = new(Array.Empty<RbacAuditEntryView>(), Array.Empty<RbacCapabilityState>());
 
-        public Task<RbacRoleMutationResult> CreateRoleAsync(string workspaceId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) =>
+        public Task<RbacRoleMutationResult> CreateRoleAsync(string environmentId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateResult);
 
-        public Task<RbacRoleMutationResult> DeleteRoleAsync(string workspaceId, string roleId, CancellationToken cancellationToken = default) =>
+        public Task<RbacRoleMutationResult> DeleteRoleAsync(string environmentId, string roleId, CancellationToken cancellationToken = default) =>
             Task.FromResult(DeleteResult);
 
-        public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) =>
+        public Task<RbacAuditLoad> LoadAuditAsync(string environmentId, CancellationToken cancellationToken = default) =>
             Task.FromResult(AuditLoad);
     }
 }

@@ -23,12 +23,16 @@ public partial class OperateAccessRolesPage
     private IReadOnlyList<RbacAuditEntryView> _audit = [];
     private RbacCapabilityState? _auditIssue;
 
-    [SupplyParameterFromQuery(Name = "workspace")]
-    private string? Workspace { get; set; }
+    [SupplyParameterFromQuery(Name = "environment")]
+    private string? Environment { get; set; }
 
-    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+    private string EnvironmentId => string.IsNullOrWhiteSpace(Environment) ? "current" : Environment!;
 
-    private string? _workspaceId;
+    private string AccessHref(string path) => string.IsNullOrWhiteSpace(Environment)
+        ? path
+        : $"{path}?environment={Uri.EscapeDataString(Environment!)}";
+
+    private string? _environmentId;
     private int _generation;
     private int _auditRequest;
     private bool _disposed;
@@ -37,8 +41,8 @@ public partial class OperateAccessRolesPage
 
     protected override async Task OnParametersSetAsync()
     {
-        if (string.Equals(_workspaceId, WorkspaceId, StringComparison.Ordinal)) return;
-        _workspaceId = WorkspaceId;
+        if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
+        _environmentId = EnvironmentId;
         var generation = ++_generation;
         _loading = true;
         _bindingState = null;
@@ -56,7 +60,7 @@ public partial class OperateAccessRolesPage
     private async Task ReloadOverviewAsync(int generation)
     {
         if (!IsCurrent(generation)) return;
-        var load = await RbacData.LoadOverviewAsync(_workspaceId!);
+        var load = await RbacData.LoadOverviewAsync(_environmentId!);
         if (!IsCurrent(generation)) return;
         _overview = load.Overview;
         _bindingState = load.HasOverview ? null : load.CapabilityStates.FirstOrDefault();
@@ -104,16 +108,16 @@ public partial class OperateAccessRolesPage
         }
 
         var generation = _generation;
-        var workspace = _workspaceId!;
+        var environment = _environmentId!;
         _mutationError = null;
         return RunMutationAsync(generation,
-            () => CreateRoleAsync(generation, workspace), "Couldn't create the role");
+            () => CreateRoleAsync(generation, environment), "Couldn't create the role");
     }
 
-    private async Task CreateRoleAsync(int generation, string workspace)
+    private async Task CreateRoleAsync(int generation, string environment)
     {
         var result = await RbacData.CreateRoleAsync(
-            workspace, _newRoleName.Trim(),
+            environment, _newRoleName.Trim(),
             string.IsNullOrWhiteSpace(_newRoleDescription) ? null : _newRoleDescription.Trim(),
             _newRoleGrants.ToArray());
         if (!IsCurrent(generation)) return;
@@ -141,12 +145,12 @@ public partial class OperateAccessRolesPage
     private Task DeleteRoleAsync(string roleId, string roleName, int generation)
     {
         if (_saving || !IsCurrent(generation) || _overview?.CanManageRoles != true) return Task.CompletedTask;
-        var workspace = _workspaceId!;
+        var environment = _environmentId!;
         _mutationError = null;
         return RunMutationAsync(generation,
             async () =>
             {
-                var result = await RbacData.DeleteRoleAsync(workspace, roleId);
+                var result = await RbacData.DeleteRoleAsync(environment, roleId);
                 if (!IsCurrent(generation)) return;
                 if (result.Succeeded)
                 {
@@ -178,7 +182,7 @@ public partial class OperateAccessRolesPage
     {
         var generation = _generation;
         var request = ++_auditRequest;
-        var load = await RbacData.LoadAuditAsync(_workspaceId!);
+        var load = await RbacData.LoadAuditAsync(_environmentId!);
         if (!IsCurrent(generation) || request != _auditRequest || !_showAudit) return;
         _audit = load.Entries;
         _auditIssue = load.FirstIssue;

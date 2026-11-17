@@ -15,11 +15,11 @@ public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    public async Task<RbacOverviewLoad> LoadOverviewAsync(string workspaceId, CancellationToken cancellationToken = default)
+    public async Task<RbacOverviewLoad> LoadOverviewAsync(string environmentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
 
-        var result = await _client.GetOverviewAsync(workspaceId, cancellationToken).ConfigureAwait(false);
+        var result = await _client.GetOverviewAsync(environmentId, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
             return new RbacOverviewLoad(null, [ToCapabilityState(issue)]);
@@ -28,11 +28,11 @@ public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
         return new RbacOverviewLoad(RbacAccessMapper.ToView(result.Data!), []);
     }
 
-    public async Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default)
+    public async Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
 
-        var result = await _client.GetMembershipAsync(workspaceId, cancellationToken).ConfigureAwait(false);
+        var result = await _client.GetMembershipAsync(environmentId, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
             return new TeamMembershipLoad(null, [ToCapabilityState(issue)]);
@@ -42,44 +42,44 @@ public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
     }
 
     public async Task<RbacRoleMutationResult> CreateRoleAsync(
-        string workspaceId,
+        string environmentId,
         string name,
         string? description,
         IReadOnlyList<string> grantedPermissionKeys,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
 
         var grants = (grantedPermissionKeys ?? [])
             .Select(key => new HonuaConsoleRbacGrant { Permission = key, Grant = HonuaConsolePermissionGrants.Granted })
             .ToArray();
         var request = new HonuaConsoleRoleWriteRequest { Name = name, Description = description, Grants = grants };
 
-        var result = await _client.CreateRoleAsync(workspaceId, request, cancellationToken).ConfigureAwait(false);
+        var result = await _client.CreateRoleAsync(environmentId, request, cancellationToken).ConfigureAwait(false);
         return result.Issue is { } issue
             ? new RbacRoleMutationResult(false, IssueMessage(issue))
             : new RbacRoleMutationResult(true, null);
     }
 
     public async Task<RbacRoleMutationResult> DeleteRoleAsync(
-        string workspaceId,
+        string environmentId,
         string roleId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
 
-        var result = await _client.DeleteRoleAsync(workspaceId, roleId, cancellationToken).ConfigureAwait(false);
+        var result = await _client.DeleteRoleAsync(environmentId, roleId, cancellationToken).ConfigureAwait(false);
         return result.Issue is { } issue
             ? new RbacRoleMutationResult(false, IssueMessage(issue))
             : new RbacRoleMutationResult(true, null);
     }
 
-    public async Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default)
+    public async Task<RbacAuditLoad> LoadAuditAsync(string environmentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
 
-        var result = await _client.GetRoleAuditAsync(workspaceId, 50, cancellationToken).ConfigureAwait(false);
+        var result = await _client.GetRoleAuditAsync(environmentId, 50, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
             return new RbacAuditLoad([], [ToCapabilityState(issue)]);
