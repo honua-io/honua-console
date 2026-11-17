@@ -135,12 +135,6 @@
         padding-block: 0;
     }
 
-    /* An expanded compact menu can exceed the viewport with enlarged text.
-       Let the page scroll its focused links instead of pinning the entire menu. */
-    .console-shell[data-console-v4="true"] .console-topbar:has(.console-menu-toggle[aria-expanded="true"]) {
-        position: relative;
-    }
-
     .console-shell[data-console-v4="true"] .operate-section-nav { top: var(--topbar-h); }
     .console-shell[data-console-v4="true"] .share-opendata-preview,
     .console-shell[data-console-v4="true"] .operate-release-side { top: calc(var(--topbar-h) + 12px); }
