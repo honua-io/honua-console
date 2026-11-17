@@ -177,6 +177,54 @@ public sealed class OperateLayerStyleOverrideServerTests
         Assert.DoesNotContain("did not answer in time", view.BindingState.Detail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetOverrides_WhenLayerProjectionTimesOut_SurfacesTemporaryUnavailableStateInsteadOfMissingBinding()
+    {
+        var client = CreateClient(_ => throw new TaskCanceledException("net_http_request_timedout, 30"));
+        var source = new ServerOperateLayerStyleOverrideDataSource(new HonuaServerOperateTransitionDataSource(client), client);
+
+        var view = await source.GetOverridesAsync(ResourceId);
+
+        Assert.Empty(view.Layers);
+        Assert.Equal(OperateLayerStyleBindingState.Unavailable, view.BindingState!.State);
+        Assert.Contains("layer projection", view.BindingState.Contract, StringComparison.Ordinal);
+        Assert.StartsWith("honua-server did not answer in time", view.BindingState.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("No layer matching", view.BindingState.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetOverrides_WhenLayerProjectionIsForbidden_SurfacesForbiddenBindingState()
+    {
+        var client = CreateClient(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var source = new ServerOperateLayerStyleOverrideDataSource(new HonuaServerOperateTransitionDataSource(client), client);
+
+        var view = await source.GetOverridesAsync(ResourceId);
+
+        Assert.Equal(OperateLayerStyleBindingState.Forbidden, view.BindingState!.State);
+    }
+
+    [Fact]
+    public async Task SaveOverride_WhenLayerProjectionTimesOut_BlocksAsUnavailableWithoutWriting()
+    {
+        var writes = 0;
+        var client = CreateClient(request =>
+        {
+            if (request.Method == HttpMethod.Put)
+            {
+                writes++;
+            }
+
+            throw new TaskCanceledException("net_http_request_timedout, 30");
+        });
+        var source = new ServerOperateLayerStyleOverrideDataSource(new HonuaServerOperateTransitionDataSource(client), client);
+
+        var result = await source.SaveOverrideAsync(new OperateLayerStyleOverrideEdit(ResourceId, LayerId: "1"));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(OperateLayerStyleBindingState.Unavailable, result.BindingState!.State);
+        Assert.Equal(0, writes);
+    }
+
     private static HttpResponseMessage OkDocument(int layerId, JsonElement? document) =>
         new(HttpStatusCode.OK)
         {

@@ -1,0 +1,32 @@
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+
+@if (Failure is null)
+{
+    <MissingItemView Kind="layer" AreaLabel="@AreaLabel" />
+}
+else
+{
+    <div class="console-page-heading" data-layer-read-failure="@Failure.State">
+        <OperateSectionStatusPanel Heading="@AreaLabel" HeadingLevel="1" Status="@Status" Message="@Failure.ReadFailureMessage()" />
+        @if (Status == OperateSectionStatus.Unavailable)
+        {
+            <button class="console-button" type="button" @onclick="OnRetry" data-layer-read-retry>Retry</button>
+        }
+    </div>
+}
+
+@code {
+    private const string AreaLabel = "Operate / Layers";
+
+    // The failed layer read from OperateLayerLookup.ReadFailure; null when the read succeeded and the layer is absent.
+    [Parameter]
+    public OperateCapabilityState? Failure { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    private OperateSectionStatus Status => Failure?.State == OperateLayerLookup.MissingPermissionState
+        ? OperateSectionStatus.Forbidden
+        : OperateSectionStatus.Unavailable;
+}

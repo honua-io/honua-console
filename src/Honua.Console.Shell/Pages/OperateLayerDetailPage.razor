@@ -32,7 +32,7 @@
     }
     else if (_exposures.Count == 0)
     {
-        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+        <LayerNotFoundOrUnreadable Failure="@_readFailure" OnRetry="RetryAsync" />
     }
     else
     {
@@ -375,6 +375,7 @@
 
     private long _layerGeneration;
     private string? _requestedResourceId;
+    private OperateCapabilityState? _readFailure;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -395,6 +396,7 @@
         if (generation != _layerGeneration) return;
         _environmentId = environmentId;
         _exposures = view.FindExposures(resourceId);
+        _readFailure = _exposures.Count == 0 ? view.ReadFailure() : null;
         if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
         _ambiguousResourceIds = view.MatchingCanonicalResourceIds(resourceId);
         _serviceSummary = string.Join(", ", _exposures.Select(exposure => exposure.Service.DisplayName));
@@ -409,9 +411,12 @@
         _loading = false;
     }
 
+    private Task RetryAsync() => OnParametersSetAsync();
+
     private void ResetLayerEdits()
     {
         _exposures = [];
+        _readFailure = null;
         _ambiguousResourceIds = [];
         _states = [];
         _serviceSummary = string.Empty;

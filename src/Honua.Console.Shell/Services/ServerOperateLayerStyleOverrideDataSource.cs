@@ -10,6 +10,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
     internal const string Surface = "Layer presentation overrides";
     internal const string PopupContract = "GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info";
     internal const string DrawingContract = "GET/PUT /api/v1/admin/metadata/layers/{id}/drawing-info";
+    private const string ProjectionContract = "GET /api/v1/admin/services (layer projection)";
 
     private static readonly JsonSerializerOptions WriteOptions = new(JsonSerializerDefaults.Web)
     {
@@ -121,17 +122,28 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
     {
         var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
         var exposures = view.FindExposures(resourceId);
-        if (exposures.Count == 0)
+        if (exposures.Count > 0)
+        {
+            return (exposures, null);
+        }
+
+        if (view.ReadFailure() is { } failure)
         {
             return ([], new OperateLayerStyleBindingState(
                 Surface,
-                OperateLayerStyleBindingState.MissingBinding,
-                "GET /api/v1/admin/services (layer projection)",
-                $"No layer matching resource '{resourceId}' was found on the connected honua-server, so its "
-                + "presentation cannot be authored."));
+                failure.State == OperateLayerLookup.MissingPermissionState
+                    ? OperateLayerStyleBindingState.Forbidden
+                    : OperateLayerStyleBindingState.Unavailable,
+                ProjectionContract,
+                failure.ReadFailureMessage()));
         }
 
-        return (exposures, null);
+        return ([], new OperateLayerStyleBindingState(
+            Surface,
+            OperateLayerStyleBindingState.MissingBinding,
+            ProjectionContract,
+            $"No layer matching resource '{resourceId}' was found on the connected honua-server, so its "
+            + "presentation cannot be authored."));
     }
 
     private static OperateLayerStyleOverrideSaveResult BlockedParse(string contract, string label, string? detail) =>
@@ -185,9 +197,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
                 Surface,
                 OperateLayerStyleBindingState.Unavailable,
                 contract,
-                issue.StatusCode is null
-                    ? "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment."
-                    : issue.Detail);
+                issue.StatusCode is null ? OperateLayerLookup.TemporaryFailureMessage : issue.Detail);
         }
 
         var state = issue.State switch

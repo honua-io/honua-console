@@ -9,7 +9,9 @@ internal sealed class ConsoleEnvironmentRead : IDisposable
     private volatile bool _changed;
 
     public Uri ServerBaseUri { get; private set; }
-    public static OperateCapabilityState Unavailable => new("Services", "Unavailable", "Active Environment",
+    internal const string Contract = "Active Environment";
+
+    public static OperateCapabilityState Unavailable => new("Services", "Unavailable", Contract,
         "The active environment changed. Reload to read its services.");
 
     private ConsoleEnvironmentRead(IConsoleEnvironmentProfileStore? profiles, Uri fallback)
