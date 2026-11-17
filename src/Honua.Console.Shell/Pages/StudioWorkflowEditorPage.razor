@@ -1,4 +1,5 @@
 @page "/studio/workflows/{DraftId}"
+@implements IDisposable
 @using Honua.Console.Shell.Validation
 @inject IStudioWorkflowPackageClient Workflows
 @inject NavigationManager Navigation
@@ -1190,6 +1191,8 @@
             _ => "🔀"
         };
     }
+
+    public void Dispose() => _pageGeneration++;
 
     private string GetNodeLabel(string nodeId) =>
         _draft?.Nodes.FirstOrDefault(node => node.Id == nodeId)?.Label ?? nodeId;

@@ -43,7 +43,7 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
     [Fact]
     public void Renewal_NextMinuteRemovesWarning()
     {
-        var clock = new MinuteClock();
+        var clock = new ManualTimeProvider(TimeSpan.FromMinutes(1));
         Services.AddSingleton<TimeProvider>(clock);
         var handler = Register("Pro", 1);
         var component = Render<LicenseExpiryBanner>();
@@ -60,7 +60,7 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
     [InlineData("missing-data")]
     public void FailedRefresh_RetainsWarningUntilSuccessfulRenewal(string failure)
     {
-        var clock = new MinuteClock();
+        var clock = new ManualTimeProvider(TimeSpan.FromMinutes(1));
         Services.AddSingleton<TimeProvider>(clock);
         var handler = Register("Pro", 1);
         var component = Render<LicenseExpiryBanner>();
@@ -141,33 +141,6 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
             {
                 Content = new StringContent(payload, Encoding.UTF8, "application/json")
             });
-        }
-    }
-
-    private sealed class MinuteClock : TimeProvider
-    {
-        private TimerCallback? _callback;
-        private object? _state;
-        public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
-
-        public override DateTimeOffset GetUtcNow() => UtcNow;
-
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            Assert.Equal(TimeSpan.FromMinutes(1), dueTime);
-            Assert.Equal(TimeSpan.FromMinutes(1), period);
-            _callback = callback;
-            _state = state;
-            return new ManualTimer();
-        }
-
-        public void Tick() => _callback!(_state);
-
-        private sealed class ManualTimer : ITimer
-        {
-            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
-            public void Dispose() { }
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         }
     }
 

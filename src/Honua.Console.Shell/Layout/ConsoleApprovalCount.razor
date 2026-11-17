@@ -4,7 +4,7 @@
 
 @if (_count is { } count)
 {
-    <span class="console-approval-count" data-count="@count" aria-label="@($"{count} awaiting approval{(_partial ? "; partial queue" : "")}")">@count@(_partial ? "+" : "")</span>
+    <span class="console-approval-count" data-count="@count" aria-label="@($"{count} awaiting approval")">@count</span>
 }
 
 @code {
@@ -13,7 +13,8 @@
     private ConsoleEnvironmentSubscription? _environment;
     private AuthenticationStateProvider? _authentication;
     private int? _count;
-    private bool _partial;
+    private PeriodicTimer? _recoveryTimer;
+    private bool _retryNeeded;
     private int _readRevision;
     private bool _disposed;
 
@@ -24,9 +25,12 @@
         _environment = new ConsoleEnvironmentSubscription(Services.GetService<IConsoleEnvironmentProfileStore>(),
             _authentication, OnAuthorityChanged);
         _updates = new ConsoleProposalSubscription(Services.GetService<IConsoleProposalRealtimeClient>(),
-            new ConsoleProposalObservers(OnProposalChanged, _ => { }, OnRefreshRequiredAsync));
+            new ConsoleProposalObservers(OnProposalChanged, OnConnectionChanged, OnRefreshRequiredAsync));
         _ = _updates.StartAsync(_lifetime.Token);
         _ = RefreshAndRenderAsync();
+        _recoveryTimer = new PeriodicTimer(TimeSpan.FromSeconds(5),
+            Services.GetService<TimeProvider>() ?? TimeProvider.System);
+        _ = RecoverAsync(_recoveryTimer, _lifetime.Token);
     }
 
     private async Task RefreshAndRenderAsync()
@@ -40,6 +44,7 @@
         if (_disposed) return false;
         var revision = ++_readRevision;
         _count = null;
+        _retryNeeded = false;
         var token = _lifetime.Token;
         if (_authentication is not null)
         {
@@ -60,14 +65,35 @@
             cancellation => inbox.GetInboxAsync(cancellationToken: cancellation), ConsoleReadBudget.Default,
             "The approval count is unavailable.", token);
         if (_disposed || revision != _readRevision) return false;
-        if (result.IsAllowed && result.Value is { } snapshot)
+        _retryNeeded = result.PartialResult || result.Status == OperateSectionStatus.Unavailable ||
+            (result.IsAllowed && _updates?.IsConnected == false);
+        if (result.IsAllowed && !result.PartialResult && result.Value is { } snapshot)
         {
             _count = snapshot.AwaitingApprovalCount;
-            _partial = result.PartialResult;
-            return !result.PartialResult;
+            return true;
         }
         return false;
     }
+
+    private async Task RecoverAsync(PeriodicTimer timer, CancellationToken token)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(async () =>
+                {
+                    // Retry incomplete reads even when the event stream cannot reconnect. Complete
+                    // reads also refresh during fallback so proposals missed offline become visible.
+                    if (!_disposed && _retryNeeded) await RefreshAndRenderAsync();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception) { await DispatchExceptionAsync(exception); }
+    }
+
+    private void OnConnectionChanged(ConsoleRealtimeConnectionState state) => QueueRefresh();
 
     private Task OnRefreshRequiredAsync() => _disposed ? Task.CompletedTask : InvokeAsync(async () =>
     {
@@ -103,6 +129,7 @@
         _environment?.Dispose();
         _updates?.Dispose();
         _lifetime.Cancel();
+        _recoveryTimer?.Dispose();
         _lifetime.Dispose();
     }
 }

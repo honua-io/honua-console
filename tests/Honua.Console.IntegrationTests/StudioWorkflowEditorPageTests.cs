@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Honua.Console.IntegrationTests;
 
 // A failed validation keeps the editor dirty so a later publish cannot reuse a stale version and drop the current edits.
-public sealed class StudioWorkflowEditorPageTests
+public sealed partial class StudioWorkflowEditorPageTests
 {
     [Fact]
     public void RetryEditor_ExplicitGlobalChange_UpdatesNodesWithoutChangingFailurePolicy()
