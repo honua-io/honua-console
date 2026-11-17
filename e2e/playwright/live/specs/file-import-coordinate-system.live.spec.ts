@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { type Page } from '@playwright/test';
 import { test, expect } from '../admin-api';
+
+// The import page is prerendered; a file set before Blazor wires the input is dropped silently.
+async function chooseCsv(page: Page, name: string, content: string) {
+  const input = page.locator('input[type=file]');
+  await expect.poll(() => input.evaluate(element => '_blazorInputFileNextFileId' in element)).toBe(true);
+  await input.setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(content) });
+}
 
 for (const target of [null, 4326]) {
   test(`projected upload ${target === null ? 'keeps source' : 'explicitly reprojects'}`, async ({ page }) => {
@@ -8,8 +16,7 @@ for (const target of [null, 4326]) {
     await expect(entry).toHaveAttribute('href', '/operate/resources/import');
     await entry.click();
     await expect(page.getByText(/Supported:/)).toBeVisible();
-    await page.locator('input[type=file]').setInputFiles({ name: 'projected.csv', mimeType: 'text/csv',
-      buffer: Buffer.from('id,name,wkt\n1,projected,"SRID=2193;POINT(1740000 5420000)"\n') });
+    await chooseCsv(page, 'projected.csv', 'id,name,wkt\n1,projected,"SRID=2193;POINT(1740000 5420000)"\n');
     await expect(page.locator('[data-import-detected-system]')).toContainText('EPSG:2193');
     await expect(page.locator('[data-import-detected-system]')).toContainText(/NZGD2000|New Zealand/);
     await expect(page.getByRole('radio', { name: 'Keep source (recommended)' })).toBeChecked();
@@ -33,8 +40,7 @@ for (const target of [null, 4326]) {
 test('undeclared source needs an explicit system before import', async ({ page }) => {
   await page.goto('/operate/resources/import');
   await expect(page.getByText(/Supported:/)).toBeVisible();
-  await page.locator('input[type=file]').setInputFiles({ name: 'unknown.csv', mimeType: 'text/csv',
-    buffer: Buffer.from('id,name,wkt\n1,projected,"POINT(1740000 5420000)"\n') });
+  await chooseCsv(page, 'unknown.csv', 'id,name,wkt\n1,projected,"POINT(1740000 5420000)"\n');
   await expect(page.locator('[data-import-detected-system]')).toContainText('could not be identified');
   await expect(page.getByRole('button', { name: 'Import file', exact: true })).toBeDisabled();
   await page.getByLabel('Find source coordinate system', { exact: true }).fill('2193');
