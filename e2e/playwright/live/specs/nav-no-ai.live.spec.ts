@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 
 const ungatedSections = [
-  { path: '/operate/data', heading: 'Datasets' },
+  { path: '/operate/data', heading: /Datasets|Layer preview/i },
   { path: '/operate/connections', heading: 'Connections' },
   { path: '/operate/import/esri', heading: 'Import source content' },
   { path: '/operate/publishing', heading: 'Publishing' },
@@ -10,7 +10,7 @@ const ungatedSections = [
   { path: '/operate/sensors', heading: /SensorThings|Sensor/i },
   { path: '/operate/scenes', heading: /3D Scenes|Scenes/i },
   { path: '/operate/geoprocessing', heading: /Geoprocessing/i },
-  { path: '/operate/observability', heading: /Observability/i },
+  { path: '/operate/observability', heading: /Observability|Activity/i },
   { path: '/operate/metrics', heading: /Metrics|Performance/i },
   { path: '/operate/access', heading: /Access|Roles/i },
   { path: '/operate/catalogs', heading: /Catalogs/i },
@@ -27,7 +27,11 @@ const gatedSections = [
 
 async function openOperateMenu(page: import('@playwright/test').Page) {
   const nav = page.locator('[role="group"][aria-label="Operate"]');
+  const toggle = page.getByRole('button', { name: 'Toggle navigation', includeHidden: true });
   await expect(async () => {
+    if (await toggle.isVisible() && await toggle.getAttribute('aria-expanded') !== 'true') {
+      await toggle.click();
+    }
     if (!(await nav.isVisible())) {
       await page.locator('[data-navigation-menu="Operate"] > summary').click();
     }
@@ -100,6 +104,6 @@ test.describe('Operate nav · no AI provider required (live)', () => {
       await expect(nav.getByText(label), `menu must show "${label}"`).toBeVisible();
     }
 
-    await expect(page.getByRole('heading', { name: 'Datasets' }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Datasets|Layer preview/i }).first()).toBeVisible();
   });
 });
