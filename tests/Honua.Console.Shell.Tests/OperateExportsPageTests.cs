@@ -123,6 +123,39 @@ public sealed class OperateExportsPageTests
     }
 
     [Fact]
+    public async Task DetailUnpublishShowsTheUnpublishedExport()
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        client.Detail = Allowed(Signed());
+        client.Unpublish = Allowed(Signed() with { Status = "unpublished" });
+        var page = context.Render<OperateExportDetailPage>(parameters => parameters.Add(p => p.ExportId, "parcels"));
+
+        page.Find("[data-export-unpublish='parcels']").Click();
+        await page.Find("[data-console-confirm-accept]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        page.WaitForAssertion(() => Assert.True(page.Find("[data-export-unpublish='parcels']").HasAttribute("disabled")));
+        Assert.Contains("Unpublished", page.Find("h1").ParentElement!.TextContent, StringComparison.Ordinal);
+        Assert.Single(client.GetCalls);
+    }
+
+    [Fact]
+    public void NullFieldsFromTheServerRenderAsUnknown()
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        var export = System.Text.Json.JsonSerializer.Deserialize(
+            """{"success":true,"data":{"id":"parcels","status":null,"source":null,"versions":null}}""",
+            ExportAdminJsonContext.Default.ExportEnvelope)!.Data!;
+        client.Detail = Allowed(export);
+
+        var page = context.Render<OperateExportDetailPage>(parameters => parameters.Add(p => p.ExportId, "parcels"));
+
+        Assert.Contains("Unknown source", page.Markup, StringComparison.Ordinal);
+        Assert.NotNull(page.Find("[data-export-no-versions]"));
+    }
+
+    [Fact]
     public void NewExportWithoutLayerAsksForOne()
     {
         using var fixture = new ExportsPageFixture();

@@ -92,7 +92,7 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 async function exportJourney(page: Page, testInfo: TestInfo, origin: string) {
   await page.goto(`${origin}/console/operate/exports/new?serviceId=county&layerId=3&name=Parcels`);
   await expect(page.locator('[data-export-source]')).toContainText('Parcels');
-  await page.getByLabel('Export id (optional)', { exact: true }).fill('parcels-2026');
+  await page.locator('[data-export-id]').fill('parcels-2026');
   await capture(page, testInfo, 'export-new');
   await page.getByRole('button', { name: 'Export as files', exact: true }).click();
   await expect(page.locator('[data-export-started]')).toContainText('Export started.');
@@ -112,13 +112,13 @@ async function exportJourney(page: Page, testInfo: TestInfo, origin: string) {
 
 async function bucketJourney(page: Page, testInfo: TestInfo, origin: string) {
   await page.goto(`${origin}/console/operate/connections/new/object-storage`);
-  await page.getByLabel('Connection name', { exact: true }).fill('county-imagery');
-  await page.getByLabel('Bucket', { exact: true }).fill('county-imagery-2026');
-  await page.getByLabel('Prefix (optional)', { exact: true }).fill('ortho/');
-  await page.getByLabel('Region', { exact: true }).fill('us-west-2');
+  await page.locator('[data-object-storage-field="name"]').fill('county-imagery');
+  await page.locator('[data-object-storage-field="bucket"]').fill('county-imagery-2026');
+  await page.locator('[data-object-storage-field="prefix"]').fill('ortho/');
+  await page.locator('[data-object-storage-field="region"]').fill('us-west-2');
   await page.getByRole('button', { name: 'Get the quick-create link', exact: true }).click();
   await expect(page.locator('[data-object-storage-setup-result]')).toContainText('honua-ext-7f3a');
-  await page.getByLabel('Role ARN', { exact: true }).fill('arn:aws:iam::123456789012:role/honua-connection-imagery');
+  await page.locator('[data-object-storage-field="role"]').fill('arn:aws:iam::123456789012:role/honua-connection-imagery');
   await page.getByRole('button', { name: 'Test', exact: true }).click();
   await expect(page.locator('[data-object-storage-test-result]')).toContainText('Bucket reachable');
   await capture(page, testInfo, 'object-storage-new');

@@ -34,6 +34,8 @@
                 <label>
                     <span>Export id (optional)</span>
                     <input class="console-input" @bind="_exportId" @bind:event="oninput" placeholder="parcels" aria-describedby="export-id-hint" data-export-id />
+                </label>
+                <div>
                     <small id="export-id-hint" class="console-muted">3-64 lowercase letters, digits or hyphens. Left empty, the server names it after the Layer. The id is part of every file URL.</small>
                     @if (ExportIdError is { } error)
                     {
@@ -41,7 +43,7 @@
                             <li class="console-field-state__error console-field-state__error--blocker">@error</li>
                         </ul>
                     }
-                </label>
+                </div>
             </div>
             <div class="console-action-row">
                 <button type="button" class="console-button" disabled="@(_busy || ExportIdError is not null)" data-export-create @onclick="CreateAsync">
@@ -59,7 +61,10 @@
                     <p class="console-kicker">@ExportPresentation.StatusLabel(result.Value!.Status)</p>
                     <OperateSectionHeading Text="Export started" />
                     <p>@(string.IsNullOrWhiteSpace(result.Message) ? "The files are being written. The Export page shows the new Version when it is ready." : result.Message)</p>
-                    <a href="@Navigation.ToConsoleHref($"/operate/exports/{Uri.EscapeDataString(result.Value.Id)}")" data-export-link>Open @result.Value.Id</a>
+                    @if (ExportPresentation.IsValidExportId(result.Value.Id))
+                    {
+                        <a href="@Navigation.ToConsoleHref($"/operate/exports/{result.Value.Id}")" data-export-link>Open @result.Value.Id</a>
+                    }
                 </div>
             }
             else

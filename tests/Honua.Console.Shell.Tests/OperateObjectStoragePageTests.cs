@@ -92,6 +92,60 @@ public sealed class OperateObjectStoragePageTests
     }
 
     [Fact]
+    public void ACreatedConnectionCannotBeAddedTwice()
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse { ExternalId = "ext-123" });
+        client.Connection = OperateSectionResult<ObjectStorageConnectionResponse>.Allowed(new ObjectStorageConnectionResponse { Id = ConnectionId, Name = "imagery" });
+        var page = context.Render<OperateConnectionObjectStorageNewPage>();
+        Fill(page);
+        page.Find("[data-object-storage-setup]").Click();
+
+        page.Find("[data-object-storage-create]").Click();
+
+        Assert.True(page.Find("[data-object-storage-create]").HasAttribute("disabled"));
+        Assert.Single(client.ConnectionCalls);
+    }
+
+    [Fact]
+    public async Task ASetupReplyForAnEditedBucketIsDropped()
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        var pending = new TaskCompletionSource<OperateSectionResult<ObjectStorageSetupResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingSetup = pending.Task;
+        var page = context.Render<OperateConnectionObjectStorageNewPage>();
+        Fill(page);
+        page.Find("[data-object-storage-setup]").Click();
+
+        page.Find("[data-object-storage-field='bucket']").Input("other-bucket");
+        pending.SetResult(OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse { ExternalId = "ext-old" }));
+        await Task.Yield();
+
+        page.WaitForAssertion(() => Assert.False(page.Find("[data-object-storage-setup]").HasAttribute("disabled")));
+        Assert.Empty(page.FindAll("[data-object-storage-setup-result]"));
+        Assert.True(page.Find("[data-object-storage-create]").HasAttribute("disabled"));
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("http://console.example/quick")]
+    public void OnlyAnHttpsQuickCreateLinkIsRendered(string url)
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse { ExternalId = "ext-123", QuickCreateUrl = url });
+        var page = context.Render<OperateConnectionObjectStorageNewPage>();
+        Fill(page);
+
+        page.Find("[data-object-storage-setup]").Click();
+
+        Assert.Contains("ext-123", page.Find("[data-object-storage-setup-result]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-object-storage-quick-create]"));
+    }
+
+    [Fact]
     public void BrowserListsFoldersAndDetectedKindsUnderThePrefix()
     {
         using var fixture = new ExportsPageFixture();

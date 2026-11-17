@@ -40,7 +40,7 @@ async function expandNavigation(page: Page): Promise<boolean> {
 }
 
 const menus = [
-  {name:'Data', paths:['/operate/data','/operate/services','/operate/layers','/operate/connections','/operate/data/new']},
+  {name:'Data', paths:['/operate/data','/operate/services','/operate/layers','/operate/connections','/operate/exports','/operate/data/new']},
   {name:'Protocols', paths:['/operate/catalogs']},
   {name:'Operate', paths:['/operate','/inbox','/operate/health','/operate/copilot','/operate/geoprocessing','/operate/observability','/operate/metrics','/operate/deploy','/operate/releases']},
   {name:'Access', paths:['/operate/access/members','/operate/access']},

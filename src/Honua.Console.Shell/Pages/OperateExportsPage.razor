@@ -47,7 +47,14 @@
                         {
                             <tr data-export-row="@export.Id">
                                 <td>
-                                    <a href="@Navigation.ToConsoleHref($"/operate/exports/{Uri.EscapeDataString(export.Id)}")">@(string.IsNullOrWhiteSpace(export.Title) ? export.Id : export.Title)</a>
+                                    @if (ExportPresentation.IsValidExportId(export.Id))
+                                    {
+                                        <a href="@Navigation.ToConsoleHref($"/operate/exports/{export.Id}")">@(string.IsNullOrWhiteSpace(export.Title) ? export.Id : export.Title)</a>
+                                    }
+                                    else
+                                    {
+                                        <span>@(string.IsNullOrWhiteSpace(export.Title) ? export.Id : export.Title)</span>
+                                    }
                                     <small><code>@export.Id</code></small>
                                 </td>
                                 <td>@ExportPresentation.SourceLabel(export.Source)</td>
@@ -106,15 +113,24 @@
 
     private async Task LoadAsync() => _result = await Exports.ListAsync();
 
-    private void ConfirmUnpublish(ExportResponse export) =>
+    // The dialog invokes the handler from its own event, so route it through this page to re-render here.
+    private void ConfirmUnpublish(ExportResponse export)
+    {
+        var unpublish = EventCallback.Factory.Create(this, () => UnpublishAsync(export.Id));
         _confirm?.Open(
             $"Unpublish {export.Id}?",
-            () => UnpublishAsync(export.Id),
+            () => unpublish.InvokeAsync(),
             "Its files are removed from the public data path and the signed-in routes. Existing Versions stop being served.",
             "Unpublish");
+    }
 
     private async Task UnpublishAsync(string exportId)
     {
+        if (_pending)
+        {
+            return;
+        }
+
         _pending = true;
         try
         {

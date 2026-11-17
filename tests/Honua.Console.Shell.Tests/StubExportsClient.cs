@@ -17,6 +17,9 @@ internal sealed class StubExportsClient : IConsoleExportsClient
     public OperateSectionResult<ObjectStorageConnectionResponse> Connection { get; set; } = NotScripted<ObjectStorageConnectionResponse>();
     public OperateSectionResult<ObjectStorageBrowseResponse> Listing { get; set; } = NotScripted<ObjectStorageBrowseResponse>();
 
+    // When set, setup replies with this task instead of Setup, so a test can hold the reply.
+    public Task<OperateSectionResult<ObjectStorageSetupResponse>>? PendingSetup { get; set; }
+
     public int ListCalls { get; private set; }
     public List<string> GetCalls { get; } = [];
     public List<ExportCreateRequest> CreateCalls { get; } = [];
@@ -54,7 +57,7 @@ internal sealed class StubExportsClient : IConsoleExportsClient
         string bucket, string prefix, CancellationToken cancellationToken = default)
     {
         SetupCalls.Add((bucket, prefix));
-        return Task.FromResult(Setup);
+        return PendingSetup ?? Task.FromResult(Setup);
     }
 
     public Task<OperateSectionResult<ObjectStorageTestResponse>> TestObjectStorageAsync(

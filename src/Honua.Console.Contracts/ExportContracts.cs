@@ -27,7 +27,7 @@ public static class ExportAdminRoutes
 
 public sealed record ExportListResponse
 {
-    public IReadOnlyList<ExportResponse> Items { get; init; } = [];
+    public IReadOnlyList<ExportResponse> Items { get; init => field = value ?? []; } = [];
 }
 
 public sealed record ExportResponse
@@ -36,7 +36,7 @@ public sealed record ExportResponse
 
     public string Title { get; init; } = string.Empty;
 
-    public ExportSourceDescriptor Source { get; init; } = new();
+    public ExportSourceDescriptor Source { get; init => field = value ?? new(); } = new();
 
     // "running", "ready", "failed" or "unpublished".
     public string Status { get; init; } = string.Empty;
@@ -58,7 +58,7 @@ public sealed record ExportResponse
 
     public string? Message { get; init; }
 
-    public IReadOnlyList<ExportVersionResponse> Versions { get; init; } = [];
+    public IReadOnlyList<ExportVersionResponse> Versions { get; init => field = value ?? []; } = [];
 }
 
 public sealed record ExportSourceDescriptor
@@ -81,7 +81,7 @@ public sealed record ExportVersionResponse
 
     public long? FeatureCount { get; init; }
 
-    public IReadOnlyList<ExportArtifactResponse> Artifacts { get; init; } = [];
+    public IReadOnlyList<ExportArtifactResponse> Artifacts { get; init => field = value ?? []; } = [];
 }
 
 public sealed record ExportArtifactResponse
@@ -96,7 +96,7 @@ public sealed record ExportArtifactResponse
 
 public sealed record ExportCreateRequest
 {
-    public ExportSourceDescriptor Source { get; init; } = new();
+    public ExportSourceDescriptor Source { get; init => field = value ?? new(); } = new();
 
     // Optional; the server derives one from the source name when omitted.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -154,9 +154,9 @@ public sealed record ObjectStorageBrowseResponse
 
     public string Prefix { get; init; } = string.Empty;
 
-    public IReadOnlyList<string> Folders { get; init; } = [];
+    public IReadOnlyList<string> Folders { get; init => field = value ?? []; } = [];
 
-    public IReadOnlyList<ObjectStorageObjectResponse> Objects { get; init; } = [];
+    public IReadOnlyList<ObjectStorageObjectResponse> Objects { get; init => field = value ?? []; } = [];
 
     public bool Truncated { get; init; }
 }

@@ -75,6 +75,7 @@
 
 @code {
     private OperateSectionResult<ObjectStorageBrowseResponse>? _result;
+    private (Guid, string)? _loaded;
 
     [Parameter] public Guid ConnectionId { get; set; }
 
@@ -89,10 +90,22 @@
         Unsaved = new() { PendingOperationCount = _result is null ? 1 : 0 }
     };
 
+    // Re-read only when the folder changes; a slow listing for a folder no longer shown is dropped.
     protected override async Task OnParametersSetAsync()
     {
+        var target = (ConnectionId, CurrentPrefix);
+        if (target == _loaded)
+        {
+            return;
+        }
+
+        _loaded = target;
         _result = null;
-        _result = await Exports.BrowseAsync(ConnectionId, CurrentPrefix);
+        var result = await Exports.BrowseAsync(target.ConnectionId, target.CurrentPrefix);
+        if (target == (ConnectionId, CurrentPrefix))
+        {
+            _result = result;
+        }
     }
 
     private string BrowseHref(string prefix) => Navigation.ToConsoleHref(

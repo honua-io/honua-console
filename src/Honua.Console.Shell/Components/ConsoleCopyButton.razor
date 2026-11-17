@@ -24,7 +24,7 @@
             _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
             _copied = await _module.InvokeAsync<bool>("copyText", Text);
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
         {
             _copied = false;
         }

@@ -16,7 +16,7 @@
         </Actions>
     </ConsolePageHeading>
 
-    <ConsolePanel Title="Bucket" HeadingId="object-storage-bucket-heading">
+    <ConsolePanel Title="Storage location" HeadingId="object-storage-bucket-heading">
         <div class="studio-field-grid">
             <label>
                 <span>Connection name</span>
@@ -53,10 +53,10 @@
             <dl class="console-definition-list" data-object-storage-setup-result>
                 <dt>External id</dt>
                 <dd><code>@setup.ExternalId</code> <ConsoleCopyButton Text="@setup.ExternalId" Label="Copy external id" /></dd>
-                @if (!string.IsNullOrWhiteSpace(setup.QuickCreateUrl))
+                @if (QuickCreateHref(setup) is { } quickCreate)
                 {
                     <dt>Quick-create link</dt>
-                    <dd><a href="@setup.QuickCreateUrl" target="_blank" rel="noopener noreferrer" data-object-storage-quick-create>Create the role in your account</a></dd>
+                    <dd><a href="@quickCreate" target="_blank" rel="noopener noreferrer" data-object-storage-quick-create>Create the role in your account</a></dd>
                 }
             </dl>
         }
@@ -74,7 +74,7 @@
 
     <div class="console-action-row">
         <button type="button" class="console-button console-button-secondary" disabled="@(!IsComplete || _busy)" data-object-storage-test @onclick="TestAsync">Test</button>
-        <button type="button" class="console-button" disabled="@(!IsComplete || _busy)" data-object-storage-create @onclick="CreateAsync">@(_busy ? "Working…" : "Add connection")</button>
+        <button type="button" class="console-button" disabled="@(!IsComplete || _busy || IsCreated)" data-object-storage-create @onclick="CreateAsync">@(_busy ? "Working…" : "Add connection")</button>
         <a href="@Navigation.ToConsoleHref("/operate/connections")">Cancel</a>
     </div>
 
@@ -113,6 +113,7 @@
     private string _description = string.Empty;
     private bool _busy;
     private bool _setupPending;
+    private int _draftVersion;
     private OperateSectionResult<ObjectStorageSetupResponse>? _setup;
     private OperateSectionResult<ObjectStorageTestResponse>? _test;
     private OperateSectionResult<ObjectStorageConnectionResponse>? _created;
@@ -120,7 +121,8 @@
     private bool HasBucket => !string.IsNullOrWhiteSpace(_bucket);
     private bool IsComplete => HasBucket && !string.IsNullOrWhiteSpace(_name) && !string.IsNullOrWhiteSpace(_region)
         && !string.IsNullOrWhiteSpace(_roleArn) && _setup is { IsAllowed: true };
-    private bool IsDirty => _created is not { IsAllowed: true }
+    private bool IsCreated => _created is { IsAllowed: true };
+    private bool IsDirty => !IsCreated
         && new[] { _name, _bucket, _prefix, _region, _roleArn, _description }.Any(value => !string.IsNullOrWhiteSpace(value));
 
     private ConsoleAgentPageContext AgentContext => new()
@@ -128,14 +130,16 @@
         Route = "/operate/connections/new/object-storage",
         Unsaved = new()
         {
-            ChangedFieldCount = _created is { IsAllowed: true } ? 0
+            ChangedFieldCount = IsCreated ? 0
                 : new[] { _name, _bucket, _prefix, _region, _roleArn, _description }.Count(value => !string.IsNullOrWhiteSpace(value)),
             PendingOperationCount = (_busy ? 1 : 0) + (_setupPending ? 1 : 0)
         }
     };
 
+    // Every edit starts a new draft, so a reply for the previous draft is dropped rather than shown.
     private void OnEdit()
     {
+        _draftVersion++;
         _test = null;
         _created = null;
     }
@@ -150,9 +154,14 @@
     private async Task LoadSetupAsync()
     {
         _setupPending = true;
+        var version = _draftVersion;
         try
         {
-            _setup = await Exports.GetObjectStorageSetupAsync(_bucket.Trim(), _prefix.Trim());
+            var setup = await Exports.GetObjectStorageSetupAsync(_bucket.Trim(), _prefix.Trim());
+            if (version == _draftVersion)
+            {
+                _setup = setup;
+            }
         }
         finally
         {
@@ -171,25 +180,47 @@
         Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim()
     };
 
-    private async Task TestAsync() => await RunAsync(async () => _test = await Exports.TestObjectStorageAsync(Draft()));
+    private async Task TestAsync()
+    {
+        if (await RunAsync(Exports.TestObjectStorageAsync) is { } test)
+        {
+            _test = test;
+        }
+    }
 
-    private async Task CreateAsync() => await RunAsync(async () => _created = await Exports.CreateObjectStorageAsync(Draft()));
+    private async Task CreateAsync()
+    {
+        if (!IsCreated && await RunAsync(Exports.CreateObjectStorageAsync) is { } created)
+        {
+            _created = created;
+        }
+    }
 
-    private async Task RunAsync(Func<Task> action)
+    // Returns null when the draft was edited while the request ran.
+    private async Task<T?> RunAsync<T>(Func<ObjectStorageConnectionRequest, CancellationToken, Task<T>> send)
+        where T : class
     {
         if (!IsComplete || _busy)
         {
-            return;
+            return null;
         }
 
         _busy = true;
+        var version = _draftVersion;
         try
         {
-            await action();
+            var result = await send(Draft(), CancellationToken.None);
+            return version == _draftVersion ? result : null;
         }
         finally
         {
             _busy = false;
         }
     }
+
+    // Only an absolute https link is offered; anything else from the server is not rendered as a link.
+    private static string? QuickCreateHref(ObjectStorageSetupResponse setup) =>
+        Uri.TryCreate(setup.QuickCreateUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
+            ? uri.AbsoluteUri
+            : null;
 }

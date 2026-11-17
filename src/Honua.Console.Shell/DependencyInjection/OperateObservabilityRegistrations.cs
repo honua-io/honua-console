@@ -45,8 +45,6 @@ internal static class OperateObservabilityRegistrations
         AddOpsHealth(services, adminApiKey, credentialMode);
     }
 
-    // Interactive approvals require the operator bearer; the admin API key serves only sessionless
-    // HeadlessService callers.
     private static void AddExports(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode) =>
         services.TryAddSingleton<IConsoleExportsClient>(serviceProvider =>
             new HttpConsoleExportsClient(
@@ -60,6 +58,8 @@ internal static class OperateObservabilityRegistrations
                     CredentialMode = credentialMode
                 }));
 
+    // Interactive approvals require the operator bearer; the admin API key serves only sessionless
+    // HeadlessService callers.
     private static void AddDeployments(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode)
     {
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>

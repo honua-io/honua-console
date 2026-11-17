@@ -110,6 +110,7 @@
 @code {
     private ConsoleConfirmDialog? _confirm;
     private OperateSectionResult<ExportResponse>? _result;
+    private string? _loadedExportId;
     private string? _notice;
     private bool _pending;
 
@@ -121,33 +122,60 @@
         Unsaved = new() { PendingOperationCount = (_result is null ? 1 : 0) + (_pending ? 1 : 0) }
     };
 
+    // Re-read only when the route names another Export; a reply for an Export no longer shown is dropped.
     protected override async Task OnParametersSetAsync()
     {
+        if (ExportId == _loadedExportId)
+        {
+            return;
+        }
+
+        var exportId = _loadedExportId = ExportId;
         _result = null;
         _notice = null;
-        _result = await Exports.GetAsync(ExportId);
+        var result = await Exports.GetAsync(exportId);
+        if (exportId == ExportId)
+        {
+            _result = result;
+        }
     }
 
-    private void ConfirmUnpublish() =>
+    // The dialog invokes the handler from its own event, so route it through this page to re-render here.
+    private void ConfirmUnpublish()
+    {
+        var exportId = ExportId;
+        var unpublish = EventCallback.Factory.Create(this, () => UnpublishAsync(exportId));
         _confirm?.Open(
-            $"Unpublish {ExportId}?",
-            UnpublishAsync,
+            $"Unpublish {exportId}?",
+            () => unpublish.InvokeAsync(),
             "Its files are removed from the public data path and the signed-in routes. Existing Versions stop being served.",
             "Unpublish");
+    }
 
-    private async Task UnpublishAsync()
+    private async Task UnpublishAsync(string exportId)
     {
+        if (_pending)
+        {
+            return;
+        }
+
         _pending = true;
         try
         {
-            var result = await Exports.UnpublishAsync(ExportId);
-            if (result.IsAllowed)
+            var result = await Exports.UnpublishAsync(exportId);
+            if (exportId != ExportId)
             {
-                _result = result;
                 return;
             }
 
-            _notice = $"Could not unpublish {ExportId}: {result.Message}";
+            if (result.IsAllowed)
+            {
+                _result = result;
+            }
+            else
+            {
+                _notice = $"Could not unpublish {exportId}: {result.Message}";
+            }
         }
         finally
         {

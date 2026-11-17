@@ -13,7 +13,8 @@ public static partial class ExportPresentation
     public static bool IsUnpublished(ExportResponse export) =>
         string.Equals(export.Status, "unpublished", StringComparison.OrdinalIgnoreCase);
 
-    public static string StatusLabel(string status) => status.ToLowerInvariant() switch
+    // Fields the server leaves out or sends as null read as unknown, never as a render failure.
+    public static string StatusLabel(string? status) => (status ?? string.Empty).ToLowerInvariant() switch
     {
         "running" => "Exporting",
         "ready" => "Ready",
@@ -22,7 +23,7 @@ public static partial class ExportPresentation
         _ => string.IsNullOrWhiteSpace(status) ? "Unknown" : status
     };
 
-    public static string StatusClass(string status) => status.ToLowerInvariant() switch
+    public static string StatusClass(string? status) => (status ?? string.Empty).ToLowerInvariant() switch
     {
         "failed" => "console-status console-status-danger",
         "running" or "unpublished" => "console-status console-status-warning",
@@ -35,7 +36,7 @@ public static partial class ExportPresentation
     public static string? PreferredUrl(ExportResponse export) =>
         string.IsNullOrWhiteSpace(export.PublicUrl) ? export.CollectionUrl : export.PublicUrl;
 
-    public static string SourceLabel(ExportSourceDescriptor source) => source.Kind.ToLowerInvariant() switch
+    public static string SourceLabel(ExportSourceDescriptor? source) => source is null ? "Unknown source" : (source.Kind ?? string.Empty).ToLowerInvariant() switch
     {
         "layer" => source.Name ?? $"Layer {source.LayerId?.ToString(CultureInfo.InvariantCulture)}",
         "upload" => source.Name ?? "Uploaded file",
@@ -43,7 +44,7 @@ public static partial class ExportPresentation
         _ => source.Name ?? "Unknown source"
     };
 
-    public static string ArtifactLabel(string kind) => kind.ToLowerInvariant() switch
+    public static string ArtifactLabel(string? kind) => (kind ?? string.Empty).ToLowerInvariant() switch
     {
         "geoparquet" => "GeoParquet",
         "pmtiles" => "PMTiles",
