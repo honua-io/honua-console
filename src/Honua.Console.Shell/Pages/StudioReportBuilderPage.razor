@@ -517,6 +517,9 @@
     private bool _loading;
     private bool _busy;
     private bool _attempted;
+    private bool _queryInitialized;
+    private string? _queryPublicationId;
+    private long _viewGeneration;
     private string? _publicationIdInput;
     private StudioReportPublicationView? _publication;
     private StudioReportEditorState? _editor;
@@ -551,16 +554,38 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!string.IsNullOrWhiteSpace(PublicationId) && !_attempted)
+        var publicationId = string.IsNullOrWhiteSpace(PublicationId) ? null : PublicationId.Trim();
+        if (_queryInitialized && string.Equals(_queryPublicationId, publicationId, StringComparison.Ordinal))
         {
-            _publicationIdInput = PublicationId;
-            await LoadAsync(PublicationId);
+            return;
         }
+
+        _queryInitialized = true;
+        _queryPublicationId = publicationId;
+        _publicationIdInput = publicationId;
+        if (publicationId is null)
+        {
+            ResetPublicationView();
+            return;
+        }
+
+        await LoadAsync(publicationId);
     }
 
     private void NewReport()
     {
+        ResetPublicationView();
         _editor = new StudioReportEditorState();
+        RecomputeClientErrors();
+    }
+
+    private void ResetPublicationView()
+    {
+        _viewGeneration++;
+        _busy = false;
+        _loading = false;
+        _attempted = false;
+        _editor = null;
         _selectedPanel = null;
         _publication = null;
         _status = null;
@@ -569,7 +594,6 @@
         _states = [];
         _validation.Clear();
         _dirty.MarkClean();
-        RecomputeClientErrors();
     }
 
     private async Task OpenPublication()
@@ -584,32 +608,29 @@
 
     private async Task LoadAsync(string publicationId)
     {
-        if (_busy)
-        {
-            return;
-        }
-
+        ResetPublicationView();
+        var generation = _viewGeneration;
         _busy = true;
         _loading = true;
         _attempted = true;
-        _editor = null;
-        _status = null;
-        _statusFailed = false;
         try
         {
             var result = await ReportData.LoadAsync(publicationId);
+            if (generation != _viewGeneration)
+            {
+                return;
+            }
+
             _publication = result.Publication;
             ApplyStates(result.CapabilityStates);
-
-            // A fresh load is the clean baseline: any open editor's local edits/findings are dropped.
-            _validation.Clear();
-            _dirty.MarkClean();
-            RecomputeClientErrors();
         }
         finally
         {
-            _busy = false;
-            _loading = false;
+            if (generation == _viewGeneration)
+            {
+                _busy = false;
+                _loading = false;
+            }
         }
     }
 
@@ -689,69 +710,75 @@
     private static string PanelLabel(StudioReportPanelEditor panel) =>
         string.IsNullOrWhiteSpace(panel.Title) ? $"Untitled {panel.Kind}" : panel.Title;
 
-    private Task Publish() => RunCommandAsync(() => ReportData.PublishAsync(_editor!), keepEditor: true);
+    private Task Publish() => RunCommandAsync(() => ReportData.PublishAsync(_editor!), CommandTarget.Editor);
 
     private Task UpdatePolicy() =>
         RunCommandAsync(
             () => ReportData.UpdatePolicyAsync(_editor!.PublicationId!, _editor.Visibility, _editor.Embeddable, _editor.ETag),
-            keepEditor: true);
+            CommandTarget.Editor);
 
     private Task Rollback(StudioReportPublicationView publication, StudioReportPublicationVersionView version) =>
-        RunCommandAsync(() => ReportData.RollbackAsync(publication.PublicationId, version.VersionId), keepEditor: false);
+        RunCommandAsync(() => ReportData.RollbackAsync(publication.PublicationId, version.VersionId), CommandTarget.Publication);
 
-    private async Task RunCommandAsync(Func<Task<StudioReportCommandResult>> command, bool keepEditor)
+    private enum CommandTarget { Editor, Publication }
+
+    private async Task RunCommandAsync(Func<Task<StudioReportCommandResult>> command, CommandTarget target)
     {
         if (_busy)
         {
             return;
         }
 
+        var generation = _viewGeneration;
         _busy = true;
         try
         {
             var result = await command();
-            _status = result.Message;
-            _statusFailed = !result.Succeeded;
-
-            // Re-run the client validator against the current editor and bind any field-addressable server
-            // findings (parsed from a 400 ProblemDetails errors[]) onto the same field keys so they surface
-            // inline next to the offending input, merged with the client findings.
-            RecomputeClientErrors();
-            _validation.SetServerErrors(StudioReportServerErrorBinder.Map(result.FieldErrors));
-
-            if (result.Succeeded)
+            if (generation == _viewGeneration)
             {
-                _dirty.MarkClean();
+                ApplyCommandResult(result, target);
             }
-
-            if (result.Publication is not null)
-            {
-                _publication = result.Publication;
-                _attempted = true;
-
-                if (keepEditor && _editor is not null)
-                {
-                    // Reflect the new server identity/revision back into the editor so the next publish is a
-                    // republish against the freshly advanced route pointer.
-                    _editor.PublicationId = result.Publication.PublicationId;
-                    _editor.RouteSlug = result.Publication.RouteSlug;
-                    _editor.ActiveRevision = result.Publication.ActiveRevision;
-                    _editor.Visibility = result.Publication.Visibility;
-                    _editor.Embeddable = result.Publication.Embeddable;
-                }
-                else
-                {
-                    _editor = null;
-                    _selectedPanel = null;
-                }
-            }
-
-            ApplyStates(result.Issue is null ? [] : [result.Issue]);
         }
         finally
         {
-            _busy = false;
+            if (generation == _viewGeneration)
+            {
+                _busy = false;
+            }
         }
+    }
+
+    private void ApplyCommandResult(StudioReportCommandResult result, CommandTarget target)
+    {
+        _status = result.Message;
+        _statusFailed = !result.Succeeded;
+        RecomputeClientErrors();
+        _validation.SetServerErrors(StudioReportServerErrorBinder.Map(result.FieldErrors));
+        if (result.Succeeded)
+        {
+            _dirty.MarkClean();
+        }
+
+        if (result.Publication is { } publication)
+        {
+            _publication = publication;
+            _attempted = true;
+            if (target == CommandTarget.Editor && _editor is { } editor)
+            {
+                editor.PublicationId = publication.PublicationId;
+                editor.RouteSlug = publication.RouteSlug;
+                editor.ActiveRevision = publication.ActiveRevision;
+                editor.Visibility = publication.Visibility;
+                editor.Embeddable = publication.Embeddable;
+            }
+            else
+            {
+                _editor = null;
+                _selectedPanel = null;
+            }
+        }
+
+        ApplyStates(result.Issue is null ? [] : [result.Issue]);
     }
 
     private static bool IsActive(StudioReportPublicationView publication) =>

@@ -432,6 +432,9 @@
 
     private bool _loading = true;
     private bool _busy;
+    private bool _queryInitialized;
+    private string? _queryFormId;
+    private long _viewGeneration;
     private StudioFormWorkspace _workspace = new([], []);
     private StudioFormCapabilityState? _bindingState;
     private IReadOnlyList<StudioFormCapabilityState> _states = [];
@@ -450,20 +453,44 @@
     [SupplyParameterFromQuery(Name = "formId")]
     public string? FormIdParameter { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        await LoadWorkspaceAsync();
-
-        // Deep-link into a specific package when asked (e.g. arriving from XLSForm import). Only follow it
-        // when the surface is bound and the form is actually listed, so a stale/forbidden id falls back to
-        // the list rather than rendering a confusing empty editor.
-        if (!string.IsNullOrWhiteSpace(FormIdParameter)
-            && _bindingState is null
-            && _workspace.Packages.Any(package =>
-                string.Equals(package.FormId, FormIdParameter, StringComparison.Ordinal)))
+        var formId = string.IsNullOrWhiteSpace(FormIdParameter) ? null : FormIdParameter;
+        if (_queryInitialized && string.Equals(_queryFormId, formId, StringComparison.Ordinal))
         {
-            await OpenForm(FormIdParameter);
+            return;
         }
+
+        _queryInitialized = true;
+        _queryFormId = formId;
+        var visit = BeginVisit();
+        await LoadWorkspaceAsync();
+        if (visit == _viewGeneration && formId is not null && _bindingState is null
+            && _workspace.Packages.Any(package =>
+                string.Equals(package.FormId, formId, StringComparison.Ordinal)))
+        {
+            await OpenForm(formId);
+        }
+    }
+
+    private long BeginVisit()
+    {
+        _viewGeneration++;
+        _busy = false;
+        _workspace = new([], []);
+        _bindingState = null;
+        _states = [];
+        ResetEditor();
+        return _viewGeneration;
+    }
+
+    private void ResetEditor()
+    {
+        _editor = null;
+        _status = null;
+        _statusFailed = false;
+        _validation.Clear();
+        _dirty.MarkClean();
     }
 
     /// <summary>
@@ -496,10 +523,25 @@
 
     private async Task LoadWorkspaceAsync()
     {
+        var visit = _viewGeneration;
         _loading = true;
-        _workspace = await FormData.GetWorkspaceAsync();
-        ApplyStates(_workspace.CapabilityStates);
-        _loading = false;
+        try
+        {
+            var workspace = await FormData.GetWorkspaceAsync();
+            if (visit != _viewGeneration)
+            {
+                return;
+            }
+            _workspace = workspace;
+            ApplyStates(workspace.CapabilityStates);
+        }
+        finally
+        {
+            if (visit == _viewGeneration)
+            {
+                _loading = false;
+            }
+        }
     }
 
     private Task NewForm() => RunLoadAsync(() => FormData.LoadAsync(null));
@@ -513,12 +555,16 @@
             return;
         }
 
+        var visit = ++_viewGeneration;
+        ResetEditor();
         _busy = true;
-        _status = null;
-        _statusFailed = false;
         try
         {
             var result = await load();
+            if (visit != _viewGeneration)
+            {
+                return;
+            }
             ApplyStates(result.CapabilityStates);
             _editor = result.State;
 
@@ -531,17 +577,16 @@
         }
         finally
         {
-            _busy = false;
+            if (visit == _viewGeneration)
+            {
+                _busy = false;
+            }
         }
     }
 
     private async Task BackToList()
     {
-        _editor = null;
-        _status = null;
-        _statusFailed = false;
-        _validation.Clear();
-        _dirty.MarkClean();
+        BeginVisit();
         // Awaited so the HTTP-backed reload's completion runs inside the Blazor event task and rerenders
         // the list (a fire-and-forget reload is not guaranteed to trigger StateHasChanged).
         await LoadWorkspaceAsync();
@@ -574,10 +619,15 @@
             return;
         }
 
+        var visit = _viewGeneration;
         _busy = true;
         try
         {
             var result = await command();
+            if (visit != _viewGeneration)
+            {
+                return;
+            }
             _status = result.Message;
             _statusFailed = !result.Succeeded;
 
@@ -600,7 +650,10 @@
         }
         finally
         {
-            _busy = false;
+            if (visit == _viewGeneration)
+            {
+                _busy = false;
+            }
         }
     }
 

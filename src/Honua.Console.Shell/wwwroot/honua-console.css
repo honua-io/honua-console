@@ -1148,6 +1148,8 @@ p {
 }
 
 .console-state {
+    min-width: 0;
+    overflow-wrap: anywhere;
     padding: 28px;
     border: 1px solid var(--honua-border);
     border-radius: var(--radius-lg);
@@ -6789,6 +6791,11 @@ p {
 }
 
 /* Settings > Access · RBAC */
+:is(.rbac-overview, .rbac-members) > .console-detail-heading > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .rbac-lede {
     margin: 6px 0 0;
     max-width: 80ch;
@@ -6957,6 +6964,16 @@ p {
     min-width: 0;
 }
 
+.rbac-members-main > .console-toolbar {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+}
+
+.rbac-members-main > .console-toolbar > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .rbac-avatar {
     display: inline-grid;
     place-items: center;
@@ -7003,6 +7020,7 @@ p {
 }
 
 .rbac-invite-head {
+    overflow-wrap: anywhere;
     padding: 12px 14px;
     background: var(--honua-surface-strong);
     border-bottom: 1px solid var(--honua-border);
@@ -7096,6 +7114,7 @@ p {
 
 .rbac-invite-foot {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 12px 14px;
     border-top: 1px solid var(--honua-border);
@@ -8218,16 +8237,24 @@ p {
 
 /* In-product support loop (#164) */
 .support-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 1.5rem;
     align-items: start;
 }
 
-@media (max-width: 960px) {
-    .support-layout {
-        grid-template-columns: minmax(0, 1fr);
-    }
+.support-layout > article {
+    flex: 2 1 22rem;
+    min-width: 0;
+}
+
+.support-layout > .support-context-panel {
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.support-layout .studio-field-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
 }
 
 .support-symptoms-field {
@@ -8251,12 +8278,25 @@ p {
     top: 1rem;
 }
 
+.support-context-panel .console-panel-heading {
+    flex-wrap: wrap;
+}
+
+.support-context-panel .console-panel-heading > *,
+.support-context-row dt,
+.support-context-row dd {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
 .support-context-list {
     margin: 0;
 }
 
 .support-context-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.35rem 0;

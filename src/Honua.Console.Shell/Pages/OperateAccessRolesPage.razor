@@ -89,21 +89,23 @@
             }
             else
             {
-                <table class="console-table" data-rbac-audit-table>
-                    <thead><tr><th scope="col">When</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Role</th><th scope="col">Outcome</th></tr></thead>
-                    <tbody>
-                        @foreach (var entry in _audit)
-                        {
-                            <tr>
-                                <td>@entry.Timestamp</td>
-                                <td>@entry.Actor</td>
-                                <td>@entry.Action</td>
-                                <td>@entry.RoleId</td>
-                                <td>@entry.Outcome</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                <ConsoleTableRegion Label="Role change audit">
+                    <table class="console-table" data-rbac-audit-table>
+                        <thead><tr><th scope="col">When</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Role</th><th scope="col">Outcome</th></tr></thead>
+                        <tbody>
+                            @foreach (var entry in _audit)
+                            {
+                                <tr>
+                                    <td>@entry.Timestamp</td>
+                                    <td>@entry.Actor</td>
+                                    <td>@entry.Action</td>
+                                    <td>@entry.RoleId</td>
+                                    <td>@entry.Outcome</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </ConsoleTableRegion>
             }
         </div>
     }

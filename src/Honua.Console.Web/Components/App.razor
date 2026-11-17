@@ -14,7 +14,11 @@
         <main role="alert">
             <h1>Console could not load</h1>
             <p>Check the API connection and your sign-in session, then reload.</p>
-            <a href=".">Reload Console</a>
+            <a href="@Navigation.Uri" @onclick="ReloadConsole" @onclick:preventDefault>Reload Console</a>
         </main>
     </ErrorContent>
 </ErrorBoundary>
+
+@code {
+    private void ReloadConsole() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+}
