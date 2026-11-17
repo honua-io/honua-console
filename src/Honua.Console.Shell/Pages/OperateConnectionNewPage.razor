@@ -15,7 +15,10 @@
 <section class="console-page">
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="Add connection"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+        <ConsolePageHeading Title="Add connection">
+            <ChildContent><p>@Intro</p></ChildContent>
+            <Actions><a class="console-button-link console-button-secondary" href="@Nav.ToConsoleHref("/operate/connections/new/object-storage")" data-add-object-storage>Object storage</a></Actions>
+        </ConsolePageHeading>
     }
     else
     {
@@ -23,6 +26,7 @@
             <p class="console-kicker">Operate / Connections</p>
             <h1>Add Connection</h1>
             <p>@Intro</p>
+            <p><a href="@Nav.ToConsoleHref("/operate/connections/new/object-storage")" data-add-object-storage>Connect a bucket instead (object storage)</a></p>
         </div>
     }
 

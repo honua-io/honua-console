@@ -175,6 +175,10 @@
                             <dt>Geometry / SRID</dt>
                             <dd>@r.GeometryType / @r.Srid</dd>
                         </dl>
+                        @if (r.LayerId is { } publishedLayerId)
+                        {
+                            <p><a class="console-button-link console-button-secondary" href="@Nav.ToConsoleHref(ExportPresentation.NewExportRoute(r.ServiceName ?? _serviceName, publishedLayerId, r.LayerName))" data-published-export-link>Also export as files</a></p>
+                        }
                     }
                     @if (r.FieldErrors.Count > 0)
                     {

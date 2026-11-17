@@ -31,7 +31,7 @@ public static class ConsoleNavigation
     public static IReadOnlyList<ConsoleNavigationGroup> Groups { get; } =
     [
         new("Data", [Data, new("/operate/services", "Services"), new("/operate/layers", "Layers"),
-            new("/operate/connections", "Connections"), AddData,
+            new("/operate/connections", "Connections"), new("/operate/exports", "Exports"), AddData,
             new("/catalog", "Catalog") { RequiredArea = "catalog" }, new("/share/public", "Share") { RequiredArea = "share" }]),
         new("Protocols", [new("/operate/catalogs", "Discovery catalogs") { FullModeOnly = true }]),
         new("Studio", [Studio, new("/catalog", "Map from catalog") { FullModeOnly = true, RequiredArea = "catalog" }, new("/studio/processes", "Processes"),

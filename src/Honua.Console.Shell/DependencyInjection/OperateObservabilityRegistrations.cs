@@ -28,6 +28,7 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 adminApiKey));
         AddDeployments(services, adminApiKey, credentialMode);
+        AddExports(services, adminApiKey, credentialMode);
         AddProposals(services, adminApiKey, credentialMode);
         services.TryAddSingleton<IConsoleServerVersionClient>(serviceProvider =>
             new HttpConsoleServerVersionClient(
@@ -43,6 +44,19 @@ internal static class OperateObservabilityRegistrations
             new OperateMetricsDataSource(serviceProvider.GetRequiredService<IConsoleMonitoringMetricsClient>()));
         AddOpsHealth(services, adminApiKey, credentialMode);
     }
+
+    private static void AddExports(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode) =>
+        services.TryAddSingleton<IConsoleExportsClient>(serviceProvider =>
+            new HttpConsoleExportsClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                new ConsoleServerAccess
+                {
+                    Profiles = serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    Sessions = serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                    OperatorBearer = serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                    AdminApiKey = adminApiKey,
+                    CredentialMode = credentialMode
+                }));
 
     // Interactive approvals require the operator bearer; the admin API key serves only sessionless
     // HeadlessService callers.

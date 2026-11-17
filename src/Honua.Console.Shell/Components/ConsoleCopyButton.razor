@@ -1,0 +1,49 @@
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* Shared "copy this value" button. Interop failures (prerender, bUnit, a torn-down circuit) leave the label unchanged. *@
+<button type="button" class="console-button console-button-secondary console-button-small" data-console-copy
+        aria-label="@($"{Label}: {Text}")" disabled="@string.IsNullOrWhiteSpace(Text)" @onclick="CopyAsync">
+    @(_copied ? "Copied" : Label)
+</button>
+
+@code {
+    private IJSObjectReference? _module;
+    private bool _copied;
+
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    [Parameter] public string Label { get; set; } = "Copy";
+
+    protected override void OnParametersSet() => _copied = false;
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
+            _copied = await _module.InvokeAsync<bool>("copyText", Text);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            _copied = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            // The circuit is already gone; nothing to release in the browser.
+        }
+    }
+}
