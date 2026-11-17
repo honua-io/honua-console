@@ -75,7 +75,7 @@ public sealed class StudioAutomationEditorPageTests
             Assert.Equal("/studio/automations/seed", registry.Current.Route);
             Assert.Empty(registry.Current.Entities);
             Assert.Equal(InMemoryCollectAutomationClient.SeedDraftId, registry.Current.Filters["draftId"]);
-            page.Find("input[aria-label='Automation name']").Input("Changed automation");
+            await page.Find("input[aria-label='Automation name']").InputAsync(new() { Value = "Changed automation" });
             Assert.Equal(1, registry.Current.Unsaved.ChangedFieldCount);
             page.FindAll("nav.automation-tab-row button").Single(button => button.TextContent.Trim() == "Settings").Click();
             Assert.Equal("settings", registry.Current.Filters["tab"]);
@@ -172,7 +172,7 @@ public sealed class StudioAutomationEditorPageTests
         page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
 
         page.Render(parameters => parameters.Add(p => p.DraftId, "current"));
-        page.Find("input[aria-label='Automation name']").Input("Edited current automation");
+        await page.Find("input[aria-label='Automation name']").InputAsync(new() { Value = "Edited current automation" });
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
         await page.InvokeAsync(() => earlierSave.SetResult(new CollectAutomationSaveResult
         {
