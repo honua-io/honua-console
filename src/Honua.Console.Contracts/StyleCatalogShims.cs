@@ -400,7 +400,8 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
         {
             response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException ||
+            ex is TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
             return HonuaOgcStyleSaveResult.Fail("Unavailable", $"The Honua server could not be reached: {ex.Message}");
         }
