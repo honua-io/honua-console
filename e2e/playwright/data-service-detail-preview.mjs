@@ -38,6 +38,7 @@ await runV4PagePresentation({
       assert.equal(await page.locator("[data-save-access]:visible").count(), 1);
     } else if (name.endsWith("-protocols")) {
       assert.equal(await page.locator("[data-save-protocols]:visible").count(), 1);
+      await inspectProtocolWrapping(page);
     } else if (name.endsWith("-unbound")) {
       assert.equal(await page.locator("#service-protocols-panel .console-state-neutral:visible").count(), 1);
       assert.equal(await page.locator("[data-save-protocols]").count(), 0);
@@ -47,3 +48,16 @@ await runV4PagePresentation({
     }
   },
 });
+
+async function inspectProtocolWrapping(page) {
+  // Endpoint names, states and URLs wrap instead of being clipped.
+  const clipped = await page.locator(".console-protocol-pill :is(dt, strong, small)").evaluateAll(elements =>
+    elements.filter(element => element.scrollWidth > element.clientWidth + 1).map(element => element.textContent));
+  assert.deepEqual(clipped, []);
+  assert.ok(await page.locator(".console-protocol-pill small", { hasText: "a-long-service-identifier-that-must-fit-on-a-phone/FeatureServer" }).isVisible());
+  if (page.viewportSize().width >= 1280) {
+    const [name, url] = await page.locator(".console-protocol-pill").first().evaluate(element =>
+      [element.querySelector("dt"), element.querySelector("small")].map(child => child.getBoundingClientRect()).map(box => ({ top: box.top, height: box.height })));
+    assert.ok(url.top < name.top + name.height && name.top < url.top + url.height && url.height < name.height * 1.5, "A protocol pill that fits stays on one line");
+  }
+}
