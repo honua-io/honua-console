@@ -19,6 +19,8 @@ internal sealed class ConsoleEnvironmentSubscription : IDisposable
         if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
     }
 
+    public Task<AuthenticationState>? AuthenticationState { get; private set; }
+
     private void Refresh()
     {
         if (!_disposed) _refresh();
@@ -27,6 +29,7 @@ internal sealed class ConsoleEnvironmentSubscription : IDisposable
     private void OnAuthenticationChanged(Task<AuthenticationState> state)
     {
         if (_disposed) return;
+        AuthenticationState = state;
         if (_profiles is not null)
         {
             // The operator-scoped store binds its current principal when a handler is added.

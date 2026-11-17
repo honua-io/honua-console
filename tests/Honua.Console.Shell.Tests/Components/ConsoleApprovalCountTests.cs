@@ -206,6 +206,44 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
         Assert.Equal(1, inbox.Reads);
     }
 
+    [Fact]
+    public async Task AuthenticationNotification_UsesItsPendingStateBeforeReadingTheInbox()
+    {
+        var authentication = new Authentication(false);
+        var (inbox, _) = Register(authentication);
+        var component = Render<ConsoleApprovalCount>();
+        var pending = new TaskCompletionSource<AuthenticationState>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await component.InvokeAsync(() => authentication.Change(pending.Task));
+        Assert.Equal(0, inbox.Reads);
+        pending.SetResult(new AuthenticationState(new ClaimsPrincipal(
+            new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "synthetic")], "test"))));
+
+        component.WaitForAssertion(() => Assert.Equal(1, inbox.Reads));
+        Assert.Equal("0", component.Find("[data-count]").TextContent);
+    }
+
+    [Fact]
+    public async Task SignIn_RebindsProfileChangesToTheCurrentOperator()
+    {
+        var authentication = new Authentication(false);
+        var profiles = new Profiles();
+        Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
+        var (inbox, _) = Register(authentication);
+        var component = Render<ConsoleApprovalCount>();
+        profiles.Operator = "signed-in";
+
+        await component.InvokeAsync(() => authentication.Change(true));
+        component.WaitForAssertion(() => Assert.Equal("0", component.Find("[data-count]").TextContent));
+        inbox.Read = _ => Task.FromResult(Count(1));
+        await component.InvokeAsync(profiles.Change);
+
+        component.WaitForAssertion(() => Assert.Equal("1", component.Find("[data-count]").TextContent));
+        Assert.Equal(2, inbox.Reads);
+        await DisposeAsync();
+        Assert.Equal(0, profiles.Subscribers);
+    }
+
     private (Inbox Inbox, Realtime Realtime) Register(Authentication? authentication = null)
     {
         Services.AddSingleton<AuthenticationStateProvider>(authentication ?? new Authentication(true));
@@ -232,6 +270,8 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
                 ? new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "synthetic")], "test")
                 : new ClaimsIdentity())));
 
+        public void Change(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
+
         public void Change(bool signedIn)
         {
             _signedIn = signedIn;
@@ -241,8 +281,19 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
 
     private sealed class Profiles : IConsoleEnvironmentProfileStore
     {
-        public event Action? ActiveProfileChanged;
-        public void Change() => ActiveProfileChanged?.Invoke();
+        private readonly Dictionary<Action, string> _subscriptions = new();
+        public string Operator { get; set; } = "anonymous";
+        public int Subscribers => _subscriptions.Count;
+        public event Action? ActiveProfileChanged
+        {
+            add { if (value is not null) _subscriptions[value] = Operator; }
+            remove { if (value is not null) _subscriptions.Remove(value); }
+        }
+        public void Change()
+        {
+            foreach (var handler in _subscriptions.Where(pair => pair.Value == Operator).Select(pair => pair.Key).ToArray())
+                handler();
+        }
         public Task<IReadOnlyList<ConsoleEnvironmentProfile>> ListProfilesAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public Task<ConsoleEnvironmentProfile?> GetProfileAsync(string profileId, CancellationToken cancellationToken = default) =>

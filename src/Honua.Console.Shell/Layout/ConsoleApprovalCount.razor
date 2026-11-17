@@ -10,9 +10,8 @@
 @code {
     private readonly CancellationTokenSource _lifetime = new();
     private ConsoleProposalSubscription? _updates;
-    private IConsoleEnvironmentProfileStore? _profiles;
+    private ConsoleEnvironmentSubscription? _environment;
     private AuthenticationStateProvider? _authentication;
-    private Task<AuthenticationState>? _authenticationState;
     private int? _count;
     private bool _partial;
     private int _readRevision;
@@ -21,10 +20,9 @@
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
-        _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
-        if (_profiles is not null) _profiles.ActiveProfileChanged += OnAuthorityChanged;
         _authentication = Services.GetService<AuthenticationStateProvider>();
-        if (_authentication is not null) _authentication.AuthenticationStateChanged += OnAuthenticationChanged;
+        _environment = new ConsoleEnvironmentSubscription(Services.GetService<IConsoleEnvironmentProfileStore>(),
+            _authentication, OnAuthorityChanged);
         _updates = new ConsoleProposalSubscription(Services.GetService<IConsoleProposalRealtimeClient>(),
             new ConsoleProposalObservers(OnProposalChanged, _ => { }, OnRefreshRequiredAsync));
         _ = _updates.StartAsync(_lifetime.Token);
@@ -48,7 +46,7 @@
             AuthenticationState authentication;
             try
             {
-                authentication = await (_authenticationState ?? _authentication.GetAuthenticationStateAsync()).WaitAsync(token);
+                authentication = await (_environment?.AuthenticationState ?? _authentication.GetAuthenticationStateAsync()).WaitAsync(token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -81,11 +79,6 @@
     });
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => QueueRefresh();
     private void OnProposalChanged(ConsoleProposalEvent proposal) => QueueRefresh();
-    private void OnAuthenticationChanged(Task<AuthenticationState> state)
-    {
-        _authenticationState = state;
-        OnAuthorityChanged();
-    }
     private void OnAuthorityChanged()
     {
         if (_disposed) return;
@@ -107,8 +100,7 @@
     {
         _disposed = true;
         Navigation.LocationChanged -= OnLocationChanged;
-        if (_profiles is not null) _profiles.ActiveProfileChanged -= OnAuthorityChanged;
-        if (_authentication is not null) _authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
+        _environment?.Dispose();
         _updates?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
