@@ -132,6 +132,23 @@ test('expanded navigation keeps keyboard focus onscreen at 200% text size', asyn
   }
 });
 
+test('desktop dropdowns remain visible after expanding compact navigation', async ({ page }) => {
+  const close = await startSignedInConsole(page);
+  try {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.getByRole('button', { name: 'Toggle navigation' }).press('Enter');
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.locator('[data-navigation-menu="Operate"] > summary').press('Enter');
+    const link = page.locator('[data-navigation-menu="Operate"] .console-navigation-items a').last();
+    await expect.poll(() => link.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)?.closest('a') === element;
+    })).toBe(true);
+  } finally {
+    await close();
+  }
+});
+
 for (const width of [390, 1101, 1280, 1376, 1377, 1440]) {
   for (const increasedSpacing of [false, true]) {
     test(`header controls stay apart at ${width}px with ${increasedSpacing ? 'increased' : 'default'} spacing`, async ({ page }) => {
