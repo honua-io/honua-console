@@ -313,6 +313,43 @@ public sealed class StudioFormBuilderRenderTests
         });
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, false)]
+    [InlineData(ConsolePresentationMode.V4, false)]
+    [InlineData(ConsolePresentationMode.Legacy, true)]
+    [InlineData(ConsolePresentationMode.V4, true)]
+    public async Task FormBuilder_DeferredWorkspace_OpensRequestedFormOnlyWhileMounted(
+        ConsolePresentationMode presentation, bool leavePage)
+    {
+        var completion = new TaskCompletionSource<StudioFormWorkspace>();
+        var data = new FakeFormDataSource
+        {
+            PendingWorkspace = completion.Task,
+            EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
+        };
+        using var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+        ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/studio/form?formId=form-1");
+        var page = ctx.Render<StudioFormBuilderPage>();
+        Assert.Equal(0, data.LoadCalls);
+        if (leavePage)
+        {
+            await ctx.DisposeComponentsAsync();
+        }
+
+        await ctx.Renderer.Dispatcher.InvokeAsync(() => completion.SetResult(new StudioFormWorkspace(
+            [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)], [])));
+
+        Assert.Equal(leavePage ? 0 : 1, data.LoadCalls);
+        if (!leavePage)
+        {
+            Assert.NotEmpty(page.FindAll("[data-form-builder]"));
+        }
+    }
+
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -364,10 +401,19 @@ public sealed class StudioFormBuilderRenderTests
 
         public bool SimulateAsyncWorkspace { get; set; }
 
+        public Task<StudioFormWorkspace>? PendingWorkspace { get; set; }
+
+        public int LoadCalls { get; private set; }
+
         public Task<StudioFormCommandResult>? PendingCommand { get; set; }
 
         public async Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
         {
+            if (PendingWorkspace is not null)
+            {
+                return await PendingWorkspace;
+            }
+
             if (SimulateAsyncWorkspace)
             {
                 await Task.Yield();
@@ -376,8 +422,11 @@ public sealed class StudioFormBuilderRenderTests
             return Workspace;
         }
 
-        public Task<StudioFormEditorLoad> LoadAsync(string? formId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(EditorLoad);
+        public Task<StudioFormEditorLoad> LoadAsync(string? formId, CancellationToken cancellationToken = default)
+        {
+            LoadCalls++;
+            return Task.FromResult(EditorLoad);
+        }
 
         public Task<StudioFormCommandResult> SaveDraftAsync(StudioFormEditorState state, CancellationToken cancellationToken = default) =>
             PendingCommand ?? Task.FromResult(new StudioFormCommandResult(true, "Saved.", state));

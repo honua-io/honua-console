@@ -1,4 +1,5 @@
 @page "/studio/form"
+@implements IDisposable
 @using Honua.Console.Shell.Validation
 @inject IStudioFormPackageDataSource FormData
 @inject IServiceProvider Services
@@ -472,6 +473,8 @@
             await OpenForm(formId);
         }
     }
+
+    public void Dispose() => _viewGeneration++;
 
     private long BeginVisit()
     {
