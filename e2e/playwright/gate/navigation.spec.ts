@@ -5,6 +5,20 @@ test('installed Console navigation opens Services and Health with keyboard input
   page.on('pageerror', error => errors.push(error.message));
   const response = await page.goto('./');
   expect(response?.status()).toBe(200);
+  // Headings also render for anonymous users. Check the server session without
+  // returning claims, cookies or other operator details to the test reporter.
+  const authenticated = await page.evaluate(async () => {
+    const session = await fetch('/api/v1/admin/auth/session', {
+      credentials: 'include', cache: 'no-store', redirect: 'error',
+    });
+    if (!session.ok) return false;
+    try {
+      return (await session.json()).isAuthenticated === true;
+    } catch {
+      return false;
+    }
+  });
+  expect(authenticated, 'the installed server must accept the human operator session').toBe(true);
   await expect(page.locator('.console-shell')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   await page.waitForFunction(() => Array.from(
