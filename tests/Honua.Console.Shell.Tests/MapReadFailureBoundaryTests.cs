@@ -7,13 +7,13 @@ namespace Honua.Console.Shell.Tests;
 public sealed class MapReadFailureBoundaryTests
 {
     [Theory]
-    [InlineData(false, "connection")]
-    [InlineData(false, "timeout")]
-    [InlineData(true, "connection")]
-    [InlineData(true, "timeout")]
-    [InlineData(false, "io")]
-    [InlineData(true, "io")]
-    public async Task InterruptedBodyReturnsUnavailable(bool draft, string failure)
+    [InlineData(MapVariant.Saved, "connection")]
+    [InlineData(MapVariant.Saved, "timeout")]
+    [InlineData(MapVariant.Draft, "connection")]
+    [InlineData(MapVariant.Draft, "timeout")]
+    [InlineData(MapVariant.Saved, "io")]
+    [InlineData(MapVariant.Draft, "io")]
+    public async Task InterruptedBodyReturnsUnavailable(MapVariant variant, string failure)
     {
         using var http = new HttpClient(new BodyHandler(() => failure switch
         {
@@ -25,7 +25,7 @@ public sealed class MapReadFailureBoundaryTests
             new HonuaConsoleContentClientOptions(new Uri("https://server.test")));
         var catalog = new HonuaServerConsoleCatalogClient(client);
 
-        var result = draft
+        var result = variant == MapVariant.Draft
             ? await catalog.GetDraftMapAsync("item-1", CatalogReadContext.Authenticated)
             : await catalog.GetMapAsync("item-1", CatalogReadContext.Authenticated);
 
@@ -33,9 +33,9 @@ public sealed class MapReadFailureBoundaryTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CallerCancellationDuringBodyStillPropagates(bool draft)
+    [InlineData(MapVariant.Saved)]
+    [InlineData(MapVariant.Draft)]
+    public async Task CallerCancellationDuringBodyStillPropagates(MapVariant variant)
     {
         using var cancellation = new CancellationTokenSource();
         using var http = new HttpClient(new BodyHandler(() =>
@@ -47,10 +47,12 @@ public sealed class MapReadFailureBoundaryTests
             new HonuaConsoleContentClientOptions(new Uri("https://server.test")));
         var catalog = new HonuaServerConsoleCatalogClient(client);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => draft
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => variant == MapVariant.Draft
             ? catalog.GetDraftMapAsync("item-1", CatalogReadContext.Authenticated, cancellation.Token)
             : catalog.GetMapAsync("item-1", CatalogReadContext.Authenticated, cancellation.Token));
     }
+
+    public enum MapVariant { Saved, Draft }
 
     private sealed class BodyHandler(Func<Exception> failure) : HttpMessageHandler
     {
