@@ -25,7 +25,7 @@
 
 @if (_proposal is null)
 {
-    <OperateSectionStatusPanel Heading="Deploy approval" Status="_status" Message="@_message" />
+    <OperateSectionStatusPanel Heading="Deploy approval" Status="_status" Message="@_message" Loading="_loading" />
 }
 else
 {
@@ -359,6 +359,9 @@ else
     private string _message = string.Empty;
     private string? _reason;
     private bool _busy;
+    private bool _loading;
+    private bool _disposed;
+    private int _operationGeneration;
     private bool _confirmingRollback;
     private string? _actionMessage;
     private string _actionMessageClass = string.Empty;
@@ -383,9 +386,16 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
+        if (_disposed) return;
         if (!string.Equals(_loadedOperationId, OperationId, StringComparison.Ordinal))
         {
+            var generation = ++_operationGeneration;
+            StopPolling();
             _loadedOperationId = OperationId;
+            _proposal = null;
+            _reason = null;
+            _busy = false;
+            _loading = true;
             _review = null;
             _reviewGeneration++;
             _confirmingRollback = false;
@@ -394,6 +404,7 @@ else
             _recoveryFinding = null;
             _recoveryOutcome = null;
             await LoadAsync();
+            if (!IsCurrentOperation(generation)) return;
             StartPolling();
         }
 
@@ -407,9 +418,10 @@ else
 
     private async Task LoadAsync()
     {
-        var generation = _reviewGeneration;
+        var generation = _operationGeneration;
         var result = await ApprovalClient.GetOperationAsync(OperationId);
-        if (generation != _reviewGeneration) return;
+        if (!IsCurrentOperation(generation)) return;
+        _loading = false;
         await ApplyAsync(result);
     }
 
@@ -438,18 +450,21 @@ else
             return;
         }
 
+        var generation = _operationGeneration;
+        var operationId = OperationId;
         try
         {
             var result = await _findingsClient.ListAsync();
+            if (!IsCurrentOperation(generation)) return;
             _recoveryFinding = result.IsAllowed
                 ? result.Value?.Findings?.FirstOrDefault(f =>
-                    string.Equals(f.Subject?.OperationId, OperationId, StringComparison.Ordinal)
+                    string.Equals(f.Subject?.OperationId, operationId, StringComparison.Ordinal)
                     && f.RecommendedAction is not null)
                 : null;
         }
         finally
         {
-            _recoveryLoaded = true;
+            if (IsCurrentOperation(generation)) _recoveryLoaded = true;
         }
     }
 
@@ -461,9 +476,11 @@ else
         }
 
         _busy = true;
+        var generation = _operationGeneration;
         try
         {
             var result = await _findingsClient.ProposeAsync(findingId);
+            if (!IsCurrentOperation(generation)) return;
             _recoveryOutcome = result.IsAllowed ? result.Value : new OpsFindingProposeResponse
             {
                 FindingId = findingId,
@@ -474,7 +491,7 @@ else
         }
         finally
         {
-            _busy = false;
+            if (IsCurrentOperation(generation)) _busy = false;
         }
     }
 
@@ -507,14 +524,15 @@ else
 
         _busy = true;
         _actionMessage = null;
-        var generation = _reviewGeneration;
+        var generation = _operationGeneration;
         try
         {
             var result = await action();
-            if (generation != _reviewGeneration) return;
+            if (!IsCurrentOperation(generation)) return;
             if (result.IsAllowed && result.Value is not null)
             {
                 await ApplyAsync(result);
+                if (!IsCurrentOperation(generation)) return;
                 _actionMessage = successMessage;
                 _actionMessageClass = "console-state-success";
                 await OnActioned.InvokeAsync(result.Value);
@@ -529,14 +547,16 @@ else
         }
         finally
         {
-            _busy = false;
+            if (IsCurrentOperation(generation)) _busy = false;
         }
     }
+
+    private bool IsCurrentOperation(int generation) => !_disposed && generation == _operationGeneration;
 
     private void StartPolling()
     {
         StopPolling();
-        if (PollInterval is not { } interval || interval <= TimeSpan.Zero)
+        if (_disposed || PollInterval is not { } interval || interval <= TimeSpan.Zero)
         {
             return;
         }
@@ -590,6 +610,8 @@ else
 
     public void Dispose()
     {
+        _disposed = true;
+        _operationGeneration++;
         _review = null;
         _reviewGeneration++;
         StopPolling();
