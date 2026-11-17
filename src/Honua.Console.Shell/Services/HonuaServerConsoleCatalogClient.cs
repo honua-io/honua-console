@@ -21,6 +21,14 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         ArgumentNullException.ThrowIfNull(context);
 
         var query = ConsoleContentMapper.ToListQuery(request);
+        if (!string.IsNullOrWhiteSpace(request.Type) && query.ItemType is null)
+        {
+            return CatalogSearchResult.Failed(
+                request,
+                CatalogReadStatus.UnsupportedContentBinding,
+                $"The connected server does not support filtering catalog items by '{request.Type}'.");
+        }
+
         var result = await _client.ListAsync(query, cancellationToken).ConfigureAwait(false);
         if (result.Data is null)
         {
