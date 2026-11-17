@@ -173,14 +173,40 @@ public sealed class ScenesPageRenderTests
         Assert.Equal(string.Empty, page.Find("[data-pointcloud-display-name]").GetAttribute("value"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LeavingDuringIngestDoesNotRefreshDiscovery(bool enabled)
+    {
+        using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var client = new DelayedSceneClient();
+        ctx.Services.AddSingleton<IConsoleSceneClient>(client);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var page = ctx.Render<OperateScenesPage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("LAS sample", "survey.las"));
+        var pending = page.Find("[data-pointcloud-ingest-button]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        page.WaitForAssertion(() => Assert.True(client.Started));
+
+        await ctx.DisposeComponentsAsync();
+        client.Complete();
+        await pending;
+
+        Assert.Equal(1, client.ListReads);
+    }
+
     private sealed class DelayedSceneClient : IConsoleSceneClient
     {
         private readonly InMemoryConsoleSceneClient _inner = new();
         private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int ListReads { get; private set; }
         public bool Started { get; private set; }
         public void Complete() => _completion.SetResult();
         public Task<SceneReadResult<SceneListResponse>> ListScenesAsync(CancellationToken cancellationToken = default)
-            => _inner.ListScenesAsync(cancellationToken);
+        {
+            ListReads++;
+            return _inner.ListScenesAsync(cancellationToken);
+        }
         public Task<string?> ResolveTilesetUrlAsync(string sceneId, CancellationToken cancellationToken = default)
             => _inner.ResolveTilesetUrlAsync(sceneId, cancellationToken);
         public async Task<SceneReadResult<PointCloudIngestResult>> IngestPointCloudAsync(
