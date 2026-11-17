@@ -307,6 +307,11 @@
     // can stay Running until the worker stops; Cancel is not offered again meanwhile.
     private readonly HashSet<string> _cancelRequested = new(StringComparer.Ordinal);
 
+    // Bounds the per-poll action reads; active jobs past this keep the listed affordance.
+    private const int MaxActionReads = 25;
+
+    private static readonly TimeSpan ActionReadTimeout = TimeSpan.FromSeconds(3);
+
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _pollCts;
 
@@ -340,7 +345,7 @@
         {
             var request = BeginView(null);
             _wasDetailRoute = false;
-            var jobs = await OperateClient.GetGeoprocessingJobsAsync();
+            var jobs = await LoadJobsAsync();
             if (request != _viewRequest) return;
             _jobs = jobs;
             ForgetFinishedCancels();
@@ -388,9 +393,10 @@
     private void ConfirmCancelJob(string jobRunId)
     {
         if (_confirm is null) return;
+        var request = _viewRequest;
         _confirm.Open(
             title: "Cancel this job?",
-            onConfirm: () => CancelJobAsync(jobRunId),
+            onConfirm: () => request == _viewRequest ? CancelJobAsync(jobRunId) : Task.CompletedTask,
             body: "This will abort the running job. Work completed so far may be partially applied. This cannot be undone.",
             confirmLabel: "Cancel job");
     }
@@ -408,6 +414,44 @@
             .OfType<OperateJobRun>()
             .Where(job => OperateJobStatuses.IsTerminal(job.Status.State))
             .Select(job => job.JobRunId.Trim()));
+
+    // The list summary carries no action state, so active rows read the server's action gate like the
+    // detail page does; an acknowledged cancel then drops Cancel here too. A failed read keeps the row as
+    // listed, and the server still rejects a cancel it does not allow.
+    private async Task<OperateSectionResult<IReadOnlyList<OperateJobRun>>> LoadJobsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var jobs = await OperateClient.GetGeoprocessingJobsAsync(cancellationToken);
+        if (!jobs.IsAllowed || jobs.Value is not { Count: > 0 } rows)
+        {
+            return jobs;
+        }
+
+        var actionReads = rows
+            .Where(job => !OperateJobStatuses.IsTerminal(job.Status.State) && CancelOffered(job))
+            .Take(MaxActionReads)
+            .ToHashSet();
+        var merged = await Task.WhenAll(rows.Select(job => actionReads.Contains(job)
+            ? WithServerActionsAsync(job, cancellationToken)
+            : Task.FromResult(job)));
+        return jobs with { Value = merged };
+    }
+
+    // A slow action read must not hold back the list; past the timeout the row keeps its listed affordance.
+    private async Task<OperateJobRun> WithServerActionsAsync(OperateJobRun job, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(ActionReadTimeout);
+        try
+        {
+            var actions = await OperateClient.GetJobActionsAsync(job.JobRunId, timeout.Token);
+            return actions is { IsAllowed: true, Value: { } allowed } ? job with { AllowedActions = allowed } : job;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return job;
+        }
+    }
 
     private bool CancelOffered(OperateJobRun job) =>
         job.CanCancel && !_cancelRequested.Contains(job.JobRunId.Trim());
@@ -476,7 +520,7 @@
                 }
                 else
                 {
-                    var jobs = await OperateClient.GetGeoprocessingJobsAsync();
+                    var jobs = await LoadJobsAsync();
                     if (request != _viewRequest) return;
                     _jobs = jobs;
                     ForgetFinishedCancels();
@@ -606,7 +650,7 @@
                 }
                 else
                 {
-                    var jobs = await OperateClient.GetGeoprocessingJobsAsync(cancellationToken);
+                    var jobs = await LoadJobsAsync(cancellationToken);
                     await InvokeAsync(() =>
                     {
                         if (request != _viewRequest || cancellationToken.IsCancellationRequested) return;

@@ -313,6 +313,59 @@ public sealed class StudioFormBuilderRenderTests
         });
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task FormBuilder_DeferredWorkspace_OpensRequestedFormWhileMounted(ConsolePresentationMode presentation)
+    {
+        var (ctx, data, completion) = DeferredWorkspaceContext(presentation);
+        using var _ = ctx;
+        var page = ctx.Render<StudioFormBuilderPage>();
+        Assert.Equal(0, data.LoadCalls);
+
+        await CompleteDeferredWorkspaceAsync(ctx, completion);
+
+        Assert.Equal(1, data.LoadCalls);
+        Assert.NotEmpty(page.FindAll("[data-form-builder]"));
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task FormBuilder_DeferredWorkspace_IsIgnoredAfterLeavingThePage(ConsolePresentationMode presentation)
+    {
+        var (ctx, data, completion) = DeferredWorkspaceContext(presentation);
+        using var _ = ctx;
+        ctx.Render<StudioFormBuilderPage>();
+        await ctx.DisposeComponentsAsync();
+
+        await CompleteDeferredWorkspaceAsync(ctx, completion);
+
+        Assert.Equal(0, data.LoadCalls);
+    }
+
+    private static (BunitContext Context, FakeFormDataSource Data, TaskCompletionSource<StudioFormWorkspace> Completion)
+        DeferredWorkspaceContext(ConsolePresentationMode presentation)
+    {
+        var completion = new TaskCompletionSource<StudioFormWorkspace>();
+        var data = new FakeFormDataSource
+        {
+            PendingWorkspace = completion.Task,
+            EditorLoad = new StudioFormEditorLoad(ReadyEditor(), [])
+        };
+        var ctx = new BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IStudioFormPackageDataSource>(data);
+        ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/studio/form?formId=form-1");
+        return (ctx, data, completion);
+    }
+
+    private static Task CompleteDeferredWorkspaceAsync(BunitContext ctx, TaskCompletionSource<StudioFormWorkspace> completion) =>
+        ctx.Renderer.Dispatcher.InvokeAsync(() => completion.SetResult(new StudioFormWorkspace(
+            [new StudioFormPackageListItem("form-1", "Hydrant inspection", "inspections", 7, 2, null, DateTimeOffset.UtcNow)], [])));
+
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Contains(label, StringComparison.Ordinal));
 
@@ -364,10 +417,19 @@ public sealed class StudioFormBuilderRenderTests
 
         public bool SimulateAsyncWorkspace { get; set; }
 
+        public Task<StudioFormWorkspace>? PendingWorkspace { get; set; }
+
+        public int LoadCalls { get; private set; }
+
         public Task<StudioFormCommandResult>? PendingCommand { get; set; }
 
         public async Task<StudioFormWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default)
         {
+            if (PendingWorkspace is not null)
+            {
+                return await PendingWorkspace;
+            }
+
             if (SimulateAsyncWorkspace)
             {
                 await Task.Yield();
@@ -376,8 +438,11 @@ public sealed class StudioFormBuilderRenderTests
             return Workspace;
         }
 
-        public Task<StudioFormEditorLoad> LoadAsync(string? formId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(EditorLoad);
+        public Task<StudioFormEditorLoad> LoadAsync(string? formId, CancellationToken cancellationToken = default)
+        {
+            LoadCalls++;
+            return Task.FromResult(EditorLoad);
+        }
 
         public Task<StudioFormCommandResult> SaveDraftAsync(StudioFormEditorState state, CancellationToken cancellationToken = default) =>
             PendingCommand ?? Task.FromResult(new StudioFormCommandResult(true, "Saved.", state));

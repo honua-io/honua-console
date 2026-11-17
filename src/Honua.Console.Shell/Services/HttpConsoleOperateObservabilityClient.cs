@@ -372,6 +372,23 @@ public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObser
                 : string.Empty);
     }
 
+    public async Task<OperateSectionResult<IReadOnlyList<OperateJobAction>>> GetJobActionsAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobRunId);
+
+        var fetch = await FetchAsync(
+            OperateAdminRoutes.JobActions(jobRunId),
+            OperateObservabilityJsonContext.Default.ConsoleJobActionsResponse,
+            cancellationToken).ConfigureAwait(false);
+
+        return fetch.Ok
+            ? OperateSectionResult<IReadOnlyList<OperateJobAction>>.Allowed(
+                (fetch.Value!.Actions ?? []).Select(OperateObservabilityMapper.MapJobAction).ToArray())
+            : OperateSectionResult<IReadOnlyList<OperateJobAction>>.Denied(fetch.Status, fetch.Message, fetch.Detail);
+    }
+
     public Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
         string jobRunId,
         CancellationToken cancellationToken = default) =>
