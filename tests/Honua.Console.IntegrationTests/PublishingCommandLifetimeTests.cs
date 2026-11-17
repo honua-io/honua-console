@@ -16,7 +16,9 @@ public sealed partial class PublishingNavigationTests
     {
         using var context = CreateContext(presentation == ConsolePresentationMode.V4);
         var source = new PublishingSource();
+        var earlierRepublish = new TaskCompletionSource<PublishingLookupResult>();
         var nextRepublish = new TaskCompletionSource<PublishingLookupResult>();
+        source.PendingRepublishes.Add("second", earlierRepublish);
         source.PendingRepublishes.Add("third", nextRepublish);
         context.Services.AddSingleton<IPublishingWorkspaceDataSource>(source);
         var navigation = context.Services.GetRequiredService<NavigationManager>();
@@ -36,7 +38,7 @@ public sealed partial class PublishingNavigationTests
         page.Find("[data-console-confirm-accept]").Click();
         Assert.Equal(new[] { "second", "third" }, source.Writes);
 
-        await page.InvokeAsync(() => source.Republish.SetResult(Result("old-write")));
+        await page.InvokeAsync(() => earlierRepublish.SetResult(Result("old-write")));
         Assert.Contains("Release third", page.Markup);
         Assert.DoesNotContain("Release old-write", page.Markup);
         Assert.True(page.Find("input[aria-label='Republish title']").HasAttribute("disabled"));

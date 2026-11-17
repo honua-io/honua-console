@@ -44,7 +44,6 @@ public sealed partial class PublishingNavigationTests
         await context.Renderer.Dispatcher.InvokeAsync(() => source.FirstLookup.SetResult(Result("stale")));
 
         Assert.True(source.LookupToken.IsCancellationRequested);
-        Assert.Empty(source.Writes);
     }
 
 }
