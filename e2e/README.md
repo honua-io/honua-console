@@ -27,7 +27,10 @@ HONUA_CONSOLE_E2E_NATIVE_PROBE=true make e2e-live
 
 The runner applies `e2e/docker-compose.native-probe.yml` during startup and
 teardown. The older published images need the existing Bash probe; enable this
-option only for images containing the native probe. The live LLM runner does
+option only for images containing the native probe. The Console live journey
+workflow chooses for itself: `scripts/select-live-server-probe.mjs` reads the
+server image's declared `HEALTHCHECK` and applies the overlay to the chiseled
+rc.2 image, which has no Bash. The live LLM runner does
 not support this option; using that stack requires adding the overlay's `-f`
 argument to `composeArgs()` in `e2e/run-live-llm.mjs`.
 
