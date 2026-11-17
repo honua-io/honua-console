@@ -70,3 +70,30 @@ test('Studio creates a map without mounting the unavailable conversation drawer'
         delete globalThis.sessionStorage;
     }
 });
+
+for (const failure of ['blocked', 'full']) {
+    test(`Studio mounts with ${failure} session storage and New map stays fail closed`, async () => {
+        const error = new DOMException('Workspace storage unavailable', failure === 'blocked' ? 'SecurityError' : 'QuotaExceededError');
+        globalThis.window = {};
+        if (failure === 'blocked') Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, get() { throw error; } });
+        else globalThis.sessionStorage = { getItem: () => null, setItem() { throw error; } };
+        let dispatched = 0;
+        try {
+            const workspace = await import(`../../src/Honua.Console.Web/wwwroot/js/agent-workspace.mjs?storage=${failure}`);
+            const app = { isConnected: true, createWorkspaceDraft: async () => { dispatched++; } };
+            const context = vm.createContext({
+                elementsByEnvironment: new Map([['default', app]]), window,
+                getAgentWorkspace: workspace.getAgentWorkspace,
+                createStudioCookieSession, sameCookieAuthority,
+                nextSession: { principalId: 'operator', environmentId: 'default', sourcePathBase: '', expiresAt: new Date(Date.now() + 60000).toISOString() }
+            });
+            assert.equal(await vm.runInContext(mount + ';studioElement(nextSession)', context), app);
+            const create = new StudioDraftCreateSession(app, { uuid: () => 'create-command' });
+            await assert.rejects(create.submit('new-map'), /Workspace storage unavailable/);
+            assert.equal(dispatched, 0, 'no create without durable handoff storage');
+        } finally {
+            delete globalThis.window;
+            delete globalThis.sessionStorage;
+        }
+    });
+}

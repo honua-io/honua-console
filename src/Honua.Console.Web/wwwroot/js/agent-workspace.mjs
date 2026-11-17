@@ -20,13 +20,26 @@ const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName',
 export class WorkspaceConflict extends Error {
     constructor(current) { super('The shared draft changed. Review the latest version before saving.'); this.current = current; }
 }
+function workspaceStorage() {
+    try { return sessionStorage; }
+    catch (error) {
+        // Keep reads and mutations fail closed even when the browser blocks the getter.
+        const unavailable = () => { throw error; };
+        return { getItem: unavailable, setItem: unavailable, removeItem: unavailable };
+    }
+}
 export class AgentWorkspace {
-    constructor({ request = globalThis.fetch.bind(globalThis), storage = sessionStorage, uuid = () => crypto.randomUUID(), notify = () => {} } = {}) {
+    constructor({ request = globalThis.fetch.bind(globalThis), storage = workspaceStorage(), uuid = () => crypto.randomUUID(), notify = () => {} } = {}) {
         this.request = request; this.storage = storage; this.uuid = uuid; this.notify = notify;
         // New document means a new view even when the browser duplicates sessionStorage into a tab.
         this.viewId = uuid();
-        storage.setItem('honua.workspace.view', this.viewId);
-        this.workspaceId = storage.getItem('honua.workspace.id');
+        this.workspaceId = null;
+        try {
+            storage.setItem('honua.workspace.view', this.viewId);
+            this.workspaceId = storage.getItem('honua.workspace.id');
+        } catch {
+            // Reading the editor is still available; durable actions retain the failing storage.
+        }
         this.context = null; this.session = null; this.deployTargetId = null; this.dirty = new Map(); this.follow = true;
         this.presentationGuards = new Set();
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
