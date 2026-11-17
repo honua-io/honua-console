@@ -10,9 +10,10 @@ async function checkSupportReflow(page: Page, context: { v4Enabled: boolean; tes
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
     expect(await page.locator('.support-context-panel').evaluate(panel => {
       const bounds = panel.getBoundingClientRect();
-      return [...panel.querySelectorAll('h2, p, dt, dd')].flatMap(element => {
+      return [...panel.querySelectorAll('h2, p, dt, dd, li')].flatMap(element => {
         const rect = element.getBoundingClientRect();
-        return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 ? [] : [{ text: element.textContent, left: rect.left, right: rect.right, bounds }];
+        return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 && element.scrollWidth <= element.clientWidth + 1
+          ? [] : [{ text: element.textContent, left: rect.left, right: rect.right, bounds }];
       });
     }), mode).toEqual([]);
     if (enlarged) {
@@ -50,7 +51,10 @@ async function supportFixture(options: { v4Enabled: boolean }) {
           response.end(JSON.stringify({ requestToken: 'fixture-only' }));
         } else if (path.endsWith('/observability/errors')) {
           if (++captures > 1) await captureReleased;
-          response.end(JSON.stringify({ errors: [] }));
+          response.end(JSON.stringify({ errors: [
+            { statusCode: 500, path: '/ogc/services/geoprocessing/wms', timestamp: '2026-01-01T00:00:00Z' },
+            { statusCode: 502, path: `/ogc/services/${'long-service-name-'.repeat(12)}/wms`, timestamp: '2026-01-01T00:00:00Z' },
+          ] }));
         } else {
           response.writeHead(404).end('{}');
         }
@@ -93,6 +97,7 @@ for (const v4Enabled of [false, true]) {
       if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
       await page.goto(`http://127.0.0.1:${address.port}/console/support`);
       await expect(page.locator('.support-context-list')).toBeVisible();
+      await expect(page.locator('.support-context-errors li')).toHaveCount(2);
       await checkSupportReflow(page, { v4Enabled, testInfo });
       await checkPendingSubmission(page, fixture, { v4Enabled, testInfo });
     } finally {
