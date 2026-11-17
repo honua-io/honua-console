@@ -1,4 +1,5 @@
 @page "/operate/resources/import"
+@implements IDisposable
 @using Microsoft.AspNetCore.Components.Forms
 @using Honua.Console.Shell.Models
 @inject IConsoleFileImportOperation FileImport
@@ -163,6 +164,8 @@
         </div>
 
     </text>;
+    private readonly CancellationTokenSource _lifetime = new();
+    private bool _disposed;
     private bool _loadingFormats = true;
     private ConsoleAgentPageContext AgentContext => new()
     {
@@ -191,7 +194,7 @@
     private int _fileRevision;
     private bool _reconcileOutcome;
 
-    private bool CanImport => !_busy && !_reconcileOutcome && _fileBytes is not null && _formatError is null
+    private bool CanImport => !_disposed && !_busy && !_reconcileOutcome && _fileBytes is not null && _formatError is null
         && _preview is { Succeeded: true, AuthorityBinding: not null }
         && (_preview.CoordinateSystem is null || _coordinates is not null);
     private string _tableName = string.Empty;
@@ -208,7 +211,9 @@
     {
         try
         {
-            _supportedExtensions = await FileImport.GetSupportedExtensionsAsync();
+            var extensions = await FileImport.GetSupportedExtensionsAsync();
+            if (_disposed) return;
+            _supportedExtensions = extensions;
             _acceptAttribute = string.Join(",", _supportedExtensions);
         }
         finally { _loadingFormats = false; }
@@ -216,7 +221,7 @@
 
     private async Task OnFileSelected(InputFileChangeEventArgs args)
     {
-        if (_busy || _reconcileOutcome) return;
+        if (_disposed || _busy || _reconcileOutcome) return;
         ClearResult();
         ++_fileRevision;
         _fileBytes = null;
@@ -250,23 +255,28 @@
             // This progress covers browser-to-Console transfer over the Blazor circuit, before the server request.
             _fileBytes = await ReadWithProgressAsync(_selectedFile);
         }
+        catch (OperationCanceledException) when (_disposed) { return; }
         catch (Exception exception) when (exception is IOException or InvalidOperationException)
         {
             _fileBytes = null;
             _clientError = $"The selected file could not be read: {exception.Message}";
         }
         finally { _busy = false; }
-        if (_fileBytes is null) return;
+        if (_disposed || _fileBytes is null) return;
         _busy = true;
         _phase = ImportPhase.Previewing;
         try
         {
             await InvokeAsync(StateHasChanged);
-            _preview = await FileImport.PreviewAsync(_fileBytes, _selectedFile.Name);
+            if (_disposed) return;
+            var preview = await FileImport.PreviewAsync(_fileBytes, _selectedFile.Name, _lifetime.Token);
+            if (_disposed) return;
+            _preview = preview;
             if (!_preview.Succeeded) _clientError = _preview.Detail;
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
         {
+            if (_disposed) return;
             _clientError = "The server could not check the file. Choose it again and retry the preview.";
         }
         finally { _busy = false; }
@@ -299,7 +309,7 @@
         _phase = ImportPhase.Importing;
         try
         {
-            _result = await FileImport.ImportAsync(new ConsoleFileImportCommand
+            var result = await FileImport.ImportAsync(new ConsoleFileImportCommand
             {
                 FileContent = _fileBytes!,
                 FileName = _selectedFile.Name,
@@ -310,6 +320,8 @@
                 TableName = _tableName.Trim(),
                 TargetSchema = string.IsNullOrWhiteSpace(_targetSchema) ? null : _targetSchema.Trim(),
             });
+            if (_disposed) return;
+            _result = result;
             _reconcileOutcome = _result.RequiresReconciliation;
         }
         finally
@@ -320,15 +332,17 @@
 
     private async Task<byte[]> ReadWithProgressAsync(IBrowserFile file)
     {
+        var token = _lifetime.Token;
         var total = file.Size;
-        await using var source = file.OpenReadStream(MaxFileBytes);
+        await using var source = file.OpenReadStream(MaxFileBytes, token);
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         long readSoFar = 0;
         int read;
-        while ((read = await source.ReadAsync(chunk)) > 0)
+        while ((read = await source.ReadAsync(chunk, token)) > 0)
         {
-            await buffer.WriteAsync(chunk.AsMemory(0, read));
+            token.ThrowIfCancellationRequested();
+            await buffer.WriteAsync(chunk.AsMemory(0, read), token);
             readSoFar += read;
             var percent = total > 0 ? (int)Math.Min(100, readSoFar * 100 / total) : 100;
             if (percent != _uploadPercent)
@@ -338,9 +352,17 @@
             }
         }
 
+        token.ThrowIfCancellationRequested();
         _uploadPercent = 100;
         await InvokeAsync(StateHasChanged);
         return buffer.ToArray();
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
     }
 
     private static string SanitizeTableName(string value)
