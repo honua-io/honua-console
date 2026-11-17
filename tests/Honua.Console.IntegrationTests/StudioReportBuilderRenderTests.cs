@@ -254,10 +254,10 @@ public sealed class StudioReportBuilderRenderTests
         }
 
         Assert.False(page.Find(".studio-report-name").HasAttribute("disabled"));
-        page.Find(".studio-report-outline-row--section").Click();
+        await page.Find(".studio-report-outline-row--section").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
         Assert.True(page.Find("input[placeholder='monthly-infrastructure']").HasAttribute("disabled"));
         Assert.False(page.FindAll(".studio-report-bar button").Single(button => button.TextContent == "Close").HasAttribute("disabled"));
-        page.Find(".studio-report-name").Input("Edited after completion");
+        await page.Find(".studio-report-name").InputAsync(new ChangeEventArgs { Value = "Edited after completion" });
         Assert.True(page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
     }
 

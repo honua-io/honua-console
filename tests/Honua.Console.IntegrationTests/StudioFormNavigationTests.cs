@@ -211,8 +211,12 @@ public sealed class StudioFormNavigationTests
 
         public AngleSharp.Dom.IElement Button(string text) => Page.FindAll("button").Single(button => button.TextContent == text);
 
-        public Task Complete(string id, string? title = null, int visit = 0) =>
-            CompleteResult(Data.Reads[id][visit], new StudioFormEditorLoad(Editor(id, title), []));
+        public Task Complete(string id, string? title = null, int visit = 0)
+        {
+            // Navigation requests the read from the renderer dispatcher; wait until it has.
+            Page.WaitForState(() => Data.HasRead(id, visit));
+            return CompleteResult(Data.Reads[id][visit], new StudioFormEditorLoad(Editor(id, title), []));
+        }
 
         public Task CompleteWorkspace(int visit) => CompleteResult(Data.Workspaces[visit], DelayedFormData.Workspace);
 
@@ -235,6 +239,7 @@ public sealed class StudioFormNavigationTests
         public List<TaskCompletionSource<StudioFormWorkspace>> Workspaces { get; } = [];
         public List<string?> Requests { get; } = [];
         public int WorkspaceReads { get; private set; }
+        public bool HasRead(string id, int visit) => Reads.TryGetValue(id, out var visits) && visits.Count > visit;
         public string? SaveTarget { get; private set; }
         public TaskCompletionSource<StudioFormCommandResult> Command { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

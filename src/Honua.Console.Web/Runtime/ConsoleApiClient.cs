@@ -59,6 +59,12 @@ public sealed class ConsoleApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task SignOutCookieAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync("api/v1/admin/auth/logout", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<ConsoleSessionCredentials> GetPasswordTokenAsync(string password, CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync("api/v1/admin/auth/password-token", new { password }, cancellationToken);
@@ -164,6 +170,16 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
             await ClearAuthenticationAsync();
             throw;
         }
+    }
+
+    public async Task SignOutAsync(CancellationToken cancellationToken = default)
+    {
+        if (api.UsesCookieSession)
+        {
+            await PrepareCookieRequestAsync(cancellationToken);
+            await api.SignOutCookieAsync(cancellationToken);
+        }
+        await ClearAuthenticationAsync();
     }
 
     public async Task PrepareCookieRequestAsync(CancellationToken cancellationToken = default)

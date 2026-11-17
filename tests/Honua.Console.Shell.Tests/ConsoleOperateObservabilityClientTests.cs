@@ -1589,6 +1589,6 @@ public sealed class ConsoleOperateObservabilityClientTests
             logs,
             artifacts,
             [new OperateJobMetric("Artifacts", "1", new OperateStatus("info", "Artifact count"))],
-            [new OperateJobAction("Cancel", false, "Server policy disabled in test")],
+            [new OperateJobAction("Cancel", false, "Server policy disabled in test") { Name = OperateJobAction.CancelName }],
             [new OperateRelatedObject("events", "Events for this job", "/api/v1/admin/observability/events?kind=job&operationId=live-job-1")]);
 }

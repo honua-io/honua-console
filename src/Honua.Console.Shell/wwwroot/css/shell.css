@@ -46,7 +46,7 @@
     display: flex;
     align-items: center;
     gap: .25rem;
-    flex: 1;
+    flex: 1 0 auto;
 }
 
 .console-topnav > a,

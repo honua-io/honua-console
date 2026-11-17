@@ -9,6 +9,7 @@ for (const v4Enabled of [false, true]) {
     });
     await page.setViewportSize({ width: 1600, height: 900 });
     await signInWithFixturePassword(page, 'http://127.0.0.1:5185', '/operate/connections');
+    await page.waitForURL(url => url.pathname === '/console/operate/connections');
     const home = page.locator('#console-primary > a').first();
     const toggle = page.locator('[data-navigation-toggle]');
     await expect(home).toBeVisible();

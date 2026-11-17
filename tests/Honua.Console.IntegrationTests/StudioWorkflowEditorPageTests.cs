@@ -62,7 +62,7 @@ public sealed partial class StudioWorkflowEditorPageTests
         }
 
         // Edit the title so the draft diverges from the last saved version (now dirty).
-        TitleInput(page).Input("Parcel normalizer (edited)");
+        await TitleInput(page).InputAsync(new() { Value = "Parcel normalizer (edited)" });
         Assert.Equal(presentation == ConsolePresentationMode.V4 ? 1 : 0, registry.Current.Unsaved.ChangedFieldCount);
 
         // Save: the server rejects the graph as invalid, so no version is created and the draft stays dirty.
@@ -216,7 +216,7 @@ public sealed partial class StudioWorkflowEditorPageTests
         page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
         page.Render(p => p.Add(x => x.DraftId, "current"));
         page.WaitForAssertion(() => Assert.Equal("current", TitleInput(page).GetAttribute("value")));
-        TitleInput(page).Input("Edited current workflow");
+        await TitleInput(page).InputAsync(new() { Value = "Edited current workflow" });
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
 
         pending.SetResult(new() { ContentItemId = "earlier", VersionId = "earlier-version", VersionNumber = 2 });
@@ -396,7 +396,7 @@ public sealed partial class StudioWorkflowEditorPageTests
 
         Assert.False(TitleInput(page).HasAttribute("disabled"));
         Assert.Equal("Edited current workflow", TitleInput(page).GetAttribute("value"));
-        TitleInput(page).Input("Edited after current completion");
+        await TitleInput(page).InputAsync(new() { Value = "Edited after current completion" });
         Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
     }
 

@@ -1,0 +1,67 @@
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@if (Services.GetService<IConsoleBrowserAuthentication>() is { } authentication)
+{
+    <AuthorizeView>
+        <Authorized Context="account">
+            <div class="console-account-control">
+                <span class="console-account-identity">@(account.User.Identity?.Name ?? account.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Signed in")</span>
+                <button type="button" class="console-button" data-console-signout disabled="@_signingOut"
+                        @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
+                @if (_error is not null)
+                {
+                    <span role="alert">@_error</span>
+                }
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            @if (!OnSignInPage)
+            {
+                <div class="console-account-control">
+                    <a class="console-button" data-console-signin href="@SignInHref">Sign in</a>
+                </div>
+            }
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code {
+    private bool _signingOut;
+    private string? _error;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += LocationChanged;
+
+    private void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args) =>
+        _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= LocationChanged;
+
+    private string CurrentRoute => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('#')[0];
+    private string CurrentPath => CurrentRoute.Split('?')[0].TrimEnd('/');
+    private bool OnSignInPage => string.Equals(CurrentPath, "/auth/signin", StringComparison.OrdinalIgnoreCase);
+    private string SignInHref => Navigation.ToConsoleHref(CurrentRoute == "/"
+        ? "/auth/signin"
+        : $"/auth/signin?returnTo={Uri.EscapeDataString(CurrentRoute)}");
+
+    private async Task SignOutAsync(IConsoleBrowserAuthentication authentication)
+    {
+        if (_signingOut) return;
+        _signingOut = true;
+        _error = null;
+        try
+        {
+            await authentication.SignOutAsync();
+            Navigation.NavigateTo(Navigation.ToConsoleHref("/auth/signin"));
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            _error = "Sign-out could not finish. Check the connection and try again.";
+        }
+        finally
+        {
+            _signingOut = false;
+        }
+    }
+}

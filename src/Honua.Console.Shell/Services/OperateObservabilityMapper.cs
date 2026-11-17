@@ -410,7 +410,10 @@ public static class OperateObservabilityMapper
             IsAllowed: action.Allowed,
             Reason: action.Allowed
                 ? OperateActionPresentation.ActionExecutionDeferredReason
-                : string.IsNullOrWhiteSpace(action.DisabledReason) ? "Not permitted by the server." : action.DisabledReason!);
+                : string.IsNullOrWhiteSpace(action.DisabledReason) ? "Not permitted by the server." : action.DisabledReason!)
+        {
+            Name = action.Name
+        };
 
     public static IReadOnlyList<string> MapJobLogs(ConsoleJobLogPageResponse page)
     {

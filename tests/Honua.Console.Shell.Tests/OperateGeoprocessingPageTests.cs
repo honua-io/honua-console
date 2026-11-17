@@ -488,7 +488,7 @@ public sealed partial class OperateGeoprocessingPageTests
                             cancel: true,
                             phase: "executing",
                             message: "recent event",
-                            first: "earlier",
+                            first: "earlier", truncated: true,
                             attempt: 1));
                 }
 
@@ -498,7 +498,7 @@ public sealed partial class OperateGeoprocessingPageTests
                         retry: true,
                         phase: "cancelled",
                         message: "replacement event",
-                        first: "earlier",
+                        first: "earlier", truncated: true,
                         attempt: 2));
             }
         };
@@ -729,7 +729,7 @@ public sealed partial class OperateGeoprocessingPageTests
             Logs: [],
             Artifacts: [],
             Metrics: [],
-            AllowedActions: [new OperateJobAction("Cancel", false, "Server policy disabled in test")],
+            AllowedActions: [new OperateJobAction("Cancel", true, OperateActionPresentation.ActionExecutionDeferredReason) { Name = OperateJobAction.CancelName }],
             RelatedObjects: []);
 
     private sealed class StubGeoprocessingClient : IConsoleOperateObservabilityClient

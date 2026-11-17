@@ -1,0 +1,25 @@
+.console-account-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+    max-width: 100%;
+    font-size: var(--text-sm);
+}
+
+.console-account-identity {
+    max-width: 12rem;
+    overflow-wrap: anywhere;
+}
+
+.console-account-control button,
+.console-account-control a {
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+.console-account-control [role="alert"] {
+    flex-basis: 100%;
+    max-width: 24rem;
+}

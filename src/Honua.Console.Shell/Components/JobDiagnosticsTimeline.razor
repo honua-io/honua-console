@@ -145,7 +145,7 @@
         {
             <button type="button" class="console-button" disabled="@Busy" @onclick="OnRetry">Retry job</button>
         }
-        @if (!string.IsNullOrWhiteSpace(View.EventsFirstCursor) && !ReadingEarlier)
+        @if (HasEarlierEvents && !ReadingEarlier)
         {
             <button type="button" class="console-button console-button-secondary" disabled="@Busy" @onclick="() => OnReadEarlier.InvokeAsync(View.EventsFirstCursor)">Read earlier events</button>
         }
@@ -180,4 +180,9 @@
 
     [Parameter]
     public EventCallback<string> OnReadNext { get; set; }
+
+    // The server returns a first cursor even for an empty or complete tail; only a
+    // truncated page has earlier events to read.
+    private bool HasEarlierEvents =>
+        !string.IsNullOrWhiteSpace(View.EventsFirstCursor) && View.EventsTruncated;
 }
