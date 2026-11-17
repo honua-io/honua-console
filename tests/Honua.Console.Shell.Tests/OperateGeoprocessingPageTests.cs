@@ -732,7 +732,7 @@ public sealed partial class OperateGeoprocessingPageTests
             AllowedActions: [new OperateJobAction("Cancel", true, OperateActionPresentation.ActionExecutionDeferredReason) { Name = OperateJobAction.CancelName }],
             RelatedObjects: []);
 
-    private sealed class StubGeoprocessingClient : IConsoleOperateObservabilityClient
+    private sealed partial class StubGeoprocessingClient : IConsoleOperateObservabilityClient
     {
         public OperateSectionResult<IReadOnlyList<OperateJobRun>> Jobs { get; set; } =
             OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([]);

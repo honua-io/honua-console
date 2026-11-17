@@ -36,6 +36,14 @@ public interface IConsoleOperateObservabilityClient
         string jobRunId,
         CancellationToken cancellationToken = default);
 
+    // The list summary carries no action state; this reads the server's live cancel/retry gate for one job.
+    Task<OperateSectionResult<IReadOnlyList<OperateJobAction>>> GetJobActionsAsync(
+        string jobRunId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateSectionResult<IReadOnlyList<OperateJobAction>>.Denied(
+            OperateSectionStatus.Unsupported,
+            "Job actions are not available from this console client."));
+
     // Cancel and retry go through the server approval gate; this client does not bypass it.
     Task<OperateSectionResult<OperateJobControlOutcome>> CancelJobAsync(
         string jobRunId,

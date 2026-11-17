@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Honua.Console.Shell.Tests;
 
-public sealed class ConsoleOperateObservabilityClientTests
+public sealed partial class ConsoleOperateObservabilityClientTests
 {
     [Theory]
     [InlineData(HttpStatusCode.NotFound, OperateSectionStatus.Unsupported)]
