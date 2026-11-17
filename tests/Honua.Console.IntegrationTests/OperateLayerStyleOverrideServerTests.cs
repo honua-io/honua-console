@@ -164,6 +164,19 @@ public sealed class OperateLayerStyleOverrideServerTests
         Assert.DoesNotContain("net_http", view.BindingState.Detail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetOverrides_WhenServerFails_KeepsTheServerDetailAndOffersRetry()
+    {
+        var source = new ServerOperateLayerStyleOverrideDataSource(
+            new FakeLayersSource(1, ResourceId, "e2e_src_fs", "E2E Source"),
+            CreateClient(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
+
+        var view = await source.GetOverridesAsync(ResourceId);
+
+        Assert.Equal(OperateLayerStyleBindingState.Unavailable, view.BindingState!.State);
+        Assert.DoesNotContain("did not answer in time", view.BindingState.Detail, StringComparison.Ordinal);
+    }
+
     private static HttpResponseMessage OkDocument(int layerId, JsonElement? document) =>
         new(HttpStatusCode.OK)
         {

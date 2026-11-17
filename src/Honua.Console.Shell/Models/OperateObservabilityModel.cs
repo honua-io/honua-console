@@ -519,7 +519,7 @@ public sealed record OperateJobRun(
     // A cancel action the server lists as not allowed (for example, one already requested) is not offered.
     public bool CanCancel =>
         !OperateJobStatuses.IsTerminal(Status.State)
-        && !AllowedActions.Any(action => string.Equals(action.Name, OperateJobAction.CancelName, StringComparison.Ordinal) && !action.IsAllowed);
+        && !AllowedActions.Any(action => string.Equals(action.Name, OperateJobAction.CancelName, StringComparison.OrdinalIgnoreCase) && !action.IsAllowed);
 
     // Only a failed or cancelled job can be retried; other states get 409 from the server.
     public bool CanRetry =>

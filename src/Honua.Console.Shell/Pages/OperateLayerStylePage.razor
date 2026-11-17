@@ -151,7 +151,7 @@
             {
                 <ConsoleStateView HeadingLevel="@(V4Enabled ? 3 : 2)" Kind="@StateKind(saveBinding.State)"
                                   Kicker="@saveBinding.State"
-                                  Title="Override save is not bound"
+                                  Title="@SaveStateTitle(saveBinding.State)"
                                   Message="@(saveBinding.Detail + " (contract: " + saveBinding.Contract + ")")" />
             }
             else if (_saveResult is { Succeeded: true })
@@ -281,6 +281,11 @@
         OperateLayerStyleBindingState.Unavailable => "error",
         _ => "missing"
     };
+
+    // An unanswered save may still have been applied; saving the same documents again is safe.
+    private static string SaveStateTitle(string state) => state == OperateLayerStyleBindingState.Unavailable
+        ? "Override could not be confirmed; it may have been applied, so save again to confirm"
+        : "Override save is not bound";
 
     private static string StateTitle(string state) => state == OperateLayerStyleBindingState.Unavailable
         ? "Layer overrides could not be loaded"
