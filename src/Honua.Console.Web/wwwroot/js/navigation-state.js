@@ -47,13 +47,17 @@
         hydrated = true;
     }
     function restoreResponsiveFocus() {
-        if (!focused?.isConnected || focused.checkVisibility() || !focused.closest('.console-topbar')) return;
+        if (!focused?.isConnected || !focused.closest('.console-topbar')) return;
         if (document.activeElement !== document.body && document.activeElement !== focused) return;
+        if (focused.checkVisibility()) {
+            if (document.activeElement === focused) focused.scrollIntoView({block: 'nearest', inline: 'nearest'});
+            return;
+        }
         const toggle = controls.get('toggle');
         const target = focused === toggle
             ? document.querySelector('#console-primary a[aria-current="page"], #console-primary > a')
             : toggle;
-        if (target?.checkVisibility()) target.focus({preventScroll: true});
+        if (target?.checkVisibility()) target.focus();
     }
     const chromeResize = new ResizeObserver(restoreResponsiveFocus);
     function observeResponsiveChrome() {
