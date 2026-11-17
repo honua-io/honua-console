@@ -681,6 +681,15 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
                     $"The Honua server workflow response did not match the expected API shape: {ex.Message}",
                     (int)response.StatusCode));
             }
+            catch (Exception ex) when (ex is HttpRequestException or IOException ||
+                (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+            {
+                return WorkflowEndpointResult<TResponse>.FromIssue(new WorkflowEndpointIssue(
+                    "Unavailable",
+                    contract,
+                    $"The Honua server workflow response was interrupted: {ex.Message}",
+                    (int)response.StatusCode));
+            }
 
             if (envelope?.Success == true && envelope.Data is not null)
             {
@@ -748,7 +757,8 @@ public sealed class HttpWorkflowPackageApiClient : IWorkflowPackageApiClient, ID
 
             return string.IsNullOrWhiteSpace(message) ? null : message;
         }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or HttpRequestException or IOException ||
+            (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
             return null;
         }
