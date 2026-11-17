@@ -1,0 +1,192 @@
+@page "/operate/exports/{ExportId}"
+@inject IConsoleExportsClient Exports
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page" data-export-detail="@ExportId">
+    @if (_result is null)
+    {
+        <OperateSectionStatusPanel Heading="Export" Loading="true" HeadingLevel="2" />
+    }
+    else if (!_result.IsAllowed)
+    {
+        <ConsolePageHeading Title="@ExportId" />
+        <OperateSectionStatusPanel Heading="Export" Status="_result.Status" Message="@_result.Message" Detail="@_result.Detail" HeadingLevel="2" />
+        <a href="@Navigation.ToConsoleHref("/operate/exports")">All Exports</a>
+    }
+    else
+    {
+        var export = _result.Value!;
+        <ConsolePageHeading Title="@(string.IsNullOrWhiteSpace(export.Title) ? export.Id : export.Title)">
+            <ChildContent>
+                <p><code>@export.Id</code> · @ExportPresentation.SourceLabel(export.Source) · <span class="@ExportPresentation.StatusClass(export.Status)">@ExportPresentation.StatusLabel(export.Status)</span></p>
+            </ChildContent>
+            <Actions>
+                <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/exports")">All Exports</a>
+                <button type="button" class="console-button console-button-secondary" data-export-unpublish="@export.Id"
+                        disabled="@(ExportPresentation.IsUnpublished(export) || _pending)" @onclick="ConfirmUnpublish">Unpublish</button>
+            </Actions>
+        </ConsolePageHeading>
+
+        @if (_notice is { } notice)
+        {
+            <div class="console-panel console-state-warning" role="status" data-export-notice><p>@notice</p></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(export.Message))
+        {
+            <div class="console-panel console-state-warning" role="status" data-export-message><p>@export.Message</p></div>
+        }
+
+        <ConsolePanel Title="Access" HeadingId="export-access-heading">
+            <dl class="console-definition-list" data-export-access>
+                <dt>Access</dt>
+                <dd>@ExportPresentation.AccessLabel(export)</dd>
+                @if (!string.IsNullOrWhiteSpace(export.PublicUrl))
+                {
+                    <dt>Public URL</dt>
+                    <dd><code>@export.PublicUrl</code> <ConsoleCopyButton Text="@export.PublicUrl" Label="Copy public URL" /></dd>
+                }
+                else if (!string.IsNullOrWhiteSpace(export.NotPublicReason))
+                {
+                    <dt>Why not public</dt>
+                    <dd>@export.NotPublicReason</dd>
+                }
+                @if (!string.IsNullOrWhiteSpace(export.CollectionUrl))
+                {
+                    <dt>Signed-in URL</dt>
+                    <dd><code>@export.CollectionUrl</code> <ConsoleCopyButton Text="@export.CollectionUrl" Label="Copy signed-in URL" /></dd>
+                }
+            </dl>
+            <p class="console-muted">@ExportPresentation.PublicFollowsLayer</p>
+        </ConsolePanel>
+
+        <ConsolePanel Title="Versions" HeadingId="export-versions-heading">
+            @if (export.Versions.Count == 0)
+            {
+                <p class="console-muted" data-export-no-versions>No Version is finished yet. A running Export adds its first Version when the files are written and checked.</p>
+            }
+            else
+            {
+                <ConsoleTableRegion Label="Export versions">
+                    <table class="console-table">
+                        <thead><tr><th>Version</th><th>Created</th><th>Features</th><th>Files</th></tr></thead>
+                        <tbody>
+                            @foreach (var version in export.Versions)
+                            {
+                                <tr data-export-version="@version.Version">
+                                    <td>
+                                        <code>@version.Version</code>
+                                        @if (version.Version == export.CurrentVersion)
+                                        {
+                                            <small>Current</small>
+                                        }
+                                    </td>
+                                    <td>@ExportPresentation.When(version.CreatedAt)</td>
+                                    <td>@(version.FeatureCount?.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) ?? "—")</td>
+                                    <td>
+                                        <ul class="console-artifact-list">
+                                            @foreach (var artifact in version.Artifacts)
+                                            {
+                                                <li data-export-artifact="@artifact.Kind">
+                                                    @ExportPresentation.ArtifactLabel(artifact.Kind) · @ExportPresentation.Size(artifact.Bytes)
+                                                    <ConsoleCopyButton Text="@artifact.Href" Label="Copy URL" />
+                                                </li>
+                                            }
+                                        </ul>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </ConsoleTableRegion>
+            }
+        </ConsolePanel>
+    }
+</section>
+
+<ConsoleConfirmDialog @ref="_confirm" />
+
+@code {
+    private ConsoleConfirmDialog? _confirm;
+    private OperateSectionResult<ExportResponse>? _result;
+    private string? _loadedExportId;
+    private string? _notice;
+    private bool _pending;
+
+    [Parameter] public string ExportId { get; set; } = string.Empty;
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/exports/{ExportId}",
+        Unsaved = new() { PendingOperationCount = (_result is null ? 1 : 0) + (_pending ? 1 : 0) }
+    };
+
+    // Re-read only when the route names another Export; a reply for a different Export is dropped.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ExportId == _loadedExportId)
+        {
+            return;
+        }
+
+        var exportId = _loadedExportId = ExportId;
+        _result = null;
+        _notice = null;
+        var result = await Exports.GetAsync(exportId);
+        if (exportId == ExportId)
+        {
+            _result = result;
+        }
+    }
+
+    // The dialog invokes the handler from its own event, so route it through this page to re-render here.
+    private void ConfirmUnpublish()
+    {
+        var exportId = ExportId;
+        var unpublish = EventCallback.Factory.Create(this, () => UnpublishAsync(exportId));
+        _confirm?.Open(
+            $"Unpublish {exportId}?",
+            () => unpublish.InvokeAsync(),
+            "Its files are removed from the public data path and the signed-in routes. Existing Versions stop being served.",
+            "Unpublish");
+    }
+
+    private async Task UnpublishAsync(string exportId)
+    {
+        if (_pending)
+        {
+            return;
+        }
+
+        _pending = true;
+        try
+        {
+            var result = await Exports.UnpublishAsync(exportId);
+            if (exportId != ExportId)
+            {
+                return;
+            }
+
+            if (result.IsAllowed)
+            {
+                _result = KeepShownExport(result.Value!);
+            }
+            else
+            {
+                _notice = $"Could not unpublish {exportId}: {result.Message}";
+            }
+        }
+        finally
+        {
+            _pending = false;
+        }
+    }
+
+    // An empty (204) unpublish reply carries only the id and status; keep the shown Versions and source.
+    private OperateSectionResult<ExportResponse> KeepShownExport(ExportResponse reply) =>
+        OperateSectionResult<ExportResponse>.Allowed(
+            reply.Versions.Count == 0 && _result is { IsAllowed: true, Value: { } shown }
+                ? shown with { Status = reply.Status, PublicUrl = null }
+                : reply);
+}

@@ -112,6 +112,7 @@
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/relationships")" data-layer-relationships-link>Relationships</a>
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/filter")" data-layer-filter-link>Permanent filter</a>
                 <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref($"/operate/layers/{Uri.EscapeDataString(CanonicalResourceId)}/metadata")" data-layer-metadata-link>Editing policy →</a>
+                <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref(ExportPresentation.NewExportRoute(_exposures[0].Service.Name, _exposures[0].Layer.LayerId, _exposures[0].Layer.Name))" data-layer-export-link>Export as files</a>
             </div></text>;
     private RenderFragment Fields => @<text>        <section class="console-section @(V4Enabled ? "console-data-controls" : null)" data-fields-panel>
             @if (!V4Enabled)
