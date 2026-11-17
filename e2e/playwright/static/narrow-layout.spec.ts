@@ -24,7 +24,7 @@ async function signIn(page: Page, returnTo: string, shell: Shell) {
   await page.waitForURL(url => url.pathname === `/console${returnTo}`);
 }
 
-test('a long identity stays on one header row and wrapped controls stay right-aligned', async ({ page }, testInfo) => {
+test('a long identity is truncated and wrapped header controls stay right-aligned', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, '/operate/connections', 'v4');
   const identity = page.locator('.console-account-identity');
@@ -35,10 +35,11 @@ test('a long identity stays on one header row and wrapped controls stay right-al
       const bar = document.querySelector<HTMLElement>('.console-topbar')!.getBoundingClientRect();
       const identityBox = document.querySelector('.console-account-identity')!.getBoundingClientRect();
       const help = document.querySelector('.console-help-link')!.getBoundingClientRect();
-      return { height: bar.height, barRight: bar.right, identityWidth: identityBox.width, helpRight: help.right, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize) };
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      return { overflow, barRight: bar.right, identityWidth: identityBox.width, helpRight: help.right, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize) };
     });
     expect(header.identityWidth, `identity width at ${width}`).toBeLessThanOrEqual(12 * header.rootFont + 1);
-    expect(header.height, `header rows at ${width}`).toBeLessThanOrEqual(49);
+    expect(header.overflow, `no sideways scroll at ${width}`).toBeLessThanOrEqual(0);
     expect(header.barRight - header.helpRight, `help stays at the trailing edge at ${width}`).toBeLessThan(40);
   }
   // When the bar still wraps (wide navigation), the wrapped controls hold the trailing edge.
