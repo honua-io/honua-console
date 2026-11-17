@@ -193,7 +193,10 @@ function configureMapPreview(maplibregl, map, options) {
     if (options.showScale) {
         map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
     }
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-left');
+    // The Console's own zoom and recenter buttons sit over the top-left corner, so a native
+    // NavigationControl there would be hidden and unclickable. Rotation is off, so no compass is needed.
+    map.dragRotate?.disable();
+    map.touchZoomRotate?.disableRotation();
     // The server layer style is feature-only (fill/outline) with no basemap, so the map renders
     // on a blank background. Inject a free, no-API-key OpenStreetMap raster basemap UNDER the
     // feature layers when the loaded style carries no raster basemap of its own, so the data has
