@@ -437,7 +437,13 @@ public sealed record OperateJobDiagnosticEvent(
 public sealed record OperateJobAction(
     string Label,
     bool IsAllowed,
-    string Reason);
+    string Reason)
+{
+    public const string CancelName = "cancel";
+
+    // The server's action name (for example "cancel"); Label is its display form.
+    public string Name { get; init; } = string.Empty;
+}
 
 // Copied from the server job detail. Console does not invent a second job identity.
 public sealed record OperateJobIdentity(
@@ -513,7 +519,7 @@ public sealed record OperateJobRun(
     // A cancel action the server lists as not allowed (for example, one already requested) is not offered.
     public bool CanCancel =>
         !OperateJobStatuses.IsTerminal(Status.State)
-        && !AllowedActions.Any(action => string.Equals(action.Label, "Cancel", StringComparison.Ordinal) && !action.IsAllowed);
+        && !AllowedActions.Any(action => string.Equals(action.Name, OperateJobAction.CancelName, StringComparison.Ordinal) && !action.IsAllowed);
 
     // Only a failed or cancelled job can be retried; other states get 409 from the server.
     public bool CanRetry =>

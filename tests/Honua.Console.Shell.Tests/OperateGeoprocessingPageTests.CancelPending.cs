@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -41,7 +42,7 @@ public sealed partial class OperateGeoprocessingPageTests
         ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
         var pending = Job("gp-run", "Running", "Executing", 40, "analyst.live") with
         {
-            AllowedActions = [new OperateJobAction("Cancel", false, "cancellation requested; waiting for the worker")]
+            AllowedActions = [new OperateJobAction("Cancel", false, "cancellation requested; waiting for the worker") { Name = OperateJobAction.CancelName }]
         };
         var client = new StubGeoprocessingClient
         {
@@ -82,5 +83,21 @@ public sealed partial class OperateGeoprocessingPageTests
         page.Render(p => p.Add(x => x.SelectedJobRunId, "gp-run"));
 
         Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ServerCancelActionIsRecognisedByItsNameNotItsLabel()
+    {
+        var action = OperateObservabilityMapper.MapJobAction(new ConsoleJobActionDescriptor
+        {
+            Name = "cancel",
+            Method = "POST",
+            Allowed = false,
+            DisabledReason = "cancellation requested; waiting for the worker to stop"
+        });
+        var relabelled = action with { Label = "Stop job" };
+
+        Assert.Equal(OperateJobAction.CancelName, action.Name);
+        Assert.False((Job("gp-run", "Running", "Executing", 40, "analyst.live") with { AllowedActions = [relabelled] }).CanCancel);
     }
 }
