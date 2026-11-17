@@ -115,13 +115,14 @@ public sealed class BrowserSignInPageTests
     [Theory]
     [InlineData(null)]
     [InlineData("discovery")]
-    public async Task PasswordServerWithoutProvidersShowsNoProviderWarning(string? timeoutAt)
+    public async Task PasswordServerWithoutProvidersKeepsPasswordSignInQuiet(string? timeoutAt)
     {
         await using var context = CreateContext();
         context.Services.AddSingleton<IConsoleBrowserAuthentication>(new PendingAuthentication());
         context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc { TimeoutAt = timeoutAt, NoProviders = true });
         var page = context.Render<AuthSignInPage>();
-        Assert.Empty(page.FindAll("[role=alert], [role=status], button[type=button]"));
+        Assert.Empty(page.FindAll("[role=alert], button[type=button], [data-signin-divider]"));
+        Assert.Equal(timeoutAt is not null, page.Markup.Contains("Password sign-in is still available", StringComparison.Ordinal));
         Assert.Single(page.FindAll("input[type=password]"));
     }
 
@@ -135,6 +136,7 @@ public sealed class BrowserSignInPageTests
         var controls = page.FindAll("form button[type=button], form input[type=password]");
         Assert.Equal(["BUTTON", "INPUT"], controls.Select(control => control.TagName).ToArray());
         Assert.Equal("Continue with Organization", controls[0].TextContent);
+        Assert.Single(page.FindAll("[data-signin-divider]"));
     }
 
     [Fact]

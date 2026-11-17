@@ -65,6 +65,14 @@
                     {
                         <p role="status">No identity providers are available. Contact your deployment administrator.</p>
                     }
+                    @if (_providersUnavailable && PasswordSignIn)
+                    {
+                        <p role="status">Identity providers could not be loaded. Password sign-in is still available.</p>
+                    }
+                    @if (_providers.Count > 0 && PasswordSignIn)
+                    {
+                        <p class="console-muted" data-signin-divider>Or sign in with a password</p>
+                    }
                 }
                 else if (_browserAuth is not null && !_browserAuth.SupportsPasswordSignIn)
                 {
@@ -101,6 +109,7 @@
     private bool _signingIn;
     private IConsoleOidcAuthentication? _oidc;
     private IReadOnlyList<ConsoleIdentityProvider> _providers = [];
+    private bool _providersUnavailable;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -114,6 +123,7 @@
         _profile = await Profiles.GetActiveProfileAsync();
         _browserAuth = Services.GetService<IConsoleBrowserAuthentication>();
         _oidc = Services.GetService<IConsoleOidcAuthentication>();
+        _providersUnavailable = false;
         if (_oidc?.IsAvailable == true)
         {
             try
@@ -122,8 +132,9 @@
             }
             catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or OperationCanceledException)
             {
-                // Password sign-in still works, so a missing provider list is not an error for this server.
+                // Password sign-in still works, so a missing provider list is a status, not an error.
                 _providers = [];
+                _providersUnavailable = PasswordSignIn;
                 if (!PasswordSignIn)
                 {
                     _serverAuthMessage = "Identity providers could not be loaded. Check the server connection and try again.";

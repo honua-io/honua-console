@@ -123,7 +123,7 @@ public sealed class BrowserSignOutTests
 
     [Theory]
     [InlineData("/", "/auth/signin")]
-    [InlineData("/operate/services?sort=name", "/auth/signin?returnTo=%2Foperate%2Fservices")]
+    [InlineData("/operate/services?sort=name", "/auth/signin?returnTo=%2Foperate%2Fservices%3Fsort%3Dname")]
     public async Task AnonymousHeaderOffersSignInThatReturnsToTheCurrentRoute(string location, string expected)
     {
         using var fixture = new Fixture();
@@ -132,7 +132,7 @@ public sealed class BrowserSignOutTests
         var header = fixture.RenderHeader();
         await fixture.Authentication.GetAuthenticationStateAsync();
         header.WaitForAssertion(() => Assert.Equal(expected, header.Find("[data-console-signin]").GetAttribute("href")));
-        fixture.Navigation.NavigateTo("/auth/signin");
+        fixture.Navigation.NavigateTo("/Auth/SignIn/?returnTo=%2F");
         header.WaitForAssertion(() => Assert.Empty(header.FindAll("[data-console-signin]")));
     }
 

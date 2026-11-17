@@ -38,8 +38,9 @@
 
     public void Dispose() => Navigation.LocationChanged -= LocationChanged;
 
-    private string CurrentRoute => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
-    private bool OnSignInPage => CurrentRoute == "/auth/signin";
+    private string CurrentRoute => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('#')[0];
+    private string CurrentPath => CurrentRoute.Split('?')[0].TrimEnd('/');
+    private bool OnSignInPage => string.Equals(CurrentPath, "/auth/signin", StringComparison.OrdinalIgnoreCase);
     private string SignInHref => Navigation.ToConsoleHref(CurrentRoute == "/"
         ? "/auth/signin"
         : $"/auth/signin?returnTo={Uri.EscapeDataString(CurrentRoute)}");
