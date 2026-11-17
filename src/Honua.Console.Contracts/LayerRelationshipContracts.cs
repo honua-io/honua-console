@@ -17,6 +17,9 @@ public sealed record HonuaAdminLayerRelationship
 
     public string? Name { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; init; }
+
     [JsonPropertyName("relatedStorageLayerId")]
     public int? RelatedLayerId { get; init; }
 
@@ -30,6 +33,10 @@ public sealed record HonuaAdminLayerRelationship
     public string? DestinationField { get; init; }
 
     public int? EsriRelationshipId { get; init; }
+
+    // The server's composite flag is not nullable; a new row omits it and gets the default.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Composite { get; init; }
 }
 
 public sealed record HonuaAdminLayerRelationshipsUpdate

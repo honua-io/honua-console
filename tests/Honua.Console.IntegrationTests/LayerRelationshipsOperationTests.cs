@@ -105,6 +105,30 @@ public sealed class LayerRelationshipsOperationTests
     }
 
     [Fact]
+    public async Task SetRelationships_KeepsServerDescriptionAndComposite_AndOmitsThemForNewRows()
+    {
+        string? body = null;
+        var operation = new HonuaServerConsoleLayerRelationshipsOperation(CreateClient(request =>
+        {
+            body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Ok(new HonuaAdminLayerRelationships { LayerId = 1 });
+        }));
+
+        await operation.SetRelationshipsAsync(1,
+        [
+            new ConsoleLayerRelationship { Id = "kept", Name = "kept", RelatedLayerId = 2, Description = "Owner parcels", Composite = true },
+            new ConsoleLayerRelationship { Name = "new", RelatedLayerId = 3 },
+        ]);
+
+        using var doc = JsonDocument.Parse(body!);
+        var rels = doc.RootElement.GetProperty("relationships");
+        Assert.Equal("Owner parcels", rels[0].GetProperty("description").GetString());
+        Assert.True(rels[0].GetProperty("composite").GetBoolean());
+        Assert.False(rels[1].TryGetProperty("composite", out _));
+        Assert.False(rels[1].TryGetProperty("description", out _));
+    }
+
+    [Fact]
     public async Task SetRelationships_Empty_IssuesPutWithEmptyArray_AndMapsCleared()
     {
         string? body = null;

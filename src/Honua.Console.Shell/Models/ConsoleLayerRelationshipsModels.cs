@@ -19,6 +19,9 @@ public sealed record ConsoleLayerRelationship
 
     public string? Name { get; init; }
 
+    // Not edited on the page; carried so a whole-list save keeps the server's values.
+    public string? Description { get; init; }
+
     public int? RelatedLayerId { get; init; }
 
     public string? Role { get; init; }
@@ -30,6 +33,8 @@ public sealed record ConsoleLayerRelationship
     public string? DestinationField { get; init; }
 
     public int? EsriRelationshipId { get; init; }
+
+    public bool? Composite { get; init; }
 }
 
 public sealed record ConsoleSetRelationshipsResult : ConsoleOperationResult<ConsoleSetRelationshipsResult>;
