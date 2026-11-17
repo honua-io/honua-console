@@ -59,7 +59,7 @@ export function findRetiredVocabulary(path, text) {
   const findings = [];
   text.split("\n").forEach((line, index) => {
     for (const rule of RULES) {
-      if (rule.expression.test(line) && !isAllowed(path, rule.id, line)) {
+      if ((!rule.path || rule.path.test(path)) && rule.expression.test(line) && !isAllowed(path, rule.id, line)) {
         findings.push(`${path}:${index + 1} [${rule.id}] use ${rule.use}: ${line.trim().slice(0, 120)}`);
       }
     }
