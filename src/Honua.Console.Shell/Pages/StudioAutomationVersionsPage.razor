@@ -1,6 +1,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @page "/studio/automations/{DraftId}/versions"
 @using Microsoft.JSInterop
+@implements IDisposable
 @inject ICollectAutomationClient Automations
 @inject NavigationManager Navigation
 @inject IServiceProvider Services
@@ -149,6 +150,8 @@
     [Parameter]
     public string? DraftId { get; set; }
 
+    private bool _disposed;
+    private CancellationTokenSource _pageCancellation = new();
     private long _pageGeneration;
     private long _loadGeneration;
     private bool _loading = true;
@@ -167,7 +170,11 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (_disposed) return;
         ++_pageGeneration;
+        _pageCancellation.Cancel();
+        _pageCancellation.Dispose();
+        _pageCancellation = new();
         _previewVersionId = null;
         _preview = null;
         _contentItemId = null;
@@ -175,19 +182,22 @@
         _binding = null;
         _errorMessage = null;
         _restoreMessage = null;
-        _busy = _restoring;
+        _busy = false;
+        _restoring = false;
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
+        if (_disposed) return;
         var pageGeneration = _pageGeneration;
         var loadGeneration = ++_loadGeneration;
+        var cancellationToken = _pageCancellation.Token;
         _loading = true;
         _loadFailed = false;
         try
         {
-            var context = await Automations.OpenEditorAsync(DraftId);
+            var context = await Automations.OpenEditorAsync(DraftId, cancellationToken);
             if (pageGeneration != _pageGeneration || loadGeneration != _loadGeneration) return;
             _binding = context.BindingState;
             if (_binding is not null)
@@ -203,7 +213,7 @@
                 return;
             }
 
-            var history = await Automations.ListVersionsAsync(_contentItemId);
+            var history = await Automations.ListVersionsAsync(_contentItemId, cancellationToken);
             if (pageGeneration != _pageGeneration || loadGeneration != _loadGeneration) return;
             _binding = history.BindingState;
             _versions = history.Versions;
@@ -224,7 +234,7 @@
 
     private async Task PreviewAsync(string versionId)
     {
-        if (_busy || string.IsNullOrWhiteSpace(_contentItemId))
+        if (_disposed || _busy || string.IsNullOrWhiteSpace(_contentItemId))
         {
             return;
         }
@@ -238,11 +248,12 @@
         }
 
         var pageGeneration = _pageGeneration;
+        var cancellationToken = _pageCancellation.Token;
         _busy = true;
         _errorMessage = null;
         try
         {
-            var preview = await Automations.GetVersionAsync(_contentItemId, versionId);
+            var preview = await Automations.GetVersionAsync(_contentItemId, versionId, cancellationToken);
             if (pageGeneration != _pageGeneration) return;
             _preview = preview;
             _previewVersionId = _preview is null ? null : versionId;
@@ -263,7 +274,7 @@
 
     private async Task RestoreAsync(CollectAutomationVersion version)
     {
-        if (_busy || string.IsNullOrWhiteSpace(_contentItemId))
+        if (_disposed || _busy || string.IsNullOrWhiteSpace(_contentItemId))
         {
             return;
         }
@@ -285,6 +296,7 @@
         StateHasChanged();
         try
         {
+            // Accepted restores may finish after navigation; only their originating page consumes the result.
             var result = await Automations.RestoreVersionAsync(contentItemId, version.VersionId);
             if (pageGeneration != _pageGeneration) return;
             if (result.BindingState is not null)
@@ -305,9 +317,22 @@
         }
         finally
         {
-            _restoring = false;
-            _busy = false;
+            if (pageGeneration == _pageGeneration)
+            {
+                _restoring = false;
+                _busy = false;
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        ++_pageGeneration;
+        ++_loadGeneration;
+        _pageCancellation.Cancel();
+        _pageCancellation.Dispose();
     }
 
     private async Task<bool> ConfirmAsync(string message)
