@@ -390,7 +390,7 @@
 
     private async Task CreateAsync()
     {
-        if (_disposed || _busy || _testing || !CanUseProvider) return;
+        if (_disposed || _busy || _testing || _loading || !CanUseProvider) return;
         if (Revalidate().Any(error => error.IsBlocking)) return;
 
         var revision = _editRevision;
