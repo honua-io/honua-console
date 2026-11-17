@@ -331,9 +331,11 @@ public sealed partial class OperateTransitionDataSourceTests
         Assert.Contains("Service Not Found", serviceHtml, StringComparison.Ordinal);
         Assert.Contains("Server Capability States", serviceHtml, StringComparison.Ordinal);
         Assert.Contains("GET /api/v1/admin/services", serviceHtml, StringComparison.Ordinal);
-        Assert.Contains("Layer Not Found", layerHtml, StringComparison.Ordinal);
-        Assert.Contains("Server Capability States", layerHtml, StringComparison.Ordinal);
-        Assert.Contains("GET /api/v1/admin/connections/{id}/layers", layerHtml, StringComparison.Ordinal);
+        // An unavailable layers read may hide an existing layer, so the page reports the failure with Retry
+        // instead of claiming the layer is not found.
+        Assert.DoesNotContain("Layer Not Found", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("data-layer-read-failure=\"Unavailable\"", layerHtml, StringComparison.Ordinal);
+        Assert.Contains("data-layer-read-retry", layerHtml, StringComparison.Ordinal);
     }
 
     [Fact]
