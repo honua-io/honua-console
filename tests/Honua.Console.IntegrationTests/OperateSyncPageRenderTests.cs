@@ -337,6 +337,33 @@ public sealed class OperateSyncPageRenderTests
         return NewContext(client, enabled).Render<OperateSyncPage>();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sync_DisposedDuringResolutionDoesNotRefreshReview(bool enabled)
+    {
+        var completion = new TaskCompletionSource<SyncConflictResolutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = DeepLinkClient();
+        client.PendingResolution = completion.Task;
+        using var ctx = NewContext(client, enabled);
+        Navigate(ctx, "cadastre/0", "replica-1");
+        var page = ctx.Render<OperateSyncPage>();
+        if (!enabled)
+        {
+            ClickByText(page, "Open queue");
+            ClickByText(page, "Review");
+        }
+        var action = page.InvokeAsync(() => page.FindAll("button").Single(button => button.TextContent.Trim() == "Client wins")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        page.WaitForAssertion(() => Assert.True(client.ResolutionStarted));
+        CatalogAdminPreview.Capture("sync-resolving-" + enabled.ToString().ToLowerInvariant(), page.Markup);
+        await ctx.DisposeComponentsAsync();
+        completion.SetResult(new SyncConflictResolutionResult("res-1", ["conflict-1"], SyncResolutionAction.AcceptClient,
+            ResultRevisionId: "rev-55", ResultChangeSetId: "cs-9", AuditEventIds: ["audit-1"], JobRunId: "job-3"));
+        await action;
+        Assert.Equal(1, client.ReviewCalls);
+    }
+
     private static BunitContext NewContext(ITemporalCapabilityClient client, bool enabled)
     {
         var ctx = new BunitContext();
