@@ -17,9 +17,7 @@ const exportRecord = (status: string) => ({
   ] }],
 });
 
-type FixtureState = { status: string; mutations: string[] };
-type Reply = (body: unknown, code?: number) => void;
-type Route = (url: URL, method: string, state: FixtureState, send: Reply) => boolean;
+type Call = { url: URL; method: string; send: (body: unknown, code?: number) => void };
 
 const operatorClaims = [
   { type: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier', value: 'fixture-operator' },
@@ -33,52 +31,57 @@ const bucketObjects = [
   { key: 'ortho/readme.txt', kind: 'other', bytes: 512, lastModified: '2026-11-16T10:00:00Z' },
 ];
 
-const authRoutes: Route = (url, _method, _state, send) => {
-  if (url.pathname.endsWith('/auth/session')) send({ isAuthenticated: true, claims: operatorClaims });
-  else if (url.pathname.endsWith('/auth/csrf')) send({ requestToken: 'fixture-only' });
-  else return false;
-  return true;
-};
+// The fixture admin API; status follows the Export through create and unpublish.
+class FixtureApi {
+  status = 'running';
+  readonly mutations: string[] = [];
 
-const exportRoutes: Route = (url, method, state, send) => {
-  if (url.pathname === '/api/v1/admin/exports' && method === 'POST') {
-    state.status = 'ready';
-    send({ success: true, data: exportRecord('running'), message: 'Export started.' }, 202);
-  } else if (url.pathname === '/api/v1/admin/exports') {
-    send({ success: true, data: { items: [exportRecord(state.status)] } });
-  } else if (url.pathname === '/api/v1/admin/exports/parcels-2026') {
-    if (method === 'DELETE') state.status = 'unpublished';
-    send({ success: true, data: exportRecord(state.status) });
-  } else return false;
-  return true;
-};
-
-const bucketRoutes: Route = (url, method, _state, send) => {
-  if (url.pathname === '/api/v1/admin/connections/object-storage/setup') {
-    send({ success: true, data: { externalId: 'honua-ext-7f3a', roleNamePrefix: 'honua-connection-',
-      quickCreateUrl: `https://quick-create.example/?bucket=${url.searchParams.get('bucket')}` } });
-  } else if (url.pathname === '/api/v1/admin/connections/test') {
-    send({ success: true, data: { isHealthy: true, message: 'Listed one key under ortho/.' } });
-  } else if (url.pathname === '/api/v1/admin/connections' && method === 'POST') {
-    send({ success: true, data: { id: connectionId, name: 'county-imagery' } }, 201);
-  } else if (url.pathname === `/api/v1/admin/connections/${connectionId}/objects`) {
-    send({ success: true, data: { bucket: 'county-imagery-2026', prefix: url.searchParams.get('prefix') ?? '',
-      folders: ['ortho/2026/'], objects: bucketObjects, truncated: false } });
-  } else return false;
-  return true;
-};
-
-function fixtureApi(state: FixtureState) {
-  return async (request: IncomingMessage, response: ServerResponse) => {
-    const url = new URL(request.url!, 'http://localhost');
-    const method = request.method ?? 'GET';
-    const send: Reply = (body, code = 200) =>
-      response.writeHead(code, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
-    if (method !== 'GET' && !url.pathname.endsWith('/auth/csrf')) state.mutations.push(`${method} ${url.pathname}`);
-    if (![authRoutes, exportRoutes, bucketRoutes].some(route => route(url, method, state, send))) {
+  readonly handle = async (request: IncomingMessage, response: ServerResponse) => {
+    const call: Call = {
+      url: new URL(request.url!, 'http://localhost'),
+      method: request.method ?? 'GET',
+      send: (body, code = 200) => response.writeHead(code, { 'Content-Type': 'application/json' }).end(JSON.stringify(body)),
+    };
+    if (call.method !== 'GET' && !call.url.pathname.endsWith('/auth/csrf')) this.mutations.push(`${call.method} ${call.url.pathname}`);
+    if (!(this.auth(call) || this.exports(call) || this.bucket(call))) {
       response.writeHead(404, { 'Content-Type': 'application/json' }).end('{}');
     }
   };
+
+  private auth({ url, send }: Call) {
+    if (url.pathname.endsWith('/auth/session')) send({ isAuthenticated: true, claims: operatorClaims });
+    else if (url.pathname.endsWith('/auth/csrf')) send({ requestToken: 'fixture-only' });
+    else return false;
+    return true;
+  }
+
+  private exports({ url, method, send }: Call) {
+    if (url.pathname === '/api/v1/admin/exports' && method === 'POST') {
+      this.status = 'ready';
+      send({ success: true, data: exportRecord('running'), message: 'Export started.' }, 202);
+    } else if (url.pathname === '/api/v1/admin/exports') {
+      send({ success: true, data: { items: [exportRecord(this.status)] } });
+    } else if (url.pathname === '/api/v1/admin/exports/parcels-2026') {
+      if (method === 'DELETE') this.status = 'unpublished';
+      send({ success: true, data: exportRecord(this.status) });
+    } else return false;
+    return true;
+  }
+
+  private bucket({ url, method, send }: Call) {
+    if (url.pathname === '/api/v1/admin/connections/object-storage/setup') {
+      send({ success: true, data: { externalId: 'honua-ext-7f3a', roleNamePrefix: 'honua-connection-',
+        quickCreateUrl: `https://quick-create.example/?bucket=${url.searchParams.get('bucket')}` } });
+    } else if (url.pathname === '/api/v1/admin/connections/test') {
+      send({ success: true, data: { isHealthy: true, message: 'Listed one key under ortho/.' } });
+    } else if (url.pathname === '/api/v1/admin/connections' && method === 'POST') {
+      send({ success: true, data: { id: connectionId, name: 'county-imagery' } }, 201);
+    } else if (url.pathname === `/api/v1/admin/connections/${connectionId}/objects`) {
+      send({ success: true, data: { bucket: 'county-imagery-2026', prefix: url.searchParams.get('prefix') ?? '',
+        folders: ['ortho/2026/'], objects: bucketObjects, truncated: false } });
+    } else return false;
+    return true;
+  }
 }
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {
@@ -127,11 +130,11 @@ async function bucketJourney(page: Page, testInfo: TestInfo, origin: string) {
 }
 
 test('Export as files, list, unpublish and connect a bucket', async ({ page }, testInfo) => {
-  const state: FixtureState = { status: 'running', mutations: [] };
+  const api = new FixtureApi();
   const server = await startStaticBundleServer(
     fileURLToPath(new URL('../../../artifacts/static-publish/wwwroot/console', import.meta.url)), 0, {
       configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: true },
-      handleApi: fixtureApi(state),
+      handleApi: api.handle,
     });
   try {
     const address = server.address();
@@ -139,7 +142,7 @@ test('Export as files, list, unpublish and connect a bucket', async ({ page }, t
     const origin = `http://127.0.0.1:${address.port}`;
     await exportJourney(page, testInfo, origin);
     await bucketJourney(page, testInfo, origin);
-    expect(state.mutations).toEqual([
+    expect(api.mutations).toEqual([
       'POST /api/v1/admin/exports',
       'DELETE /api/v1/admin/exports/parcels-2026',
       'POST /api/v1/admin/connections/test',
