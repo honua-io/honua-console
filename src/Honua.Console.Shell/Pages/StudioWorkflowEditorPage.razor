@@ -755,6 +755,8 @@
     protected override async Task OnParametersSetAsync()
     {
         var generation = ++_pageGeneration;
+        // Commands belong to the visit that started them; the new draft can be edited immediately.
+        _busy = false;
         _loading = true;
         _draft = null;
         var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
@@ -839,7 +841,10 @@
         }
         finally
         {
-            _busy = false;
+            if (generation == _pageGeneration)
+            {
+                _busy = false;
+            }
         }
     }
 
@@ -876,7 +881,10 @@
         }
         finally
         {
-            _busy = false;
+            if (generation == _pageGeneration)
+            {
+                _busy = false;
+            }
         }
     }
 
@@ -920,7 +928,10 @@
         }
         finally
         {
-            _busy = false;
+            if (generation == _pageGeneration)
+            {
+                _busy = false;
+            }
         }
     }
 
