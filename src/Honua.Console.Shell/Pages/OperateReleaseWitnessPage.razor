@@ -1,4 +1,5 @@
 @page "/operate/release-witness"
+@implements IDisposable
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @inject IConsoleReleaseWitnessClient WitnessClient
@@ -91,12 +92,18 @@
     [SupplyParameterFromQuery(Name = "proposalId")] private string? ProposalId { get; set; }
 
     private long _requestGeneration;
+    private CancellationTokenSource? _request;
+    private bool _disposed;
     private bool _loaded;
     private OperateSectionResult<ConsoleReleaseWitnessEvidence>? _result;
 
     protected override async Task OnParametersSetAsync()
     {
+        if (_disposed) return;
         var generation = ++_requestGeneration;
+        _request?.Cancel();
+        _request?.Dispose();
+        _request = new();
         _loaded = false;
         _result = null;
         OperateSectionResult<ConsoleReleaseWitnessEvidence> result;
@@ -108,11 +115,34 @@
         }
         else
         {
-            result = await WitnessClient.ObserveAsync(new(
-                Family!.Trim(), ItemId!.Trim(), VersionId!.Trim(), ContentHash!.Trim(), ProposalId!.Trim()));
+            result = await ObserveSafelyAsync(new(
+                Family!.Trim(), ItemId!.Trim(), VersionId!.Trim(), ContentHash!.Trim(), ProposalId!.Trim()), _request.Token);
         }
-        if (generation != _requestGeneration) return;
+        if (_disposed || generation != _requestGeneration) return;
         _result = result;
         _loaded = true;
+    }
+
+    private async Task<OperateSectionResult<ConsoleReleaseWitnessEvidence>> ObserveSafelyAsync(
+        ConsoleReleaseWitnessRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await WitnessClient.ObserveAsync(request, cancellationToken);
+        }
+        catch (Exception)
+        {
+            return OperateSectionResult<ConsoleReleaseWitnessEvidence>.Denied(
+                OperateSectionStatus.Unavailable,
+                "Publication evidence could not be read. Reload to try again.");
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _requestGeneration++;
+        _request?.Cancel();
+        _request?.Dispose();
     }
 }
