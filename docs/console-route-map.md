@@ -218,6 +218,12 @@ member-facing content search/list. It binds the catalog
 discovery-endpoints registry (`honua-server#1279`) and renders the
 missing-binding state until that contract ships.
 
+The content catalog uses canonical `dataset`, `map` and `app` item types
+for both search filters and returned items. Dataset entries describe readable
+published data; Map entries support the authenticated Map viewer. Retired
+`saved-map` and `generated-app` search filters are rejected before sending a
+request. Publication contracts remain separate from catalog item types.
+
 `honua-console#36` implements the first native Blazor transition group:
 Connections, Resources, Services, Layers, and Settings. These entries use
 the non-legacy `/operate/...` routes listed in §1. The Legacy submenu
