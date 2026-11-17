@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { expect, test, request } from '@playwright/test';
+import { expect, test, request, type Page } from '@playwright/test';
 import { withLayerId } from '../layer-identity';
 import { sourceConnectionBody } from '../source-db';
 import { accessibility, createRecipe, customerIdentity, identity, observeHealth, observeLifecycle, paintedFeatures, read, scrollForMilestone, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
@@ -12,6 +12,17 @@ import { captureMilestone } from '../../../../scripts/journey-gallery.mjs';
 // No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
 // A fresh compose database and fresh Keycloak realm are required for each invocation.
 const nonce = () => randomUUID().replaceAll('-', '').slice(0, 16);
+// A lon/lat CSV reports no coordinate system on current servers, and Import stays disabled until
+// the publisher names one; older servers never ask.
+async function chooseWgs84WhenUnidentified(page: Page) {
+  const detected = page.locator('[data-import-detected-system]');
+  const shown = await detected.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false);
+  if (!shown || !(await detected.textContent())?.includes('could not be identified')) return;
+  await page.getByLabel('Find source coordinate system', { exact: true }).fill('4326');
+  await page.getByRole('button', { name: 'Search coordinate systems' }).click();
+  await page.getByRole('combobox', { name: 'Source coordinate system', exact: true }).selectOption('4326');
+}
+
 const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
 
 test.beforeEach(async ({}, info) => {
@@ -61,6 +72,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           // for that real change before replacing it with the customer's name.
           await expect(tableName).toHaveValue(file.replace(/\.[^.]+$/, '').replaceAll('-', '_'));
           await tableName.fill(table);
+          await chooseWgs84WhenUnidentified(page);
           await page.getByRole('button', { name: 'Import file', exact: true }).click();
           const importOutcome = page.getByRole('heading', { name: /^(File imported|Import failed)$/ });
           await expect(importOutcome).toBeVisible({ timeout: 90_000 });
