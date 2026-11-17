@@ -10,12 +10,12 @@ namespace Honua.Console.IntegrationTests;
 public sealed class StudioAutomationVersionLifetimeTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DisposedConfirmationCannotDispatchRestore(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DisposedConfirmationCannotDispatchRestore(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient();
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         var confirmation = context.JSInterop.Setup<bool>("confirm", _ => true);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         var click = RestoreAsync(page);
@@ -30,12 +30,12 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ChangedDraftInvalidatesPendingConfirmation(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task ChangedDraftInvalidatesPendingConfirmation(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient();
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         var confirmation = context.JSInterop.Setup<bool>("confirm", _ => true);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         var click = RestoreAsync(page);
@@ -51,12 +51,12 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DisposedOpenDoesNotReadVersionHistory(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DisposedOpenDoesNotReadVersionHistory(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient { DelayOpen = true };
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         Assert.Single(client.OpenTokens);
 
@@ -69,12 +69,12 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DraftChangeCancelsOldHistoryAndKeepsCurrentRows(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DraftChangeCancelsOldHistoryAndKeepsCurrentRows(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient { DelayAlphaHistory = true };
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         Assert.Single(client.HistoryReads);
 
@@ -91,12 +91,12 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DisposedPreviewCancelsReadAndDoesNotRepublishContext(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DisposedPreviewCancelsReadAndDoesNotRepublishContext(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient();
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         var click = page.FindAll("button").First(b => b.TextContent.Trim() == "View body")
@@ -113,12 +113,12 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DraftChangeCancelsPreviewAndKeepsCurrentCommandsAvailable(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DraftChangeCancelsPreviewAndKeepsCurrentCommandsAvailable(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient();
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         var preview = page.FindAll("button").First(b => b.TextContent.Trim() == "View body")
             .ClickAsync(new MouseEventArgs());
@@ -136,14 +136,14 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task RetiredRestoreDoesNotUnlockOrReplaceCurrentRestore(bool v4, bool failOldRestore)
+    [InlineData(ConsolePresentationMode.Legacy, RestoreOutcome.Success)]
+    [InlineData(ConsolePresentationMode.V4, RestoreOutcome.Success)]
+    [InlineData(ConsolePresentationMode.Legacy, RestoreOutcome.Failure)]
+    [InlineData(ConsolePresentationMode.V4, RestoreOutcome.Failure)]
+    public async Task RetiredRestoreDoesNotUnlockOrReplaceCurrentRestore(ConsolePresentationMode presentation, RestoreOutcome oldRestoreOutcome)
     {
         var client = new DeferredVersionsClient();
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         context.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var registry = context.Services.GetRequiredService<ConsoleAgentContextRegistry>();
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
@@ -155,15 +155,15 @@ public sealed class StudioAutomationVersionLifetimeTests
         var beta = RestoreAsync(page);
         Assert.Equal(2, client.Restores.Count);
         Assert.All(page.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
-        if (v4) Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        if (presentation == ConsolePresentationMode.V4) Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
 
-        client.CompleteRestore("alpha", failOldRestore);
+        client.CompleteRestore("alpha", oldRestoreOutcome);
         await alpha;
 
         Assert.All(page.FindAll("button"), button => Assert.True(button.HasAttribute("disabled")));
         Assert.DoesNotContain("Restored v", page.Markup);
         Assert.Empty(page.FindAll("[data-automation-error]"));
-        if (v4) Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
+        if (presentation == ConsolePresentationMode.V4) Assert.Equal(1, registry.Current.Unsaved.PendingOperationCount);
         Assert.Equal(2, client.HistoryReads.Count);
 
         client.CompleteRestore("beta");
@@ -180,12 +180,12 @@ public sealed class StudioAutomationVersionLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DisposedRestoreDoesNotReloadHistory(bool v4)
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task DisposedRestoreDoesNotReloadHistory(ConsolePresentationMode presentation)
     {
         var client = new DeferredVersionsClient();
-        using var context = CreateContext(client, v4);
+        using var context = CreateContext(client, presentation);
         context.JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, "alpha"));
         var click = RestoreAsync(page);
@@ -204,14 +204,20 @@ public sealed class StudioAutomationVersionLifetimeTests
     private static Task RestoreAsync(IRenderedComponent<StudioAutomationVersionsPage> page) =>
         page.FindAll("button").First(b => b.TextContent.Trim() == "Restore").ClickAsync(new MouseEventArgs());
 
-    private static BunitContext CreateContext(ICollectAutomationClient client, bool v4)
+    private static BunitContext CreateContext(ICollectAutomationClient client, ConsolePresentationMode presentation)
     {
         var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton(client);
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = v4 });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         return context;
+    }
+
+    public enum RestoreOutcome
+    {
+        Success,
+        Failure
     }
 
     private sealed class DeferredVersionsClient : ICollectAutomationClient
@@ -267,9 +273,9 @@ public sealed class StudioAutomationVersionLifetimeTests
             return completion.Task;
         }
 
-        public void CompleteRestore(string contentItemId, bool fail = false)
+        public void CompleteRestore(string contentItemId, RestoreOutcome outcome = RestoreOutcome.Success)
         {
-            if (fail) Restores[contentItemId].SetException(new HttpRequestException("Retired restore failed."));
+            if (outcome == RestoreOutcome.Failure) Restores[contentItemId].SetException(new HttpRequestException("Retired restore failed."));
             else Restores[contentItemId].SetResult(new CollectAutomationRestoreResult
             {
                 ContentItemId = contentItemId,
