@@ -149,6 +149,37 @@ test('desktop dropdowns remain visible after expanding compact navigation', asyn
   }
 });
 
+for (const rootSize of [16, 32]) {
+  for (const group of ['Operate', 'Access', 'Settings']) {
+    test(`focused ${group} link stays onscreen after reflow at ${rootSize}px`, async ({ page }) => {
+      const close = await startSignedInConsole(page);
+      try {
+        await page.setViewportSize({ width: 390, height: 568 });
+        await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px`; }, rootSize);
+        await page.getByRole('button', { name: 'Toggle navigation' }).press('Enter');
+        const menu = page.locator(`[data-navigation-menu="${group}"]`);
+        await menu.locator(':scope > summary').press('Enter');
+        const links = await menu.locator('.console-navigation-items a').all();
+        await expect(links[0]).toBeFocused();
+        for (let index = 1; index < links.length; index++) await page.keyboard.press('Tab');
+        const last = links.at(-1)!;
+        await expect(last).toBeFocused();
+        for (const width of [1600, 320, 1280, 390]) {
+          await page.setViewportSize({ width, height: 568 });
+          await expect(last).toBeFocused();
+          await expect.poll(() => last.evaluate(element => {
+            const box = element.getBoundingClientRect();
+            return box.top >= -1 && box.bottom <= innerHeight + 1
+              && box.left >= -1 && box.right <= innerWidth + 1;
+          }), { message: `${group} focus stays visible at ${width}px` }).toBe(true);
+        }
+      } finally {
+        await close();
+      }
+    });
+  }
+}
+
 for (const width of [390, 1101, 1280, 1376, 1377, 1440]) {
   for (const increasedSpacing of [false, true]) {
     test(`header controls stay apart at ${width}px with ${increasedSpacing ? 'increased' : 'default'} spacing`, async ({ page }) => {
