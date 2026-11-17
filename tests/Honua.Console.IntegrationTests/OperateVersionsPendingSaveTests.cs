@@ -67,4 +67,47 @@ public sealed partial class OperateVersionsPageRenderTests
         Assert.Equal("Review edits", page.Find("[data-version-name]").GetAttribute("value"));
         Assert.Single(page.FindAll("[data-cancel-alter]"));
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task SuccessfulSave_AfterLeavingDoesNotReloadVersions(bool enabled, bool alter)
+    {
+        using var ctx = CreateContext(enabled);
+        var pending = new TaskCompletionSource<VersionOperationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operation = new SeededVersionOperation { PendingSave = pending.Task };
+        ctx.Services.AddSingleton<IVersionManagementOperation>(operation);
+        var page = ctx.Render<OperateVersionsPage>();
+        Load(page);
+        if (alter) page.Find("[data-alter]").Click();
+        else page.Find("[data-version-name]").Input("New branch");
+        var save = page.Find("[data-submit-version]").ClickAsync(new MouseEventArgs());
+        page.WaitForAssertion(() => Assert.True(alter ? operation.Altered is not null : operation.Created is not null));
+        await ctx.DisposeComponentsAsync();
+        pending.SetResult(VersionOperationResult.Success("Saved", "Saved."));
+        await save;
+        Assert.Equal(1, operation.ListCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SuccessfulDelete_AfterLeavingDoesNotReloadVersions(bool enabled)
+    {
+        using var ctx = CreateContext(enabled);
+        var pending = new TaskCompletionSource<VersionOperationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operation = new SeededVersionOperation { PendingSave = pending.Task };
+        ctx.Services.AddSingleton<IVersionManagementOperation>(operation);
+        var page = ctx.Render<OperateVersionsPage>();
+        Load(page);
+        page.Find("[data-delete]").Click();
+        var deletion = page.Find("[data-console-confirm-accept]").ClickAsync(new MouseEventArgs());
+        page.WaitForAssertion(() => Assert.NotNull(operation.DeletedVersion));
+        await ctx.DisposeComponentsAsync();
+        pending.SetResult(VersionOperationResult.Success("Deleted", "Deleted."));
+        await deletion;
+        Assert.Equal(1, operation.ListCalls);
+    }
 }
