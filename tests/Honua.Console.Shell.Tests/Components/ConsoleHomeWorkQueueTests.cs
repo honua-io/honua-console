@@ -46,6 +46,21 @@ public sealed class ConsoleHomeWorkQueueTests : ConsoleComponentTestBase
     }
 
     [Theory]
+    [InlineData(ConsoleRealtimeConnectionState.NotConfigured)]
+    [InlineData(ConsoleRealtimeConnectionState.Connecting)]
+    [InlineData(ConsoleRealtimeConnectionState.FallbackEngaged)]
+    public async Task DisconnectedState_RefreshesOnTransitionAndContinuesReading(ConsoleRealtimeConnectionState state)
+    {
+        var component = Mount();
+        _inbox.Result = Complete(6);
+        await component.InvokeAsync(() => _realtime.SetState(state));
+        component.WaitForAssertion(() => Assert.Contains("6", component.Find("[data-home-awaiting-count]").TextContent));
+        _inbox.Result = Complete(7);
+        await component.InvokeAsync(_clock.Tick);
+        component.WaitForAssertion(() => Assert.Contains("7", component.Find("[data-home-awaiting-count]").TextContent));
+    }
+
+    [Theory]
     [InlineData(ReadFailure.Partial)]
     [InlineData(ReadFailure.Unavailable)]
     public async Task ReplayReset_FailedReadRendersErrorBeforeRejectingAcknowledgement(ReadFailure failure)
@@ -137,16 +152,17 @@ public sealed class ConsoleHomeWorkQueueTests : ConsoleComponentTestBase
         public event Action<ConsoleProposalEvent>? ProposalChanged;
         public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged;
         public event Func<Task>? RefreshRequired;
-        public ConsoleRealtimeConnectionState ConnectionState { get; private set; } = ConsoleRealtimeConnectionState.Connecting;
+        public ConsoleRealtimeConnectionState ConnectionState { get; private set; } = ConsoleRealtimeConnectionState.Connected;
         public bool IsConnected => ConnectionState == ConsoleRealtimeConnectionState.Connected;
         public bool HasObservers => ProposalChanged is not null || ConnectionStateChanged is not null || RefreshRequired is not null;
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         public Task ResetAsync() => RefreshRequired?.Invoke() ?? Task.CompletedTask;
-        public void Connect()
+        public void Connect() => SetState(ConsoleRealtimeConnectionState.Connected);
+        public void SetState(ConsoleRealtimeConnectionState state)
         {
-            ConnectionState = ConsoleRealtimeConnectionState.Connected;
+            ConnectionState = state;
             ConnectionStateChanged?.Invoke(ConnectionState);
         }
     }

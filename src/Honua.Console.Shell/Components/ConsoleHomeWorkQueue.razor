@@ -113,7 +113,8 @@
 
     private ConsoleProposalSubscription? _updates;
     private Task? _recovery;
-    private bool NeedsRecovery => _inbox.PartialResult || _inbox.Status == OperateSectionStatus.Unavailable;
+    private bool NeedsRecovery => _inbox.PartialResult || _inbox.Status == OperateSectionStatus.Unavailable ||
+        (_inbox.IsAllowed && !RealtimeConnected);
 
     private bool RealtimeConnected => _updates?.IsConnected == true;
 
@@ -203,7 +204,7 @@
         if (_disposed) return;
         _ = InvokeAsync(async () =>
         {
-            if (state == ConsoleRealtimeConnectionState.Connected) await RefreshInboxAsync();
+            await RefreshInboxAsync();
             if (!_disposed) StateHasChanged();
         });
     }
