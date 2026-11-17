@@ -304,7 +304,7 @@ else
 
     private Task ApproveAsync() => RunActionAsync(
         () => Proposals.ApproveAsync(ProposalId, ConsoleProposalReviewedPlan.From(_detail)),
-        successMessage: "Approved — proposal submitted for execution.");
+        feedback: ConsoleProposalDecisionFeedback.ForApproval);
 
     private Task RejectAsync()
     {
@@ -317,12 +317,12 @@ else
 
         return RunActionAsync(
             () => Proposals.RejectAsync(ProposalId, _reason!),
-            successMessage: "Rejected — recorded with your reason.");
+            feedback: _ => new("Rejected — recorded with your reason.", "console-state-success"));
     }
 
     private async Task RunActionAsync(
         Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,
-        string successMessage)
+        Func<ConsoleProposalDetail, ConsoleProposalDecisionFeedback> feedback)
     {
         if (_busy || _approveForbidden)
         {
@@ -341,8 +341,9 @@ else
                 Apply(result);
                 _reason = null;
                 await ReportUnsavedAsync();
-                _actionMessage = successMessage;
-                _actionMessageClass = "console-state-success";
+                var outcome = feedback(result.Value);
+                _actionMessage = outcome.Message;
+                _actionMessageClass = outcome.CssClass;
                 await OnActioned.InvokeAsync(result.Value);
             }
             else
