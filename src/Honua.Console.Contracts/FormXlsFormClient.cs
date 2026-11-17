@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// XLSForm import and export for form packages. honua-server converts the workbook; the Console only
+// XLSForm import and export for forms. honua-server converts the workbook; the Console only
 // uploads it, lists the blocking cells the server reports, and downloads the exported workbook.
 //   POST /api/v1/admin/forms/packages/import?serviceId=&layerId=  multipart "file" -> 201 draft version
 //   GET  /api/v1/admin/forms/packages/{formId}/export              -> workbook of the current published version
