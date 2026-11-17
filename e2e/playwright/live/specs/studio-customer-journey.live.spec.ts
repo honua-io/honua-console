@@ -471,20 +471,19 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
         .exec(await publication.textContent() ?? '')?.[1];
       expect(proposalId, 'publication must return a durable proposal identity').toBeTruthy();
       const proposalPath = `/api/processes/admin/proposals/${proposalId}`;
-      const beforeSelfApproval = await read(page, session, proposalPath);
-      expect(beforeSelfApproval.requestedBy).toBe(first.ownerId);
-      // Use the customer's own real session to attempt approval. A later read
-      // verifies the proposal was not decided, before the independent approver acts.
+      const pendingProposal = await read(page, session, proposalPath);
+      expect(pendingProposal.requestedBy).toBe(first.ownerId);
+      // A verified human requester may approve their own proposal (one-human model). The journey
+      // checks that the requester is offered the decision, then leaves it to the second operator.
       const requester = await page.context().newPage();
       const requesterHealth = observeHealth(requester);
       try {
         await requester.goto(`/inbox?proposalId=${proposalId}`);
         const ownProposal = requester.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
-        await ownProposal.locator('[data-proposal-approve]').click();
-        await expect(ownProposal.locator('[data-proposal-rbac-denied]')).toBeVisible();
-        const afterSelfApproval = await read(page, session, proposalPath);
-        expect(afterSelfApproval.status).toBe(beforeSelfApproval.status);
-        expect(afterSelfApproval.resolvedBy).toBeFalsy();
+        await expect(ownProposal.locator('[data-proposal-approve]')).toBeEnabled();
+        const stillPending = await read(page, session, proposalPath);
+        expect(stillPending.status).toBe(pendingProposal.status);
+        expect(stillPending.resolvedBy).toBeFalsy();
       } finally { await requesterHealth.verify(info); await requester.close(); }
       const consoleOrigin = new URL(page.url()).origin;
       const approverContext = await page.context().browser()!.newContext({
