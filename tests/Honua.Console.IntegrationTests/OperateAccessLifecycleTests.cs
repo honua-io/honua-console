@@ -12,12 +12,29 @@ public sealed class OperateAccessLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Roles_IgnoreOverviewFromPreviousWorkspace(bool v4)
+    public void AccessNavigationPreservesEnvironment(bool members)
+    {
+        using var context = Context(true);
+        Navigate(context, "env west");
+        var links = members
+            ? context.Render<OperateAccessMembersPage>().FindAll(".rbac-navigation a")
+            : context.Render<OperateAccessRolesPage>().FindAll(".rbac-navigation a");
+
+        Assert.Equal(new[] { "operate/access?environment=env%20west", "operate/access/members?environment=env%20west" },
+            links.Select(link => link.GetAttribute("href")));
+        var data = context.Services.GetRequiredService<DeferredRbac>();
+        Assert.Contains("env west", data.OverviewRequests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Roles_IgnoreOverviewFromPreviousEnvironment(bool v4)
     {
         using var context = Context(v4);
         var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldLoad = new TaskCompletionSource<RbacOverviewLoad>();
-        data.Overview = workspace => workspace == "first" ? oldLoad.Task : Task.FromResult(Overview(workspace));
+        data.Overview = environment => environment == "first" ? oldLoad.Task : Task.FromResult(Overview(environment));
         Navigate(context, "first");
         var page = context.Render<OperateAccessRolesPage>();
         Navigate(context, "second");
@@ -32,12 +49,12 @@ public sealed class OperateAccessLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Members_IgnoreRosterFromPreviousWorkspace(bool v4)
+    public async Task Members_IgnoreRosterFromPreviousEnvironment(bool v4)
     {
         using var context = Context(v4);
         var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldLoad = new TaskCompletionSource<TeamMembershipLoad>();
-        data.Membership = workspace => workspace == "first" ? oldLoad.Task : Task.FromResult(Membership(workspace));
+        data.Membership = environment => environment == "first" ? oldLoad.Task : Task.FromResult(Membership(environment));
         Navigate(context, "first");
         var page = context.Render<OperateAccessMembersPage>();
         Navigate(context, "second");
@@ -51,7 +68,7 @@ public sealed class OperateAccessLifecycleTests
     }
 
     [Fact]
-    public async Task Roles_IgnoreAuditFromPreviousWorkspace()
+    public async Task Roles_IgnoreAuditFromPreviousEnvironment()
     {
         using var context = Context(true);
         var data = context.Services.GetRequiredService<DeferredRbac>();
@@ -70,7 +87,7 @@ public sealed class OperateAccessLifecycleTests
     }
 
     [Fact]
-    public void Roles_ConfirmingPreviousWorkspaceRoleDoesNotDeleteInCurrentWorkspace()
+    public void Roles_ConfirmingPreviousEnvironmentRoleDoesNotDeleteInCurrentEnvironment()
     {
         using var context = Context(true);
         var data = context.Services.GetRequiredService<DeferredRbac>();
@@ -81,7 +98,7 @@ public sealed class OperateAccessLifecycleTests
         page.WaitForAssertion(() => Assert.Contains("second role", page.Markup));
         foreach (var accept in page.FindAll("[data-console-confirm-accept]")) accept.Click();
 
-        Assert.Empty(data.DeletedWorkspaces);
+        Assert.Empty(data.DeletedEnvironments);
     }
 
     [Fact]
@@ -106,7 +123,7 @@ public sealed class OperateAccessLifecycleTests
     }
 
     [Fact]
-    public async Task Roles_PreviousCreationCannotCloseNewWorkspaceDraft()
+    public async Task Roles_PreviousCreationCannotCloseNewEnvironmentDraft()
     {
         using var context = Context(true);
         var data = context.Services.GetRequiredService<DeferredRbac>();
@@ -127,12 +144,12 @@ public sealed class OperateAccessLifecycleTests
     }
 
     [Fact]
-    public async Task Members_IgnorePreviousWorkspaceOverviewAfterRosterLoaded()
+    public async Task Members_IgnorePreviousEnvironmentOverviewAfterRosterLoaded()
     {
         using var context = Context(true);
         var data = context.Services.GetRequiredService<DeferredRbac>();
         var oldOverview = new TaskCompletionSource<RbacOverviewLoad>();
-        data.Overview = workspace => workspace == "first" ? oldOverview.Task : Task.FromResult(Overview(workspace));
+        data.Overview = environment => environment == "first" ? oldOverview.Task : Task.FromResult(Overview(environment));
         Navigate(context, "first");
         var page = context.Render<OperateAccessMembersPage>();
         Navigate(context, "second");
@@ -161,7 +178,7 @@ public sealed class OperateAccessLifecycleTests
     }
 
     [Fact]
-    public void Roles_CurrentConfirmationDeletesInOriginWorkspace()
+    public void Roles_CurrentConfirmationDeletesInOriginEnvironment()
     {
         using var context = Context(true);
         var data = context.Services.GetRequiredService<DeferredRbac>();
@@ -170,7 +187,7 @@ public sealed class OperateAccessLifecycleTests
         page.Find("[data-rbac-delete-role]").Click();
         page.Find("[data-console-confirm-accept]").Click();
 
-        page.WaitForAssertion(() => Assert.Equal(new[] { "first" }, data.DeletedWorkspaces));
+        page.WaitForAssertion(() => Assert.Equal(new[] { "first" }, data.DeletedEnvironments));
         Assert.Equal(new[] { "first", "first" }, data.OverviewRequests);
     }
 
@@ -198,8 +215,8 @@ public sealed class OperateAccessLifecycleTests
         page.Find("[data-rbac-new-role-name]").Input(name);
     }
 
-    private static void Navigate(BunitContext context, string workspace) =>
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/operate/access?workspace={workspace}");
+    private static void Navigate(BunitContext context, string environment) =>
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/operate/access?environment={environment}");
 
     private static BunitContext Context(bool v4)
     {
@@ -212,35 +229,35 @@ public sealed class OperateAccessLifecycleTests
         return context;
     }
 
-    private static RbacOverviewLoad Overview(string workspace) => new(
-        new(workspace, workspace, [], [new("view", "View")],
-            [new("custom", $"{workspace} role", null, true, [new("view", "granted", null)])], 0, 1, 1, true), []);
+    private static RbacOverviewLoad Overview(string environment) => new(
+        new(environment, environment, [], [new("view", "View")],
+            [new("custom", $"{environment} role", null, true, [new("view", "granted", null)])], 0, 1, 1, true), []);
 
-    private static TeamMembershipLoad Membership(string workspace) => new(
-        new(workspace, workspace, [new("user", $"{workspace} user", "user@example.gov", "custom", "Custom", true, null, null, null, null)], [], 1, 0, 0, true), []);
+    private static TeamMembershipLoad Membership(string environment) => new(
+        new(environment, environment, [new("user", $"{environment} user", "user@example.gov", "custom", "Custom", true, null, null, null, null)], [], 1, 0, 0, true), []);
 
     private sealed class DeferredRbac : IRbacAccessDataSource
     {
-        public Func<string, Task<RbacOverviewLoad>> Overview { get; set; } = workspace => Task.FromResult(OperateAccessLifecycleTests.Overview(workspace));
-        public Func<string, Task<TeamMembershipLoad>> Membership { get; set; } = workspace => Task.FromResult(OperateAccessLifecycleTests.Membership(workspace));
+        public Func<string, Task<RbacOverviewLoad>> Overview { get; set; } = environment => Task.FromResult(OperateAccessLifecycleTests.Overview(environment));
+        public Func<string, Task<TeamMembershipLoad>> Membership { get; set; } = environment => Task.FromResult(OperateAccessLifecycleTests.Membership(environment));
         public Func<string, Task<RbacAuditLoad>> Audit { get; set; } = _ => Task.FromResult(new RbacAuditLoad([], []));
         public Func<Task<RbacRoleMutationResult>> Create { get; set; } = () => Task.FromResult(new RbacRoleMutationResult(true, null));
         public List<string> OverviewRequests { get; } = [];
-        public List<string> DeletedWorkspaces { get; } = [];
+        public List<string> DeletedEnvironments { get; } = [];
 
-        public Task<RbacOverviewLoad> LoadOverviewAsync(string workspaceId, CancellationToken cancellationToken = default)
+        public Task<RbacOverviewLoad> LoadOverviewAsync(string environmentId, CancellationToken cancellationToken = default)
         {
-            OverviewRequests.Add(workspaceId);
-            return Overview(workspaceId);
+            OverviewRequests.Add(environmentId);
+            return Overview(environmentId);
         }
 
-        public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) => Membership(workspaceId);
-        public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) => Audit(workspaceId);
-        public Task<RbacRoleMutationResult> CreateRoleAsync(string workspaceId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) => Create();
+        public Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default) => Membership(environmentId);
+        public Task<RbacAuditLoad> LoadAuditAsync(string environmentId, CancellationToken cancellationToken = default) => Audit(environmentId);
+        public Task<RbacRoleMutationResult> CreateRoleAsync(string environmentId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) => Create();
 
-        public Task<RbacRoleMutationResult> DeleteRoleAsync(string workspaceId, string roleId, CancellationToken cancellationToken = default)
+        public Task<RbacRoleMutationResult> DeleteRoleAsync(string environmentId, string roleId, CancellationToken cancellationToken = default)
         {
-            DeletedWorkspaces.Add(workspaceId);
+            DeletedEnvironments.Add(environmentId);
             return Task.FromResult(new RbacRoleMutationResult(true, null));
         }
     }
