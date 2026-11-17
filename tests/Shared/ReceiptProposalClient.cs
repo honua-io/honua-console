@@ -6,6 +6,10 @@ namespace Honua.Console.TestFixtures;
 internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus = ConsoleProposalStatus.AwaitingApproval)
     : IConsoleProposalsClient
 {
+    public ConsoleProposalStatus ApprovalStatus { get; init; } = ConsoleProposalStatus.Submitted;
+    public string? ResolutionReason { get; init; }
+    public IReadOnlyList<string> BlockingReasons { get; init; } = [];
+
     public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
         string? status = null,
         string? kind = null,
@@ -19,7 +23,7 @@ internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus 
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
         string proposalId,
-        CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ConsoleProposalStatus.Submitted));
+        CancellationToken cancellationToken = default) => Task.FromResult(Allowed(ApprovalStatus));
 
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
         string proposalId,
@@ -27,7 +31,7 @@ internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus 
         CancellationToken cancellationToken = default) =>
         Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unsupported, "not used"));
 
-    private static OperateSectionResult<ConsoleProposalDetail> Allowed(ConsoleProposalStatus status) =>
+    private OperateSectionResult<ConsoleProposalDetail> Allowed(ConsoleProposalStatus status) =>
         OperateSectionResult<ConsoleProposalDetail>.Allowed(new(
             "proposal-1",
             ConsoleProposalKind.MetadataRelease,
@@ -38,11 +42,11 @@ internal sealed class ReceiptProposalClient(ConsoleProposalStatus initialStatus 
             ["item-1", "version-1", "draft-1", "map-route"],
             [],
             ConsoleProposalRisk.Low,
-            [],
+            status == ConsoleProposalStatus.AwaitingApproval ? [] : BlockingReasons,
             [],
             "human",
             status == ConsoleProposalStatus.AwaitingApproval ? null : "operator",
-            null,
+            status == ConsoleProposalStatus.AwaitingApproval ? null : ResolutionReason,
             status == ConsoleProposalStatus.AwaitingApproval ? null : "operation-1",
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,

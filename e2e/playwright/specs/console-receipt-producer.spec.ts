@@ -260,7 +260,7 @@ function consoleHtml(url: URL, fixture: ReturnType<typeof candidateBoundary>, ap
         root.querySelector('[data-proposal-status]').textContent='Succeeded';
         root.querySelector('[data-proposal-approve]').remove();
         root.insertAdjacentHTML('beforeend',${JSON.stringify(operationChip(family))});
-        const message=root.querySelector('[data-proposal-action-message]'); message.hidden=false; message.textContent='Approved';
+        const message=root.querySelector('[data-proposal-action-message]'); message.hidden=false; message.textContent='Approval recorded — change applied.';
         fetch('/mock-approved/${family}',{method:'POST'});
       });</script>
     </article>`);
@@ -291,7 +291,7 @@ function operationChip(family: string) {
 }
 
 function html(body: string) {
-  return `<!doctype html><html><body>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body>${body}</body></html>`;
 }
 
 function candidateBoundary() {

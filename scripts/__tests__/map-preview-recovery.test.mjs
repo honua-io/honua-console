@@ -84,3 +84,43 @@ test('concurrent previews share a retry and mount after the runtime recovers', a
         });
     }
 });
+
+
+test('a cached runtime retries a failed stylesheet without duplicating pending or loaded links', async () => {
+    const names = ['window', 'document'];
+    const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+    const links = [];
+    const containers = [{}, {}, {}, {}];
+    let currentLink = null;
+    let module;
+    globalThis.window = { maplibregl: {
+        NavigationControl: class {},
+        Map: class { addControl() {} on() {} remove() {} },
+    } };
+    globalThis.document = {
+        baseURI: 'https://console.example/console/',
+        querySelector() { return currentLink; },
+        createElement() { return { setAttribute() {}, remove() { currentLink = null; } }; },
+        head: { appendChild(link) { links.push(link); currentLink = link; } },
+    };
+    try {
+        module = await import('../../src/Honua.Console.Shell/wwwroot/map-preview.js?recovery=stylesheet');
+        const options = { styleUrl: 'https://api.example/styles/layer.json' };
+        assert.equal(await module.init(containers[0], options), true);
+        assert.equal(await module.init(containers[1], options), true);
+        assert.equal(links.length, 1, 'pending stylesheet is shared');
+        assert.equal(links[0].href, 'https://console.example/console/_content/Honua.Console.Shell/vendor/maplibre-gl/maplibre-gl.css');
+        links[0].onerror();
+        assert.equal(currentLink, null, 'failed stylesheet must not block recovery');
+        assert.equal(await module.init(containers[2], options), true);
+        assert.equal(links.length, 2, 'next preview retries even when runtime is cached');
+        assert.equal(await module.init(containers[3], options), true);
+        assert.equal(links.length, 2, 'usable stylesheet stays shared');
+    } finally {
+        containers.forEach(container => module?.dispose(container));
+        names.forEach((name, index) => {
+            if (previous[index]) Object.defineProperty(globalThis, name, previous[index]);
+            else delete globalThis[name];
+        });
+    }
+});

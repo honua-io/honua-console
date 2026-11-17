@@ -8316,6 +8316,7 @@ p {
 
 .support-context-errors {
     margin-top: 1rem;
+    overflow-wrap: anywhere;
 }
 
 .support-context-errors ul,

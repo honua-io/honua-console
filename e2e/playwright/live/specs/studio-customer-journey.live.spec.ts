@@ -489,7 +489,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           expect(pending.requestedBy).toBe(first.ownerId);
           const detail = approver.locator(`[data-proposal-id="${proposalId}"]:has([data-proposal-status])`).last();
           await detail.locator('[data-proposal-approve]').click();
-          await expect(detail.locator('[data-proposal-action-message]')).toContainText('Approved');
+          await expect(detail.locator('[data-proposal-action-message]')).toHaveText('Approval recorded — change applied.');
           await expect.poll(async () => (await read(approver, approverSession, proposalPath)).status?.toLowerCase(),
             { timeout: 90_000 }).toBe('succeeded');
           const resolved = await read(approver, approverSession, proposalPath);
