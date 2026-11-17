@@ -1,5 +1,6 @@
 @page "/operate/layers/{ResourceId}/filter"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
@@ -17,7 +18,7 @@
     }
     else if (_layer is null)
     {
-        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+        <LayerNotFoundOrUnreadable Failure="@_readFailure" OnRetry="RetryAsync" />
     }
     else
     {
@@ -113,6 +114,7 @@
             }
     </div>;
     private string? _loadedResourceId;
+    private OperateCapabilityState? _readFailure;
     private long _generation;
     private bool _loading;
     private ConsoleAgentPageContext AgentContext =>
@@ -144,6 +146,7 @@
         var generation = ++_generation;
         var resourceId = ResourceId;
         _layer = null;
+        _readFailure = null;
         _result = null;
         _busy = false;
         _editExpression = _baselineExpression = string.Empty;
@@ -158,7 +161,11 @@
             var exposures = view.FindExposures(resourceId);
             if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
             _layer = exposures.FirstOrDefault()?.Layer;
-            if (_layer is null) return;
+            if (_layer is null)
+            {
+                _readFailure = view.ReadFailure();
+                return;
+            }
             var filter = await LayerFilter.GetFilterAsync(_layer.LayerId);
             if (generation != _generation) return;
             _filter = filter;
@@ -172,6 +179,12 @@
         {
             if (generation == _generation) _loading = false;
         }
+    }
+
+    private Task RetryAsync()
+    {
+        _loadedResourceId = null;
+        return OnParametersSetAsync();
     }
 
     private enum FilterWriteOperation { Save, Clear }

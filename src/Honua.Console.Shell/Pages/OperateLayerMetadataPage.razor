@@ -1,5 +1,6 @@
 @page "/operate/layers/{ResourceId}/metadata"
 @using Honua.Console.Shell.Components
+@using Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
@@ -17,7 +18,7 @@
     }
     else if (_exposures.Count == 0)
     {
-        <MissingItemView Kind="layer" AreaLabel="Operate / Layers" />
+        <LayerNotFoundOrUnreadable Failure="@_readFailure" OnRetry="RetryAsync" />
     }
     else
     {
@@ -125,6 +126,7 @@
     private IReadOnlyList<OperateLayerExposure> _exposures = [];
     private IReadOnlyList<OperateLayerExposure> _editableExposures = [];
     private string? _loadedResourceId;
+    private OperateCapabilityState? _readFailure;
     private EditingForm _edit = new();
     private bool _saving;
     private ConsoleSetLayerMetadataResult? _result;
@@ -138,6 +140,7 @@
         var generation = ++_generation;
         var resourceId = ResourceId;
         _exposures = [];
+        _readFailure = null;
         _editableExposures = [];
         _baseline = null;
         _result = null;
@@ -149,6 +152,7 @@
             var view = await OperateData.GetLayersViewAsync();
             if (generation != _generation) return;
             _exposures = view.FindExposures(resourceId);
+            if (_exposures.Count == 0) _readFailure = view.ReadFailure();
             if (attempt is { } read) PublicationContext!.CompleteRead(read, _exposures);
             _editableExposures = _exposures
                 .Where(exposure => exposure.Service.Serves(PublishProtocolCatalog.Protocols.FeatureServer))
@@ -160,6 +164,12 @@
         {
             if (generation == _generation) _loading = false;
         }
+    }
+
+    private Task RetryAsync()
+    {
+        _loadedResourceId = null;
+        return OnParametersSetAsync();
     }
 
     private Task SaveEditingAsync()
