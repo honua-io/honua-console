@@ -103,7 +103,11 @@ public sealed record LiveServerIntegrationOptions
             // key; without it the admin path 500s. Provide a deterministic test key so the live lane can
             // register the source connection the layer-publish round-trip needs. Real deployments set their
             // own key; ServerEnvironment overrides this default when supplied.
-            ["Security__ConnectionEncryption__MasterKey"] = "console-integration-test-master-key-0123456789"
+            ["Security__ConnectionEncryption__MasterKey"] = "console-integration-test-master-key-0123456789",
+            // appsettings.Test.json turns these experimental warehouse providers on, and the PostGIS-only
+            // serving image refuses to start with any additional data store enabled.
+            ["Experimental__Features__RedshiftProvider"] = "false",
+            ["Experimental__Features__SnowflakeProvider"] = "false"
         };
 
         foreach (var (key, value) in ParseEnvironmentList(ServerEnvironment))
