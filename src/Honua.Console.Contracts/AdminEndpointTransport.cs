@@ -33,22 +33,17 @@ internal sealed class AdminEndpointTransport(HttpClient httpClient, string? apiK
             request.Headers.TryAddWithoutValidation(ApiKeyHeader, apiKey);
         }
 
-        HttpResponseMessage response;
         try
         {
-            response = await httpClient.SendAsync(request, call.Completion, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (transportFailure.Matches(ex, cancellationToken))
-        {
-            return HonuaAdminEndpointResult<T>.FromIssue(transportFailure.CreateIssue(call.Contract, ex));
-        }
-
-        using (response)
-        {
+            using var response = await httpClient.SendAsync(request, call.Completion, cancellationToken).ConfigureAwait(false);
             if (ConsoleWriteOutcome.IsUnverified(request))
                 return HonuaAdminEndpointResult<T>.FromIssue(new(ConsoleWriteOutcome.UnverifiedState, call.Contract, ConsoleWriteOutcome.UnverifiedDetail));
             var read = response.IsSuccessStatusCode ? call.Responses.ReadBody : call.Responses.ReadFailure;
             return await read(call.Contract, response, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (transportFailure.Matches(ex, cancellationToken))
+        {
+            return HonuaAdminEndpointResult<T>.FromIssue(transportFailure.CreateIssue(call.Contract, ex));
         }
     }
 }
@@ -73,7 +68,8 @@ internal sealed class AdminTransportFailure
     public static AdminTransportFailure UnreachableOrCancelled(string endpoint) =>
         new(endpoint, static (ex, _) => ex is HttpRequestException or TaskCanceledException);
 
-    public bool Matches(Exception exception, CancellationToken cancellationToken) => _matches(exception, cancellationToken);
+    public bool Matches(Exception exception, CancellationToken cancellationToken) =>
+        exception is IOException || _matches(exception, cancellationToken);
 
     public HonuaAdminEndpointIssue CreateIssue(string contract, Exception exception) =>
         new("Unavailable", contract, $"{_endpoint} could not be reached: {exception.Message}");
