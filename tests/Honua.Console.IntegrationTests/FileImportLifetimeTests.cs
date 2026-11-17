@@ -10,16 +10,20 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class FileImportLifetimeTests
 {
+    public enum ConsoleUi { Legacy, V4 }
+    public enum FileReadScenario { RemainOnPage, NavigateAway }
+
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task PreviewStartsOnlyWhileThePageOwnsTheFileRead(bool enabled, bool navigateAway)
+    [InlineData(ConsoleUi.Legacy, FileReadScenario.RemainOnPage)]
+    [InlineData(ConsoleUi.V4, FileReadScenario.RemainOnPage)]
+    [InlineData(ConsoleUi.Legacy, FileReadScenario.NavigateAway)]
+    [InlineData(ConsoleUi.V4, FileReadScenario.NavigateAway)]
+    public async Task PreviewStartsOnlyWhileThePageOwnsTheFileRead(ConsoleUi ui, FileReadScenario scenario)
     {
+        var navigateAway = scenario == FileReadScenario.NavigateAway;
         using var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = ui == ConsoleUi.V4 });
         context.Services.AddSingleton<ConsoleAgentContextRegistry>();
         var operation = new ImportOperation();
         context.Services.AddSingleton<IConsoleFileImportOperation>(operation);
