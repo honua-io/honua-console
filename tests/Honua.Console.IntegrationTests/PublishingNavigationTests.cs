@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-public sealed class PublishingNavigationTests
+public sealed partial class PublishingNavigationTests
 {
     [Theory]
     [InlineData(false)]
@@ -126,13 +126,22 @@ public sealed class PublishingNavigationTests
     private sealed class PublishingSource : IPublishingWorkspaceDataSource
     {
         public TaskCompletionSource<PublishingLookupResult> FirstLookup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<PublishingWorkspace>? Workspace { get; init; }
+        public CancellationToken WorkspaceToken { get; private set; }
+        public CancellationToken LookupToken { get; private set; }
         public TaskCompletionSource<PublishingLookupResult> Republish { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<string> Lookups { get; } = [];
         public List<string> Writes { get; } = [];
         public Task<PublishingWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PublishingWorkspace([], [], []));
+            GetWorkspace(cancellationToken);
+        private Task<PublishingWorkspace> GetWorkspace(CancellationToken token)
+        {
+            WorkspaceToken = token;
+            return Workspace?.Task ?? Task.FromResult(new PublishingWorkspace([], [], []));
+        }
         public Task<PublishingLookupResult> LookupAsync(string publicationId, CancellationToken cancellationToken = default)
         {
+            LookupToken = cancellationToken;
             Lookups.Add(publicationId);
             return publicationId == "first" ? FirstLookup.Task : Task.FromResult(Result(publicationId));
         }
