@@ -1,4 +1,5 @@
 @page "/maps/{MapId}"
+@implements IDisposable
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation
@@ -70,16 +71,34 @@
     [Parameter]
     public string MapId { get; set; } = string.Empty;
 
+    [SupplyParameterFromQuery(Name = "token")]
+    private string? PublicLinkToken { get; set; }
+
     private MapReadResult? _result;
+    private long _loadGeneration;
 
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
 
     protected override async Task OnParametersSetAsync()
     {
-        var token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
+        var generation = ++_loadGeneration;
+        var mapId = MapId;
+        _result = null;
+        var token = PublicLinkToken ?? string.Empty;
         var context = await ReadContexts.ResolveAsync(token);
-        _result = await Catalog.GetMapAsync(MapId, context);
+        if (generation != _loadGeneration)
+        {
+            return;
+        }
+
+        var result = await Catalog.GetMapAsync(mapId, context);
+        if (generation == _loadGeneration)
+        {
+            _result = result;
+        }
     }
+
+    public void Dispose() => ++_loadGeneration;
 
     private RenderFragment RenderReadState(CatalogReadStatus status, string message) => builder =>
     {

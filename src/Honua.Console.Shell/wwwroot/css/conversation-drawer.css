@@ -1,4 +1,7 @@
 .console-conversation-toggle {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     min-height: 44px;
     min-width: 0;
     max-width: 100%;

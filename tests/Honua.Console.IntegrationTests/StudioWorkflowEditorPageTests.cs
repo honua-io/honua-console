@@ -332,6 +332,125 @@ public sealed class StudioWorkflowEditorPageTests
         page.WaitForAssertion(() => Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty));
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, "Save draft")]
+    [InlineData(ConsolePresentationMode.V4, "Save draft")]
+    [InlineData(ConsolePresentationMode.Legacy, "Run once")]
+    [InlineData(ConsolePresentationMode.V4, "Run once")]
+    [InlineData(ConsolePresentationMode.Legacy, "Publish")]
+    [InlineData(ConsolePresentationMode.V4, "Publish")]
+    public async Task NewDraftCommand_RemainsLockedWhenEarlierCommandCompletes(ConsolePresentationMode presentation, string command)
+    {
+        var earlier = new TaskCompletionSource<StudioWorkflowSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var currentSave = new TaskCompletionSource<StudioWorkflowSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = new TaskCompletionSource<StudioWorkflowDryRunResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publish = new TaskCompletionSource<StudioWorkflowPublishResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingWorkflowPackageClient
+        {
+            SaveHandler = draft => draft.DraftId == "earlier" ? earlier.Task : currentSave.Task,
+            PendingRun = run.Task,
+            PendingPublish = publish.Task
+        };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioWorkflowEditorPage>(p => p.Add(x => x.DraftId, "earlier"));
+        TitleInput(page).Input("Edited earlier workflow");
+        var earlierCommand = FindButton(page, command).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+        Task currentCommand = Task.CompletedTask;
+        try
+        {
+            page.Render(p => p.Add(x => x.DraftId, "current"));
+            page.WaitForAssertion(() => Assert.Equal("current", TitleInput(page).GetAttribute("value")));
+            Assert.False(TitleInput(page).HasAttribute("disabled"));
+            Assert.False(FindButton(page, command).HasAttribute("disabled"));
+            TitleInput(page).Input("Edited current workflow");
+            currentCommand = FindButton(page, command).ClickAsync(new());
+            page.WaitForAssertion(() => Assert.Equal(2, client.SaveCalls));
+            if (command != "Save draft")
+            {
+                currentSave.SetResult(new() { ContentItemId = "current", VersionId = "current-version" });
+                page.WaitForAssertion(() => Assert.Equal(1, client.DryRunCalls + client.PublishCalls));
+            }
+            AssertWorkflowInputsDisabled(page);
+
+            earlier.SetResult(new() { ContentItemId = "earlier", VersionId = "earlier-version" });
+            await earlierCommand;
+
+            AssertWorkflowInputsDisabled(page);
+            Assert.True(FindButton(page, command).HasAttribute("disabled"));
+            Assert.Equal("Edited current workflow", TitleInput(page).GetAttribute("value"));
+            Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+            Assert.DoesNotContain("earlier-version", page.Markup, StringComparison.Ordinal);
+            await FindButton(page, "Save draft").ClickAsync(new());
+            Assert.Equal(2, client.SaveCalls);
+        }
+        finally
+        {
+            earlier.TrySetResult(new());
+            currentSave.TrySetResult(new() { ContentItemId = "current", VersionId = "current-version" });
+            run.TrySetResult(new() { Status = "succeeded" });
+            publish.TrySetResult(new() { PublicationId = "current-publication", Status = "queued" });
+            await earlierCommand;
+            await currentCommand;
+        }
+
+        Assert.False(TitleInput(page).HasAttribute("disabled"));
+        Assert.Equal("Edited current workflow", TitleInput(page).GetAttribute("value"));
+        TitleInput(page).Input("Edited after current completion");
+        Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy, "Run once")]
+    [InlineData(ConsolePresentationMode.V4, "Run once")]
+    [InlineData(ConsolePresentationMode.Legacy, "Publish")]
+    [InlineData(ConsolePresentationMode.V4, "Publish")]
+    public async Task EarlierRunHistoryCompletion_CannotUnlockCurrentSave(ConsolePresentationMode presentation, string command)
+    {
+        var history = new TaskCompletionSource<StudioWorkflowRunHistory>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var save = new TaskCompletionSource<StudioWorkflowSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingWorkflowPackageClient { PendingSave = save.Task };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioWorkflowEditorPage>(p => p.Add(x => x.DraftId, "earlier"));
+        client.HistoryHandler = id => id == "earlier" ? history.Task : Task.FromResult(StudioWorkflowRunHistory.Empty);
+        var earlierCommand = FindButton(page, command).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Equal(1, client.DryRunCalls + client.PublishCalls));
+        Task currentCommand = Task.CompletedTask;
+        try
+        {
+            page.Render(p => p.Add(x => x.DraftId, "current"));
+            page.WaitForAssertion(() => Assert.Equal("current", TitleInput(page).GetAttribute("value")));
+            Assert.False(TitleInput(page).HasAttribute("disabled"));
+            TitleInput(page).Input("Current unsaved workflow");
+            currentCommand = FindButton(page, "Save draft").ClickAsync(new());
+            page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+            AssertWorkflowInputsDisabled(page);
+
+            history.SetResult(new([new() { RunId = "earlier-run", Status = "earlier-completed" }]));
+            await earlierCommand;
+
+            AssertWorkflowInputsDisabled(page);
+            Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+            Assert.DoesNotContain("earlier-completed", page.Markup, StringComparison.Ordinal);
+            Assert.DoesNotContain("pub-stale", page.Markup, StringComparison.Ordinal);
+            Assert.Contains("No runs yet", page.Markup, StringComparison.Ordinal);
+            Assert.Equal("Current unsaved workflow", TitleInput(page).GetAttribute("value"));
+            await FindButton(page, "Publish").ClickAsync(new());
+            Assert.Equal(1, client.DryRunCalls + client.PublishCalls);
+        }
+        finally
+        {
+            history.TrySetResult(StudioWorkflowRunHistory.Empty);
+            save.TrySetResult(new() { ContentItemId = "current", VersionId = "current-version" });
+            await earlierCommand;
+            await currentCommand;
+        }
+
+        Assert.False(TitleInput(page).HasAttribute("disabled"));
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        Assert.DoesNotContain("earlier-completed", page.Markup, StringComparison.Ordinal);
+    }
+
     private static void AssertWorkflowInputsDisabled(IRenderedComponent<StudioWorkflowEditorPage> page)
     {
         var inputs = page.FindAll(".workflow-page input, .workflow-page textarea, .workflow-page select");
@@ -379,6 +498,10 @@ public sealed class StudioWorkflowEditorPageTests
         public Task<StudioWorkflowRunHistory>? PendingHistory { get; init; }
         public Task<StudioWorkflowDryRunResult>? PendingRun { get; init; }
         public Task<StudioWorkflowPublishResult>? PendingPublish { get; init; }
+
+        public Func<StudioWorkflowPackageDraft, Task<StudioWorkflowSaveResult>>? SaveHandler { get; init; }
+
+        public Func<string, Task<StudioWorkflowRunHistory>>? HistoryHandler { get; set; }
 
         public int SaveCalls { get; private set; }
 
@@ -441,6 +564,7 @@ public sealed class StudioWorkflowEditorPageTests
             CancellationToken cancellationToken = default)
         {
             SaveCalls++;
+            if (SaveHandler is not null) return SaveHandler(draft);
             if (PendingSave is not null) return PendingSave;
             return Task.FromResult(new StudioWorkflowSaveResult
             {
@@ -486,6 +610,7 @@ public sealed class StudioWorkflowEditorPageTests
             Task.FromResult<StudioWorkflowJobEvidence?>(null);
 
         public Task<StudioWorkflowRunHistory> ListRunHistoryAsync(string contentItemId, CancellationToken cancellationToken = default) =>
+            HistoryHandler is not null ? HistoryHandler(contentItemId) :
             contentItemId == "earlier" && PendingHistory is not null
                 ? PendingHistory
                 : Task.FromResult(StudioWorkflowRunHistory.Empty);
