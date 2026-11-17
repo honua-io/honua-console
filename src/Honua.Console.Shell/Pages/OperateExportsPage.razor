@@ -82,7 +82,7 @@
                                 <td>@ExportPresentation.When(export.UpdatedAt)</td>
                                 <td>
                                     <button type="button" class="console-button console-button-secondary console-button-small" data-export-unpublish="@export.Id"
-                                            disabled="@(ExportPresentation.IsUnpublished(export) || _pending)" @onclick="() => ConfirmUnpublish(export)">
+                                            disabled="@(ExportPresentation.IsUnpublished(export) || !ExportPresentation.IsValidExportId(export.Id) || _pending)" @onclick="() => ConfirmUnpublish(export)">
                                         Unpublish
                                     </button>
                                 </td>

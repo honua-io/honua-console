@@ -20,23 +20,23 @@
         <div class="studio-field-grid">
             <label>
                 <span>Connection name</span>
-                <input class="console-input" @bind="_name" @bind:event="oninput" @bind:after="OnEdit" placeholder="county-imagery" data-object-storage-field="name" />
+                <input class="console-input" disabled="@IsLocked" @bind="_name" @bind:event="oninput" @bind:after="OnEdit" placeholder="county-imagery" data-object-storage-field="name" />
             </label>
             <label>
                 <span>Bucket</span>
-                <input class="console-input" @bind="_bucket" @bind:event="oninput" @bind:after="OnBucketEdit" placeholder="county-imagery-2026" data-object-storage-field="bucket" />
+                <input class="console-input" disabled="@IsLocked" @bind="_bucket" @bind:event="oninput" @bind:after="OnBucketEdit" placeholder="county-imagery-2026" data-object-storage-field="bucket" />
             </label>
             <label>
                 <span>Prefix (optional)</span>
-                <input class="console-input" @bind="_prefix" @bind:event="oninput" @bind:after="OnBucketEdit" placeholder="orthophotos/" data-object-storage-field="prefix" />
+                <input class="console-input" disabled="@IsLocked" @bind="_prefix" @bind:event="oninput" @bind:after="OnBucketEdit" placeholder="orthophotos/" data-object-storage-field="prefix" />
             </label>
             <label>
                 <span>Region</span>
-                <input class="console-input" @bind="_region" @bind:event="oninput" @bind:after="OnEdit" placeholder="us-west-2" data-object-storage-field="region" />
+                <input class="console-input" disabled="@IsLocked" @bind="_region" @bind:event="oninput" @bind:after="OnEdit" placeholder="us-west-2" data-object-storage-field="region" />
             </label>
             <label>
                 <span>Description (optional)</span>
-                <input class="console-input" @bind="_description" @bind:event="oninput" @bind:after="OnEdit" data-object-storage-field="description" />
+                <input class="console-input" disabled="@IsLocked" @bind="_description" @bind:event="oninput" @bind:after="OnEdit" data-object-storage-field="description" />
             </label>
         </div>
     </ConsolePanel>
@@ -67,7 +67,7 @@
         <div class="studio-field-grid">
             <label>
                 <span>Role ARN</span>
-                <input class="console-input" @bind="_roleArn" @bind:event="oninput" @bind:after="OnEdit" placeholder="arn:aws:iam::123456789012:role/honua-connection-imagery" data-object-storage-field="role" />
+                <input class="console-input" disabled="@IsLocked" @bind="_roleArn" @bind:event="oninput" @bind:after="OnEdit" placeholder="arn:aws:iam::123456789012:role/honua-connection-imagery" data-object-storage-field="role" />
             </label>
         </div>
     </ConsolePanel>
@@ -114,6 +114,7 @@
     private bool _busy;
     private bool _setupPending;
     private int _draftVersion;
+    private int _bucketVersion;
     private OperateSectionResult<ObjectStorageSetupResponse>? _setup;
     private OperateSectionResult<ObjectStorageTestResponse>? _test;
     private OperateSectionResult<ObjectStorageConnectionResponse>? _created;
@@ -122,6 +123,8 @@
     private bool IsComplete => HasBucket && !string.IsNullOrWhiteSpace(_name) && !string.IsNullOrWhiteSpace(_region)
         && !string.IsNullOrWhiteSpace(_roleArn) && _setup is { IsAllowed: true };
     private bool IsCreated => _created is { IsAllowed: true };
+    // A create has a server-side effect, so the fields stay read-only while it runs and after it succeeds.
+    private bool IsLocked => _busy || IsCreated;
     private bool IsDirty => !IsCreated
         && new[] { _name, _bucket, _prefix, _region, _roleArn, _description }.Any(value => !string.IsNullOrWhiteSpace(value));
 
@@ -147,6 +150,7 @@
     // The external id and quick-create link are bound to the bucket and prefix, so a change asks for a new link.
     private void OnBucketEdit()
     {
+        _bucketVersion++;
         _setup = null;
         OnEdit();
     }
@@ -154,11 +158,11 @@
     private async Task LoadSetupAsync()
     {
         _setupPending = true;
-        var version = _draftVersion;
+        var version = _bucketVersion;
         try
         {
             var setup = await Exports.GetObjectStorageSetupAsync(_bucket.Trim(), _prefix.Trim());
-            if (version == _draftVersion)
+            if (version == _bucketVersion)
             {
                 _setup = setup;
             }
@@ -182,41 +186,46 @@
 
     private async Task TestAsync()
     {
-        if (await RunAsync(Exports.TestObjectStorageAsync) is { } test)
-        {
-            _test = test;
-        }
-    }
-
-    private async Task CreateAsync()
-    {
-        if (!IsCreated && await RunAsync(Exports.CreateObjectStorageAsync) is { } created)
-        {
-            _created = created;
-        }
-    }
-
-    // Returns null when the draft was edited while the request ran.
-    private async Task<T?> RunAsync<T>(Func<ObjectStorageConnectionRequest, CancellationToken, Task<T>> send)
-        where T : class
-    {
         if (!IsComplete || _busy)
         {
-            return null;
+            return;
         }
 
         _busy = true;
         var version = _draftVersion;
         try
         {
-            var result = await send(Draft(), CancellationToken.None);
-            return version == _draftVersion ? result : null;
+            var test = await Exports.TestObjectStorageAsync(Draft(), CancellationToken.None);
+            if (version == _draftVersion)
+            {
+                _test = test;
+            }
         }
         finally
         {
             _busy = false;
         }
     }
+
+    // The create reply is always kept: the server may have created the connection even if the draft changed.
+    private async Task CreateAsync()
+    {
+        if (IsCreated || !IsComplete || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _created = await Exports.CreateObjectStorageAsync(Draft(), CancellationToken.None);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
 
     // Only an absolute https link is offered; anything else from the server is not rendered as a link.
     private static string? QuickCreateHref(ObjectStorageSetupResponse setup) =>

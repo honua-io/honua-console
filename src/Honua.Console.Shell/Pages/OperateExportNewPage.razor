@@ -86,6 +86,19 @@
     [SupplyParameterFromQuery(Name = "layerId")] public int? LayerId { get; set; }
     [SupplyParameterFromQuery(Name = "name")] public string? Name { get; set; }
 
+    private string? _sourceKey;
+
+    // A result belongs to the Layer it was started for; opening another Layer clears it.
+    protected override void OnParametersSet()
+    {
+        var sourceKey = $"{ServiceId}/{LayerId}";
+        if (sourceKey != _sourceKey)
+        {
+            _sourceKey = sourceKey;
+            _result = null;
+        }
+    }
+
     private bool HasLayerSource => !string.IsNullOrWhiteSpace(ServiceId) && LayerId is not null;
 
     private string? ExportIdError =>

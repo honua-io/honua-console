@@ -20,6 +20,9 @@ internal sealed class StubExportsClient : IConsoleExportsClient
     // When set, setup replies with this task instead of Setup, so a test can hold the reply.
     public Task<OperateSectionResult<ObjectStorageSetupResponse>>? PendingSetup { get; set; }
 
+    // When set, create replies with this task instead of Connection, so a test can hold the reply.
+    public Task<OperateSectionResult<ObjectStorageConnectionResponse>>? PendingConnection { get; set; }
+
     public int ListCalls { get; private set; }
     public List<string> GetCalls { get; } = [];
     public List<ExportCreateRequest> CreateCalls { get; } = [];
@@ -71,7 +74,7 @@ internal sealed class StubExportsClient : IConsoleExportsClient
         ObjectStorageConnectionRequest request, CancellationToken cancellationToken = default)
     {
         ConnectionCalls.Add(request);
-        return Task.FromResult(Connection);
+        return PendingConnection ?? Task.FromResult(Connection);
     }
 
     public Task<OperateSectionResult<ObjectStorageBrowseResponse>> BrowseAsync(

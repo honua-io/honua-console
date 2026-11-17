@@ -37,6 +37,38 @@ public sealed class OperateConnectionV4RenderTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InventoryOffersObjectStorageAndBrowsesOnlyBucketConnections(bool enabled)
+    {
+        const string bucketId = "6f1b2c9e-0000-4000-8000-000000000003";
+        using var context = Context(enabled, "/console/");
+        context.Services.AddSingleton<IOperateTransitionDataSource>(new Source
+        {
+            Connections = [Connection, Connection with { Id = bucketId, Name = "Imagery", Provider = "aws-s3" }]
+        });
+
+        var page = context.Render<OperateConnectionsPage>();
+
+        Assert.Equal("/console/operate/connections/new/object-storage", page.Find("[data-add-object-storage]").GetAttribute("href"));
+        var browse = Assert.Single(page.FindAll("[data-browse-bucket]"));
+        Assert.Equal($"/console/operate/connections/{bucketId}/objects", browse.GetAttribute("href"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AddConnectionLinksToObjectStorage(bool enabled)
+    {
+        using var context = Context(enabled, "/console/");
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var page = context.Render<OperateConnectionNewPage>();
+
+        Assert.Equal("/console/operate/connections/new/object-storage", page.Find("[data-add-object-storage]").GetAttribute("href"));
+    }
+
+    [Theory]
     [InlineData(false, "/")]
     [InlineData(true, "/")]
     [InlineData(false, "/console/")]

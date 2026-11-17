@@ -167,6 +167,8 @@ public sealed partial class PublishWizardWorkspaceRenderTests
         Assert.Equal("conn-b", command.ConnectionId);
         Assert.Equal("warehouse", command.Schema);
         Assert.Equal("current", command.Table);
+        Assert.Contains("operate/exports/new?serviceId=current-service&layerId=3",
+            cut.Find("[data-published-export-link]").GetAttribute("href"), StringComparison.Ordinal);
     }
 
     [Theory]

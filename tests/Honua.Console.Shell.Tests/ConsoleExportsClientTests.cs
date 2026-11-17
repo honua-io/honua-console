@@ -138,6 +138,18 @@ public sealed class ConsoleExportsClientTests
     }
 
     [Fact]
+    public async Task UnpublishAcceptsAnEmptyNoContentReply()
+    {
+        var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent)), sessions: BearerSessions());
+
+        var result = await client.UnpublishAsync("parcels");
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal("parcels", result.Value!.Id);
+        Assert.Equal("unpublished", result.Value.Status);
+    }
+
+    [Fact]
     public async Task ObjectStorageSetupBrowseAndCreateUseConnectionRoutes()
     {
         var connectionId = Guid.Parse("6f1b2c9e-0000-4000-8000-000000000001");
@@ -146,7 +158,7 @@ public sealed class ConsoleExportsClientTests
             "/api/v1/admin/connections/object-storage/setup" => Json(HttpStatusCode.OK,
                 """{"success":true,"data":{"externalId":"ext-123","quickCreateUrl":"https://console.example/quick"}}"""),
             "/api/v1/admin/connections" => Json(HttpStatusCode.Created,
-                $$"""{"success":true,"data":{"id":"{{connectionId}}","name":"imagery"}}"""),
+                $$$"""{"success":true,"data":{"id":"{{{connectionId}}}","name":"imagery"}}"""),
             _ => Json(HttpStatusCode.OK,
                 """{"success":true,"data":{"bucket":"imagery","prefix":"ortho/","folders":["ortho/2026/"],"objects":[{"key":"ortho/a.tif","kind":"cog","bytes":2048}]}}""")
         });
@@ -155,8 +167,12 @@ public sealed class ConsoleExportsClientTests
         var setup = await client.GetObjectStorageSetupAsync("imagery", "ortho/");
         var created = await client.CreateObjectStorageAsync(new ObjectStorageConnectionRequest
         {
-            Name = "imagery", Bucket = "imagery", Prefix = "ortho/", Region = "us-west-2",
-            RoleArn = "arn:aws:iam::123456789012:role/honua-connection-imagery", ExternalId = "ext-123"
+            Name = "imagery",
+            Bucket = "imagery",
+            Prefix = "ortho/",
+            Region = "us-west-2",
+            RoleArn = "arn:aws:iam::123456789012:role/honua-connection-imagery",
+            ExternalId = "ext-123"
         });
         var listing = await client.BrowseAsync(connectionId, "ortho/");
 

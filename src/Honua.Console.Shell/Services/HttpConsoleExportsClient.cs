@@ -58,7 +58,8 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
         return WriteAsync(
             new ServerCall<ExportResponse>(ExportAdminRoutes.Export(exportId), ExportAdminJsonContext.Default.ExportEnvelope)
             {
-                Method = HttpMethod.Delete
+                Method = HttpMethod.Delete,
+                NoContent = () => new ExportResponse { Id = exportId, Status = "unpublished" }
             },
             cancellationToken);
     }
@@ -164,6 +165,11 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
                 return await DeniedAsync<T>(response, call.NotFound, cancellationToken).ConfigureAwait(false);
             }
 
+            if (response.StatusCode == HttpStatusCode.NoContent && call.NoContent is { } noContent)
+            {
+                return OperateSectionResult<T>.Allowed(noContent(), message: string.Empty);
+            }
+
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             var envelope = await JsonSerializer.DeserializeAsync(stream, call.Response, cancellationToken).ConfigureAwait(false);
             return envelope is { Success: true, Data: { } data }
@@ -243,5 +249,8 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
         public string? Body { get; init; }
 
         public OperateSectionStatus NotFound { get; init; } = OperateSectionStatus.Missing;
+
+        // The result of a success with no body (204), for calls whose server reply may be empty.
+        public Func<T>? NoContent { get; init; }
     }
 }

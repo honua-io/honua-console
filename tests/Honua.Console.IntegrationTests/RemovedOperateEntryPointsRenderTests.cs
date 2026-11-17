@@ -30,6 +30,8 @@ public sealed class RemovedOperateEntryPointsRenderTests
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-layer-style-link]")));
         var hrefs = page.FindAll(".console-detail-actions a").Select(link => link.GetAttribute("href")).ToArray();
         Assert.DoesNotContain(hrefs, href => href!.EndsWith("/extrusion") || href.EndsWith("/subtypes") || href.EndsWith("/discovery"));
+        Assert.Equal("/console/operate/exports/new?serviceId=cadastre&layerId=1&name=Parcels",
+            page.Find("[data-layer-export-link]").GetAttribute("href"));
         if (enabled) CatalogAdminPreview.Capture("data-layer-detail-unbound", page.Markup);
     }
 

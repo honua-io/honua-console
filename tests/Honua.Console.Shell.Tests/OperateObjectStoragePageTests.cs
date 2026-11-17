@@ -18,7 +18,9 @@ public sealed class OperateObjectStoragePageTests
         var (context, client) = (fixture.Context, fixture.Client);
         client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse
         {
-            ExternalId = "ext-123", QuickCreateUrl = "https://console.example/quick", RoleNamePrefix = "honua-connection-"
+            ExternalId = "ext-123",
+            QuickCreateUrl = "https://console.example/quick",
+            RoleNamePrefix = "honua-connection-"
         });
         var page = context.Render<OperateConnectionObjectStorageNewPage>();
 
