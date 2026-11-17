@@ -15,13 +15,13 @@ public sealed class DeserializedDtoNullCollectionMapperTests
     {
         var registry = new HonuaCatalogDiscoveryRegistry
         {
-            WorkspaceId = "ws-1",
+            EnvironmentId = "ws-1",
             Endpoints = null!
         };
 
         var view = CatalogDiscoveryMapper.ToView(registry);
 
-        Assert.Equal("ws-1", view.WorkspaceId);
+        Assert.Equal("ws-1", view.EnvironmentId);
         Assert.Empty(view.Endpoints);
     }
 

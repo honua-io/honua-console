@@ -7,7 +7,7 @@ namespace Honua.Console.IntegrationTests;
 [Collection(TemporalReplicaIntegrationCollection.Name)]
 public sealed class CatalogDiscoveryRoundTripTests
 {
-    private const string Workspace = TemporalReplicaFixture.CatalogWorkspace;
+    private const string EnvironmentId = TemporalReplicaFixture.CatalogEnvironment;
     private readonly TemporalReplicaFixture _fixture;
 
     public CatalogDiscoveryRoundTripTests(TemporalReplicaFixture fixture)
@@ -21,12 +21,12 @@ public sealed class CatalogDiscoveryRoundTripTests
         Skip.If(_fixture.SkipReason is not null, _fixture.SkipReason ?? string.Empty);
         using var verifier = _fixture.CreateVerifier();
         var anonymousStatus = await verifier.ProbeAdminRouteAnonymousStatusAsync(
-            $"/api/v1/console/catalog-endpoints/{Workspace}");
+            $"/api/v1/console/catalog-endpoints/{EnvironmentId}");
         Assert.True(anonymousStatus is 401 or 403,
             $"The mounted catalog route must deny anonymous callers; received {anonymousStatus}.");
 
         // Mapping alone does not populate a registry. No synthetic catalog or metadata graph is seeded.
-        var before = await verifier.GetCatalogDiscoveryRegistryAsync(Workspace);
+        var before = await verifier.GetCatalogDiscoveryRegistryAsync(EnvironmentId);
         Assert.NotNull(before);
         Assert.Empty(before.Endpoints);
 
@@ -40,7 +40,7 @@ public sealed class CatalogDiscoveryRoundTripTests
         var features = await verifier.QueryFeatureServerAsync(published.ServiceName, published.LayerId, "1=1");
         Assert.NotNull(features);
         Assert.Equal(3, features.Count);
-        var serverRegistry = await verifier.GetCatalogDiscoveryRegistryAsync(Workspace);
+        var serverRegistry = await verifier.GetCatalogDiscoveryRegistryAsync(EnvironmentId);
         Assert.NotNull(serverRegistry);
         var serverEndpoint = Assert.Single(serverRegistry.Endpoints);
         Assert.Equal("esri", serverEndpoint.Key);
@@ -49,14 +49,14 @@ public sealed class CatalogDiscoveryRoundTripTests
         using var client = new HonuaCatalogDiscoveryHttpClient(_fixture.CreateRawClient(),
             new HonuaCatalogDiscoveryClientOptions(_fixture.BaseAddress, _fixture.AdminApiKey));
         var dataSource = new HonuaServerCatalogDiscoveryDataSource(client);
-        var load = await dataSource.LoadRegistryAsync(Workspace);
+        var load = await dataSource.LoadRegistryAsync(EnvironmentId);
         Assert.True(load.HasRegistry, DescribeStates(load.CapabilityStates));
         Assert.Empty(load.CapabilityStates);
-        Assert.Equal(serverRegistry.WorkspaceId, load.Registry!.WorkspaceId);
+        Assert.Equal(serverRegistry.EnvironmentId, load.Registry!.EnvironmentId);
         Assert.Equal(serverRegistry.Endpoints.Select(endpoint => endpoint.Key),
             load.Registry.Endpoints.Select(endpoint => endpoint.Key));
 
-        var detail = await dataSource.LoadEndpointAsync(Workspace, "esri");
+        var detail = await dataSource.LoadEndpointAsync(EnvironmentId, "esri");
         Assert.True(detail.HasDetail, DescribeStates(detail.CapabilityStates));
         Assert.Equal(serverEndpoint.Entries, detail.Detail!.Items.Count);
         Assert.NotEmpty(detail.Detail.Items);
@@ -64,7 +64,7 @@ public sealed class CatalogDiscoveryRoundTripTests
         Assert.DoesNotContain(detail.Detail.Items, item => item.Title == foreign.ServiceName);
         foreach (var row in detail.Detail.Items)
         {
-            var item = await dataSource.LoadItemAsync(Workspace, "esri", row.Id);
+            var item = await dataSource.LoadItemAsync(EnvironmentId, "esri", row.Id);
             Assert.True(item.HasItem, DescribeStates(item.CapabilityStates));
             Assert.Equal(row.Id, item.Item!.Id);
             Assert.Equal(published.ServiceName, item.Item.Title);
@@ -74,7 +74,7 @@ public sealed class CatalogDiscoveryRoundTripTests
         http.DefaultRequestHeaders.Add("X-API-Key", _fixture.AdminApiKey);
         using var unknown = await http.GetAsync("/api/v1/console/catalog-endpoints/unmapped-workspace");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        // The same API key resolves the configured public tenant, not a tenant selected by the workspace URL.
+        // The same API key resolves the configured public tenant, not a tenant selected by the environment URL.
         using var wrongTenant = await http.GetAsync("/api/v1/console/catalog-endpoints/other-tenant-workspace");
         Assert.Equal(HttpStatusCode.NotFound, wrongTenant.StatusCode);
     }
