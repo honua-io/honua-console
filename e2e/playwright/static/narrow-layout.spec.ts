@@ -66,3 +66,37 @@ test('sticky panes follow the measured top bar height', async ({ page }) => {
   expect(height).toBeGreaterThan(48);
   await expect.poll(published).toBe(`${height}px`);
 });
+
+for (const shell of ['legacy', 'v4'] as const) {
+  for (const width of [1280, 390]) {
+    test(`report inspector field rows keep usable controls at ${width}px in the ${shell} shell`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await signIn(page, '/studio/report', shell);
+      await page.getByRole('button', { name: 'New report', exact: true }).click();
+      await page.getByRole('button', { name: '+ Panel', exact: true }).click();
+      const inspector = page.locator('.studio-report-inspector-body');
+      await expect(inspector.locator('.console-field-state')).toHaveCount(3);
+      // A new panel has no binding alias, so its row carries an error list (the pill-escape case).
+      await expect(inspector.locator('.console-field-state__errors')).toHaveCount(1);
+      await inspector.locator('.console-field-state').last().scrollIntoViewIfNeeded();
+      const rows = await inspector.evaluate(body => {
+        const card = body.getBoundingClientRect();
+        return [...body.querySelectorAll('.console-field-state')].map(row => {
+          const control = row.querySelector('.console-field-state__value .console-input')!.getBoundingClientRect();
+          const pill = row.querySelector('.console-field-state__pill')!.getBoundingClientRect();
+          return {
+            label: row.querySelector('.console-field-state__label-text')!.textContent,
+            controlWidth: control.width,
+            rowWidth: row.getBoundingClientRect().width,
+            pillInside: pill.left >= card.left - 1 && pill.right <= card.right + 1,
+          };
+        });
+      });
+      for (const row of rows) {
+        expect(row.controlWidth, `${row.label} control width`).toBeGreaterThanOrEqual(Math.min(160, row.rowWidth - 40));
+        expect(row.pillInside, `${row.label} state pill inside the inspector`).toBe(true);
+      }
+      await testInfo.attach(`report-inspector-${width}`, { body: await inspector.screenshot(), contentType: 'image/png' });
+    });
+  }
+}
