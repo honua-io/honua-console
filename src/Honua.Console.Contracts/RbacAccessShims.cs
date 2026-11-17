@@ -163,7 +163,7 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
             () => new HttpRequestMessage(HttpMethod.Delete, path),
             "DELETE /api/v1/console/access/{workspaceId}/roles/{roleId}",
             new(
-                AdminFailureMappings.FromStatus(CreateWriteIssue),
+                AdminFailureMappings.FromStatusWithServerMessage(CreateWriteIssue),
                 static (_, _, _) => Task.FromResult(HonuaAdminEndpointResult<bool>.FromData(true))));
         return await _transport.SendAsync(call, cancellationToken).ConfigureAwait(false);
     }
@@ -195,7 +195,7 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
                 createRequest,
                 contract,
                 new(
-                    AdminFailureMappings.FromStatus(CreateWriteIssue),
+                    AdminFailureMappings.FromStatusWithServerMessage(CreateWriteIssue),
                     AdminResponseBodies.Envelope<T>(EnvelopeFormat, MissingData))),
             cancellationToken);
 
@@ -236,7 +236,7 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
 
     private static HonuaAdminEndpointIssue CreateWriteIssue(string contract, HttpStatusCode status)
     {
-        var state = status == HttpStatusCode.BadRequest ? "Rejected" : ReadState(status);
+        var state = status is HttpStatusCode.BadRequest or HttpStatusCode.Conflict ? "Rejected" : ReadState(status);
         var detail = status switch
         {
             HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
