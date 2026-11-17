@@ -76,7 +76,7 @@ export async function publishDashboard(page:Page,fixture:Fixture,expected:Expect
         await expect(panel.locator('[data-proposal-diff] li')).toHaveText(diff);
         await expect(panel.locator('[data-proposal-approve]')).toBeEnabled();
         await panel.locator('[data-proposal-approve]').click();
-        await expect(panel.locator('[data-proposal-action-message]')).toContainText('Approved');
+        await expect(panel.locator('[data-proposal-action-message]')).toHaveText('Approval recorded — change applied.');
         await expect.poll(async()=>(await fixture.read(proposalPath)).status.toLowerCase(),{timeout:120_000}).toBe('succeeded');
         const resolved=await fixture.read(proposalPath);
         expect(resolved.requestedBy).toBe(pending.requestedBy);assertHumanProposer(resolved);expect(resolved.diff).toEqual(diff);expect(typeof resolved.resolvedBy).toBe('string');

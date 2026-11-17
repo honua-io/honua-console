@@ -256,7 +256,7 @@ async function approveProposalInUi(page, consoleBase, proposalId, facts, mode) {
     await approve.click();
     await proposal.locator('[data-proposal-action-message]').waitFor({ state: 'visible' });
     const message = await proposal.locator('[data-proposal-action-message]').textContent() ?? '';
-    if (!message.includes('Approved')) throw new Error(`Console approval failed for ${proposalId}: ${message.trim()}`);
+    if (!message.startsWith('Approved — ') && !message.startsWith('Approval recorded — ')) throw new Error(`Console approval failed for ${proposalId}: ${message.trim()}`);
     status = await requiredAttribute(proposal.locator('[data-proposal-status]'), 'data-proposal-status', 'resolved proposal status');
   }
   if (status === 'AwaitingApproval') {
