@@ -5732,7 +5732,9 @@ p {
     background: #eef3ee;
 }
 
-.map-preview-canvas {
+/* Stage-qualified so it outranks `.maplibregl-map { position: relative }`, which map-preview.js
+   loads after this file; the map container otherwise collapses to 0 px. */
+.map-preview-stage .map-preview-canvas {
     position: absolute;
     inset: 0;
     z-index: 1;
