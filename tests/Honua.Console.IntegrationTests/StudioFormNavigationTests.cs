@@ -31,7 +31,7 @@ public sealed class StudioFormNavigationTests
         using var view = new FormView(presentation);
         await view.Complete("a");
         view.Navigate("b");
-        Assert.Empty(view.Page.FindAll("[data-form-builder]"));
+        view.Page.WaitForAssertion(() => Assert.Empty(view.Page.FindAll("[data-form-builder]")));
         await view.Complete("b");
     }
 
