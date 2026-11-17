@@ -223,6 +223,153 @@ public sealed class StudioAutomationEditorPageTests
         page.WaitForAssertion(() => Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty));
     }
 
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task NewDraftSave_RemainsLockedWhenEarlierSaveCompletes(ConsolePresentationMode presentation)
+    {
+        var earlier = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var current = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingAutomationClient
+        {
+            SaveHandler = draft => draft.DraftId == "earlier" ? earlier.Task : current.Task
+        };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioAutomationEditorPage>(p => p.Add(x => x.DraftId, "earlier"));
+        var earlierSave = SaveButton(page).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+        Task currentSave = Task.CompletedTask;
+        try
+        {
+            page.Render(p => p.Add(x => x.DraftId, "current"));
+            var name = page.Find("input[aria-label='Automation name']");
+            Assert.Equal("current", name.GetAttribute("value"));
+            Assert.False(name.HasAttribute("disabled"));
+            Assert.False(SaveButton(page).HasAttribute("disabled"));
+            name.Input("Edited current automation");
+            currentSave = SaveButton(page).ClickAsync(new());
+            page.WaitForAssertion(() => Assert.Equal(2, client.SaveCalls));
+            AssertAutomationInputsDisabled(page);
+
+            earlier.SetResult(new() { ContentItemId = "earlier", VersionId = "earlier-version" });
+            await earlierSave;
+
+            AssertAutomationInputsDisabled(page);
+            Assert.True(SaveButton(page).HasAttribute("disabled"));
+            Assert.Contains("Saving version", page.Find("[role=status]").TextContent, StringComparison.Ordinal);
+            Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+            Assert.Empty(page.FindAll("[data-automation-save]"));
+            await SaveButton(page).ClickAsync(new());
+            Assert.Equal(2, client.SaveCalls);
+        }
+        finally
+        {
+            earlier.TrySetResult(new());
+            current.TrySetResult(new() { ContentItemId = "current", VersionId = "current-version", VersionNumber = 2 });
+            await earlierSave;
+            await currentSave;
+        }
+
+        Assert.False(SaveButton(page).HasAttribute("disabled"));
+        Assert.False(page.Find("input[aria-label='Automation name']").HasAttribute("disabled"));
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        Assert.Contains("current-version", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("earlier-version", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task EarlierSaveFailure_CannotClearCurrentSaveLabelOrReportItsError(ConsolePresentationMode presentation)
+    {
+        var earlier = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var current = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingAutomationClient
+        {
+            SaveHandler = draft => draft.DraftId == "earlier" ? earlier.Task : current.Task
+        };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioAutomationEditorPage>(p => p.Add(x => x.DraftId, "earlier"));
+        var earlierSave = SaveButton(page).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+        Task currentSave = Task.CompletedTask;
+        try
+        {
+            page.Render(p => p.Add(x => x.DraftId, "current"));
+            Assert.False(SaveButton(page).HasAttribute("disabled"));
+            page.Find("input[aria-label='Automation name']").Input("Current automation");
+            currentSave = SaveButton(page).ClickAsync(new());
+            page.WaitForAssertion(() => Assert.Equal(2, client.SaveCalls));
+
+            earlier.SetException(new HttpRequestException("Earlier request disconnected"));
+            await earlierSave;
+
+            AssertAutomationInputsDisabled(page);
+            Assert.Contains("Saving version", page.Find("[role=status]").TextContent, StringComparison.Ordinal);
+            Assert.DoesNotContain("Earlier request disconnected", page.Markup, StringComparison.Ordinal);
+            Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        }
+        finally
+        {
+            earlier.TrySetResult(new());
+            current.TrySetResult(new() { ContentItemId = "current", VersionId = "current-version" });
+            await earlierSave;
+            await currentSave;
+        }
+
+        Assert.False(SaveButton(page).HasAttribute("disabled"));
+        Assert.False(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+        Assert.DoesNotContain("Earlier request disconnected", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task CurrentSaveValidation_RemainsVisibleAfterEarlierSaveCompletes(ConsolePresentationMode presentation)
+    {
+        var earlier = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var current = new TaskCompletionSource<CollectAutomationSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingAutomationClient
+        {
+            SaveHandler = draft => draft.DraftId == "earlier" ? earlier.Task : current.Task
+        };
+        using var ctx = EditorContext(client, presentation);
+        var page = ctx.Render<StudioAutomationEditorPage>(p => p.Add(x => x.DraftId, "earlier"));
+        var earlierSave = SaveButton(page).ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Equal(1, client.SaveCalls));
+        Task currentSave = Task.CompletedTask;
+        try
+        {
+            page.Render(p => p.Add(x => x.DraftId, "current"));
+            Assert.False(SaveButton(page).HasAttribute("disabled"));
+            page.Find("input[aria-label='Automation name']").Input("Current invalid automation");
+            currentSave = SaveButton(page).ClickAsync(new());
+            page.WaitForAssertion(() => Assert.Equal(2, client.SaveCalls));
+            current.SetResult(new()
+            {
+                ValidationIssues = [new() { Severity = "error", Scope = "binding", Message = "Current validation rejected" }]
+            });
+            await currentSave;
+            Assert.Contains("Current validation rejected", page.Markup, StringComparison.Ordinal);
+            Assert.False(SaveButton(page).HasAttribute("disabled"));
+
+            earlier.SetResult(new() { ContentItemId = "earlier", VersionId = "earlier-version" });
+            await earlierSave;
+
+            Assert.Contains("Current validation rejected", page.Markup, StringComparison.Ordinal);
+            Assert.DoesNotContain("earlier-version", page.Markup, StringComparison.Ordinal);
+            Assert.True(page.FindComponent<UnsavedChangesGuard>().Instance.IsDirty);
+            Assert.Equal("Current invalid automation", page.Find("input[aria-label='Automation name']").GetAttribute("value"));
+        }
+        finally
+        {
+            earlier.TrySetResult(new());
+            current.TrySetResult(new());
+            await earlierSave;
+            await currentSave;
+        }
+    }
+
     private static void AssertAutomationInputsDisabled(IRenderedComponent<StudioAutomationEditorPage> page)
     {
         var inputs = page.FindAll(".automation-editor-page input, .automation-editor-page textarea, .automation-editor-page select");
@@ -247,6 +394,7 @@ public sealed class StudioAutomationEditorPageTests
     {
         public const string DraftId = "draft-recording";
 
+        public Func<CollectAutomationDraft, Task<CollectAutomationSaveResult>>? SaveHandler { get; init; }
         public int SaveCalls { get; private set; }
         public Task<CollectAutomationEditorContext>? PendingLoad { get; init; }
         public Task<CollectAutomationSaveResult>? PendingSave { get; init; }
@@ -296,6 +444,7 @@ public sealed class StudioAutomationEditorPageTests
             CancellationToken cancellationToken = default)
         {
             SaveCalls++;
+            if (SaveHandler is not null) return SaveHandler(draft);
             if (PendingSave is not null) return PendingSave;
             return Task.FromResult(new CollectAutomationSaveResult
             {

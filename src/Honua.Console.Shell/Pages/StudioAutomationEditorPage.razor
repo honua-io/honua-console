@@ -315,6 +315,9 @@
     protected override async Task OnParametersSetAsync()
     {
         var generation = ++_pageGeneration;
+        // Commands belong to the visit that started them; the new draft can be edited immediately.
+        _busy = false;
+        _busyLabel = null;
         _loading = true;
         _loadFailed = false;
         _draft = null;
@@ -405,8 +408,11 @@
         }
         finally
         {
-            _busy = false;
-            _busyLabel = null;
+            if (generation == _pageGeneration)
+            {
+                _busy = false;
+                _busyLabel = null;
+            }
         }
     }
 
