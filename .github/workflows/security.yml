@@ -22,6 +22,8 @@ jobs:
   trivy:
     permissions:
       contents: read
+      # The reusable Trivy workflow (238e7feb) reads workflow metadata for its SARIF upload.
+      actions: read
       security-events: write
     uses: honua-io/.github/.github/workflows/reusable-trivy.yml@238e7feb9a4b0b344388cdb0bc5a85561acec9c5 # main
     with:
