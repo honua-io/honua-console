@@ -197,6 +197,35 @@ public sealed class OperateLayerStylePageRenderTests
         Assert.Equal(0, registry.Current.Unsaved.PendingOperationCount);
     }
 
+    [Fact]
+    public void StyleEditor_WhenServerDidNotAnswer_ShowsTemporaryFailureAndRetryLoadsOverrides()
+    {
+        var source = new FakeOverrideDataSource
+        {
+            View = new OperateLayerStyleOverrideView("res-1", [], new OperateLayerStyleBindingState(
+                "Layer presentation overrides", OperateLayerStyleBindingState.Unavailable,
+                "GET/PUT /api/v1/admin/metadata/layers/{id}/popup-info",
+                "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment."))
+        };
+        var page = Render(source, new FakeStyleCatalog());
+
+        page.WaitForAssertion(
+            () => Assert.Contains("Layer overrides could not be loaded", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.DoesNotContain("Missing binding", page.Markup, StringComparison.Ordinal);
+
+        source.View = new OperateLayerStyleOverrideView("res-1",
+        [
+            new OperateLayerStyleOverride("layer-1", "parcels-fs", "Parcels FeatureServer", "streets", null)
+        ]);
+        page.Find("[data-layer-style-retry]").Click();
+
+        page.WaitForAssertion(
+            () => Assert.Contains("data-layer-style=\"layer-1\"", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(5));
+        Assert.Empty(page.FindAll("[data-layer-style-retry]"));
+    }
+
     private static IRenderedComponent<OperateLayerStylePage> Render(
         IOperateLayerStyleOverrideDataSource overrides,
         IStudioMapStyleCatalogDataSource catalog)

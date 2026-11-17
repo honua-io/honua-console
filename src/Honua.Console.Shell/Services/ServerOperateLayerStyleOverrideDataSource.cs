@@ -177,6 +177,19 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
 
     private static OperateLayerStyleBindingState ToBindingState(string contract, HonuaAdminEndpointIssue issue)
     {
+        if (issue.State == "Unavailable")
+        {
+            // A temporary failure, not a missing binding. Only a transport failure (no HTTP status) carries a raw
+            // client error, so only that one is reworded; a server error keeps the server's own detail.
+            return new OperateLayerStyleBindingState(
+                Surface,
+                OperateLayerStyleBindingState.Unavailable,
+                contract,
+                issue.StatusCode is null
+                    ? "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment."
+                    : issue.Detail);
+        }
+
         var state = issue.State switch
         {
             "Missing permission" => OperateLayerStyleBindingState.Forbidden,
