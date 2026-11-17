@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// Exports admin API (honua-server#8260) and object-storage Connections (honua-server#8266).
+// Exports admin API and object-storage Connections.
 // Responses use the admin ApiResponse envelope ({ success, data, message }); a 404 or 501 means the
 // connected server does not offer the surface yet.
 public static class ExportAdminRoutes

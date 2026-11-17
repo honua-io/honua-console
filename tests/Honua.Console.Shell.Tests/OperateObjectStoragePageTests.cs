@@ -14,7 +14,8 @@ public sealed class OperateObjectStoragePageTests
     [Fact]
     public void AddNeedsTheSetupLinkBeforeTestOrCreate()
     {
-        using var context = OperateExportsPageTests.CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse
         {
             ExternalId = "ext-123", QuickCreateUrl = "https://console.example/quick", RoleNamePrefix = "honua-connection-"
@@ -36,7 +37,8 @@ public sealed class OperateObjectStoragePageTests
     [Fact]
     public void ChangingTheBucketAsksForANewSetupLink()
     {
-        using var context = OperateExportsPageTests.CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse { ExternalId = "ext-123" });
         var page = context.Render<OperateConnectionObjectStorageNewPage>();
         Fill(page);
@@ -51,7 +53,8 @@ public sealed class OperateObjectStoragePageTests
     [Fact]
     public void TestThenCreateSendTheDraftWithTheExternalId()
     {
-        using var context = OperateExportsPageTests.CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse { ExternalId = "ext-123" });
         client.Test = OperateSectionResult<ObjectStorageTestResponse>.Allowed(new ObjectStorageTestResponse { IsHealthy = true, Message = "Listed ortho/a.tif." });
         client.Connection = OperateSectionResult<ObjectStorageConnectionResponse>.Allowed(new ObjectStorageConnectionResponse { Id = ConnectionId, Name = "imagery" });
@@ -75,7 +78,8 @@ public sealed class OperateObjectStoragePageTests
     [Fact]
     public void RefusedCreateShowsTheReason()
     {
-        using var context = OperateExportsPageTests.CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse { ExternalId = "ext-123" });
         client.Connection = OperateSectionResult<ObjectStorageConnectionResponse>.Denied(OperateSectionStatus.Rejected, "Requester-pays buckets are not supported.");
         var page = context.Render<OperateConnectionObjectStorageNewPage>();
@@ -90,7 +94,8 @@ public sealed class OperateObjectStoragePageTests
     [Fact]
     public void BrowserListsFoldersAndDetectedKindsUnderThePrefix()
     {
-        using var context = OperateExportsPageTests.CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Listing = OperateSectionResult<ObjectStorageBrowseResponse>.Allowed(new ObjectStorageBrowseResponse
         {
             Bucket = "imagery-2026",
@@ -119,7 +124,8 @@ public sealed class OperateObjectStoragePageTests
     [Fact]
     public void BrowserShowsAnUnreadableBucket()
     {
-        using var context = OperateExportsPageTests.CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Listing = OperateSectionResult<ObjectStorageBrowseResponse>.Denied(OperateSectionStatus.Forbidden, "The role cannot list this bucket.");
 
         var page = context.Render<OperateConnectionObjectsPage>(parameters => parameters.Add(p => p.ConnectionId, ConnectionId));

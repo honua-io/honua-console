@@ -28,14 +28,7 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 adminApiKey));
         AddDeployments(services, adminApiKey, credentialMode);
-        services.TryAddSingleton<IConsoleExportsClient>(serviceProvider =>
-            new HttpConsoleExportsClient(
-                ShellHttpClients.ServerBound(serviceProvider),
-                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
-                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
-                adminApiKey,
-                credentialMode));
+        AddExports(services, adminApiKey, credentialMode);
         AddProposals(services, adminApiKey, credentialMode);
         services.TryAddSingleton<IConsoleServerVersionClient>(serviceProvider =>
             new HttpConsoleServerVersionClient(
@@ -54,6 +47,19 @@ internal static class OperateObservabilityRegistrations
 
     // Interactive approvals require the operator bearer; the admin API key serves only sessionless
     // HeadlessService callers.
+    private static void AddExports(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode) =>
+        services.TryAddSingleton<IConsoleExportsClient>(serviceProvider =>
+            new HttpConsoleExportsClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                new ConsoleServerAccess
+                {
+                    Profiles = serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    Sessions = serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                    OperatorBearer = serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                    AdminApiKey = adminApiKey,
+                    CredentialMode = credentialMode
+                }));
+
     private static void AddDeployments(IServiceCollection services, string? adminApiKey, ConsoleServerCredentialMode credentialMode)
     {
         services.TryAddSingleton<IConsoleDeployApprovalClient>(serviceProvider =>

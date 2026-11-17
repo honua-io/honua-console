@@ -17,60 +17,62 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
         "The connected server does not offer Exports or object-storage Connections yet.";
 
     private readonly HttpClient _http;
-    private readonly IConsoleEnvironmentProfileStore _profiles;
-    private readonly IConsoleAccountSessionStore _sessions;
-    private readonly string? _adminApiKey;
-    private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
-    private readonly ConsoleServerCredentialMode _credentialMode;
+    private readonly ConsoleServerAccess _access;
 
-    public HttpConsoleExportsClient(
-        HttpClient http,
-        IConsoleEnvironmentProfileStore profiles,
-        IConsoleAccountSessionStore sessions,
-        IConsoleOperatorBearerProvider operatorBearerProvider,
-        string? adminApiKey = null,
-        ConsoleServerCredentialMode credentialMode = ConsoleServerCredentialMode.Interactive)
+    public HttpConsoleExportsClient(HttpClient http, ConsoleServerAccess access)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
-        _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
-        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
-        _operatorBearerProvider = operatorBearerProvider ?? throw new ArgumentNullException(nameof(operatorBearerProvider));
-        _adminApiKey = string.IsNullOrWhiteSpace(adminApiKey) ? null : adminApiKey;
-        _credentialMode = credentialMode;
+        _access = access ?? throw new ArgumentNullException(nameof(access));
     }
 
     public Task<OperateSectionResult<ExportListResponse>> ListAsync(CancellationToken cancellationToken = default) =>
-        ReadAsync(ExportAdminRoutes.Exports, ExportAdminJsonContext.Default.ExportListEnvelope, notFoundIsUnsupported: true, cancellationToken);
+        ReadAsync(
+            new ServerCall<ExportListResponse>(ExportAdminRoutes.Exports, ExportAdminJsonContext.Default.ExportListEnvelope)
+            {
+                NotFound = OperateSectionStatus.Unsupported
+            },
+            cancellationToken);
 
     public Task<OperateSectionResult<ExportResponse>> GetAsync(string exportId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(exportId);
-        return ReadAsync(ExportAdminRoutes.Export(exportId), ExportAdminJsonContext.Default.ExportEnvelope, notFoundIsUnsupported: false, cancellationToken);
+        return ReadAsync(
+            new ServerCall<ExportResponse>(ExportAdminRoutes.Export(exportId), ExportAdminJsonContext.Default.ExportEnvelope),
+            cancellationToken);
     }
 
     public Task<OperateSectionResult<ExportResponse>> CreateAsync(ExportCreateRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         return WriteAsync(
-            HttpMethod.Post,
-            ExportAdminRoutes.Exports,
-            JsonSerializer.Serialize(request, ExportAdminJsonContext.Default.ExportCreateRequest),
-            ExportAdminJsonContext.Default.ExportEnvelope,
+            new ServerCall<ExportResponse>(ExportAdminRoutes.Exports, ExportAdminJsonContext.Default.ExportEnvelope)
+            {
+                Method = HttpMethod.Post,
+                Body = JsonSerializer.Serialize(request, ExportAdminJsonContext.Default.ExportCreateRequest)
+            },
             cancellationToken);
     }
 
     public Task<OperateSectionResult<ExportResponse>> UnpublishAsync(string exportId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(exportId);
-        return WriteAsync(HttpMethod.Delete, ExportAdminRoutes.Export(exportId), null, ExportAdminJsonContext.Default.ExportEnvelope, cancellationToken);
+        return WriteAsync(
+            new ServerCall<ExportResponse>(ExportAdminRoutes.Export(exportId), ExportAdminJsonContext.Default.ExportEnvelope)
+            {
+                Method = HttpMethod.Delete
+            },
+            cancellationToken);
     }
 
     public Task<OperateSectionResult<ObjectStorageSetupResponse>> GetObjectStorageSetupAsync(
         string bucket, string prefix, CancellationToken cancellationToken = default) =>
         ReadAsync(
-            ExportAdminRoutes.ObjectStorageSetupFor(bucket ?? string.Empty, prefix ?? string.Empty),
-            ExportAdminJsonContext.Default.ObjectStorageSetupEnvelope,
-            notFoundIsUnsupported: true,
+            new ServerCall<ObjectStorageSetupResponse>(
+                ExportAdminRoutes.ObjectStorageSetupFor(bucket ?? string.Empty, prefix ?? string.Empty),
+                ExportAdminJsonContext.Default.ObjectStorageSetupEnvelope)
+            {
+                NotFound = OperateSectionStatus.Unsupported
+            },
             cancellationToken);
 
     public Task<OperateSectionResult<ObjectStorageTestResponse>> TestObjectStorageAsync(
@@ -78,10 +80,11 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
     {
         ArgumentNullException.ThrowIfNull(request);
         return WriteAsync(
-            HttpMethod.Post,
-            ExportAdminRoutes.ConnectionDraftTest,
-            JsonSerializer.Serialize(request, ExportAdminJsonContext.Default.ObjectStorageConnectionRequest),
-            ExportAdminJsonContext.Default.ObjectStorageTestEnvelope,
+            new ServerCall<ObjectStorageTestResponse>(ExportAdminRoutes.ConnectionDraftTest, ExportAdminJsonContext.Default.ObjectStorageTestEnvelope)
+            {
+                Method = HttpMethod.Post,
+                Body = JsonSerializer.Serialize(request, ExportAdminJsonContext.Default.ObjectStorageConnectionRequest)
+            },
             cancellationToken);
     }
 
@@ -90,75 +93,66 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
     {
         ArgumentNullException.ThrowIfNull(request);
         return WriteAsync(
-            HttpMethod.Post,
-            ExportAdminRoutes.Connections,
-            JsonSerializer.Serialize(request, ExportAdminJsonContext.Default.ObjectStorageConnectionRequest),
-            ExportAdminJsonContext.Default.ObjectStorageConnectionEnvelope,
+            new ServerCall<ObjectStorageConnectionResponse>(ExportAdminRoutes.Connections, ExportAdminJsonContext.Default.ObjectStorageConnectionEnvelope)
+            {
+                Method = HttpMethod.Post,
+                Body = JsonSerializer.Serialize(request, ExportAdminJsonContext.Default.ObjectStorageConnectionRequest)
+            },
             cancellationToken);
     }
 
     public Task<OperateSectionResult<ObjectStorageBrowseResponse>> BrowseAsync(
         Guid connectionId, string prefix, CancellationToken cancellationToken = default) =>
         ReadAsync(
-            ExportAdminRoutes.ConnectionObjects(connectionId, prefix ?? string.Empty),
-            ExportAdminJsonContext.Default.ObjectStorageBrowseEnvelope,
-            notFoundIsUnsupported: false,
+            new ServerCall<ObjectStorageBrowseResponse>(
+                ExportAdminRoutes.ConnectionObjects(connectionId, prefix ?? string.Empty),
+                ExportAdminJsonContext.Default.ObjectStorageBrowseEnvelope),
             cancellationToken);
 
-    private async Task<OperateSectionResult<T>> ReadAsync<T>(
-        string route,
-        JsonTypeInfo<ConsoleApiEnvelope<T>> typeInfo,
-        bool notFoundIsUnsupported,
-        CancellationToken cancellationToken)
+    private async Task<OperateSectionResult<T>> ReadAsync<T>(ServerCall<T> call, CancellationToken cancellationToken)
         where T : class
     {
-        var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        var profile = await _access.Profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
         {
             return OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, ConsoleServerHttp.BuildUri(profile.ServerBaseUri, route));
-        await ConsoleServerHttp.AttachAuthenticationAsync(request, _sessions, profile, _adminApiKey, cancellationToken)
+        using var request = new HttpRequestMessage(HttpMethod.Get, ConsoleServerHttp.BuildUri(profile.ServerBaseUri, call.Route));
+        await ConsoleServerHttp.AttachAuthenticationAsync(request, _access.Sessions, profile, _access.AdminApiKey, cancellationToken)
             .ConfigureAwait(false);
-        return await SendAsync(request, typeInfo, notFoundIsUnsupported, cancellationToken).ConfigureAwait(false);
+        return await SendAsync(request, call, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<OperateSectionResult<T>> WriteAsync<T>(
-        HttpMethod method,
-        string route,
-        string? body,
-        JsonTypeInfo<ConsoleApiEnvelope<T>> typeInfo,
-        CancellationToken cancellationToken)
+    private async Task<OperateSectionResult<T>> WriteAsync<T>(ServerCall<T> call, CancellationToken cancellationToken)
         where T : class
     {
-        var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        var profile = await _access.Profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
         {
             return OperateSectionResult<T>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
-        using var request = new HttpRequestMessage(method, ConsoleServerHttp.BuildUri(profile.ServerBaseUri, route));
-        if (body is not null)
+        using var request = new HttpRequestMessage(call.Method, ConsoleServerHttp.BuildUri(profile.ServerBaseUri, call.Route));
+        if (call.Body is not null)
         {
-            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+            request.Content = new StringContent(call.Body, Encoding.UTF8, "application/json");
         }
 
         var authentication = await ConsoleServerHttp.AttachMutationAuthenticationAsync(
-                request, _operatorBearerProvider, profile, _adminApiKey, _credentialMode, cancellationToken)
+                request, _access.OperatorBearer, profile, _access.AdminApiKey, _access.CredentialMode, cancellationToken)
             .ConfigureAwait(false);
         if (!authentication.IsAuthenticated)
         {
             return OperateSectionResult<T>.Denied(OperateSectionStatus.Forbidden, authentication.Message);
         }
 
-        return await SendAsync(request, typeInfo, notFoundIsUnsupported: false, cancellationToken).ConfigureAwait(false);
+        return await SendAsync(request, call, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<OperateSectionResult<T>> SendAsync<T>(
         HttpRequestMessage request,
-        JsonTypeInfo<ConsoleApiEnvelope<T>> typeInfo,
-        bool notFoundIsUnsupported,
+        ServerCall<T> call,
         CancellationToken cancellationToken)
         where T : class
     {
@@ -168,11 +162,11 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                return await DeniedAsync<T>(response, notFoundIsUnsupported, cancellationToken).ConfigureAwait(false);
+                return await DeniedAsync<T>(response, call.NotFound, cancellationToken).ConfigureAwait(false);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var envelope = await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken).ConfigureAwait(false);
+            var envelope = await JsonSerializer.DeserializeAsync(stream, call.Response, cancellationToken).ConfigureAwait(false);
             return envelope is { Success: true, Data: { } data }
                 ? OperateSectionResult<T>.Allowed(data, message: envelope.Message ?? string.Empty)
                 : OperateSectionResult<T>.Denied(
@@ -195,10 +189,10 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
 
     private static async Task<OperateSectionResult<T>> DeniedAsync<T>(
         HttpResponseMessage response,
-        bool notFoundIsUnsupported,
+        OperateSectionStatus notFound,
         CancellationToken cancellationToken)
     {
-        var status = MapStatus(response.StatusCode, notFoundIsUnsupported);
+        var status = MapStatus(response.StatusCode, notFound);
         if (status == OperateSectionStatus.Unsupported)
         {
             return OperateSectionResult<T>.Denied(status, UnsupportedMessage);
@@ -232,13 +226,23 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
         }
     }
 
-    private static OperateSectionStatus MapStatus(HttpStatusCode code, bool notFoundIsUnsupported) => code switch
+    private static OperateSectionStatus MapStatus(HttpStatusCode code, OperateSectionStatus notFound) => code switch
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => OperateSectionStatus.Forbidden,
-        HttpStatusCode.NotFound => notFoundIsUnsupported ? OperateSectionStatus.Unsupported : OperateSectionStatus.Missing,
+        HttpStatusCode.NotFound => notFound,
         HttpStatusCode.NotImplemented or HttpStatusCode.MethodNotAllowed => OperateSectionStatus.Unsupported,
         HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => OperateSectionStatus.Rejected,
         HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed => OperateSectionStatus.Conflict,
         _ => OperateSectionStatus.Unavailable
     };
+
+    // One admin call: a 404 means Missing unless the route is the probe for the whole surface.
+    private sealed record ServerCall<T>(string Route, JsonTypeInfo<ConsoleApiEnvelope<T>> Response)
+    {
+        public HttpMethod Method { get; init; } = HttpMethod.Get;
+
+        public string? Body { get; init; }
+
+        public OperateSectionStatus NotFound { get; init; } = OperateSectionStatus.Missing;
+    }
 }

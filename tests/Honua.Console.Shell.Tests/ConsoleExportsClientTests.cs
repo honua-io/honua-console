@@ -193,12 +193,13 @@ public sealed class ConsoleExportsClientTests
             Account = new ConsoleAccountBinding { AuthMode = ConsoleAccountAuthMode.AccountRbac, AccountId = "operator.live" }
         };
         var sessionStore = sessions ?? new InMemoryConsoleAccountSessionStore();
-        return new HttpConsoleExportsClient(
-            new HttpClient(handler),
-            new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id),
-            sessionStore,
-            new ConsoleOperatorBearerProvider(sessionStore, new UnavailableConsoleOperatorBearerExchange(), TimeProvider.System),
-            adminApiKey);
+        return new HttpConsoleExportsClient(new HttpClient(handler), new ConsoleServerAccess
+        {
+            Profiles = new InMemoryConsoleEnvironmentProfileStore([profile], activeProfileId: profile.Id),
+            Sessions = sessionStore,
+            OperatorBearer = new ConsoleOperatorBearerProvider(sessionStore, new UnavailableConsoleOperatorBearerExchange(), TimeProvider.System),
+            AdminApiKey = adminApiKey
+        });
     }
 
     private static IConsoleAccountSessionStore BearerSessions()

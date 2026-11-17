@@ -13,7 +13,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void ListShowsAccessReasonCopyUrlAndVersion()
     {
-        using var context = CreateContext(out var client, out var clipboard);
+        using var fixture = new ExportsPageFixture();
+        var (context, client, clipboard) = (fixture.Context, fixture.Client, fixture.Clipboard);
         client.List = Allowed(new ExportListResponse { Items = [Signed(), Public()] });
 
         var page = context.Render<OperateExportsPage>();
@@ -34,7 +35,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void ListOnServerWithoutExportsSaysSoInsteadOfEmpty()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.List = OperateSectionResult<ExportListResponse>.Denied(OperateSectionStatus.Unsupported, "The connected server does not offer Exports or object-storage Connections yet.");
 
         var page = context.Render<OperateExportsPage>();
@@ -46,7 +48,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void EmptyListPointsToLayers()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.List = Allowed(new ExportListResponse());
 
         var page = context.Render<OperateExportsPage>();
@@ -58,7 +61,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public async Task UnpublishConfirmsThenReloadsAndReportsTheOutcome()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.List = Allowed(new ExportListResponse { Items = [Signed()] });
         client.Unpublish = Allowed(Signed() with { Status = "unpublished" });
         var page = context.Render<OperateExportsPage>();
@@ -76,7 +80,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void DetailListsVersionsArtifactsAndWhyNotPublic()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Detail = Allowed(Signed() with
         {
             Versions =
@@ -107,7 +112,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void DetailOfMissingExportShowsNotFound()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Detail = OperateSectionResult<ExportResponse>.Denied(OperateSectionStatus.Missing, "No Export named gone.");
 
         var page = context.Render<OperateExportDetailPage>(parameters => parameters.Add(p => p.ExportId, "gone"));
@@ -119,7 +125,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void NewExportWithoutLayerAsksForOne()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         context.Services.GetRequiredService<BunitNavigationManager>().NavigateTo("operate/exports/new");
 
         var page = context.Render<OperateExportNewPage>();
@@ -132,7 +139,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void NewExportRejectsAnInvalidIdBeforeSending()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         context.Services.GetRequiredService<BunitNavigationManager>().NavigateTo(
             ExportPresentation.NewExportRoute("county", 3, "Parcels").TrimStart('/'));
         var page = context.Render<OperateExportNewPage>();
@@ -147,7 +155,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void NewExportStartsTheJobAndLinksToTheExport()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Create = OperateSectionResult<ExportResponse>.Allowed(
             new ExportResponse { Id = "parcels-2026", Status = "running" }, message: "Export started; job job-7.");
         context.Services.GetRequiredService<BunitNavigationManager>().NavigateTo(
@@ -169,7 +178,8 @@ public sealed class OperateExportsPageTests
     [Fact]
     public void NewExportShowsTheRefusal()
     {
-        using var context = CreateContext(out var client, out _);
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
         client.Create = OperateSectionResult<ExportResponse>.Denied(OperateSectionStatus.Forbidden, "Sign in again to export.");
         context.Services.GetRequiredService<BunitNavigationManager>().NavigateTo(
             ExportPresentation.NewExportRoute("county", 3, null).TrimStart('/'));
@@ -179,20 +189,6 @@ public sealed class OperateExportsPageTests
 
         Assert.Null(Assert.Single(client.CreateCalls).ExportId);
         Assert.Contains("Sign in again to export.", page.Find("[data-export-failed]").TextContent, StringComparison.Ordinal);
-    }
-
-    internal static BunitContext CreateContext(out StubExportsClient client, out BunitJSModuleInterop clipboard)
-    {
-        var context = new BunitContext();
-        context.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
-        context.JSInterop.SetupModule("./_content/Honua.Console.Shell/unsaved-changes-guard.js").Mode = JSRuntimeMode.Loose;
-        clipboard = context.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
-        clipboard.Setup<bool>("copyText", _ => true).SetResult(true);
-        client = new StubExportsClient();
-        context.Services.AddSingleton(new ConsoleAgentContextRegistry());
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
-        context.Services.AddSingleton<IConsoleExportsClient>(client);
-        return context;
     }
 
     private static OperateSectionResult<T> Allowed<T>(T value) => OperateSectionResult<T>.Allowed(value);
