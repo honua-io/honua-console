@@ -1,11 +1,31 @@
 using System.Globalization;
 
+using Honua.Console.Shell.Services;
+
 namespace Honua.Console.Shell.Models;
 
 public sealed record OperateLayerExposure(OperateServiceDetail Service, OperateServiceLayer Layer);
 
 public static class OperateLayerLookup
 {
+    public const string UnavailableState = "Unavailable";
+    public const string MissingPermissionState = "Missing permission";
+    public const string TemporaryFailureMessage =
+        "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment.";
+
+    // A layer that is absent from a projection whose read failed may still exist, so callers report the failure
+    // instead of "not found". A retryable failure wins over a permission failure.
+    public static OperateCapabilityState? ReadFailure(this OperateServicesView view) =>
+        view.CapabilityStates.FirstOrDefault(state => state.State == UnavailableState)
+        ?? view.CapabilityStates.FirstOrDefault(state => state.State == MissingPermissionState);
+
+    // A transport failure (no HTTP status) carries a raw client error, so it is reworded; an HTTP failure or an
+    // environment change keeps its own detail.
+    public static string ReadFailureMessage(this OperateCapabilityState failure) =>
+        failure.StatusCode is null && failure.Contract != ConsoleEnvironmentRead.Contract
+            ? TemporaryFailureMessage
+            : failure.Detail;
+
     // An admin layer id is unique only inside one connection, so several matches resolve to no layer.
     public static IReadOnlyList<OperateLayerExposure> FindExposures(this OperateServicesView view, string? layerReference)
     {
