@@ -20,13 +20,26 @@ const publishFields = new Set(['connectionId', 'schema', 'table', 'serviceName',
 export class WorkspaceConflict extends Error {
     constructor(current) { super('The shared draft changed. Review the latest version before saving.'); this.current = current; }
 }
+function workspaceStorage() {
+    try { return sessionStorage; }
+    catch (error) {
+        // Keep reads and mutations fail closed even when the browser blocks the getter.
+        const unavailable = () => { throw error; };
+        return { getItem: unavailable, setItem: unavailable, removeItem: unavailable };
+    }
+}
 export class AgentWorkspace {
-    constructor({ request = globalThis.fetch.bind(globalThis), storage = sessionStorage, uuid = () => crypto.randomUUID(), notify = () => {} } = {}) {
+    constructor({ request = globalThis.fetch.bind(globalThis), storage = workspaceStorage(), uuid = () => crypto.randomUUID(), notify = () => {} } = {}) {
         this.request = request; this.storage = storage; this.uuid = uuid; this.notify = notify;
         // New document means a new view even when the browser duplicates sessionStorage into a tab.
         this.viewId = uuid();
-        storage.setItem('honua.workspace.view', this.viewId);
-        this.workspaceId = storage.getItem('honua.workspace.id');
+        this.workspaceId = null;
+        try {
+            storage.setItem('honua.workspace.view', this.viewId);
+            this.workspaceId = storage.getItem('honua.workspace.id');
+        } catch {
+            // Reading the editor is still available; durable actions retain the failing storage.
+        }
         this.context = null; this.session = null; this.deployTargetId = null; this.dirty = new Map(); this.follow = true;
         this.presentationGuards = new Set();
         this.queue = Promise.resolve(); this.agentSession = null; this.contextGeneration = 0;
@@ -529,6 +542,12 @@ export function studioResourceRefs(targets, layers, catalog) {
 }
 
 let activeWorkspace;
+// Studio's manual controls also need the workspace when conversation is unsupported.
+export function getAgentWorkspace() {
+    const workspace = activeWorkspace ||= new AgentWorkspace();
+    Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
+    return workspace;
+}
 const mountedWorkspaceHosts = new WeakSet();
 export function mountWorkspace() {
     const host = document.querySelector('[data-agent-workspace]');
@@ -598,7 +617,7 @@ export function mountWorkspace() {
         target.title = state.context ? `Target ${state.context.targetId}; tenant ${state.context.tenantId ?? 'unbound'}; revision ${state.context.revision}` : '';
 
     };
-    const workspace = activeWorkspace ||= new AgentWorkspace();
+    const workspace = getAgentWorkspace();
     workspace.focusPrompt=()=>host.querySelector('[data-workspace-prompt]')?.focus();
     host.querySelector('[data-workspace-reply-cancel]')?.addEventListener('click',()=>workspace.questionReplies.cancel(),{signal:lifetime.signal});
     host.querySelector('[data-workspace-reply-open]')?.addEventListener('click',()=>workspace.questionReplies.openOriginal()
@@ -646,8 +665,6 @@ export function mountWorkspace() {
     if (connectionPanel) connectionPanel.open = false;
     workspace.sharedStyleProvider ||= () => readSharedStyleFocus(document, workspace.session?.principalId);
     workspace.selectionProvider ||= () => selectedResource(location.pathname);
-    // One session instance lives above route components; embedded Studio receives this same object.
-    Object.defineProperty(window, 'honuaAgentWorkspace', { value: workspace, configurable: true });
     attachConsolePageContext(workspace);
     const report = error => { status.textContent = error.message; };
     const review = new GaSpecReview(workspace);
