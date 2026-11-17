@@ -28,7 +28,7 @@
     {
         <p class="console-muted">Reading the work queue…</p>
     }
-    else if (!_inbox.IsAllowed && ConsoleReadBudget.IsErrorState(_inbox.Status))
+    else if (_inbox.PartialResult || (!_inbox.IsAllowed && ConsoleReadBudget.IsErrorState(_inbox.Status)))
     {
         <div class="console-home-inbox-error" role="alert" data-home-inbox-error>
             <p data-home-inbox-error-title>Couldn't read the approval queue from @ServerName</p>
@@ -58,11 +58,11 @@
             @if (ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true)
             {
                 <div class="console-home-pending console-summary" data-home-awaiting-count>
-                    <ConsoleMetricTile Label="@(_inbox.PartialResult ? "Awaiting approval in returned sources" : "Awaiting approval")"
+                    <ConsoleMetricTile Label="Awaiting approval"
                                        Value="snapshot.AwaitingApprovalCount" />
                 </div>
                 <p class="console-muted" data-home-total-count>
-                    @snapshot.TotalCount @(_inbox.PartialResult ? "in returned sources" : "in the queue")
+                    @snapshot.TotalCount in the queue
                 </p>
             }
             else
@@ -70,11 +70,11 @@
                 <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
                       data-home-awaiting-count>
                     <strong>@snapshot.AwaitingApprovalCount</strong>
-                    <span class="console-muted">@(_inbox.PartialResult ? "awaiting approval in returned sources" : "awaiting approval")</span>
+                    <span class="console-muted">awaiting approval</span>
                 </span>
                 <span class="approval-inbox-metric" data-home-total-count>
                     <strong>@snapshot.TotalCount</strong>
-                    <span class="console-muted">@(_inbox.PartialResult ? "in returned sources" : "in the queue")</span>
+                    <span class="console-muted">in the queue</span>
                 </span>
             }
         </div>
@@ -85,7 +85,7 @@
             }
             else
             {
-                <text>@(_inbox.PartialResult ? "No pending approvals in the sources returned." : "No agent-proposed operations are awaiting a decision right now.")</text>
+                <text>No agent-proposed operations are awaiting a decision right now.</text>
             }
         </p>
     }
@@ -112,6 +112,8 @@
     [Parameter] public string ServerName { get; set; } = "the selected server";
 
     private ConsoleProposalSubscription? _updates;
+    private Task? _recovery;
+    private bool NeedsRecovery => _inbox.PartialResult || _inbox.Status == OperateSectionStatus.Unavailable;
 
     private bool RealtimeConnected => _updates?.IsConnected == true;
 
@@ -119,24 +121,45 @@
 
     protected override async Task OnInitializedAsync()
     {
-
-        await RefreshInboxAsync();
-        if (_disposed) return;
-
         _updates = new ConsoleProposalSubscription(ServiceProvider.GetService<IConsoleProposalRealtimeClient>(),
             new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
-        await _updates.StartAsync(_lifetime.Token);
+        await RefreshInboxAsync();
+        if (!_disposed) await _updates.StartAsync(_lifetime.Token);
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_disposed) _recovery = RecoverAsync(_lifetime.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task RecoverAsync(CancellationToken token)
+    {
+        var clock = ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10), clock);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (!_disposed && NeedsRecovery) await RefreshInboxAsync();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
 
     private Task RefreshInboxAsync() => _refreshGate.RunAsync(ReadInboxCoreAsync);
 
     private async Task ReadInboxCoreAsync()
     {
+        if (_disposed) return;
         _inboxBusy = true;
+        _inboxLoaded = false;
+        StateHasChanged();
         try
         {
-
-            if (_disposed) return;
             var inbox = await ConsoleReadBudget.RunAsync(
                 token => Inbox.GetInboxAsync(cancellationToken: token),
                 LoadBudget,
@@ -144,7 +167,7 @@
             if (_disposed) return;
             _inbox = inbox;
 
-            if (_inbox.IsAllowed)
+            if (_inbox.IsAllowed && !_inbox.PartialResult)
             {
                 _lastInboxSuccessUtc = DateTimeOffset.UtcNow;
             }
@@ -153,6 +176,7 @@
         {
             _inboxBusy = false;
             _inboxLoaded = true;
+            if (!_disposed) StateHasChanged();
         }
     }
 
@@ -176,17 +200,21 @@
 
     private void OnConnectionStateChanged(ConsoleRealtimeConnectionState state)
     {
-        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+        if (_disposed) return;
+        _ = InvokeAsync(async () =>
+        {
+            if (state == ConsoleRealtimeConnectionState.Connected) await RefreshInboxAsync();
+            if (!_disposed) StateHasChanged();
+        });
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
         _disposed = true;
-        _lifetime.Cancel();
-        _lifetime.Dispose();
-
         _updates?.Dispose();
-
-        return ValueTask.CompletedTask;
+        await _lifetime.CancelAsync();
+        if (_recovery is not null) await _recovery;
+        _lifetime.Dispose();
     }
 }
