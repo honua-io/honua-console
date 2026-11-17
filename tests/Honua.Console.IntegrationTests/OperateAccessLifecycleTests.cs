@@ -192,6 +192,23 @@ public sealed class OperateAccessLifecycleTests
         Assert.Equal(new[] { "first" }, data.OverviewRequests);
     }
 
+    [Fact]
+    public async Task Roles_NewDraftSendsOnlyListedPermissionKeys()
+    {
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
+        data.Overview = workspace => Task.FromResult(new RbacOverviewLoad(
+            new(workspace, workspace, [], [new("view-public", "View public"), new("comment", "Comment")], [], 3, 0, 0, true), []));
+        Navigate(context, "first");
+        var page = context.Render<OperateAccessRolesPage>();
+        OpenDraft(page, "Field crew");
+
+        Assert.True(page.FindAll("[data-rbac-create-form] .rbac-create-grants input")[0].HasAttribute("checked"));
+        await page.Find("[data-rbac-create-form]").SubmitAsync();
+
+        Assert.Equal(new[] { "view-public" }, data.CreatedGrants);
+    }
+
     private static void OpenDraft(IRenderedComponent<OperateAccessRolesPage> page, string name)
     {
         page.Find("[data-rbac-custom-role]").Click();
@@ -236,7 +253,13 @@ public sealed class OperateAccessLifecycleTests
 
         public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) => Membership(workspaceId);
         public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) => Audit(workspaceId);
-        public Task<RbacRoleMutationResult> CreateRoleAsync(string workspaceId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) => Create();
+        public IReadOnlyList<string> CreatedGrants { get; private set; } = [];
+
+        public Task<RbacRoleMutationResult> CreateRoleAsync(string workspaceId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default)
+        {
+            CreatedGrants = grantedPermissionKeys;
+            return Create();
+        }
 
         public Task<RbacRoleMutationResult> DeleteRoleAsync(string workspaceId, string roleId, CancellationToken cancellationToken = default)
         {
