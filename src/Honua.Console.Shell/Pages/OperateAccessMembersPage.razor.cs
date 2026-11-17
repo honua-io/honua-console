@@ -32,16 +32,20 @@ public partial class OperateAccessMembersPage
     private void OnInviteEdit() =>
         _inviteValidation.SetClientErrors(RbacInviteValidator.Instance.Evaluate(BuildInviteState()));
 
-    [SupplyParameterFromQuery(Name = "workspace")]
-    private string? Workspace { get; set; }
+    [SupplyParameterFromQuery(Name = "environment")]
+    private string? Environment { get; set; }
 
-    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+    private string EnvironmentId => string.IsNullOrWhiteSpace(Environment) ? "current" : Environment!;
 
     private RbacRoleView? SelectedRole =>
         _overview?.Roles.FirstOrDefault(role => string.Equals(role.Id, _inviteRoleId, StringComparison.Ordinal))
         ?? _overview?.Roles.FirstOrDefault();
 
-    private string? _workspaceId;
+    private string AccessHref(string path) => string.IsNullOrWhiteSpace(Environment)
+        ? path
+        : $"{path}?environment={Uri.EscapeDataString(Environment!)}";
+
+    private string? _environmentId;
     private int _generation;
     private bool _disposed;
 
@@ -49,18 +53,18 @@ public partial class OperateAccessMembersPage
 
     protected override async Task OnParametersSetAsync()
     {
-        if (string.Equals(_workspaceId, WorkspaceId, StringComparison.Ordinal)) return;
-        _workspaceId = WorkspaceId;
+        if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
+        _environmentId = EnvironmentId;
         var generation = ++_generation;
-        var workspace = _workspaceId;
-        ResetWorkspace();
-        var load = await RbacData.LoadMembershipAsync(workspace);
+        var environment = _environmentId;
+        ResetEnvironment();
+        var load = await RbacData.LoadMembershipAsync(environment);
         if (!IsCurrent(generation)) return;
         _membership = load.Membership;
         _bindingState = load.CapabilityStates.FirstOrDefault();
         if (load.HasMembership)
         {
-            var overviewLoad = await RbacData.LoadOverviewAsync(workspace);
+            var overviewLoad = await RbacData.LoadOverviewAsync(environment);
             if (!IsCurrent(generation)) return;
             _overview = overviewLoad.Overview;
             _inviteRoleId = _overview?.Roles.FirstOrDefault()?.Id;
@@ -68,7 +72,7 @@ public partial class OperateAccessMembersPage
         _loading = false;
     }
 
-    private void ResetWorkspace()
+    private void ResetEnvironment()
     {
         _loading = true;
         _bindingState = null;

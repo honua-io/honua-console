@@ -5,7 +5,7 @@ namespace Honua.Console.Shell.Models;
 // Console-side projections of the honua-server Console metadata/RBAC surface (honua-server#1162), scoped
 // to the authenticated Settings > Access screens (RBAC overview + team members). These are immutable view
 // records the Access pages render; they carry no local RBAC state and never fabricate role/member data —
-// when the server is unbound, the workspace is missing, or a read is rejected, the surface renders a
+// when the server is unbound, the environment is missing, or a read is rejected, the surface renders a
 // capability state instead (Console Patterns Charter section 11).
 
 public sealed record RbacCapabilityState(
@@ -48,8 +48,8 @@ public sealed record RbacRoleView(
 }
 
 public sealed record RbacOverviewView(
-    string WorkspaceId,
-    string? WorkspaceName,
+    string EnvironmentId,
+    string? EnvironmentName,
     IReadOnlyList<RbacScopeView> Scopes,
     IReadOnlyList<RbacPermissionView> Permissions,
     IReadOnlyList<RbacRoleView> Roles,
@@ -58,7 +58,7 @@ public sealed record RbacOverviewView(
     int MembersAffected,
     bool CanManageRoles)
 {
-    public string DisplayWorkspace => string.IsNullOrWhiteSpace(WorkspaceName) ? WorkspaceId : WorkspaceName!;
+    public string DisplayEnvironment => string.IsNullOrWhiteSpace(EnvironmentName) ? EnvironmentId : EnvironmentName!;
 }
 
 public sealed record RbacOverviewLoad(
@@ -112,8 +112,8 @@ public sealed record TeamInvitationView(
     string? Status);
 
 public sealed record TeamMembershipView(
-    string WorkspaceId,
-    string? WorkspaceName,
+    string EnvironmentId,
+    string? EnvironmentName,
     IReadOnlyList<TeamMemberView> Members,
     IReadOnlyList<TeamInvitationView> Invitations,
     int ActiveCount,
@@ -121,7 +121,7 @@ public sealed record TeamMembershipView(
     int DeactivatedCount,
     bool CanInvite)
 {
-    public string DisplayWorkspace => string.IsNullOrWhiteSpace(WorkspaceName) ? WorkspaceId : WorkspaceName!;
+    public string DisplayEnvironment => string.IsNullOrWhiteSpace(EnvironmentName) ? EnvironmentId : EnvironmentName!;
 }
 
 public sealed record TeamMembershipLoad(
@@ -156,8 +156,8 @@ public static class RbacAccessMapper
         ArgumentNullException.ThrowIfNull(overview);
 
         return new RbacOverviewView(
-            WorkspaceId: overview.WorkspaceId,
-            WorkspaceName: overview.WorkspaceName,
+            EnvironmentId: overview.EnvironmentId,
+            EnvironmentName: overview.EnvironmentName,
             Scopes: (overview.Scopes ?? [])
                 .Select(scope => new RbacScopeView(scope.Level, scope.Label, scope.Description))
                 .ToArray(),
@@ -185,8 +185,8 @@ public static class RbacAccessMapper
         ArgumentNullException.ThrowIfNull(membership);
 
         return new TeamMembershipView(
-            WorkspaceId: membership.WorkspaceId,
-            WorkspaceName: membership.WorkspaceName,
+            EnvironmentId: membership.EnvironmentId,
+            EnvironmentName: membership.EnvironmentName,
             Members: (membership.Members ?? [])
                 .Select(member => new TeamMemberView(
                     member.Id,
