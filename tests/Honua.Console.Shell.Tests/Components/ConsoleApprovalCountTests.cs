@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.Shell.Tests.Components;
 
-public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
+public sealed partial class ConsoleApprovalCountTests : ConsoleComponentTestBase
 {
     [Fact]
     public async Task ReplayReset_ReconcilesCountWithoutAProposalEvent()
@@ -57,8 +57,7 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
 
         await Assert.ThrowsAsync<IOException>(() => component.InvokeAsync(realtime.ResetAsync));
 
-        if (partial) Assert.Equal("1+", component.Find("[data-count]").TextContent);
-        else Assert.Empty(component.FindAll("[data-count]"));
+        Assert.Empty(component.FindAll("[data-count]"));
         inbox.Read = _ => Task.FromResult(Count(0));
         await component.InvokeAsync(realtime.ResetAsync);
         Assert.Equal("0", component.Find("[data-count]").TextContent);
@@ -324,9 +323,17 @@ public sealed class ConsoleApprovalCountTests : ConsoleComponentTestBase
         }
     }
 
-    private sealed class Realtime : IConsoleProposalRealtimeClient, IConsoleRealtimeRefreshClient
+    private sealed class Realtime : IConsoleProposalRealtimeClient, IConsoleRealtimeRefreshClient, IConsoleRealtimeCapabilityClient
     {
-        public bool IsConnected => true;
+        public ConsoleRealtimeConnectionState ConnectionState { get; private set; } = ConsoleRealtimeConnectionState.Connected;
+        public bool IsConnected => ConnectionState == ConsoleRealtimeConnectionState.Connected;
+        public bool IsFallbackEngaged => ConnectionState == ConsoleRealtimeConnectionState.FallbackEngaged;
+        public event Action<ConsoleRealtimeConnectionState>? ConnectionStateChanged;
+        public void ChangeConnection(ConsoleRealtimeConnectionState state)
+        {
+            ConnectionState = state;
+            ConnectionStateChanged?.Invoke(state);
+        }
         public int RefreshSubscribers => RefreshRequired?.GetInvocationList().Length ?? 0;
         public event Action<ConsoleProposalEvent>? ProposalChanged { add { } remove { } }
         public event Func<Task>? RefreshRequired;
