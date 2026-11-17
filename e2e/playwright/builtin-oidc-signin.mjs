@@ -49,14 +49,7 @@ async function startFixture(kind, v4) {
     process.env.HONUA_CONSOLE_STATIC_ROOT ?? 'artifacts/static-publish/wwwroot/console', 0, {
       configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: v4 },
       handleApi: async (request, response) => {
-        const pathname = new URL(request.url, 'http://localhost').pathname;
-        requests.push(`${request.method} ${pathname}`);
-        // A password-only server still answers the anonymous provider list, with no providers.
-        if (kind === 'password' && pathname === '/api/v1/admin/auth/config') {
-          response.writeHead(200, { 'Content-Type': 'application/json' })
-            .end(JSON.stringify({ oidcEnabled: false, providers: [] }));
-          return;
-        }
+        requests.push(`${request.method} ${new URL(request.url, 'http://localhost').pathname}`);
         await api(request, response);
       },
     });
