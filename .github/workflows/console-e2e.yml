@@ -16,17 +16,24 @@ on:
       - trunk
       - main
   pull_request:
+  workflow_dispatch:
+    inputs:
+      stack_url:
+        description: 'Installed honua-gate HTTP(S) origin or /console/ root'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: console-e2e-${{ github.workflow }}-${{ github.ref }}
+  group: console-e2e-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   e2e-smoke:
     name: Playwright smoke
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04
     # Allow bounded browser/OS provisioning without consuming every product gate.
     timeout-minutes: 20
@@ -132,3 +139,37 @@ jobs:
           name: console-e2e-playwright-report
           path: e2e/playwright/playwright-report/
           if-no-files-found: ignore
+
+  gate-smoke:
+    name: Installed gate navigation
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20.x
+      - run: npm ci
+        working-directory: e2e/playwright
+      - run: node --test gate/stack-url.test.mjs
+        working-directory: e2e/playwright
+      - run: npx --no-install playwright install --with-deps chromium
+        working-directory: e2e/playwright
+      - name: Run against installed stack with existing human session
+        working-directory: e2e/playwright
+        env:
+          HONUA_GATE_STACK_URL: ${{ inputs.stack_url }}
+          OPERATOR_STATE_JSON: ${{ secrets.HONUA_GATE_OPERATOR_STATE_JSON }}
+          HONUA_WORKSPACE_E2E_OPERATOR_STATE: ${{ runner.temp }}/console-gate-operator.json
+        run: |
+          umask 077
+          trap 'rm -f "$HONUA_WORKSPACE_E2E_OPERATOR_STATE"' EXIT
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            if (!process.env.OPERATOR_STATE_JSON) throw new Error("Configure HONUA_GATE_OPERATOR_STATE_JSON with an existing human session for this stack.");
+            JSON.parse(process.env.OPERATOR_STATE_JSON);
+            writeFileSync(process.env.HONUA_WORKSPACE_E2E_OPERATOR_STATE, process.env.OPERATOR_STATE_JSON, { mode: 0o600 });
+          '
+          unset OPERATOR_STATE_JSON
+          npm run e2e:gate

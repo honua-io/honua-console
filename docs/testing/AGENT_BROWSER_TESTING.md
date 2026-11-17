@@ -95,3 +95,31 @@ identified as such and cannot be recorded as a live release pass.
   adding credentials to the bundle.
 - **Legacy smoke passes but the candidate fails:** reproduce against the deployed
   WASM artifact; the legacy fixture has a different host and authentication path.
+
+### Installed gate navigation smoke
+
+The **Console E2E** workflow accepts a manual `stack_url` input (HTTP(S) stack
+origin or `/console/` root). Manual dispatch runs only the installed navigation
+smoke, at 1280x900 and 390x844. The ordinary push/PR jobs remain backend-free
+regressions; their compact-navigation coverage was repaired in #814.
+
+Configure `HONUA_GATE_OPERATOR_STATE_JSON` with Playwright storage state from an
+existing authorized human session for that stack before dispatching. A missing
+session fails the run. The workflow writes it to a private temporary file and
+removes it on exit. It never uploads storage, traces, videos or screenshots.
+
+For a verification lane holding its session locally:
+
+```bash
+cd e2e/playwright
+HONUA_GATE_STACK_URL=https://example.test \
+HONUA_WORKSPACE_E2E_OPERATOR_STATE=/private/operator-state.json \
+npm run e2e:gate
+```
+
+This consumes the installed shipping bundle without local servers, mocked APIs,
+admin keys or automated login. It checks responsive keyboard navigation and
+route headings for Services and Health, plus page errors and horizontal overflow.
+Record the stack's installed identities with the result. A navigation pass does
+not establish Studio approval handoff, native AI completion or a release gate
+pass; those journeys still require their own live evidence.

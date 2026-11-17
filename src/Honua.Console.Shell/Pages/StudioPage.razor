@@ -98,6 +98,9 @@ else
 
     private IDisposable? _navigationGuard;
     private IJSObjectReference? _styleNavigation;
+    private Task<IJSObjectReference?>? _styleNavigationImport;
+    private bool _disposed;
+    private readonly CancellationTokenSource _lifetime = new();
     protected override void OnInitialized()
     {
         _navigationGuard = Navigation.RegisterLocationChangingHandler(CheckStyleNavigationAsync);
@@ -106,26 +109,50 @@ else
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
     private async ValueTask CheckStyleNavigationAsync(LocationChangingContext context)
     {
-        if (!EmbedEnabled || IsRetiredRoute) return;
+        if (_disposed || !EmbedEnabled || IsRetiredRoute || context.CancellationToken.IsCancellationRequested) return;
+        using var attempt = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, _lifetime.Token);
+        var import = _styleNavigationImport ??= ImportStyleNavigationAsync();
         try
         {
-            _styleNavigation ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/style-navigation.mjs");
-            if (!await _styleNavigation.InvokeAsync<bool>("mayLeaveCurrentStyleEditor")) context.PreventNavigation();
+            var module = await import.WaitAsync(attempt.Token);
+            context.CancellationToken.ThrowIfCancellationRequested();
+            if (module is null || _disposed) return;
+            var allowed = await module.InvokeAsync<bool>("mayLeaveCurrentStyleEditor", attempt.Token);
+            context.CancellationToken.ThrowIfCancellationRequested();
+            if (!allowed && !_disposed) context.PreventNavigation();
         }
-        catch (Exception exception) when (exception is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
         {
-            context.PreventNavigation();
+            if ((import.IsFaulted || import.IsCanceled) && ReferenceEquals(import, _styleNavigationImport)) _styleNavigationImport = null;
+            context.CancellationToken.ThrowIfCancellationRequested();
+            if (!_disposed) context.PreventNavigation();
         }
+    }
+    private async Task<IJSObjectReference?> ImportStyleNavigationAsync()
+    {
+        var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/style-navigation.mjs");
+        if (_disposed)
+        {
+            await ReleaseStyleNavigationAsync(module);
+            return null;
+        }
+        _styleNavigation = module;
+        return module;
+    }
+    private static async ValueTask ReleaseStyleNavigationAsync(IJSObjectReference module)
+    {
+        try { await module.DisposeAsync(); }
+        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException) { }
     }
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
+        _disposed = true;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
         Navigation.LocationChanged -= OnLocationChanged;
         _navigationGuard?.Dispose();
-        if (_styleNavigation is not null)
-        {
-            try { await _styleNavigation.DisposeAsync(); }
-            catch (Exception exception) when (exception is JSException or InvalidOperationException or TaskCanceledException) { }
-        }
+        if (_styleNavigation is not null) await ReleaseStyleNavigationAsync(_styleNavigation);
     }
     [Parameter] public string? ItemId { get; set; }
     private bool V4Enabled => WorkspaceServices.GetService<ConsoleV4Options>()?.Enabled == true;

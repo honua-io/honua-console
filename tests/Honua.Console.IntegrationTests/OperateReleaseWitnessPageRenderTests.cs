@@ -140,13 +140,105 @@ public sealed class OperateReleaseWitnessPageRenderTests
         await context.DisposeComponentsAsync();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnexpectedReadFailureDoesNotInventEvidenceOrExposeExceptionDetails(bool enabled)
+    {
+        using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<IConsoleReleaseWitnessClient>(new WitnessClient(
+            Task.FromException<OperateSectionResult<ConsoleReleaseWitnessEvidence>>(new InvalidOperationException("private profile diagnostic"))));
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(CompleteQuery);
+
+        var page = context.Render<OperateReleaseWitnessPage>();
+
+        Assert.Contains("Publication evidence could not be read", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("private profile diagnostic", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-release-witness], [data-release-public-link]"));
+        Assert.DoesNotContain("Loading...", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EarlierReadFailureCannotReplaceCurrentVerifiedEvidence(bool enabled)
+    {
+        using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        var client = new QueuedWitnessClient();
+        context.Services.AddSingleton<IConsoleReleaseWitnessClient>(client);
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(CompleteQuery);
+        var page = context.Render<OperateReleaseWitnessPage>();
+
+        await page.InvokeAsync(() => navigation.NavigateTo(CompleteQuery.Replace("one", "two", StringComparison.Ordinal)));
+        page.WaitForAssertion(() => Assert.Equal(2, client.Responses.Count));
+        Assert.True(client.Tokens[0].IsCancellationRequested);
+        Assert.False(client.Tokens[1].IsCancellationRequested);
+        var current = Evidence with { ItemId = "item-two", ProposalId = "proposal-two" };
+        await page.InvokeAsync(() => client.Responses[1].SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(current)));
+        page.WaitForAssertion(() => Assert.Equal("item-two", page.Find("[data-release-witness]").GetAttribute("data-item-id")));
+        var renderCount = page.RenderCount;
+
+        await page.InvokeAsync(() => client.Responses[0].SetException(new InvalidOperationException("old private diagnostic")));
+
+        page.WaitForState(() => page.RenderCount > renderCount);
+        Assert.Equal("item-two", page.Find("[data-release-witness]").GetAttribute("data-item-id"));
+        Assert.DoesNotContain("could not be read", page.Markup, StringComparison.Ordinal);
+        Assert.False(context.Renderer.UnhandledException.IsCompleted);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LeavingPublicationEvidenceCancelsReadAndContainsLateFailure(bool enabled)
+    {
+        using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        var client = new QueuedWitnessClient();
+        context.Services.AddSingleton<IConsoleReleaseWitnessClient>(client);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(CompleteQuery);
+        var page = context.Render<OperateReleaseWitnessPage>();
+
+        await context.DisposeComponentsAsync();
+
+        Assert.True(Assert.Single(client.Tokens).IsCancellationRequested);
+        client.Responses[0].SetException(new OperationCanceledException(client.Tokens[0]));
+        await context.Renderer.Dispatcher.InvokeAsync(() => Task.CompletedTask);
+        Assert.False(context.Renderer.UnhandledException.IsCompleted);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IncompleteNavigationCancelsPriorReadAndRetainsIncompleteQueryState(bool enabled)
+    {
+        using var context = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        var client = new QueuedWitnessClient();
+        context.Services.AddSingleton<IConsoleReleaseWitnessClient>(client);
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(CompleteQuery);
+        var page = context.Render<OperateReleaseWitnessPage>();
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/operate/release-witness?family=map"));
+
+        Assert.True(Assert.Single(client.Tokens).IsCancellationRequested);
+        Assert.Single(client.Responses);
+        Assert.Contains("requires a complete sealed candidate query", page.Markup, StringComparison.Ordinal);
+        var renderCount = page.RenderCount;
+        await page.InvokeAsync(() => client.Responses[0].SetResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(Evidence)));
+        page.WaitForState(() => page.RenderCount > renderCount);
+        Assert.Contains("requires a complete sealed candidate query", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-release-witness], [data-release-public-link]"));
+    }
+
     private sealed class QueuedWitnessClient : IConsoleReleaseWitnessClient
     {
         public List<TaskCompletionSource<OperateSectionResult<ConsoleReleaseWitnessEvidence>>> Responses { get; } = [];
+        public List<CancellationToken> Tokens { get; } = [];
         public Task<OperateSectionResult<ConsoleReleaseWitnessEvidence>> ObserveAsync(ConsoleReleaseWitnessRequest request, CancellationToken cancellationToken = default)
         {
             var response = new TaskCompletionSource<OperateSectionResult<ConsoleReleaseWitnessEvidence>>(TaskCreationOptions.RunContinuationsAsynchronously);
             Responses.Add(response);
+            Tokens.Add(cancellationToken);
             return response.Task;
         }
     }

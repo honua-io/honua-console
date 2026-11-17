@@ -1,4 +1,5 @@
 @page "/operate/publishing/quick"
+@implements IDisposable
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @using Honua.Console.Shell.Components.Operate
@@ -217,6 +218,7 @@
 
     private bool _interactive;
     private bool _busy;
+    private bool _disposed;
     private bool _requiresCatalogRead;
     private ServiceLayerPublishCommand? _unverifiedCommand;
     private int _publishAttempt;
@@ -298,7 +300,7 @@
 
     private async Task PublishAsync()
     {
-        if (_busy || _requiresCatalogRead) return;
+        if (_disposed || _busy || _requiresCatalogRead) return;
         _clientError = Validate();
         if (_clientError is not null) return;
 
@@ -326,6 +328,7 @@
             async () =>
             {
                 var target = await ConsolePublishAuthority.CaptureAsync(Services, command.FolderId, folderAuthority);
+                if (_disposed) return;
                 if (target.Error is { } error)
                 {
                     _clientError = error;
@@ -333,12 +336,15 @@
                 }
                 command = command with { AuthorityBinding = target.Binding };
                 _result = await PublishOperation.PublishAsync(command);
+                if (_disposed) return;
                 _requiresCatalogRead = _result.State == ConsoleWriteOutcome.UnverifiedState;
                 _unverifiedCommand = _requiresCatalogRead ? command : null;
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: busy => { if (_disposed) return; _busy = busy; StateHasChanged(); },
             failureMessage: "Couldn't publish layer");
     }
+
+    public void Dispose() => _disposed = true;
 
     private string? Validate()
     {

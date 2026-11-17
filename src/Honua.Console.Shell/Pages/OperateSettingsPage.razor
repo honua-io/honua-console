@@ -1,4 +1,5 @@
 @page "/operate/settings"
+@implements IDisposable
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
@@ -21,7 +22,12 @@
     }
     <OperateCapabilityStateList States="@_states" />
 
-    @if (_settingsChanges.Count == 0 && _states.Count == 0)
+    <ConsoleConnectionNotice Heading="Could not read settings" Error="@_loadError" Busy="@_loading" OnRetry="LoadAsync" />
+    @if (_loading)
+    {
+        <p role="status">Reading settings…</p>
+    }
+    else if (_loadError is null && _settingsChanges.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="runtime settings" />
     }
@@ -74,10 +80,40 @@
     private IReadOnlyList<OperateSettingsChange> _settingsChanges = Array.Empty<OperateSettingsChange>();
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
 
-    protected override async Task OnInitializedAsync()
+    private readonly CancellationTokenSource _lifetime = new();
+    private bool _disposed;
+    private bool _loading;
+    private string? _loadError;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
-        var view = await OperateData.GetSettingsViewAsync();
-        _settingsChanges = view.SettingsChanges;
-        _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Settings");
+        if (_loading || _disposed) return;
+        _loading = true;
+        try
+        {
+            var view = await OperateData.GetSettingsViewAsync(_lifetime.Token);
+            if (_disposed) return;
+            _settingsChanges = view.SettingsChanges;
+            _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Settings");
+            _loadError = null;
+        }
+        catch (Exception) when (_disposed) { }
+        catch (Exception)
+        {
+            _loadError = "The settings request did not complete. Retry to read the current configuration.";
+        }
+        finally
+        {
+            if (!_disposed) _loading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
     }
 }
