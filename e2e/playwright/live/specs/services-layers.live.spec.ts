@@ -26,15 +26,16 @@ const LAYER_NAME = 'E2E Source';
 async function openProtocolEditor(page: Page): Promise<void> {
   await expect(page.getByRole('group', { name: 'Service controls' })).toBeEnabled({ timeout: 30_000 });
   const protocolsTab = page.locator('#service-protocols-tab');
-  if (await protocolsTab.count() === 0) {
-    await expect(page.locator('[data-service-config]')).toBeVisible();
-    return;
-  }
+  // The layout can still swap after the controls enable, so decide again on every attempt.
   await expect(async () => {
+    if (await protocolsTab.count() === 0) {
+      await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 2_000 });
+      return;
+    }
     await protocolsTab.click({ timeout: 2_000 });
     await expect(protocolsTab).toHaveAttribute('aria-selected', 'true', { timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
-  await expect(page.locator('[data-save-protocols]')).toBeVisible();
+    await expect(page.locator('[data-save-protocols]')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 test.describe('Operate · Publish layer workflow (live)', () => {
