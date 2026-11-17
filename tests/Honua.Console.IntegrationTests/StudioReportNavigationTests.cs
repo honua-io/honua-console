@@ -17,7 +17,7 @@ public sealed class StudioReportNavigationTests
     {
         using var view = new ReportView(presentation);
         await view.Complete("a");
-        view.Navigate("b");
+        await view.Navigate("b");
         await view.Complete("b");
         view.AssertPublication("b");
         Assert.Equal(new[] { "a", "b" }, view.Data.Requests);
@@ -30,7 +30,7 @@ public sealed class StudioReportNavigationTests
     {
         using var view = new ReportView(presentation);
         await view.Complete("a");
-        view.Navigate("b");
+        await view.Navigate("b");
         Assert.Empty(view.Page.FindAll("[data-report-publication]"));
         Assert.Contains("Loading report publication", view.Page.Markup, StringComparison.Ordinal);
         await view.Complete("b");
@@ -42,7 +42,7 @@ public sealed class StudioReportNavigationTests
     public async Task OldReadCannotReplaceNewPublication(ConsolePresentationMode presentation)
     {
         using var view = new ReportView(presentation);
-        view.Navigate("b");
+        await view.Navigate("b");
         await view.Complete("b");
         await view.Complete("a");
         view.AssertPublication("b");
@@ -54,7 +54,7 @@ public sealed class StudioReportNavigationTests
     public async Task OldReadCannotReleaseNewLoadingState(ConsolePresentationMode presentation)
     {
         using var view = new ReportView(presentation);
-        view.Navigate("b");
+        await view.Navigate("b");
         await view.Complete("a");
         Assert.Contains("Loading report publication", view.Page.Markup, StringComparison.Ordinal);
         Assert.True(view.Page.Find("button").HasAttribute("disabled"));
@@ -68,7 +68,7 @@ public sealed class StudioReportNavigationTests
     public async Task ClearingQueryInvalidatesPendingRead(ConsolePresentationMode presentation)
     {
         using var view = new ReportView(presentation);
-        view.Navigate(null);
+        await view.Navigate(null);
         await view.Complete("a");
         Assert.Empty(view.Page.FindAll("[data-report-publication], [data-report-builder]"));
         Assert.DoesNotContain("Loading report publication", view.Page.Markup, StringComparison.Ordinal);
@@ -82,8 +82,8 @@ public sealed class StudioReportNavigationTests
     public async Task ReturningToPublicationUsesNewVisit(ConsolePresentationMode presentation)
     {
         using var view = new ReportView(presentation);
-        view.Navigate("b");
-        view.Navigate("a");
+        await view.Navigate("b");
+        await view.Navigate("a");
         await view.Complete("a", "Return visit", 1);
         await view.Complete("b");
         await view.Complete("a", "Original visit");
@@ -98,7 +98,7 @@ public sealed class StudioReportNavigationTests
     public async Task OldMissingBindingCannotHideCurrentPublication(ConsolePresentationMode presentation)
     {
         using var view = new ReportView(presentation);
-        view.Navigate("b");
+        await view.Navigate("b");
         await view.Complete("b");
         await view.CompleteMissing("a");
         view.AssertPublication("b");
@@ -113,7 +113,7 @@ public sealed class StudioReportNavigationTests
         using var view = new ReportView(presentation);
         await view.CompleteMissing("a");
         Assert.Contains("Report publication registry is not bound", view.Page.Markup, StringComparison.Ordinal);
-        view.Navigate("b");
+        await view.Navigate("b");
         await view.Complete("b");
         view.AssertPublication("b");
     }
@@ -127,7 +127,7 @@ public sealed class StudioReportNavigationTests
         await view.Complete("a");
         view.Button("New report").Click();
         view.Page.Find(".studio-report-name").Input("Local draft");
-        view.Navigate("a", "unrelated");
+        await view.Navigate("a", "unrelated");
         Assert.Equal("Local draft", view.Page.Find(".studio-report-name").GetAttribute("value"));
         Assert.Single(view.Data.Requests);
         Assert.True(view.Page.FindComponent<Honua.Console.Shell.Components.UnsavedChangesGuard>().Instance.IsDirty);
@@ -136,10 +136,10 @@ public sealed class StudioReportNavigationTests
     [Theory]
     [InlineData(ConsolePresentationMode.Legacy)]
     [InlineData(ConsolePresentationMode.V4)]
-    public void SameQueryDoesNotDuplicatePendingRead(ConsolePresentationMode presentation)
+    public async Task SameQueryDoesNotDuplicatePendingRead(ConsolePresentationMode presentation)
     {
         using var view = new ReportView(presentation);
-        view.Navigate("a", "unrelated");
+        await view.Navigate("a", "unrelated");
         Assert.Single(view.Data.Requests);
     }
 
@@ -155,7 +155,7 @@ public sealed class StudioReportNavigationTests
         view.Button("Edit / republish").Click();
         var command = view.Button("Update policy").ClickAsync(new MouseEventArgs());
         Assert.Equal("a", view.Data.PolicyTarget);
-        view.Navigate("b");
+        await view.Navigate("b");
         if (order == CommandOrder.ReadFirst)
         {
             await view.Complete("b");
@@ -193,11 +193,14 @@ public sealed class StudioReportNavigationTests
             _context.JSInterop.Mode = JSRuntimeMode.Loose;
             _context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
             _context.Services.AddSingleton<IStudioReportPublicationDataSource>(Data);
-            Navigate("a");
+            NavigateCore("a", null);
             Page = _context.Render<StudioReportBuilderPage>();
         }
 
-        public void Navigate(string? id, string? marker = null)
+        public Task Navigate(string? id, string? marker = null) =>
+            Page.InvokeAsync(() => NavigateCore(id, marker));
+
+        private void NavigateCore(string? id, string? marker)
         {
             var navigation = _context.Services.GetRequiredService<NavigationManager>();
             var uri = navigation.GetUriWithQueryParameter("publicationId", id);
