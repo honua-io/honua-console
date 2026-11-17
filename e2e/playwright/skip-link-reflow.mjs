@@ -43,14 +43,15 @@ try {
         const hidden = await link.evaluate(element => element.getBoundingClientRect().bottom <= 0);
         await link.focus();
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        const focused = await link.evaluate(element => {
+        const visibleFocus = element => {
           const r = element.getBoundingClientRect();
           return document.activeElement === element
             && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === element
             && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
-        });
+        };
+        const focused = await link.evaluate(visibleFocus);
         await page.screenshot({ path: path.join(output, `${v4}-${width}-${mode}.png`) });
-        assert.equal(await link.evaluate(element => document.activeElement === element), true, 'skip link retains focus during capture');
+        assert.equal(await link.evaluate(visibleFocus), true, 'skip link remains visibly focused after capture');
         await page.keyboard.press('Enter');
         const targetsMain = await page.evaluate(() => document.activeElement?.id === 'console-main');
         const hiddenAfterActivation = await link.evaluate(element => element.getBoundingClientRect().bottom <= 0);
