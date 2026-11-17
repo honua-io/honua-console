@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 // literal list on changed lines; this guard keeps the whole Console source free of the
 // phrases below.
 const RULES = [
+  { id: "discovery-environment", expression: /\b(?:WorkspaceId|WorkspaceName|DisplayWorkspace|workspaceId|workspaceName)\b|Name="workspace"|\["workspace"\]/u, use: "Environment and environment query", path: /(?:CatalogDiscovery[^/]*|CatalogsListPage|CatalogsEndpointDetailPage|CatalogItemEditorPage)\.(?:cs|razor)$/u },
   { id: "access-environment", expression: /\b(?:WorkspaceId|WorkspaceName|DisplayWorkspace|workspaceId|workspaceName)\b|Name="workspace"|\b(?:Publication|ResourceField) = "(?:publication|resource-field)"/u, use: "Environment, Layer, and Dataset field", path: /(?:RbacAccess[^/]*|[^/]*RbacAccessDataSource|OperateAccess[^/]*)\.(?:cs|razor)$/u },
   { id: "content-item", expression: /\bcontent items?\b/iu, use: "the actual kind (map, app, workflow) or item" },
   { id: "serving-target", expression: /\bserving targets?\b/iu, use: "Layer" },
@@ -112,5 +113,15 @@ test("Access uses canonical ownership and scopes while collaboration keeps Works
   for (const text of ["public string EnvironmentId", 'public const string Layer = "layer";', 'public const string DatasetField = "dataset-field";']) {
     assert.deepEqual(findRetiredVocabulary(path, text), [], text);
   }
+  assert.deepEqual(findRetiredVocabulary("src/Honua.Console.Contracts/AgentWorkspaceShims.cs", "public string WorkspaceId"), []);
+});
+
+
+test("Catalog discovery uses Environment while collaboration keeps Workspace", () => {
+  const path = "src/Honua.Console.Contracts/CatalogDiscoveryShims.cs";
+  for (const text of ["public string WorkspaceId", '[JsonPropertyName("workspaceName")]', 'Name="workspace"']) {
+    assert.notDeepEqual(findRetiredVocabulary(path, text), [], text);
+  }
+  assert.deepEqual(findRetiredVocabulary(path, "public string EnvironmentId"), []);
   assert.deepEqual(findRetiredVocabulary("src/Honua.Console.Contracts/AgentWorkspaceShims.cs", "public string WorkspaceId"), []);
 });
