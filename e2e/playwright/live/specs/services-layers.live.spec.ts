@@ -206,7 +206,13 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // The console map-proxy serves honua-server's MapLibre style WITHOUT the browser sending the admin key
     // (page.request has no X-API-Key), and rewrites the tile URLs back through the proxy. Proxy URLs are
     // pinned to the active environment; the configured-server seed profile is "local-dev".
-    const styleRes = await page.request.get(`/map-proxy/local-dev/styles/${layer.layerId}.json`);
+    // honua-server keys the style by publication id and links it from the layer's OGC collection;
+    // servers before 7 Nov used the numeric layer id.
+    const collection = await admin.getJson(`/ogc/features/collections/${layer.layerId}?f=json`);
+    const styleId = (collection.links ?? [])
+      .map((link: { href?: string }) => link.href?.match(/\/api\/styles\/([^/?#]+)\.json/)?.[1])
+      .find(Boolean) ?? String(layer.layerId);
+    const styleRes = await page.request.get(`/map-proxy/local-dev/styles/${styleId}.json`);
     expect(styleRes.ok(), `proxy style -> ${styleRes.status()}`).toBeTruthy();
     const style = await styleRes.json();
     expect(style.version, 'a MapLibre v8 style').toBe(8);
