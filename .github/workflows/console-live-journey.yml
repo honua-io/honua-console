@@ -232,11 +232,11 @@ jobs:
           mkdir -p e2e/playwright/live-auth/certs artifacts/studio-customer
           bash e2e/playwright/live-auth/gen-certs.sh
           sudo chown 1000:0 e2e/playwright/live-auth/certs/kc.key
-          sudo chmod 640 e2e/playwright/live-auth/certs/kc.key
+          sudo chmod 644 e2e/playwright/live-auth/certs/kc.key
           if [ "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE" != honua-console-legacy-fixture:customer-pr ]; then
             docker pull "$HONUA_CONSOLE_E2E_CONSOLE_IMAGE"
           fi
-          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml ${HONUA_CONSOLE_E2E_PROBE_OVERLAY:+-f "$HONUA_CONSOLE_E2E_PROBE_OVERLAY"} up -d --wait --wait-timeout 300
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml -f e2e/docker-compose.server-tls.yml ${HONUA_CONSOLE_E2E_PROBE_OVERLAY:+-f "$HONUA_CONSOLE_E2E_PROBE_OVERLAY"} up -d --wait --wait-timeout 300
           for attempt in {1..60}; do
             if curl --fail --silent http://127.0.0.1:5274/version.json > /dev/null; then break; fi
             sleep 2
@@ -257,10 +257,10 @@ jobs:
         if: always()
         run: |
           mkdir -p artifacts/studio-customer
-          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml ${HONUA_CONSOLE_E2E_PROBE_OVERLAY:+-f "$HONUA_CONSOLE_E2E_PROBE_OVERLAY"} logs --no-color > artifacts/studio-customer/containers.log
+          docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml -f e2e/docker-compose.server-tls.yml ${HONUA_CONSOLE_E2E_PROBE_OVERLAY:+-f "$HONUA_CONSOLE_E2E_PROBE_OVERLAY"} logs --no-color > artifacts/studio-customer/containers.log
       - name: Stop isolated customer testbed
         if: always()
-        run: docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml ${HONUA_CONSOLE_E2E_PROBE_OVERLAY:+-f "$HONUA_CONSOLE_E2E_PROBE_OVERLAY"} down -v
+        run: docker compose -f e2e/docker-compose.yml -f e2e/docker-compose.auth.yml -f e2e/docker-compose.studio-customer.yml -f e2e/docker-compose.server-tls.yml ${HONUA_CONSOLE_E2E_PROBE_OVERLAY:+-f "$HONUA_CONSOLE_E2E_PROBE_OVERLAY"} down -v
       - name: Resolve the selected server revision
         id: agent-server
         if: ${{ always() && !cancelled() }}

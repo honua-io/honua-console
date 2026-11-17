@@ -268,6 +268,8 @@
         public string? OriginField { get; set; }
         public string? DestinationField { get; set; }
         public int? EsriRelationshipId { get; set; }
+        public string? Description { get; init; }
+        public bool? Composite { get; init; }
 
         public static RelationshipRow From(ConsoleLayerRelationship rel) => new()
         {
@@ -279,6 +281,8 @@
             OriginField = rel.OriginField,
             DestinationField = rel.DestinationField,
             EsriRelationshipId = rel.EsriRelationshipId,
+            Description = rel.Description,
+            Composite = rel.Composite,
         };
 
         public ConsoleLayerRelationship ToModel() => new()
@@ -291,6 +295,8 @@
             OriginField = OriginField,
             DestinationField = DestinationField,
             EsriRelationshipId = EsriRelationshipId,
+            Description = Description,
+            Composite = Composite,
         };
     }
 }

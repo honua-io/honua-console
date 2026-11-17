@@ -528,13 +528,15 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 };
             }
 
-            using var authorizeResponse = await partition.Client.PostAsJsonAsync(
-                ConsoleServerHttp.BuildUri(
-                    profile.ServerBaseUri,
-                    $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url"),
-                new ConsoleServerAuthAuthorizeRequestWire(),
-                ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthAuthorizeRequestWire,
-                cancellationToken).ConfigureAwait(false);
+            using var authorizeResponse = await new ConsoleServerSessionPost
+            {
+                Client = partition.Client,
+                ServerBaseUri = profile.ServerBaseUri,
+                RelativePath = $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url",
+                Content = JsonContent.Create(
+                    new ConsoleServerAuthAuthorizeRequestWire(),
+                    ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthAuthorizeRequestWire)
+            }.SendAsync(cancellationToken).ConfigureAwait(false);
             if (!authorizeResponse.IsSuccessStatusCode)
             {
                 authorizeResponse.Dispose();
@@ -626,18 +628,15 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
             var existing = snapshot is not null ? snapshot.Session
                 : await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-            using var tokenResponse = await partition.Client.PostAsJsonAsync(
-                ConsoleServerHttp.BuildUri(
-                    profile.ServerBaseUri,
-                    $"api/v1/admin/auth/providers/{Uri.EscapeDataString(pending.ProviderKey)}/token"),
-                new ConsoleServerAuthTokenRequestWire
-                {
-                    GrantType = "authorization_code",
-                    Code = code,
-                    State = state
-                },
-                ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthTokenRequestWire,
-                cancellationToken).ConfigureAwait(false);
+            using var tokenResponse = await new ConsoleServerSessionPost
+            {
+                Client = partition.Client,
+                ServerBaseUri = profile.ServerBaseUri,
+                RelativePath = $"api/v1/admin/auth/providers/{Uri.EscapeDataString(pending.ProviderKey)}/token",
+                Content = JsonContent.Create(
+                    new ConsoleServerAuthTokenRequestWire { GrantType = "authorization_code", Code = code, State = state },
+                    ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthTokenRequestWire)
+            }.SendAsync(cancellationToken).ConfigureAwait(false);
             if (!tokenResponse.IsSuccessStatusCode)
             {
                 return Denied("honua-server rejected the operator sign-in response.", pending.ReturnTo);
@@ -715,10 +714,12 @@ internal sealed class ConsoleServerSessionBffCoordinator
             {
                 try
                 {
-                    using var response = await partition.Client.PostAsync(
-                        ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/logout"),
-                        content: null,
-                        cancellationToken).ConfigureAwait(false);
+                    using var response = await new ConsoleServerSessionPost
+                    {
+                        Client = partition.Client,
+                        ServerBaseUri = profile.ServerBaseUri,
+                        RelativePath = "api/v1/admin/auth/logout"
+                    }.SendAsync(cancellationToken).ConfigureAwait(false);
                 }
                 catch (HttpRequestException)
                 {
@@ -1014,3 +1015,27 @@ internal sealed record ConsoleServerAuthTokenRequestWire
 [JsonSerializable(typeof(ConsoleServerAuthAuthorizeResponseWire))]
 [JsonSerializable(typeof(ConsoleServerAuthTokenRequestWire))]
 internal sealed partial class ConsoleServerSessionBffJsonContext : JsonSerializerContext;
+
+// A partition that already holds the server session cookie needs the server's CSRF token on
+// unsafe session requests (authorize-url, token, logout); without the cookie the token is harmless.
+internal sealed class ConsoleServerSessionPost
+{
+    public required HttpClient Client { get; init; }
+
+    public required Uri ServerBaseUri { get; init; }
+
+    public required string RelativePath { get; init; }
+
+    public HttpContent? Content { get; init; }
+
+    public async Task<HttpResponseMessage> SendAsync(CancellationToken cancellationToken)
+    {
+        var token = await ConsoleServerCsrf.TryGetTokenAsync(Client, ServerBaseUri, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Post, ConsoleServerHttp.BuildUri(ServerBaseUri, RelativePath))
+        {
+            Content = Content
+        };
+        ConsoleServerCsrf.AddToken(request, token);
+        return await Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+}

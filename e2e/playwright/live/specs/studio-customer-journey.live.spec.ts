@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { expect, test, request } from '@playwright/test';
+import { expect, test, request, type Page } from '@playwright/test';
+import { withLayerId } from '../layer-identity';
 import { sourceConnectionBody } from '../source-db';
 import { accessibility, createRecipe, customerIdentity, identity, observeHealth, observeLifecycle, paintedFeatures, read, scrollForMilestone, serverUrl, signIn, sourceFor, type Draft } from '../studio-customer';
 
@@ -11,6 +12,17 @@ import { captureMilestone } from '../../../../scripts/journey-gallery.mjs';
 // No seeded cookies, API-key customer mutations, route mocks, skips or UI-only success criteria.
 // A fresh compose database and fresh Keycloak realm are required for each invocation.
 const nonce = () => randomUUID().replaceAll('-', '').slice(0, 16);
+// A lon/lat CSV reports no coordinate system on current servers, and Import stays disabled until
+// the publisher names one; older servers never ask.
+async function chooseWgs84WhenUnidentified(page: Page) {
+  const detected = page.locator('[data-import-detected-system]');
+  const shown = await detected.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false);
+  if (!shown || !(await detected.textContent())?.includes('could not be identified')) return;
+  await page.getByLabel('Find source coordinate system', { exact: true }).fill('4326');
+  await page.getByRole('button', { name: 'Search coordinate systems' }).click();
+  await page.getByRole('combobox', { name: 'Source coordinate system', exact: true }).selectOption('4326');
+}
+
 const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
 
 test.beforeEach(async ({}, info) => {
@@ -60,6 +72,7 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
           // for that real change before replacing it with the customer's name.
           await expect(tableName).toHaveValue(file.replace(/\.[^.]+$/, '').replaceAll('-', '_'));
           await tableName.fill(table);
+          await chooseWgs84WhenUnidentified(page);
           await page.getByRole('button', { name: 'Import file', exact: true }).click();
           const importOutcome = page.getByRole('heading', { name: /^(File imported|Import failed)$/ });
           await expect(importOutcome).toBeVisible({ timeout: 90_000 });
@@ -136,7 +149,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
 
     for (const [index, item] of services.entries()) {
       await page.goto('/operate/layers');
-      const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
+      // The import store and the customer's source connection share this testbed's database, so
+      // the server lists the same layer under both connections.
+      const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`).first();
       await expect(row).toContainText(index === 0 ? /(?:Multi)?Polygon/i : /\bPoint\b/i);
       await scrollForMilestone(row);
       await captureMilestone(page, info, `00-published-${index}-layers-geometry`);
@@ -583,7 +598,7 @@ test('widget transport control: real recipe table and filter use the host sessio
         geometryColumn: 'geom', primaryKey: 'id', srid: 4326,
       } });
       expect(publication.status()).toBe(201);
-      layerId = (await publication.json()).data.layerId;
+      layerId = withLayerId((await publication.json()).data).layerId;
     }
     const features = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}/query?where=1%3D1&outFields=*&f=json`);
     expect(features.status()).toBe(200);
@@ -695,7 +710,7 @@ test('import typing control: published GeoJSON retains scalar attribute fields',
       schema: physical.schema, table: physical.table, layerName: 'Typed imported regions', serviceName: service, enabled: true,
     } });
     expect(publication.status()).toBe(201);
-    const layerId = (await publication.json()).data.layerId;
+    const layerId = withLayerId((await publication.json()).data).layerId;
     const metadataResponse = await verifier.get(`/rest/services/${service}/FeatureServer/${layerId}?f=json`);
     expect(metadataResponse.status()).toBe(200);
     const metadata = await metadataResponse.json();

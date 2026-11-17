@@ -47,12 +47,14 @@ public sealed class HonuaServerConsoleLayerRelationshipsOperation : IConsoleLaye
                 {
                     Id = string.IsNullOrWhiteSpace(rel.Id) ? null : rel.Id,
                     Name = rel.Name,
+                    Description = rel.Description,
                     RelatedLayerId = rel.RelatedLayerId,
                     Role = rel.Role,
                     Cardinality = rel.Cardinality,
                     OriginField = rel.OriginField,
                     DestinationField = rel.DestinationField,
                     EsriRelationshipId = rel.EsriRelationshipId,
+                    Composite = rel.Composite,
                 })
                 .ToArray(),
         };
@@ -83,11 +85,13 @@ public sealed class HonuaServerConsoleLayerRelationshipsOperation : IConsoleLaye
     {
         Id = rel.Id,
         Name = rel.Name,
+        Description = rel.Description,
         RelatedLayerId = rel.RelatedLayerId,
         Role = rel.Role,
         Cardinality = rel.Cardinality,
         OriginField = rel.OriginField,
         DestinationField = rel.DestinationField,
         EsriRelationshipId = rel.EsriRelationshipId,
+        Composite = rel.Composite,
     };
 }
