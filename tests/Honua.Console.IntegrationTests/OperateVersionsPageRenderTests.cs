@@ -133,12 +133,16 @@ public sealed partial class OperateVersionsPageRenderTests
     private sealed class SeededVersionOperation : IVersionManagementOperation
     {
         public Task<VersionOperationResult>? PendingSave { get; set; }
+        public int ListCalls { get; private set; }
+        public (string Service, string Version)? DeletedVersion { get; private set; }
         public AlterVersionCommand? Altered { get; private set; }
         public CreateVersionCommand? Created { get; private set; }
         public ReconcileVersionCommand? Reconcile { get; private set; }
 
-        public Task<OperateVersionListView> ListVersionsAsync(string serviceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new OperateVersionListView
+        public Task<OperateVersionListView> ListVersionsAsync(string serviceId, CancellationToken cancellationToken = default)
+        {
+            ListCalls++;
+            return Task.FromResult(new OperateVersionListView
             {
                 Bound = true,
                 Versions = [new OperateVersionView
@@ -147,6 +151,7 @@ public sealed partial class OperateVersionsPageRenderTests
                     Access = "protected", Status = "active", Description = "Parcel updates"
                 }]
             });
+        }
 
         public Task<VersionOperationResult> CreateVersionAsync(CreateVersionCommand command, CancellationToken cancellationToken = default)
         {
@@ -172,7 +177,11 @@ public sealed partial class OperateVersionsPageRenderTests
             Altered = command;
             return PendingSave ?? Task.FromResult(VersionOperationResult.Success("Altered", "Version altered."));
         }
-        public Task<VersionOperationResult> DeleteVersionAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<VersionOperationResult> DeleteVersionAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default)
+        {
+            DeletedVersion = (serviceId, versionGuid);
+            return PendingSave ?? Task.FromResult(VersionOperationResult.Success("Deleted", "Version deleted."));
+        }
         public Task<VersionConflictsView> InspectConflictsAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ResolveConflictsResultView> ResolveConflictsAsync(string serviceId, string versionGuid, IReadOnlyList<ConflictResolutionChoice> resolutions, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<VersionOperationResult> PostAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default) => throw new NotSupportedException();

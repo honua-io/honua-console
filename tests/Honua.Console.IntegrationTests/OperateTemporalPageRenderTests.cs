@@ -858,6 +858,31 @@ public sealed partial class OperateTemporalPageRenderTests
         return page;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Temporal_DisposedDuringResolutionDoesNotRefreshReview(bool enabled)
+    {
+        var completion = new TaskCompletionSource<SyncConflictResolutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = ClientWithConflicts();
+        client.PendingResolution = completion.Task;
+        using var ctx = NewContext(client, enabled);
+        var page = ctx.Render<OperateTemporalPage>();
+        InspectFirstSource(page);
+        page.WaitForAssertion(() => Assert.Contains("Field Crew 7", page.Markup, StringComparison.Ordinal));
+        ClickByText(page, "Review");
+        page.WaitForAssertion(() => Assert.Contains("Client wins", page.Markup, StringComparison.Ordinal));
+        var action = page.InvokeAsync(() => page.FindAll("button").Single(button => button.TextContent.Trim() == "Client wins")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        page.WaitForAssertion(() => Assert.True(client.ResolutionStarted));
+        CatalogAdminPreview.Capture("temporal-resolving-" + enabled.ToString().ToLowerInvariant(), page.Markup);
+        await ctx.DisposeComponentsAsync();
+        completion.SetResult(new SyncConflictResolutionResult("res-1", ["conflict-1"], SyncResolutionAction.AcceptClient,
+            ResultRevisionId: "rev-55", ResultChangeSetId: "cs-9", AuditEventIds: ["audit-1"], JobRunId: "job-3"));
+        await action;
+        Assert.Equal(1, client.ReviewCalls);
+    }
+
     private static BunitContext NewContext(ITemporalCapabilityClient client, bool enabled)
     {
         var ctx = new BunitContext();
@@ -959,6 +984,9 @@ public sealed partial class OperateTemporalPageRenderTests
         public ReplicaConflictReview? ReviewAfterResolution { get; set; }
         public Dictionary<string, Task<ReplicaConflictReview>> PendingReviews { get; } = [];
         public SyncConflictResolutionResult? Resolution { get; set; }
+        public Task<SyncConflictResolutionResult>? PendingResolution { get; set; }
+        public bool ResolutionStarted { get; private set; }
+        public int ReviewCalls { get; private set; }
 
         public int DiffCalls { get; private set; }
         public int ExecuteRollbackCalls { get; private set; }
@@ -994,12 +1022,17 @@ public sealed partial class OperateTemporalPageRenderTests
         public Task<ReplicaConflictQueue> GetReplicaConflictQueueAsync(string sourceId, CancellationToken cancellationToken = default) =>
             Task.FromResult(ReplicaQueue);
 
-        public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(string replicaId, CancellationToken cancellationToken = default) =>
-            PendingReviews.TryGetValue(replicaId, out var pending) ? pending
+        public Task<ReplicaConflictReview> GetReplicaConflictReviewAsync(string replicaId, CancellationToken cancellationToken = default)
+        {
+            ReviewCalls++;
+            return PendingReviews.TryGetValue(replicaId, out var pending) ? pending
                 : Task.FromResult(_resolved && ReviewAfterResolution is not null ? ReviewAfterResolution : ConflictReview);
+        }
 
         public Task<SyncConflictResolutionResult> ResolveConflictsAsync(SyncConflictResolutionRequest request, CancellationToken cancellationToken = default)
         {
+            ResolutionStarted = true;
+            if (PendingResolution is not null) return PendingResolution;
             var result = Resolution ?? SyncConflictResolutionResult.Blocked(request.ConflictIds, request.Action, MissingBinding);
             LastResolution = result;
             if (result.BindingState is null)

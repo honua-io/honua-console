@@ -1,4 +1,5 @@
 @page "/operate/versions"
+@implements IDisposable
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
@@ -249,6 +250,7 @@
     private bool _loading;
     private int _serviceGeneration;
     private bool _busy;
+    private bool _disposed;
 
     private string _policy = "none";
     private bool _abortIfConflicts;
@@ -277,7 +279,7 @@
 
     private async Task LoadVersionsAsync()
     {
-        if (_busy || _loading || string.IsNullOrWhiteSpace(_serviceIdInput))
+        if (_disposed || _busy || _loading || string.IsNullOrWhiteSpace(_serviceIdInput))
         {
             return;
         }
@@ -292,17 +294,18 @@
         try
         {
             _serviceId = serviceId;
-            _versions = await VersionOps.ListVersionsAsync(_serviceId);
+            var versions = await VersionOps.ListVersionsAsync(_serviceId);
+            if (!_disposed) _versions = versions;
         }
         finally
         {
-            _loading = false;
+            if (!_disposed) _loading = false;
         }
     }
 
     private Task ReconcileAsync(OperateVersionView version)
     {
-        if (_serviceId is null || _loading || _busy) return Task.CompletedTask;
+        if (_disposed || _serviceId is null || _loading || _busy) return Task.CompletedTask;
         _lastResult = null;
         _reconciledVersionGuid = version.VersionGuid;
         return Notifications.RunGuardedAsync(
@@ -316,13 +319,13 @@
                     AbortIfConflicts = _abortIfConflicts
                 });
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: SetBusy,
             failureMessage: "Couldn't reconcile the version");
     }
 
     private void ConfirmDelete(OperateVersionView version)
     {
-        if (_confirm is null || _serviceId is null || _loading || _busy) return;
+        if (_disposed || _confirm is null || _serviceId is null || _loading || _busy) return;
         var generation = _serviceGeneration;
         _confirm.Open(
             title: $"Delete version '{version.VersionName}'?",
@@ -333,18 +336,18 @@
 
     private Task DeleteAsync(OperateVersionView version)
     {
-        if (_serviceId is null || _loading || _busy) return Task.CompletedTask;
+        if (_disposed || _serviceId is null || _loading || _busy) return Task.CompletedTask;
         _lastReconcile = null;
         return Notifications.RunGuardedAsync(
             async () =>
             {
                 _lastResult = await VersionOps.DeleteVersionAsync(_serviceId, version.VersionGuid);
-                if (_lastResult.Succeeded)
+                if (!_disposed && _lastResult.Succeeded)
                 {
                     _versions = await VersionOps.ListVersionsAsync(_serviceId);
                 }
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: SetBusy,
             failureMessage: $"Couldn't delete version '{version.VersionName}'");
     }
 
@@ -386,7 +389,7 @@
 
     private Task SubmitFormAsync()
     {
-        if (_serviceId is null || _loading || _busy || string.IsNullOrWhiteSpace(_formName))
+        if (_disposed || _serviceId is null || _loading || _busy || string.IsNullOrWhiteSpace(_formName))
         {
             return Task.CompletedTask;
         }
@@ -422,7 +425,7 @@
                     });
                 }
 
-                if (_lastResult.Succeeded)
+                if (!_disposed && _lastResult.Succeeded)
                 {
                     if (revision == _formRevision)
                     {
@@ -436,10 +439,22 @@
                     _versions = await VersionOps.ListVersionsAsync(_serviceId);
                 }
             },
-            setBusy: busy => { _busy = busy; StateHasChanged(); },
+            setBusy: SetBusy,
             failureMessage: _alterGuid is null ? "Couldn't create the version" : "Couldn't alter the version");
     }
 
+    private void SetBusy(bool busy)
+    {
+        if (_disposed) return;
+        _busy = busy;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _serviceGeneration++;
+    }
 
     private string ConflictsHref(string versionGuid) =>
         Navigation.ToConsoleHref($"/operate/versions/{Uri.EscapeDataString(_serviceId ?? string.Empty)}/{Uri.EscapeDataString(versionGuid)}/conflicts");

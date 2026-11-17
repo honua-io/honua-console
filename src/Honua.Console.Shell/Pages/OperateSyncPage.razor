@@ -1,4 +1,5 @@
 @page "/operate/sync"
+@implements IDisposable
 @using Honua.Console.Shell.Components
 @using Honua.Console.Shell.Services
 @using Honua.Console.Shell.Models
@@ -644,4 +645,10 @@
         SyncResolutionAction.Defer => "Defer",
         _ => action.ToString()
     };
+
+    public void Dispose()
+    {
+        _reviewGeneration++;
+        _parameterGeneration++;
+    }
 }

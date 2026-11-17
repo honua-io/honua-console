@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -91,6 +92,23 @@ public sealed class VersionConflictsPageRenderTests
         if (enabled) CatalogAdminPreview.Capture("data-conflicts-missing", page.Markup);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Resolve_AfterLeavingDoesNotReloadConflicts(bool enabled)
+    {
+        var (context, _, operation) = CreateContext(new ConsoleV4Options { Enabled = enabled });
+        using var ctx = context;
+        var page = ctx.Render<OperateVersionConflictsPage>(p => p.Add(x => x.ServiceId, "parcels").Add(x => x.VersionGuid, "review"));
+        page.Find("[data-choice-version]").Change(true);
+        var resolution = page.Find("[data-submit-resolutions]").ClickAsync(new MouseEventArgs());
+        page.WaitForAssertion(() => Assert.Single(operation.Choices));
+        await ctx.DisposeComponentsAsync();
+        operation.Resolution.SetResult(new() { Operation = VersionOperationResult.Success("Resolved", "Resolved.") });
+        await resolution;
+        Assert.Equal(1, operation.InspectCalls);
+    }
+
     private static (BunitContext Context, ConsoleAgentContextRegistry Registry, ConflictOperation Operation) CreateContext(ConsoleV4Options options)
     {
         var ctx = new BunitContext();
@@ -116,7 +134,12 @@ public sealed class VersionConflictsPageRenderTests
         public TaskCompletionSource<ResolveConflictsResultView> Resolution { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyList<ConflictResolutionChoice> Choices { get; private set; } = [];
         public (string Service, string Version)? PostedVersion { get; private set; }
-        public Task<VersionConflictsView> InspectConflictsAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default) => Task.FromResult(View);
+        public int InspectCalls { get; private set; }
+        public Task<VersionConflictsView> InspectConflictsAsync(string serviceId, string versionGuid, CancellationToken cancellationToken = default)
+        {
+            InspectCalls++;
+            return Task.FromResult(View);
+        }
         public Task<ResolveConflictsResultView> ResolveConflictsAsync(string serviceId, string versionGuid, IReadOnlyList<ConflictResolutionChoice> resolutions, CancellationToken cancellationToken = default)
         {
             Choices = resolutions;
