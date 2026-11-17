@@ -71,6 +71,9 @@
     [Parameter]
     public string MapId { get; set; } = string.Empty;
 
+    [SupplyParameterFromQuery(Name = "token")]
+    private string? PublicLinkToken { get; set; }
+
     private MapReadResult? _result;
     private long _loadGeneration;
 
@@ -81,7 +84,7 @@
         var generation = ++_loadGeneration;
         var mapId = MapId;
         _result = null;
-        var token = ConsoleUrlQuery.GetValue(Navigation.Uri, "token") ?? string.Empty;
+        var token = PublicLinkToken ?? string.Empty;
         var context = await ReadContexts.ResolveAsync(token);
         if (generation != _loadGeneration)
         {

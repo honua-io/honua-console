@@ -58,6 +58,9 @@
 </CatalogAvailabilityGate>
 
 @code {
+    [SupplyParameterFromQuery(Name = "from")]
+    private string? SourceItemId { get; set; }
+
     private string _sourceItemId = string.Empty;
     private MapReadResult? _result;
     private long _loadGeneration;
@@ -69,7 +72,7 @@
     protected override async Task OnParametersSetAsync()
     {
         var generation = ++_loadGeneration;
-        _sourceItemId = ConsoleUrlQuery.GetValue(Navigation.Uri, "from") ?? string.Empty;
+        _sourceItemId = SourceItemId ?? string.Empty;
         var sourceItemId = _sourceItemId;
         _accessResolved = false;
         _requiresAuthentication = false;

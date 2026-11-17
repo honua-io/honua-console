@@ -4,6 +4,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
@@ -97,7 +98,7 @@ public sealed class MapNavigationTests
         await view.Navigate("b");
         await view.Authorize(0);
         Assert.Empty(view.Data.Reads);
-        await view.Authorize(1);
+        await view.Authorize();
         Assert.Equal("b", Assert.Single(view.Data.Reads).Id);
         await view.Complete("b");
     }
@@ -111,7 +112,7 @@ public sealed class MapNavigationTests
         await view.Authorize(0);
         Assert.Empty(view.Surfaces);
         view.AssertCheckingAccess();
-        await view.Authorize(1);
+        await view.Authorize();
         await view.Complete("b");
     }
 
@@ -120,7 +121,7 @@ public sealed class MapNavigationTests
     public async Task DisposedAccessCannotStartMapRead(MapRoute route, ConsolePresentationMode presentation)
     {
         using var view = new MapView(route, presentation);
-        view.DisposePage();
+        await view.DisposePage();
         await view.Authorize();
         Assert.Empty(view.Data.Reads);
     }
@@ -157,7 +158,7 @@ public sealed class MapNavigationTests
     {
         using var view = new MapView(MapRoute.Saved, presentation);
         await view.Navigate("a", "new-link");
-        await view.AuthorizeAnonymous(1);
+        await view.AuthorizeAnonymous();
         await view.Complete("a");
         await view.AuthorizeAnonymous(0);
         Assert.Single(view.Data.Reads);
@@ -171,8 +172,7 @@ public sealed class MapNavigationTests
         private readonly MapRoute _route;
         private readonly MountedNavigationManager _navigation = new("/console/", "maps/new?from=a");
         private readonly Access _access = new();
-        private readonly IRenderedComponent<MapDraftPage>? _draft;
-        private readonly IRenderedComponent<MapViewerPage>? _saved;
+        private readonly IRenderedComponent<Router> _router;
 
         public MapView(MapRoute route, ConsolePresentationMode presentation)
         {
@@ -183,32 +183,22 @@ public sealed class MapNavigationTests
             _context.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
             _context.Services.AddSingleton<IConsoleCatalogClient>(Data);
             _context.Services.AddSingleton<IConsoleCatalogReadContextResolver>(_access);
-            if (route == MapRoute.Draft)
-            {
-                _draft = _context.Render<MapDraftPage>();
-            }
-            else
-            {
-                _saved = _context.Render<MapViewerPage>(p => p.Add(x => x.MapId, "a"));
-            }
+            _router = _context.Render<Router>(p => p
+                .Add(x => x.AppAssembly, typeof(MapDraftPage).Assembly)
+                .Add(x => x.Found, routeData => builder =>
+                {
+                    builder.OpenComponent<RouteView>(0);
+                    builder.AddComponentParameter(1, nameof(RouteView.RouteData), routeData);
+                    builder.CloseComponent();
+                }));
         }
 
         public Catalog Data { get; } = new();
-        public string Markup => _draft?.Markup ?? _saved!.Markup;
-        public AngleSharp.Dom.IElement[] Surfaces => (_draft?.FindAll(".console-map-surface") ?? _saved!.FindAll(".console-map-surface")).ToArray();
+        public string Markup => _router.Markup;
+        public AngleSharp.Dom.IElement[] Surfaces => _router.FindAll(".console-map-surface").ToArray();
 
-        public async Task Navigate(string id, string token = "old-link")
-        {
-            await _context.Renderer.Dispatcher.InvokeAsync(() => _navigation.NavigateTo(Url(id, token)));
-            if (_draft is not null)
-            {
-                _draft.Render();
-            }
-            else
-            {
-                _saved!.Render(p => p.Add(x => x.MapId, id));
-            }
-        }
+        public Task Navigate(string id, string token = "old-link") =>
+            _context.Renderer.Dispatcher.InvokeAsync(() => _navigation.NavigateTo(Url(id, token)));
 
         public Task Authorize(int index = -1) => CompleteAccess(CatalogReadContext.Authenticated, index);
         public Task AuthorizeAnonymous(int index = -1)
@@ -238,11 +228,7 @@ public sealed class MapNavigationTests
             ? $"/console/maps/new?from={Uri.EscapeDataString(id)}"
             : $"/console/maps/{Uri.EscapeDataString(id)}?token={Uri.EscapeDataString(token)}";
 
-        public void DisposePage()
-        {
-            _draft?.Dispose();
-            _saved?.Dispose();
-        }
+        public Task DisposePage() => _context.DisposeComponentsAsync();
 
         public void Dispose() => _context.Dispose();
     }
