@@ -53,8 +53,27 @@ public sealed class ConsoleConnectedHomeTests
             Assert.Empty(home.FindAll("[data-home-awaiting-count], [data-home-total-count]"));
             Assert.Equal(enabled ? 1 : 0, home.FindAll(".console-page-heading-copy").Count);
         });
-        CatalogAdminPreview.Capture($"home-v4-{enabled.ToString().ToLowerInvariant()}",
-            $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\"><main class=\"console-main\">{home.Markup}</main></div>");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RolloutSwitch_CompleteQueueCapturesPresentationPreview(bool enabled)
+    {
+        var snapshot = FakeProposalFactory.Snapshot(FakeProposalFactory.Summary("pending", ConsoleProposalKind.Deploy));
+        using var context = CreateContext(OperateSectionResult<ApprovalInboxSnapshot>.Allowed(snapshot));
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        var home = context.Render<ConsoleHomePage>();
+
+        home.WaitForAssertion(() =>
+        {
+            Assert.Equal("/inbox", home.Find("[data-open-inbox]").GetAttribute("href"));
+            Assert.Equal(enabled ? 1 : 0, home.FindAll("[data-home-awaiting-count] .console-metric-tile").Count);
+            Assert.Empty(home.FindAll("[data-home-inbox-error]"));
+        });
+        var flag = enabled.ToString().ToLowerInvariant();
+        CatalogAdminPreview.Capture($"home-v4-{flag}",
+            $"<div class=\"console-shell\" data-console-v4=\"{flag}\"><main class=\"console-main\">{home.Markup}</main></div>");
     }
 
     [Fact]
