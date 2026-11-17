@@ -87,10 +87,7 @@ public sealed class ConsoleOperatorBearerProviderTests
         Assert.Equal(sentinel, await sessions.GetSessionAsync("env-a"));
     }
 
-    [Fact]
-    public async Task HttpExchange_PostsShippedServerContractWithoutApiKeyOrActorHeader()
-    {
-        const string body = """
+    private const string IssuedBearerBody = """
         {
           "accessToken": "server-issued-bearer",
           "tokenType": "Bearer",
@@ -98,10 +95,13 @@ public sealed class ConsoleOperatorBearerProviderTests
           "expiresIn": 300
         }
         """;
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
-        });
+
+    [Fact]
+    public async Task HttpExchange_PostsShippedServerContractWithoutApiKeyOrActorHeader()
+    {
+        var handler = new RecordingHandler(request => request.Method == HttpMethod.Post
+            ? Json(IssuedBearerBody)
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
         var exchange = new HttpConsoleOperatorBearerExchange(new HttpClient(handler));
 
         var result = await exchange.ExchangeAsync(Profile("env-a"));
@@ -109,12 +109,47 @@ public sealed class ConsoleOperatorBearerProviderTests
         Assert.Equal(ConsoleOperatorBearerExchangeStatus.Issued, result.Status);
         Assert.Equal("server-issued-bearer", result.AccessToken);
         Assert.Equal(DateTimeOffset.Parse("2026-07-10T08:05:00Z"), result.ExpiresAt);
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(HttpMethod.Post, request.Method);
+        var request = Assert.Single(handler.Requests, sent => sent.Method == HttpMethod.Post);
         Assert.Equal("/api/v1/admin/auth/bearer", request.RequestUri!.AbsolutePath);
         Assert.False(request.Headers.Contains("X-API-Key"));
         Assert.DoesNotContain(request.Headers, header => header.Key.Contains("Actor", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task HttpExchange_SendsServerCsrfTokenWithTheSessionBearerRequest()
+    {
+        var handler = new RecordingHandler(request => request.Method == HttpMethod.Get
+            ? Json("""{ "requestToken": "fresh-csrf-token" }""")
+            : Json(IssuedBearerBody));
+        var exchange = new HttpConsoleOperatorBearerExchange(new HttpClient(handler));
+
+        var result = await exchange.ExchangeAsync(Profile("env-a"));
+
+        Assert.Equal(ConsoleOperatorBearerExchangeStatus.Issued, result.Status);
+        Assert.Collection(
+            handler.Requests,
+            csrf => Assert.Equal("/api/v1/admin/auth/csrf", csrf.RequestUri!.AbsolutePath),
+            bearer => Assert.Equal(["fresh-csrf-token"], bearer.Headers.GetValues("X-Honua-CSRF")));
+    }
+
+    [Fact]
+    public async Task HttpExchange_ServerWithoutCsrfEndpoint_PostsWithoutCsrfHeader()
+    {
+        var handler = new RecordingHandler(request => request.Method == HttpMethod.Get
+            ? new HttpResponseMessage(HttpStatusCode.NotFound)
+            : Json(IssuedBearerBody));
+        var exchange = new HttpConsoleOperatorBearerExchange(new HttpClient(handler));
+
+        var result = await exchange.ExchangeAsync(Profile("env-a"));
+
+        Assert.Equal(ConsoleOperatorBearerExchangeStatus.Issued, result.Status);
+        Assert.False(handler.Requests[^1].Headers.Contains("X-Honua-CSRF"));
+    }
+
+    private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent(body, Encoding.UTF8, "application/json")
+    };
 
     [Fact]
     public async Task HttpExchange_Unauthorized_MapsToReauthenticationRequired()

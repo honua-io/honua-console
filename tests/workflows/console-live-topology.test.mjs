@@ -33,3 +33,19 @@ test('each self-publishing live spec owns a distinct seeded source table', () =>
     published.add(table);
   }
 });
+
+test('the live Console host reaches the server over the TLS listener the bearer exchange requires', () => {
+  const overlay = read('e2e/docker-compose.server-tls.yml');
+  assert.match(overlay, /- "8445:8445"/);
+  assert.match(overlay, /Kestrel__Endpoints__Http__Url: "http:\/\/\*:8080"/);
+  assert.match(overlay, /Kestrel__Endpoints__Https__Url: "https:\/\/\*:8445"/);
+  assert.match(overlay, /Security__DisableHttpsRedirection: "true"/);
+  const ordinary = read('.github/workflows/console-live-journey.yml').split('\n')
+    .filter(line => line.includes('docker compose') && !line.includes('studio-customer'));
+  assert.ok(ordinary.length >= 4);
+  for (const line of ordinary) assert.match(line, /-f e2e\/docker-compose\.server-tls\.yml /, line.trim());
+  assert.match(read('e2e/run-live.mjs'), /'docker-compose\.server-tls\.yml'/);
+  const config = read('e2e/playwright/playwright.live.config.ts');
+  assert.match(config, /const LOCAL_TLS_SERVER_URL = 'https:\/\/127\.0\.0\.1:8445';/);
+  assert.match(config, /HONUA_SERVER_BASE_URL: CONSOLE_SERVER_URL,/);
+});

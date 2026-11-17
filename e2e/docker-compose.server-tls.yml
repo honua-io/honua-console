@@ -1,0 +1,15 @@
+# HTTPS listener for the live suite's Console host. honua-server accepts a session-cookie
+# POST to /api/v1/admin/auth/bearer only over HTTPS with an X-Honua-CSRF token, so the
+# Console host reaches the server on :8445 with the live-auth test certificate.
+# Plain HTTP on :8088 stays for the specs' direct API calls; redirection is disabled.
+services:
+  postgis:
+    ports:
+      - "8445:8445"
+  honua-server:
+    environment:
+      Kestrel__Endpoints__Http__Url: "http://*:8080"
+      Kestrel__Endpoints__Https__Url: "https://*:8445"
+      Kestrel__Endpoints__Https__Certificate__Path: /certs/kc.crt
+      Kestrel__Endpoints__Https__Certificate__KeyPath: /certs/kc.key
+      Security__DisableHttpsRedirection: "true"

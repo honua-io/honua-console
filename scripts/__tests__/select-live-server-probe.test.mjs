@@ -27,7 +27,7 @@ test('every live-journey compose command applies the selected probe overlay last
   const commands = workflow.split('\n').filter(line => line.includes('docker compose -f e2e/docker-compose.yml'));
   assert.ok(commands.length >= 7);
   for (const command of commands) {
-    assert.match(command, /docker-compose\.(auth|studio-customer)\.yml \$\{HONUA_CONSOLE_E2E_PROBE_OVERLAY:\+-f "\$HONUA_CONSOLE_E2E_PROBE_OVERLAY"\} /,
+    assert.match(command, /docker-compose\.(auth|studio-customer|server-tls)\.yml \$\{HONUA_CONSOLE_E2E_PROBE_OVERLAY:\+-f "\$HONUA_CONSOLE_E2E_PROBE_OVERLAY"\} /,
       command.trim());
   }
   assert.equal(workflow.match(/node scripts\/select-live-server-probe\.mjs/g)?.length, 2);
