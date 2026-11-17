@@ -60,18 +60,32 @@ public sealed class ProposalApprovalHttpOutcomeTests
             Methods.Add(request.Method.Method);
             var proposal = new
             {
-                proposalId = "proposal-1", version = 3, planHash = "reviewed-plan", kind = "MetadataRelease",
+                proposalId = "proposal-1",
+                version = 3,
+                planHash = "reviewed-plan",
+                kind = "MetadataRelease",
                 status = request.Method == HttpMethod.Post ? "Failed" : "AwaitingApproval",
-                summary = "Create folder", blockingReasons = new[] { reason },
+                summary = "Create folder",
+                blockingReasons = new[] { reason },
                 resolutionReason = request.Method == HttpMethod.Post ? reason : null,
                 executionOperationId = request.Method == HttpMethod.Post ? "operation-1" : null,
-                createdAt = "2026-11-17T00:00:00Z", updatedAt = "2026-11-17T00:01:00Z",
+                createdAt = "2026-11-17T00:00:00Z",
+                updatedAt = "2026-11-17T00:01:00Z",
             };
             object body = proposal;
             if (request.RequestUri!.AbsolutePath.EndsWith("/approval-review", StringComparison.Ordinal))
             {
-                body = new { proposal, review = new { proposalId = "proposal-1", proposalVersion = 3,
-                    planHash = "reviewed-plan", capability = "review-capability" } };
+                body = new
+                {
+                    proposal,
+                    review = new
+                    {
+                        proposalId = "proposal-1",
+                        proposalVersion = 3,
+                        planHash = "reviewed-plan",
+                        capability = "review-capability"
+                    }
+                };
             }
             if (request.Method == HttpMethod.Post)
             {

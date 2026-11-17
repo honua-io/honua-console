@@ -1,6 +1,5 @@
 namespace Honua.Console.Shell.Models;
 
-/// <summary>Distinguishes an accepted approval decision from its execution outcome.</summary>
 internal sealed record ConsoleProposalDecisionFeedback(string Message, string CssClass)
 {
     public static ConsoleProposalDecisionFeedback ForApproval(ConsoleProposalDetail proposal)
