@@ -68,6 +68,17 @@ public sealed class BrowserOidcAuthenticationTests
     }
 
     [Fact]
+    public async Task BuiltInPasswordModeStillListsAndStartsServerProviders()
+    {
+        using var fixture = new BrokerFixture(signIn: ConfiguredSignIn.BuiltIn);
+        Assert.True(fixture.Authentication.IsAvailable);
+        var provider = Assert.Single(await fixture.Authentication.GetProvidersAsync());
+        Assert.Equal(("entra", "Organization"), (provider.Key, provider.DisplayName));
+        await fixture.Authentication.BeginAsync("entra", "/");
+        Assert.Equal(1, fixture.Handler.Authorizations);
+    }
+
+    [Fact]
     public async Task SeparateOriginCannotUseCookieBroker()
     {
         using var fixture = new BrokerFixture(crossOrigin: true);
@@ -75,6 +86,8 @@ public sealed class BrowserOidcAuthenticationTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Authentication.BeginAsync("entra", "/"));
         Assert.Equal(0, fixture.Handler.Authorizations);
     }
+
+    private enum ConfiguredSignIn { External, BuiltIn }
 
     private sealed class BrokerFixture : IDisposable
     {
@@ -84,13 +97,13 @@ public sealed class BrowserOidcAuthenticationTests
         public BrowserOidcAuthentication Authentication { get; }
         public BrowserAuthenticationStateProvider Provider { get; }
 
-        public BrokerFixture(bool crossOrigin = false)
+        public BrokerFixture(bool crossOrigin = false, ConfiguredSignIn signIn = ConfiguredSignIn.External)
         {
             var origin = new Uri("https://honua.example/");
             _client = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(origin, origin), Session, BrowserApiAccess.Public)
             { InnerHandler = Handler })
             { BaseAddress = origin };
-            var api = new ConsoleApiClient(_client) { SupportsPasswordSignIn = false, UsesCookieSession = !crossOrigin };
+            var api = new ConsoleApiClient(_client) { SupportsPasswordSignIn = signIn == ConfiguredSignIn.BuiltIn, UsesCookieSession = !crossOrigin };
             Provider = new BrowserAuthenticationStateProvider(api, Session, new InMemoryConsoleAccountSessionStore());
             Authentication = new BrowserOidcAuthentication(api, Provider, new MountedNavigation());
         }

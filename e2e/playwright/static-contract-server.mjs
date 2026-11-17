@@ -72,8 +72,11 @@ function completeOidc({ request, response, allowedOrigin, pending }) {
 
 async function handleOidc(context) {
   const { request, response, allowedOrigin, oidc, pathname, json } = context;
-  if (oidc && pathname === "/api/v1/admin/auth/config") {
-    json({ oidcEnabled: true, providers: [{ key: "entra", displayName: "Organization" }] });
+  // Like the server, the provider list is anonymous and answers even when no provider is configured.
+  if (pathname === "/api/v1/admin/auth/config") {
+    json(oidc
+      ? { oidcEnabled: true, providers: [{ key: "entra", displayName: "Organization" }] }
+      : { oidcEnabled: false, providers: [] });
     return true;
   }
   if (oidc && pathname === "/api/fixture-provider") {

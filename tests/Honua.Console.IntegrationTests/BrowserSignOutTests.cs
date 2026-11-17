@@ -121,6 +121,21 @@ public sealed class BrowserSignOutTests
         Assert.DoesNotContain("Test operator", header.Markup);
     }
 
+    [Theory]
+    [InlineData("/", "/auth/signin")]
+    [InlineData("/operate/services?sort=name", "/auth/signin?returnTo=%2Foperate%2Fservices%3Fsort%3Dname")]
+    public async Task AnonymousHeaderOffersSignInThatReturnsToTheCurrentRoute(string location, string expected)
+    {
+        using var fixture = new Fixture();
+        fixture.Handler.Authenticated = false;
+        fixture.Navigation.NavigateTo(location);
+        var header = fixture.RenderHeader();
+        await fixture.Authentication.GetAuthenticationStateAsync();
+        header.WaitForAssertion(() => Assert.Equal(expected, header.Find("[data-console-signin]").GetAttribute("href")));
+        fixture.Navigation.NavigateTo("/Auth/SignIn/?returnTo=%2F");
+        header.WaitForAssertion(() => Assert.Empty(header.FindAll("[data-console-signin]")));
+    }
+
     [Fact]
     public void AccountControlIsOutsideTheCollapsiblePrimaryNavigation()
     {
