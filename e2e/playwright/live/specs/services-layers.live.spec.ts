@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '../admin-api';
 import { hasGovernedOperatorSession } from '../operator-session';
 import { SOURCE_DB, sourceConnectionBody } from '../source-db';
@@ -18,6 +19,23 @@ const stamp = Date.now().toString(36);
 const SOURCE_TABLE = SOURCE_DB.table;
 const SERVICE_NAME = `e2e_src_fs_${stamp}`;
 const LAYER_NAME = 'E2E Source';
+
+// The server prerender can draw the legacy layout before the interactive render applies v4, so decide
+// only once the service controls are interactive. v4 moves the protocol editor under a Protocols tab;
+// the legacy layout keeps [data-service-config].
+async function openProtocolEditor(page: Page): Promise<void> {
+  await expect(page.getByRole('group', { name: 'Service controls' })).toBeEnabled({ timeout: 30_000 });
+  const protocolsTab = page.locator('#service-protocols-tab');
+  if (await protocolsTab.count() === 0) {
+    await expect(page.locator('[data-service-config]')).toBeVisible();
+    return;
+  }
+  await expect(async () => {
+    await protocolsTab.click({ timeout: 2_000 });
+    await expect(protocolsTab).toHaveAttribute('aria-selected', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(page.locator('[data-save-protocols]')).toBeVisible();
+}
 
 test.describe('Operate · Publish layer workflow (live)', () => {
   test('publish a PostGIS table and verify via catalog, metadata, and a live query', async ({ page, admin }) => {
@@ -112,20 +130,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // Drive the real console service-config UI to add WMS/WFS/WMTS/OData on top of the default protocols,
     // then confirm honua-server persisted the change (read back through the admin settings endpoint).
     await page.goto(`/operate/services/${SERVICE_NAME}/settings`);
-    // The server prerender can draw the legacy layout before the interactive render applies v4, so decide
-    // only once the service controls are interactive. v4 moves the protocol editor under a Protocols tab;
-    // the legacy layout keeps [data-service-config].
-    await expect(page.getByRole('group', { name: 'Service controls' })).toBeEnabled({ timeout: 30_000 });
-    const protocolsTab = page.locator('#service-protocols-tab');
-    if (await protocolsTab.count() > 0) {
-      await expect(async () => {
-        await protocolsTab.click({ timeout: 2_000 });
-        await expect(protocolsTab).toHaveAttribute('aria-selected', 'true', { timeout: 2_000 });
-      }).toPass({ timeout: 15_000 });
-      await expect(page.locator('[data-save-protocols]')).toBeVisible();
-    } else {
-      await expect(page.locator('[data-service-config]')).toBeVisible();
-    }
+    await openProtocolEditor(page);
     await expect(page.locator('[data-protocol="FeatureServer"]')).toBeChecked();
 
     for (const protocol of ['Wms', 'Wfs20', 'Wmts', 'OData', 'OgcFeatures']) {
