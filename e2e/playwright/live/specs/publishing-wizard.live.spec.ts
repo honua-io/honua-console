@@ -42,11 +42,15 @@ test.describe('Operate · Publishing wizard (live)', () => {
 
     await expect(rows.first()).toBeVisible({ timeout: 30_000 });
 
-    // Every row the wizard offers must be a service the server actually exposes.
-    const renderedNames = await rows.evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute('data-publish-tree-row') ?? ''),
-    );
-    expect(renderedNames.length).toBeGreaterThan(0);
+    // Every row the wizard offers must be a service the server actually exposes. The prerendered tree is
+    // replaced when the page becomes interactive, so read the rows once they are stable and non-empty.
+    let renderedNames: string[] = [];
+    await expect.poll(async () => {
+      renderedNames = await rows.evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute('data-publish-tree-row') ?? ''),
+      );
+      return renderedNames.length;
+    }, { timeout: 30_000 }).toBeGreaterThan(0);
     for (const rendered of renderedNames) {
       expect(serviceNames, `${rendered} is rendered by the wizard but not exposed by the server`)
         .toContain(rendered);
