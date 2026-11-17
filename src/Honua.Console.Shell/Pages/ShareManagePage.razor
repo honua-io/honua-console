@@ -452,7 +452,7 @@
                                     </section>
 
                                     <div class="console-action-row">
-                                        <a class="console-button console-button-secondary" data-share-opendata-link href="@ConsoleNavigation.ToConsoleHref($"/share/public/items/{share.ItemId}")">Open public landing ↗</a>
+                                        <a class="console-button console-button-secondary" data-share-opendata-link href="@ConsoleNavigation.ToConsoleHref($"/share/public/items/{Uri.EscapeDataString(share.ItemId)}")">Open public landing ↗</a>
                                     </div>
                                 </div>
 
@@ -560,7 +560,7 @@
                         </ConsoleTableRegion>
 
                         <div class="console-action-row">
-                            <a class="console-button console-button-secondary" data-share-exports-link href="@ConsoleNavigation.ToConsoleHref($"/operate/jobs?itemId={share.ItemId}")">View export jobs in Operate ↗</a>
+                            <a class="console-button console-button-secondary" data-share-exports-link href="@ConsoleNavigation.ToConsoleHref($"/operate/jobs?itemId={Uri.EscapeDataString(share.ItemId)}")">View export jobs in Operate ↗</a>
                         </div>
                         <p class="console-muted">Exports run as scheduled jobs · token rotations and connection failures surface as alerts in the Event viewer.</p>
                     </article>

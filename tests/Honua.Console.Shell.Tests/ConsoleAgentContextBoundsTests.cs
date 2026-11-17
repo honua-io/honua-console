@@ -29,6 +29,21 @@ public sealed class ConsoleAgentContextBoundsTests
     }
 
     [Fact]
+    public void ALongListOfSelectedIdsIsKept()
+    {
+        var registry = new ConsoleAgentContextRegistry();
+        var ids = string.Join(",", Enumerable.Range(0, 20).Select(_ => Guid.NewGuid().ToString()));
+
+        registry.Register(new ConsoleAgentPageContext
+        {
+            Route = "/operate/sync",
+            Filters = new Dictionary<string, string> { ["conflictIds"] = ids }
+        });
+
+        Assert.Equal(ids, registry.Current.Filters["conflictIds"]);
+    }
+
+    [Fact]
     public void EntitiesWithOversizedIdsAreLeftOut()
     {
         var registry = new ConsoleAgentContextRegistry();

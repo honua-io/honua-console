@@ -124,7 +124,7 @@ public sealed class ConsoleReleaseWitnessClientTests
     }
 
     [Theory]
-    [InlineData("javascript:alert(document.domain)")]
+    [InlineData("javascript:void(0)")]
     [InlineData("https://other.example/share/map-1")]
     [InlineData("http://server.example/share/map-1")]
     public async Task ObserveRefusesAPublicRouteOffThisServer(string routePath)
@@ -136,6 +136,17 @@ public sealed class ConsoleReleaseWitnessClientTests
         Assert.False(result.IsAllowed);
         Assert.Null(result.Value);
         Assert.Equal("The active publication's public route is not on this server.", result.Message);
+    }
+
+    [Fact]
+    public async Task ObserveAcceptsAnExplicitDefaultPortOnThisServer()
+    {
+        var client = CreateClient(new RecordingHandler(request => WitnessReply(request, "https://server.example:443/share/map-1")));
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-content", "proposal-1"));
+
+        Assert.True(result.IsAllowed, result.Message);
+        Assert.Equal("https://server.example/share/map-1", result.Value!.PublicUrl);
     }
 
     private static HttpResponseMessage WitnessReply(HttpRequestMessage request, string routePath) => request.RequestUri!.AbsolutePath switch
