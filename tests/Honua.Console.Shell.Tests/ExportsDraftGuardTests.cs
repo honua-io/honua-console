@@ -87,6 +87,28 @@ public sealed class ExportsDraftGuardTests
         Assert.Empty(page.FindAll("[data-export-started]"));
     }
 
+    [Fact]
+    public async Task AnEmptyUnpublishReplyKeepsTheShownVersions()
+    {
+        using var fixture = new ExportsPageFixture();
+        fixture.Client.Detail = OperateSectionResult<ExportResponse>.Allowed(new ExportResponse
+        {
+            Id = "parcels",
+            Title = "County parcels",
+            Status = "ready",
+            Versions = [new ExportVersionResponse { Version = "v2" }]
+        });
+        fixture.Client.Unpublish = OperateSectionResult<ExportResponse>.Allowed(new ExportResponse { Id = "parcels", Status = "unpublished" });
+        var page = fixture.Context.Render<OperateExportDetailPage>(parameters => parameters.Add(p => p.ExportId, "parcels"));
+
+        page.Find("[data-export-unpublish='parcels']").Click();
+        await page.Find("[data-console-confirm-accept]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        page.WaitForAssertion(() => Assert.True(page.Find("[data-export-unpublish='parcels']").HasAttribute("disabled")));
+        Assert.NotNull(page.Find("[data-export-version='v2']"));
+        Assert.Contains("County parcels", page.Markup, StringComparison.Ordinal);
+    }
+
     private static void Fill(IRenderedComponent<OperateConnectionObjectStorageNewPage> page)
     {
         page.Find("[data-object-storage-field='name']").Input("imagery");

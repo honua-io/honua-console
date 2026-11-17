@@ -170,7 +170,7 @@
 
             if (result.IsAllowed)
             {
-                _result = result;
+                _result = KeepShownExport(result.Value!);
             }
             else
             {
@@ -182,4 +182,11 @@
             _pending = false;
         }
     }
+
+    // An empty (204) unpublish reply carries only the id and status; keep the shown Versions and source.
+    private OperateSectionResult<ExportResponse> KeepShownExport(ExportResponse reply) =>
+        OperateSectionResult<ExportResponse>.Allowed(
+            reply.Versions.Count == 0 && _result is { IsAllowed: true, Value: { } shown }
+                ? shown with { Status = reply.Status, PublicUrl = null }
+                : reply);
 }

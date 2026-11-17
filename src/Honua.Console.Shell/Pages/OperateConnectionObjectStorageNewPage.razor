@@ -44,7 +44,7 @@
     <ConsolePanel Title="Access role" HeadingId="object-storage-role-heading">
         <p>Create a read-only role named <code>@(_setup?.Value?.RoleNamePrefix ?? "honua-connection-")…</code> on this bucket. The quick-create link opens a template with the bucket, prefix and this installation's external id filled in.</p>
         <div class="console-action-row">
-            <button type="button" class="console-button console-button-secondary" disabled="@(!HasBucket || _setupPending)" data-object-storage-setup @onclick="LoadSetupAsync">
+            <button type="button" class="console-button console-button-secondary" disabled="@(!HasBucket || _setupPending || IsLocked)" data-object-storage-setup @onclick="LoadSetupAsync">
                 @(_setupPending ? "Preparing…" : "Get the quick-create link")
             </button>
         </div>
@@ -225,7 +225,6 @@
             _busy = false;
         }
     }
-
 
     // Only an absolute https link is offered; anything else from the server is not rendered as a link.
     private static string? QuickCreateHref(ObjectStorageSetupResponse setup) =>
