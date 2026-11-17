@@ -112,7 +112,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
             return ToMapFailure(result.Issue, "The requested map was not found.");
         }
 
-        if (!ConsoleContentMapper.IsSavedMap(result.Data))
+        if (!ConsoleContentMapper.IsMap(result.Data))
         {
             return MapReadResult.Denied(
                 CatalogReadStatus.Missing,
@@ -181,7 +181,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
             return ToMapFailure(result.Issue, "The embedded map was not found.");
         }
 
-        if (!ConsoleContentMapper.IsSavedMap(result.Data))
+        if (!ConsoleContentMapper.IsMap(result.Data))
         {
             return MapReadResult.Denied(
                 CatalogReadStatus.Missing,

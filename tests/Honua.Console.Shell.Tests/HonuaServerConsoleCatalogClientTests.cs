@@ -11,10 +11,11 @@ public sealed class HonuaServerConsoleCatalogClientTests
     private static readonly Uri BaseUri = new("https://console.honua.test");
 
     [Theory]
-    [InlineData("dataset")]
     [InlineData("form")]
     [InlineData("workflow")]
     [InlineData("unknown-kind")]
+    [InlineData("saved-map")]
+    [InlineData("generated-app")]
     public async Task Search_UnsupportedKind_DoesNotFetchUnfilteredItems(string kind)
     {
         var calls = 0;
@@ -36,6 +37,56 @@ public sealed class HonuaServerConsoleCatalogClientTests
         Assert.Equal(0, calls);
     }
 
+    [Theory]
+    [InlineData("dataset")]
+    [InlineData("map")]
+    [InlineData("app")]
+    public async Task Search_CanonicalKind_PreservesFilterAndSummary(string kind)
+    {
+        HttpRequestMessage? captured = null;
+        var handler = new RecordingHandler(request =>
+        {
+            captured = request;
+            return Envelope(new HonuaConsoleContentListResponse
+            {
+                Total = 1,
+                Items = [Item("canonical-1", "coastal", kind, "organization", actions: ["view"])]
+            });
+        });
+
+        var result = await CreateCatalog(handler).SearchAsync(
+            new CatalogListRequest { Type = kind }, CatalogReadContext.Authenticated);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(captured);
+        Assert.Contains($"itemType={kind}", captured.RequestUri!.Query, StringComparison.Ordinal);
+        var summary = Assert.Single(result.Items);
+        Assert.Equal(kind, summary.Type);
+        Assert.Equal(1, result.TypeCounts[kind]);
+        Assert.Equal(kind == "map", summary.ViewerSupport.CanOpenInViewer);
+        Assert.False(summary.ViewerSupport.CanEditInStudio);
+    }
+
+    [Fact]
+    public async Task Search_AnonymousDataset_HidesNonPublicProjection()
+    {
+        var handler = new RecordingHandler(_ => Envelope(new HonuaConsoleContentListResponse
+        {
+            Total = 2,
+            Items =
+            [
+                Item("public-dataset", "coast", "dataset", "public", actions: ["view"]),
+                Item("internal-dataset", "inland", "dataset", "organization", actions: ["view"])
+            ]
+        }));
+
+        var result = await CreateCatalog(handler).SearchAsync(
+            new CatalogListRequest { Type = "dataset" }, CatalogReadContext.AnonymousPublicLink(token: null));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("public-dataset", Assert.Single(result.Items).Id);
+    }
+
     [Fact]
     public async Task Search_SendsAdminAuthAndProjectedFilters_AndMapsRbacBackedSummaries()
     {
@@ -49,7 +100,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
                 Items =
                 [
                     Item("svc-1", "coastal", "service", "public", actions: ["view", "embed"]),
-                    Item("map-1", "storm", "saved-map", "organization", actions: ["view", "edit", "publish", "share", "administer"])
+                    Item("map-1", "storm", "map", "organization", actions: ["view", "edit", "publish", "share", "administer"])
                 ]
             });
         });
@@ -62,16 +113,15 @@ public sealed class HonuaServerConsoleCatalogClientTests
         Assert.NotNull(captured);
         Assert.Equal("/api/v1/console/content/", captured!.RequestUri!.AbsolutePath);
         var query = captured.RequestUri.Query;
-        // Console catalog "map" projects onto the server saved-map item type; visibility maps to the
-        // server scope; owner/q pass straight through.
-        Assert.Contains("itemType=saved-map", query, StringComparison.Ordinal);
+        // Canonical kind and owner/query pass through; visibility maps to server scope.
+        Assert.Contains("itemType=map", query, StringComparison.Ordinal);
         Assert.Contains("visibility=organization", query, StringComparison.Ordinal);
         Assert.Contains("owner=resilience", query, StringComparison.Ordinal);
         Assert.Contains("q=flood", query, StringComparison.Ordinal);
         Assert.True(captured.Headers.TryGetValues("X-API-Key", out var keys));
         Assert.Equal("admin-secret", keys!.Single());
 
-        // saved-map item type projects onto the Console "map" type; RBAC verbs drive resolved role.
+        // RBAC verbs drive the resolved role.
         var map = Assert.Single(result.Items, summary => summary.Id == "map-1");
         Assert.Equal("map", map.Type);
         Assert.Equal("owner", map.ResolvedRole);
@@ -199,7 +249,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task GetMapPackage_NonSavedMapItem_IsMissing()
+    public async Task GetMapPackage_NonMapItem_IsMissing()
     {
         var handler = new RecordingHandler(_ => Envelope(Item("svc-1", "service-item", "service", "public", actions: ["view"])));
         var catalog = CreateCatalog(handler);
@@ -210,9 +260,9 @@ public sealed class HonuaServerConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task GetMapPackage_SavedMap_BindsSummary()
+    public async Task GetMapPackage_Map_BindsSummary()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "saved-map", "public", actions: ["view", "edit"])));
+        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "map", "public", actions: ["view", "edit"])));
         var catalog = CreateCatalog(handler);
 
         var map = await catalog.GetMapAsync("map-1", CatalogReadContext.Authenticated);
@@ -248,9 +298,9 @@ public sealed class HonuaServerConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task GetDraftMap_FromSavedMapSource_IsUnsupportedServiceMetadata()
+    public async Task GetDraftMap_FromMapSource_IsUnsupportedServiceMetadata()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "saved-map", "public", actions: ["view"])));
+        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "map", "public", actions: ["view"])));
         var catalog = CreateCatalog(handler);
 
         var draft = await catalog.GetDraftMapAsync("map-1", CatalogReadContext.Authenticated);
@@ -275,7 +325,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
     [Fact]
     public async Task AuthorizeEmbed_NonEmbeddableMap_IsUnavailable()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "saved-map", "public", actions: ["view"])));
+        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "map", "public", actions: ["view"])));
         var catalog = CreateCatalog(handler);
 
         var embed = await catalog.AuthorizeEmbedAsync(
@@ -288,7 +338,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
     [Fact]
     public async Task AuthorizeEmbed_NonPublicEmbeddableMap_SurfacesShareFacetGap()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "saved-map", "organization", actions: ["view", "embed"])));
+        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "map", "organization", actions: ["view", "embed"])));
         var catalog = CreateCatalog(handler);
 
         var embed = await catalog.AuthorizeEmbedAsync(
@@ -302,7 +352,7 @@ public sealed class HonuaServerConsoleCatalogClientTests
     [Fact]
     public async Task AuthorizeEmbed_PublicEmbeddableMap_IsAllowedAnonymous()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "saved-map", "public", actions: ["view", "embed"])));
+        var handler = new RecordingHandler(_ => Envelope(Item("map-1", "storm", "map", "public", actions: ["view", "embed"])));
         var catalog = CreateCatalog(handler);
 
         var embed = await catalog.AuthorizeEmbedAsync(
