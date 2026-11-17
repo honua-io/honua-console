@@ -32,3 +32,14 @@ test('every live-journey compose command applies the selected probe overlay last
   }
   assert.equal(workflow.match(/node scripts\/select-live-server-probe\.mjs/g)?.length, 2);
 });
+
+test('each live-journey job selects the probe before it first starts compose', () => {
+  const workflow = read('.github/workflows/console-live-journey.yml');
+  const jobs = workflow.split('\njobs:\n')[1].split(/\n  [\w-]+:\n/)
+    .filter(job => job.includes('docker compose -f e2e/docker-compose.yml'));
+  assert.equal(jobs.length, 2);
+  for (const job of jobs) {
+    const select = job.indexOf('node scripts/select-live-server-probe.mjs');
+    assert.ok(select >= 0 && select < job.indexOf('docker compose -f e2e/docker-compose.yml'));
+  }
+});

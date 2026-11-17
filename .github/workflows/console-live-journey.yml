@@ -47,6 +47,7 @@ on:
       - 'scripts/studio-release.lock.json'
       - 'scripts/require-live-server-image.mjs'
       - 'scripts/resolve-live-server-image.mjs'
+      - 'scripts/select-live-server-probe.mjs'
       - 'scripts/studio-customer-identity.mjs'
       - 'scripts/agent-mcp-client.mjs'
       - 'scripts/agent-customer-journey.mjs'
