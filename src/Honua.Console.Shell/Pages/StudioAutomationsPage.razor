@@ -42,6 +42,14 @@
                           Title="Automation authoring is not bound"
                           Message="@($"{_binding.Detail} (contract: {_binding.Contract})")" />
     }
+    else if (_loadFailed)
+    {
+        <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
+                          Kicker="Automations"
+                          Title="Could not load automations"
+                          Message="Automations could not be read. Return to this page to try again." />
+    }
     else if (_automations.Count == 0)
     {
         <ConsoleStateView Kind="empty"
@@ -115,6 +123,7 @@
     private bool IsConsoleV4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private bool _loading = true;
+    private bool _loadFailed;
     private CollectAutomationBindingState? _binding;
     private IReadOnlyList<CollectAutomationSummary> _automations = [];
 
@@ -128,6 +137,10 @@
             var context = await Automations.OpenEditorAsync("new");
             _binding = context.BindingState;
             _automations = _binding is null ? await Automations.ListAutomationsAsync() : [];
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            _loadFailed = true;
         }
         finally
         {

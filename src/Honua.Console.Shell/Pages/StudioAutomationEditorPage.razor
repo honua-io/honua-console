@@ -44,6 +44,16 @@
                           Title="Loading automation draft"
                           Message="Resolving the Collect automation projection." />
     }
+    else if (_loadFailed)
+    {
+        <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
+                          Kicker="Automation"
+                          Title="Could not load automation draft"
+                          Message="The automation draft could not be read. Return to this page to try again."
+                          ActionHref="/studio/automations"
+                          ActionLabel="Back to automations" />
+    }
     else if (_draft is null)
     {
         <ConsoleStateView Kind="empty"
@@ -280,6 +290,7 @@
 
     private long _pageGeneration;
     private bool _loading = true;
+    private bool _loadFailed;
     private bool _busy;
     private string? _busyLabel;
     private string? _errorMessage;
@@ -305,26 +316,38 @@
     {
         var generation = ++_pageGeneration;
         _loading = true;
+        _loadFailed = false;
         _draft = null;
         _binding = null;
         var draftRouteId = string.IsNullOrWhiteSpace(DraftId) ? "new" : DraftId;
         if (!string.Equals(_activeDraftRouteId, draftRouteId, StringComparison.Ordinal))
         {
+            _dirty.MarkClean();
             _lastSave = null;
             _errorMessage = null;
             _activeDraftRouteId = draftRouteId;
         }
 
-        var context = await Automations.OpenEditorAsync(DraftId);
-        if (generation != _pageGeneration) return;
-        _binding = context.BindingState;
-        _draft = context.Draft;
-        _savedFingerprint = _draft is null ? null : CollectAutomationDraftContent.CreateFingerprint(_draft);
-        _loading = false;
+        try
+        {
+            var context = await Automations.OpenEditorAsync(DraftId);
+            if (generation != _pageGeneration) return;
+            _binding = context.BindingState;
+            _draft = context.Draft;
+            _savedFingerprint = _draft is null ? null : CollectAutomationDraftContent.CreateFingerprint(_draft);
 
-        _validation.Clear();
-        _dirty.MarkClean();
-        RecomputeClientErrors();
+            _validation.Clear();
+            _dirty.MarkClean();
+            RecomputeClientErrors();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            if (generation == _pageGeneration) _loadFailed = true;
+        }
+        finally
+        {
+            if (generation == _pageGeneration) _loading = false;
+        }
     }
 
     private void OnEdit()

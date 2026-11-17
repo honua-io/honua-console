@@ -60,6 +60,16 @@
                           ActionHref="/studio/automations"
                           ActionLabel="Back to automations" />
     }
+    else if (_loadFailed)
+    {
+        <ConsoleStateView Kind="error"
+                          HeadingLevel="@(IsConsoleV4Enabled ? 2 : 1)"
+                          Kicker="Versions"
+                          Title="Could not load automation versions"
+                          Message="The version history could not be read. Return to this page to try again."
+                          ActionHref="/studio/automations"
+                          ActionLabel="Back to automations" />
+    }
     else if (_versions.Count == 0)
     {
         <ConsoleStateView Kind="empty"
@@ -142,6 +152,7 @@
     private long _pageGeneration;
     private long _loadGeneration;
     private bool _loading = true;
+    private bool _loadFailed;
     private bool _busy;
     private bool _restoring;
     private string? _errorMessage;
@@ -173,6 +184,7 @@
         var pageGeneration = _pageGeneration;
         var loadGeneration = ++_loadGeneration;
         _loading = true;
+        _loadFailed = false;
         try
         {
             var context = await Automations.OpenEditorAsync(DraftId);
@@ -195,6 +207,14 @@
             if (pageGeneration != _pageGeneration || loadGeneration != _loadGeneration) return;
             _binding = history.BindingState;
             _versions = history.Versions;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        {
+            if (pageGeneration == _pageGeneration && loadGeneration == _loadGeneration)
+            {
+                _versions = [];
+                _loadFailed = true;
+            }
         }
         finally
         {
