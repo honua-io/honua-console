@@ -628,18 +628,15 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 : await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
             var existing = snapshot is not null ? snapshot.Session
                 : await _sessions.GetSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
-            using var tokenResponse = await partition.Client.PostAsJsonAsync(
-                ConsoleServerHttp.BuildUri(
-                    profile.ServerBaseUri,
-                    $"api/v1/admin/auth/providers/{Uri.EscapeDataString(pending.ProviderKey)}/token"),
-                new ConsoleServerAuthTokenRequestWire
-                {
-                    GrantType = "authorization_code",
-                    Code = code,
-                    State = state
-                },
-                ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthTokenRequestWire,
-                cancellationToken).ConfigureAwait(false);
+            using var tokenResponse = await new ConsoleServerSessionPost
+            {
+                Client = partition.Client,
+                ServerBaseUri = profile.ServerBaseUri,
+                RelativePath = $"api/v1/admin/auth/providers/{Uri.EscapeDataString(pending.ProviderKey)}/token",
+                Content = JsonContent.Create(
+                    new ConsoleServerAuthTokenRequestWire { GrantType = "authorization_code", Code = code, State = state },
+                    ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthTokenRequestWire)
+            }.SendAsync(cancellationToken).ConfigureAwait(false);
             if (!tokenResponse.IsSuccessStatusCode)
             {
                 return Denied("honua-server rejected the operator sign-in response.", pending.ReturnTo);
@@ -1020,7 +1017,7 @@ internal sealed record ConsoleServerAuthTokenRequestWire
 internal sealed partial class ConsoleServerSessionBffJsonContext : JsonSerializerContext;
 
 // A partition that already holds the server session cookie needs the server's CSRF token on
-// browser-session POSTs (authorize-url, logout); without the cookie the token is harmless.
+// unsafe session requests (authorize-url, token, logout); without the cookie the token is harmless.
 internal sealed class ConsoleServerSessionPost
 {
     public required HttpClient Client { get; init; }
