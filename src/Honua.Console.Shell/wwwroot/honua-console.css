@@ -200,6 +200,38 @@ p {
     overflow-wrap: anywhere;
 }
 
+/* Export artifact rows and bucket objects: one file per line, size and copy action inline. */
+.console-artifact-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.console-folder-trail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.console-folder-trail li + li::before {
+    content: "/";
+    margin-right: 8px;
+    color: var(--honua-muted);
+}
+
+.console-artifact-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    overflow-wrap: anywhere;
+}
+
 /* Diagnostics disclosure (honua-console#311): human first line over an expandable
    technical block that preserves the full verbatim diagnostics. */
 .console-diagnostics {

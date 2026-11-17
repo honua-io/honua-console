@@ -1,0 +1,195 @@
+@page "/operate/connections/new/object-storage"
+@inject IConsoleExportsClient Exports
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
+
+<UnsavedChangesGuard IsDirty="IsDirty" Message="You have an unsaved bucket connection. Leave this page and discard it?" />
+
+<section class="console-page" data-object-storage-new>
+    <ConsolePageHeading Title="Add object storage">
+        <ChildContent>
+            <p>Connect a bucket the way you connect a database. Honua reads it through a role you create in your own account, so no access keys are stored and Honua never edits your bucket policy.</p>
+        </ChildContent>
+        <Actions>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/connections/new")">Add a database instead</a>
+        </Actions>
+    </ConsolePageHeading>
+
+    <ConsolePanel Title="Bucket" HeadingId="object-storage-bucket-heading">
+        <div class="studio-field-grid">
+            <label>
+                <span>Connection name</span>
+                <input class="console-input" @bind="_name" @bind:event="oninput" @bind:after="OnEdit" placeholder="county-imagery" data-object-storage-field="name" />
+            </label>
+            <label>
+                <span>Bucket</span>
+                <input class="console-input" @bind="_bucket" @bind:event="oninput" @bind:after="OnBucketEdit" placeholder="county-imagery-2026" data-object-storage-field="bucket" />
+            </label>
+            <label>
+                <span>Prefix (optional)</span>
+                <input class="console-input" @bind="_prefix" @bind:event="oninput" @bind:after="OnBucketEdit" placeholder="orthophotos/" data-object-storage-field="prefix" />
+            </label>
+            <label>
+                <span>Region</span>
+                <input class="console-input" @bind="_region" @bind:event="oninput" @bind:after="OnEdit" placeholder="us-west-2" data-object-storage-field="region" />
+            </label>
+            <label>
+                <span>Description (optional)</span>
+                <input class="console-input" @bind="_description" @bind:event="oninput" @bind:after="OnEdit" data-object-storage-field="description" />
+            </label>
+        </div>
+    </ConsolePanel>
+
+    <ConsolePanel Title="Access role" HeadingId="object-storage-role-heading">
+        <p>Create a read-only role named <code>@(_setup?.Value?.RoleNamePrefix ?? "honua-connection-")…</code> on this bucket. The quick-create link opens a template with the bucket, prefix and this installation's external id filled in.</p>
+        <div class="console-action-row">
+            <button type="button" class="console-button console-button-secondary" disabled="@(!HasBucket || _setupPending)" data-object-storage-setup @onclick="LoadSetupAsync">
+                @(_setupPending ? "Preparing…" : "Get the quick-create link")
+            </button>
+        </div>
+        @if (_setup is { IsAllowed: true, Value: { } setup })
+        {
+            <dl class="console-definition-list" data-object-storage-setup-result>
+                <dt>External id</dt>
+                <dd><code>@setup.ExternalId</code> <ConsoleCopyButton Text="@setup.ExternalId" Label="Copy external id" /></dd>
+                @if (!string.IsNullOrWhiteSpace(setup.QuickCreateUrl))
+                {
+                    <dt>Quick-create link</dt>
+                    <dd><a href="@setup.QuickCreateUrl" target="_blank" rel="noopener noreferrer" data-object-storage-quick-create>Create the role in your account</a></dd>
+                }
+            </dl>
+        }
+        else if (_setup is { } failed)
+        {
+            <OperateSectionStatusPanel Heading="Access role" Status="failed.Status" Message="@failed.Message" Detail="@failed.Detail" />
+        }
+        <div class="studio-field-grid">
+            <label>
+                <span>Role ARN</span>
+                <input class="console-input" @bind="_roleArn" @bind:event="oninput" @bind:after="OnEdit" placeholder="arn:aws:iam::123456789012:role/honua-connection-imagery" data-object-storage-field="role" />
+            </label>
+        </div>
+    </ConsolePanel>
+
+    <div class="console-action-row">
+        <button type="button" class="console-button console-button-secondary" disabled="@(!IsComplete || _busy)" data-object-storage-test @onclick="TestAsync">Test</button>
+        <button type="button" class="console-button" disabled="@(!IsComplete || _busy)" data-object-storage-create @onclick="CreateAsync">@(_busy ? "Working…" : "Add connection")</button>
+        <a href="@Navigation.ToConsoleHref("/operate/connections")">Cancel</a>
+    </div>
+
+    @if (_test is { } test)
+    {
+        <div class="console-panel @(test.IsAllowed && test.Value!.IsHealthy ? "console-state-success" : "console-state-warning")" role="status" data-object-storage-test-result>
+            <OperateSectionHeading Text="@(test.IsAllowed && test.Value!.IsHealthy ? "Bucket reachable" : "Bucket not reachable")" />
+            <p>@(test.IsAllowed ? test.Value!.Message ?? "Honua listed one key in the bucket." : test.Message)</p>
+        </div>
+    }
+
+    @if (_created is { } created)
+    {
+        @if (created.IsAllowed)
+        {
+            <div class="console-panel console-state-success" role="status" data-object-storage-created>
+                <OperateSectionHeading Text="Connection added" />
+                <a href="@Navigation.ToConsoleHref($"/operate/connections/{created.Value!.Id:D}/objects")">Browse @created.Value.Name</a>
+            </div>
+        }
+        else
+        {
+            <div role="alert" data-object-storage-create-failed>
+                <OperateSectionStatusPanel Heading="Connection not added" Status="created.Status" Message="@created.Message" Detail="@created.Detail" />
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private string _name = string.Empty;
+    private string _bucket = string.Empty;
+    private string _prefix = string.Empty;
+    private string _region = string.Empty;
+    private string _roleArn = string.Empty;
+    private string _description = string.Empty;
+    private bool _busy;
+    private bool _setupPending;
+    private OperateSectionResult<ObjectStorageSetupResponse>? _setup;
+    private OperateSectionResult<ObjectStorageTestResponse>? _test;
+    private OperateSectionResult<ObjectStorageConnectionResponse>? _created;
+
+    private bool HasBucket => !string.IsNullOrWhiteSpace(_bucket);
+    private bool IsComplete => HasBucket && !string.IsNullOrWhiteSpace(_name) && !string.IsNullOrWhiteSpace(_region)
+        && !string.IsNullOrWhiteSpace(_roleArn) && _setup is { IsAllowed: true };
+    private bool IsDirty => _created is not { IsAllowed: true }
+        && new[] { _name, _bucket, _prefix, _region, _roleArn, _description }.Any(value => !string.IsNullOrWhiteSpace(value));
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/connections/new/object-storage",
+        Unsaved = new()
+        {
+            ChangedFieldCount = _created is { IsAllowed: true } ? 0
+                : new[] { _name, _bucket, _prefix, _region, _roleArn, _description }.Count(value => !string.IsNullOrWhiteSpace(value)),
+            PendingOperationCount = (_busy ? 1 : 0) + (_setupPending ? 1 : 0)
+        }
+    };
+
+    private void OnEdit()
+    {
+        _test = null;
+        _created = null;
+    }
+
+    // The external id and quick-create link are bound to the bucket and prefix, so a change asks for a new link.
+    private void OnBucketEdit()
+    {
+        _setup = null;
+        OnEdit();
+    }
+
+    private async Task LoadSetupAsync()
+    {
+        _setupPending = true;
+        try
+        {
+            _setup = await Exports.GetObjectStorageSetupAsync(_bucket.Trim(), _prefix.Trim());
+        }
+        finally
+        {
+            _setupPending = false;
+        }
+    }
+
+    private ObjectStorageConnectionRequest Draft() => new()
+    {
+        Name = _name.Trim(),
+        Bucket = _bucket.Trim(),
+        Prefix = _prefix.Trim(),
+        Region = _region.Trim(),
+        RoleArn = _roleArn.Trim(),
+        ExternalId = _setup?.Value?.ExternalId ?? string.Empty,
+        Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim()
+    };
+
+    private async Task TestAsync() => await RunAsync(async () => _test = await Exports.TestObjectStorageAsync(Draft()));
+
+    private async Task CreateAsync() => await RunAsync(async () => _created = await Exports.CreateObjectStorageAsync(Draft()));
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (!IsComplete || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,0 +1,122 @@
+@page "/operate/exports/new"
+@inject IConsoleExportsClient Exports
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page" data-export-new>
+    <ConsolePageHeading Title="Export as files">
+        <ChildContent>
+            <p>Writes this Layer as cloud-native files in a new immutable Version: GeoParquet for the rows and PMTiles for the map, described by one collection document.</p>
+        </ChildContent>
+    </ConsolePageHeading>
+
+    @if (!HasLayerSource)
+    {
+        <OperateSectionStatusPanel Heading="Export source" Status="OperateSectionStatus.Rejected" HeadingLevel="2"
+                                   Message="Open a Layer and choose Export as files, so the Export knows which Layer to write." />
+        <a href="@Navigation.ToConsoleHref("/operate/layers")">Choose a layer</a>
+    }
+    else
+    {
+        <ConsolePanel Title="Source" HeadingId="export-source-heading">
+            <dl class="console-definition-list" data-export-source>
+                <dt>Layer</dt>
+                <dd>@(string.IsNullOrWhiteSpace(Name) ? $"Layer {LayerId}" : Name)</dd>
+                <dt>Service</dt>
+                <dd><code>@ServiceId</code></dd>
+            </dl>
+            <p class="console-muted">@ExportPresentation.PublicFollowsLayer</p>
+        </ConsolePanel>
+
+        <ConsolePanel Title="Export" HeadingId="export-options-heading">
+            <div class="studio-field-grid">
+                <label>
+                    <span>Export id (optional)</span>
+                    <input class="console-input" @bind="_exportId" @bind:event="oninput" placeholder="parcels" aria-describedby="export-id-hint" data-export-id />
+                    <small id="export-id-hint" class="console-muted">3-64 lowercase letters, digits or hyphens. Left empty, the server names it after the Layer. The id is part of every file URL.</small>
+                    @if (ExportIdError is { } error)
+                    {
+                        <ul class="console-validation-inline" role="list" data-export-id-error>
+                            <li class="console-field-state__error console-field-state__error--blocker">@error</li>
+                        </ul>
+                    }
+                </label>
+            </div>
+            <div class="console-action-row">
+                <button type="button" class="console-button" disabled="@(_busy || ExportIdError is not null)" data-export-create @onclick="CreateAsync">
+                    @(_busy ? "Starting…" : "Export as files")
+                </button>
+                <a href="@Navigation.ToConsoleHref("/operate/exports")">All Exports</a>
+            </div>
+        </ConsolePanel>
+
+        @if (_result is { } result)
+        {
+            @if (result.IsAllowed)
+            {
+                <div class="console-panel console-state-success" role="status" data-export-started>
+                    <p class="console-kicker">@ExportPresentation.StatusLabel(result.Value!.Status)</p>
+                    <OperateSectionHeading Text="Export started" />
+                    <p>@(string.IsNullOrWhiteSpace(result.Message) ? "The files are being written. The Export page shows the new Version when it is ready." : result.Message)</p>
+                    <a href="@Navigation.ToConsoleHref($"/operate/exports/{Uri.EscapeDataString(result.Value.Id)}")" data-export-link>Open @result.Value.Id</a>
+                </div>
+            }
+            else
+            {
+                <div role="alert" data-export-failed>
+                    <OperateSectionStatusPanel Heading="Export not started" Status="result.Status" Message="@result.Message" Detail="@result.Detail" HeadingLevel="2" />
+                </div>
+            }
+        }
+    }
+</section>
+
+@code {
+    private string _exportId = string.Empty;
+    private bool _busy;
+    private OperateSectionResult<ExportResponse>? _result;
+
+    [SupplyParameterFromQuery(Name = "serviceId")] public string? ServiceId { get; set; }
+    [SupplyParameterFromQuery(Name = "layerId")] public int? LayerId { get; set; }
+    [SupplyParameterFromQuery(Name = "name")] public string? Name { get; set; }
+
+    private bool HasLayerSource => !string.IsNullOrWhiteSpace(ServiceId) && LayerId is not null;
+
+    private string? ExportIdError =>
+        string.IsNullOrWhiteSpace(_exportId) || ExportPresentation.IsValidExportId(_exportId.Trim())
+            ? null
+            : "Use 3-64 lowercase letters, digits or hyphens, starting with a letter or digit.";
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/exports/new",
+        Unsaved = new()
+        {
+            ChangedFieldCount = string.IsNullOrWhiteSpace(_exportId) ? 0 : 1,
+            PendingOperationCount = _busy ? 1 : 0
+        }
+    };
+
+    private async Task CreateAsync()
+    {
+        if (!HasLayerSource || ExportIdError is not null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _result = await Exports.CreateAsync(new ExportCreateRequest
+            {
+                Source = new ExportSourceDescriptor { Kind = "layer", ServiceId = ServiceId!.Trim(), LayerId = LayerId, Name = Name },
+                ExportId = string.IsNullOrWhiteSpace(_exportId) ? null : _exportId.Trim()
+            });
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

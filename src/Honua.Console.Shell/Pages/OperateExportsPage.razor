@@ -1,0 +1,134 @@
+@page "/operate/exports"
+@inject IConsoleExportsClient Exports
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page" data-exports-page>
+    <ConsolePageHeading Title="Exports">
+        <ChildContent>
+            <p>Each Export holds immutable Versions of cloud-native files: GeoParquet and PMTiles for vector data, cloud-optimized GeoTIFF for rasters, described by one collection document.</p>
+        </ChildContent>
+        <Actions>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/layers")">Export a layer</a>
+        </Actions>
+    </ConsolePageHeading>
+
+    @if (_notice is { } notice)
+    {
+        <div class="console-panel @(notice.Succeeded ? "console-state-success" : "console-state-warning")" role="status" data-export-notice>
+            <p>@notice.Message</p>
+        </div>
+    }
+
+    @if (_result is null)
+    {
+        <OperateSectionStatusPanel Heading="Exports" Loading="true" HeadingLevel="2" />
+    }
+    else if (!_result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Exports" Status="_result.Status" Message="@_result.Message" Detail="@_result.Detail" HeadingLevel="2" />
+    }
+    else if (_result.Value!.Items.Count == 0)
+    {
+        <EmptyState Area="operate" Subject="Exports" ActionHref="@Navigation.ToConsoleHref("/operate/layers")" ActionText="Choose a layer to export" />
+    }
+    else
+    {
+        <ConsolePanel Title="Exports" HeadingId="exports-heading">
+            <p class="console-muted">@ExportPresentation.PublicFollowsLayer</p>
+            <ConsoleTableRegion Label="Exports table">
+                <table class="console-table">
+                    <thead>
+                        <tr><th>Export</th><th>Source</th><th>Version</th><th>Access</th><th>URL</th><th>Updated</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var export in _result.Value.Items)
+                        {
+                            <tr data-export-row="@export.Id">
+                                <td>
+                                    <a href="@Navigation.ToConsoleHref($"/operate/exports/{Uri.EscapeDataString(export.Id)}")">@(string.IsNullOrWhiteSpace(export.Title) ? export.Id : export.Title)</a>
+                                    <small><code>@export.Id</code></small>
+                                </td>
+                                <td>@ExportPresentation.SourceLabel(export.Source)</td>
+                                <td>
+                                    <span class="@ExportPresentation.StatusClass(export.Status)">@ExportPresentation.StatusLabel(export.Status)</span>
+                                    <small>@(export.CurrentVersion ?? "No version yet")</small>
+                                </td>
+                                <td data-export-access>
+                                    @ExportPresentation.AccessLabel(export)
+                                    @if (string.IsNullOrWhiteSpace(export.PublicUrl) && !string.IsNullOrWhiteSpace(export.NotPublicReason))
+                                    {
+                                        <small>@export.NotPublicReason</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (ExportPresentation.PreferredUrl(export) is { } url && !ExportPresentation.IsUnpublished(export))
+                                    {
+                                        <ConsoleCopyButton Text="@url" Label="Copy URL" />
+                                    }
+                                    else
+                                    {
+                                        <span class="console-muted">—</span>
+                                    }
+                                </td>
+                                <td>@ExportPresentation.When(export.UpdatedAt)</td>
+                                <td>
+                                    <button type="button" class="console-button console-button-secondary console-button-small" data-export-unpublish="@export.Id"
+                                            disabled="@(ExportPresentation.IsUnpublished(export) || _pending)" @onclick="() => ConfirmUnpublish(export)">
+                                        Unpublish
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </ConsoleTableRegion>
+        </ConsolePanel>
+    }
+</section>
+
+<ConsoleConfirmDialog @ref="_confirm" />
+
+@code {
+    private ConsoleConfirmDialog? _confirm;
+    private OperateSectionResult<ExportListResponse>? _result;
+    private ExportNotice? _notice;
+    private bool _pending;
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = "/operate/exports",
+        Unsaved = new() { PendingOperationCount = (_result is null ? 1 : 0) + (_pending ? 1 : 0) }
+    };
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() => _result = await Exports.ListAsync();
+
+    private void ConfirmUnpublish(ExportResponse export) =>
+        _confirm?.Open(
+            $"Unpublish {export.Id}?",
+            () => UnpublishAsync(export.Id),
+            "Its files are removed from the public data path and the signed-in routes. Existing Versions stop being served.",
+            "Unpublish");
+
+    private async Task UnpublishAsync(string exportId)
+    {
+        _pending = true;
+        try
+        {
+            var result = await Exports.UnpublishAsync(exportId);
+            _notice = result.IsAllowed
+                ? new ExportNotice(true, $"Unpublished {exportId}.")
+                : new ExportNotice(false, $"Could not unpublish {exportId}: {result.Message}");
+            await LoadAsync();
+        }
+        finally
+        {
+            _pending = false;
+        }
+    }
+
+    private sealed record ExportNotice(bool Succeeded, string Message);
+}

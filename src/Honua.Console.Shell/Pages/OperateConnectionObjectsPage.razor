@@ -1,0 +1,117 @@
+@page "/operate/connections/{ConnectionId:guid}/objects"
+@inject IConsoleExportsClient Exports
+@inject NavigationManager Navigation
+
+<ConsoleAgentContext Context="@AgentContext" />
+
+<section class="console-page" data-connection-objects="@ConnectionId">
+    <ConsolePageHeading Title="@(_result?.Value?.Bucket is { Length: > 0 } bucket ? bucket : "Bucket")">
+        <ChildContent>
+            <p>Files in this bucket, with the kind Honua detected from each file header. Cloud-optimized GeoTIFF, PMTiles and GeoParquet files can be used as a source.</p>
+        </ChildContent>
+        <Actions>
+            <a class="console-button-link console-button-secondary" href="@Navigation.ToConsoleHref("/operate/connections")">All connections</a>
+        </Actions>
+    </ConsolePageHeading>
+
+    <nav aria-label="Bucket folders" data-objects-breadcrumb>
+        <ol class="console-folder-trail">
+            <li><a href="@BrowseHref(string.Empty)">Bucket root</a></li>
+            @foreach (var (label, prefix) in PrefixTrail())
+            {
+                <li><a href="@BrowseHref(prefix)">@label</a></li>
+            }
+        </ol>
+    </nav>
+
+    @if (_result is null)
+    {
+        <OperateSectionStatusPanel Heading="Bucket" Loading="true" HeadingLevel="2" />
+    }
+    else if (!_result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Bucket" Status="_result.Status" Message="@_result.Message" Detail="@_result.Detail" HeadingLevel="2" />
+    }
+    else if (_result.Value!.Folders.Count == 0 && _result.Value.Objects.Count == 0)
+    {
+        <OperateSectionStatusPanel Heading="Bucket" Empty="true" HeadingLevel="2" EmptyTitle="No files here" EmptyMessage="This folder of the bucket holds no files." />
+    }
+    else
+    {
+        var listing = _result.Value;
+        <ConsolePanel Title="Files" HeadingId="objects-heading">
+            @if (listing.Truncated)
+            {
+                <p class="console-muted" data-objects-truncated>Showing the first page of files. Open a folder to narrow the list.</p>
+            }
+            <ConsoleTableRegion Label="Bucket files">
+                <table class="console-table">
+                    <thead><tr><th>Name</th><th>Kind</th><th>Size</th><th>Modified</th></tr></thead>
+                    <tbody>
+                        @foreach (var folder in listing.Folders)
+                        {
+                            <tr data-objects-folder="@folder">
+                                <td><a href="@BrowseHref(folder)">@LastSegment(folder)/</a></td>
+                                <td>Folder</td>
+                                <td>—</td>
+                                <td>—</td>
+                            </tr>
+                        }
+                        @foreach (var item in listing.Objects)
+                        {
+                            <tr data-objects-file="@item.Key">
+                                <td><code>@LastSegment(item.Key)</code></td>
+                                <td><span class="console-status" data-objects-kind="@item.Kind">@ExportPresentation.ArtifactLabel(item.Kind)</span></td>
+                                <td>@ExportPresentation.Size(item.Bytes)</td>
+                                <td>@ExportPresentation.When(item.LastModified)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </ConsoleTableRegion>
+        </ConsolePanel>
+    }
+</section>
+
+@code {
+    private OperateSectionResult<ObjectStorageBrowseResponse>? _result;
+
+    [Parameter] public Guid ConnectionId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "prefix")] public string? Prefix { get; set; }
+
+    private string CurrentPrefix => Prefix ?? string.Empty;
+
+    private ConsoleAgentPageContext AgentContext => new()
+    {
+        Route = $"/operate/connections/{ConnectionId:D}/objects",
+        Entities = [ConsoleAgentEntity.ForConnection(ConnectionId.ToString("D"))],
+        Unsaved = new() { PendingOperationCount = _result is null ? 1 : 0 }
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _result = null;
+        _result = await Exports.BrowseAsync(ConnectionId, CurrentPrefix);
+    }
+
+    private string BrowseHref(string prefix) => Navigation.ToConsoleHref(
+        $"/operate/connections/{ConnectionId:D}/objects" + (string.IsNullOrEmpty(prefix) ? string.Empty : $"?prefix={Uri.EscapeDataString(prefix)}"));
+
+    private static string LastSegment(string key)
+    {
+        var trimmed = key.TrimEnd('/');
+        var slash = trimmed.LastIndexOf('/');
+        return slash < 0 ? trimmed : trimmed[(slash + 1)..];
+    }
+
+    // Each folder above the current one, so a deep prefix can be walked back one level at a time.
+    private IEnumerable<(string Label, string Prefix)> PrefixTrail()
+    {
+        var segments = CurrentPrefix.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        for (var index = 0; index < segments.Length; index++)
+        {
+            yield return (segments[index], string.Join('/', segments[..(index + 1)]) + "/");
+        }
+    }
+}

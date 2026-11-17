@@ -28,6 +28,14 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 adminApiKey));
         AddDeployments(services, adminApiKey, credentialMode);
+        services.TryAddSingleton<IConsoleExportsClient>(serviceProvider =>
+            new HttpConsoleExportsClient(
+                ShellHttpClients.ServerBound(serviceProvider),
+                serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
+                serviceProvider.GetRequiredService<IConsoleOperatorBearerProvider>(),
+                adminApiKey,
+                credentialMode));
         AddProposals(services, adminApiKey, credentialMode);
         services.TryAddSingleton<IConsoleServerVersionClient>(serviceProvider =>
             new HttpConsoleServerVersionClient(
