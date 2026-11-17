@@ -196,6 +196,11 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
                     $"The Honua server OGC API - Styles response did not match the expected contract: {ex.Message}",
                     (int)response.StatusCode));
             }
+            catch (Exception ex) when (ex is HttpRequestException or IOException ||
+                ex is TaskCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                return Unavailable(ex.Message);
+            }
 
             if (document?.Styles is null)
             {
@@ -395,7 +400,8 @@ public sealed class HonuaOgcStylesHttpClient : IHonuaOgcStylesClient, IDisposabl
         {
             response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException ||
+            ex is TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
             return HonuaOgcStyleSaveResult.Fail("Unavailable", $"The Honua server could not be reached: {ex.Message}");
         }
