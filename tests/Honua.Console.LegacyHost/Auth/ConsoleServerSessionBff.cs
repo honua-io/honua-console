@@ -528,12 +528,13 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 };
             }
 
-            using var authorizeResponse = await partition.Client.PostAsJsonAsync(
-                ConsoleServerHttp.BuildUri(
-                    profile.ServerBaseUri,
-                    $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url"),
-                new ConsoleServerAuthAuthorizeRequestWire(),
-                ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthAuthorizeRequestWire,
+            using var authorizeResponse = await PostWithCsrfAsync(
+                partition.Client,
+                profile.ServerBaseUri,
+                $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url",
+                JsonContent.Create(
+                    new ConsoleServerAuthAuthorizeRequestWire(),
+                    ConsoleServerSessionBffJsonContext.Default.ConsoleServerAuthAuthorizeRequestWire),
                 cancellationToken).ConfigureAwait(false);
             if (!authorizeResponse.IsSuccessStatusCode)
             {
@@ -705,6 +706,24 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
     }
 
+    // A partition that already holds the server session cookie needs the server's CSRF token on
+    // browser-session POSTs (authorize-url, logout); without the cookie the token is harmless.
+    private static async Task<HttpResponseMessage> PostWithCsrfAsync(
+        HttpClient client,
+        Uri serverBaseUri,
+        string relativePath,
+        HttpContent? content,
+        CancellationToken cancellationToken)
+    {
+        var token = await ConsoleServerCsrf.TryGetTokenAsync(client, serverBaseUri, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Post, ConsoleServerHttp.BuildUri(serverBaseUri, relativePath))
+        {
+            Content = content
+        };
+        ConsoleServerCsrf.AddToken(request, token);
+        return await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
     {
         var operatorKey = _operatorContext.RequireOperatorKey();
@@ -715,8 +734,10 @@ internal sealed class ConsoleServerSessionBffCoordinator
             {
                 try
                 {
-                    using var response = await partition.Client.PostAsync(
-                        ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/logout"),
+                    using var response = await PostWithCsrfAsync(
+                        partition.Client,
+                        profile.ServerBaseUri,
+                        "api/v1/admin/auth/logout",
                         content: null,
                         cancellationToken).ConfigureAwait(false);
                 }
