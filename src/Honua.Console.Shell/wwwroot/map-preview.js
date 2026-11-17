@@ -34,8 +34,23 @@ const instances = new Map();
 const initializations = new WeakMap();
 let maplibrePromise = null;
 
+function ensureMapLibreStyles() {
+    if (document.querySelector('link[data-honua-maplibre]')) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = maplibreAsset('maplibre-gl.css');
+    link.setAttribute('data-honua-maplibre', '');
+    link.onerror = () => link.remove();
+    document.head.appendChild(link);
+}
+
 function loadMapLibre() {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
+        return Promise.resolve(null);
+    }
+    try {
+        ensureMapLibreStyles();
+    } catch {
         return Promise.resolve(null);
     }
     if (window.maplibregl) {
@@ -46,13 +61,6 @@ function loadMapLibre() {
     }
     maplibrePromise = new Promise((resolve) => {
         try {
-            if (!document.querySelector('link[data-honua-maplibre]')) {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = maplibreAsset('maplibre-gl.css');
-                link.setAttribute('data-honua-maplibre', '');
-                document.head.appendChild(link);
-            }
             const script = document.createElement('script');
             script.src = maplibreAsset('maplibre-gl.js');
             script.async = true;
