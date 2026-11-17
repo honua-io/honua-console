@@ -43,6 +43,23 @@ for (const v4Enabled of [false, true]) {
   });
 }
 
+// MapLibre's own stylesheet loads after the Console's and sets `.maplibregl-map` to
+// `position: relative`, which collapsed the mounted map to 0 px inside its stage.
+test('mounted layer map fills its preview stage', async ({ page }) => {
+  await routeLayerFixture(page, true);
+  await page.route('**/api/styles/parcels.json', route => route.fulfill({ json: { version: 8, sources: {},
+    layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e7eddf' } }] } }));
+  await signInWithFixturePassword(page, 'http://127.0.0.1:5185', '/operate/connections');
+  await page.goto(`http://127.0.0.1:5185/console/operate/layers/${connection}-layer-7`);
+  const map = page.getByRole('figure', { name: 'Map preview of layer Parcels', exact: true });
+  await expect(map).toHaveAttribute('data-map-bound', 'true');
+  await expect(page.locator('link[data-honua-maplibre]')).toHaveCount(1);
+  const stage = await map.locator('.map-preview-stage').boundingBox();
+  await expect.poll(async () => (await map.locator('[data-map-preview-canvas]').boundingBox())?.height)
+    .toBeGreaterThanOrEqual((stage?.height ?? 0) - 2);
+  expect(stage?.height).toBeGreaterThan(100);
+});
+
 async function routeLayerFixture(page: Page, v4Enabled: boolean) {
     await page.route('**/console/config.json', async route => {
       const response = await route.fetch();
