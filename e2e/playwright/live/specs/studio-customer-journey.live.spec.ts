@@ -149,7 +149,9 @@ test('fresh install publisher imports, authors, saves and reopens a map', async 
 
     for (const [index, item] of services.entries()) {
       await page.goto('/operate/layers');
-      const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`);
+      // The import store and the customer's source connection share this testbed's database, so
+      // the server lists the same layer under both connections.
+      const row = page.locator(`tr[data-service-id="${item.service}"][data-layer-id="${item.layerId}"]`).first();
       await expect(row).toContainText(index === 0 ? /(?:Multi)?Polygon/i : /\bPoint\b/i);
       await scrollForMilestone(row);
       await captureMilestone(page, info, `00-published-${index}-layers-geometry`);
