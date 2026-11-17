@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Honua.Console.IntegrationTests;
 
-// XLSForm import from the forms list and export from a published form (honua-console#973).
+// XLSForm import from the forms list and export from a published form.
 public sealed class StudioFormXlsFormRenderTests
 {
     private static readonly StudioFormPackageListItem Published =
@@ -31,12 +31,11 @@ public sealed class StudioFormXlsFormRenderTests
         var forms = new FormData();
         var xlsForm = new XlsFormData
         {
-            Import = new StudioFormXlsFormOutcome(
-                false,
+            Import = StudioFormXlsFormOutcome.Rejected(
                 "The workbook is not an XLSForm survey a Honua form package can represent.",
                 [
-                    new("survey", 4, "type", "Question type 'range' is not supported."),
-                    new("choices", 9, "name", "Choice name is required.")
+                    Cell(("survey", 4, "type"), "Question type 'range' is not supported."),
+                    Cell(("choices", 9, "name"), "Choice name is required.")
                 ])
         };
         using var ctx = CreateContext(forms, xlsForm);
@@ -59,7 +58,7 @@ public sealed class StudioFormXlsFormRenderTests
         var forms = new FormData { Editor = new StudioFormEditorState { FormId = "hydrants", Version = 1, Title = "Hydrants" } };
         var xlsForm = new XlsFormData
         {
-            Import = new StudioFormXlsFormOutcome(true, "Imported hydrants.xlsx as draft version 1 of hydrants.", []) { FormId = "hydrants" }
+            Import = StudioFormXlsFormOutcome.Imported("Imported hydrants.xlsx as draft version 1 of hydrants.", "hydrants")
         };
         using var ctx = CreateContext(forms, xlsForm);
         var page = RenderList(ctx);
@@ -75,7 +74,7 @@ public sealed class StudioFormXlsFormRenderTests
     public void Export_PublishedForm_DownloadsTheServerWorkbook()
     {
         var workbook = new HonuaFormXlsFormWorkbook("form-1-v2.xlsx", HonuaFormXlsFormHttpClient.WorkbookContentType, [1, 2, 3]);
-        var xlsForm = new XlsFormData { Export = new StudioFormXlsFormOutcome(true, "Exported form-1-v2.xlsx.", []) { Workbook = workbook } };
+        var xlsForm = new XlsFormData { Export = StudioFormXlsFormOutcome.Exported("Exported form-1-v2.xlsx.", workbook) };
         using var ctx = CreateContext(new FormData { Editor = PublishedEditor() }, xlsForm);
         var download = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-file-download.js");
         download.SetupVoid("save", _ => true).SetVoidResult();
@@ -95,10 +94,9 @@ public sealed class StudioFormXlsFormRenderTests
     {
         var xlsForm = new XlsFormData
         {
-            Export = new StudioFormXlsFormOutcome(
-                false,
+            Export = StudioFormXlsFormOutcome.Rejected(
                 "The published package uses behavior XLSForm cannot represent.",
-                [new("survey", 0, "relevant", "Visibility rule on 'notes' cannot be written as XLSForm.")])
+                [Cell(("survey", 0, "relevant"), "Visibility rule on 'notes' cannot be written as XLSForm.")])
         };
         using var ctx = CreateContext(new FormData { Editor = PublishedEditor() }, xlsForm);
         var page = OpenPublished(ctx);
@@ -163,6 +161,9 @@ public sealed class StudioFormXlsFormRenderTests
     private static IElement FindButton(IRenderedComponent<StudioFormBuilderPage> page, string label) =>
         page.FindAll("button").First(button => button.TextContent.Trim() == label);
 
+    private static HonuaFormXlsFormDiagnostic Cell((string Sheet, int Row, string Column) at, string message) =>
+        new() { Sheet = at.Sheet, Row = at.Row, Column = at.Column, Message = message };
+
     private static StudioFormEditorState PublishedEditor()
     {
         var state = new StudioFormEditorState
@@ -180,17 +181,17 @@ public sealed class StudioFormXlsFormRenderTests
 
     private sealed class XlsFormData : IStudioFormXlsFormDataSource
     {
-        public StudioFormXlsFormOutcome Import { get; init; } = new(false, "Not configured.", []);
+        public StudioFormXlsFormOutcome Import { get; init; } = StudioFormXlsFormOutcome.Rejected("Not configured.", []);
 
-        public StudioFormXlsFormOutcome Export { get; init; } = new(false, "Not configured.", []);
+        public StudioFormXlsFormOutcome Export { get; init; } = StudioFormXlsFormOutcome.Rejected("Not configured.", []);
 
-        public List<StudioFormXlsFormRequest> Imports { get; } = [];
+        public List<HonuaFormXlsFormUpload> Imports { get; } = [];
 
         public List<string> Exports { get; } = [];
 
-        public Task<StudioFormXlsFormOutcome> ImportAsync(StudioFormXlsFormRequest request, CancellationToken cancellationToken = default)
+        public Task<StudioFormXlsFormOutcome> ImportAsync(HonuaFormXlsFormUpload upload, CancellationToken cancellationToken = default)
         {
-            Imports.Add(request);
+            Imports.Add(upload);
             return Task.FromResult(Import);
         }
 

@@ -5,7 +5,7 @@ using Honua.Console.Contracts;
 
 namespace Honua.Console.IntegrationTests;
 
-// Wire contract of the honua-server XLSForm routes (honua-io/honua-server#8087).
+// Wire contract of the honua-server XLSForm import and export routes.
 public sealed class FormXlsFormHttpClientTests
 {
     private static readonly Uri BaseAddress = new("https://honua.test");
@@ -22,7 +22,7 @@ public sealed class FormXlsFormHttpClientTests
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.Created, """{"formId":"hydrants","version":1,"status":"draft"}"""));
         var client = CreateClient(handler);
 
-        var result = await client.ImportAsync(new HonuaFormXlsFormUpload("inspections & co", 7, "hydrants.xlsx", [80, 75]));
+        var result = await client.ImportAsync(Upload("inspections & co", "hydrants.xlsx", [80, 75]));
 
         Assert.Null(result.Issue);
         Assert.Equal(("hydrants", 1), (result.Data!.Version!.FormId, result.Data.Version.Version));
@@ -39,7 +39,7 @@ public sealed class FormXlsFormHttpClientTests
     {
         var client = CreateClient(new RecordingHandler(_ => Json(HttpStatusCode.BadRequest, RejectedWorkbook)));
 
-        var result = await client.ImportAsync(new HonuaFormXlsFormUpload("inspections", 7, "bad.xlsx", [1]));
+        var result = await client.ImportAsync(Upload("inspections", "bad.xlsx", [1]));
 
         Assert.Equal("Rejected", result.Issue!.State);
         Assert.Equal("The workbook is not an XLSForm survey a Honua form package can represent.", result.Issue.Detail);
@@ -53,7 +53,7 @@ public sealed class FormXlsFormHttpClientTests
     {
         var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
 
-        var result = await client.ImportAsync(new HonuaFormXlsFormUpload("inspections", 7, "a.xlsx", [1]));
+        var result = await client.ImportAsync(Upload("inspections", "a.xlsx", [1]));
 
         Assert.Equal(("Unsupported", 404), (result.Issue!.State, result.Issue.StatusCode));
         Assert.Null(result.Data);
@@ -92,6 +92,9 @@ public sealed class FormXlsFormHttpClientTests
         Assert.Null(result.Data!.Workbook);
         Assert.Single(result.Data.Diagnostics);
     }
+
+    private static HonuaFormXlsFormUpload Upload(string serviceId, string fileName, byte[] content) =>
+        new() { ServiceId = serviceId, LayerId = 7, FileName = fileName, Content = content };
 
     private static HonuaFormXlsFormHttpClient CreateClient(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = BaseAddress }, new HonuaFormPackageClientOptions(BaseAddress));

@@ -457,7 +457,7 @@
     private IReadOnlyList<StudioFormCapabilityState> _states = [];
     private StudioFormEditorState? _editor;
     private bool _importOpen;
-    private IReadOnlyList<StudioFormXlsFormDiagnostic> _exportDiagnostics = [];
+    private IReadOnlyList<HonuaFormXlsFormDiagnostic> _exportDiagnostics = [];
 
     // Optional: registered only when a server is bound, so the actions never render against nothing.
     private IStudioFormXlsFormDataSource? XlsForm => Services.GetService<IStudioFormXlsFormDataSource>();

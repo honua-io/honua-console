@@ -23,7 +23,17 @@ public interface IHonuaFormXlsFormClient
         CancellationToken cancellationToken = default);
 }
 
-public sealed record HonuaFormXlsFormUpload(string ServiceId, int LayerId, string FileName, byte[] Content);
+// The workbook and the layer its questions bind to.
+public sealed record HonuaFormXlsFormUpload
+{
+    public required string ServiceId { get; init; }
+
+    public required int LayerId { get; init; }
+
+    public required string FileName { get; init; }
+
+    public required byte[] Content { get; init; }
+}
 
 public sealed record HonuaFormXlsFormDiagnostic
 {

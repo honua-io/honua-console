@@ -6,7 +6,7 @@ namespace Honua.Console.Shell.Services;
 
 public interface IStudioFormXlsFormDataSource
 {
-    Task<StudioFormXlsFormOutcome> ImportAsync(StudioFormXlsFormRequest request, CancellationToken cancellationToken = default);
+    Task<StudioFormXlsFormOutcome> ImportAsync(HonuaFormXlsFormUpload upload, CancellationToken cancellationToken = default);
 
     Task<StudioFormXlsFormOutcome> ExportAsync(string formId, CancellationToken cancellationToken = default);
 }
@@ -16,27 +16,21 @@ public sealed class HonuaServerStudioFormXlsFormDataSource(IHonuaFormXlsFormClie
     private const string Surface = "XLSForm";
 
     public async Task<StudioFormXlsFormOutcome> ImportAsync(
-        StudioFormXlsFormRequest request,
+        HonuaFormXlsFormUpload upload,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(upload);
 
-        var upload = new HonuaFormXlsFormUpload(request.ServiceId.Trim(), request.LayerId, request.FileName, request.Content);
-        var result = await client.ImportAsync(upload, cancellationToken).ConfigureAwait(false);
-        var diagnostics = Diagnostics(result.Data?.Diagnostics);
+        var result = await client.ImportAsync(upload with { ServiceId = upload.ServiceId.Trim() }, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
-            return Failure(issue, HonuaFormXlsFormHttpClient.ImportContract, diagnostics);
+            return Failure(issue, HonuaFormXlsFormHttpClient.ImportContract, result.Data?.Diagnostics);
         }
 
         var version = result.Data!.Version!;
-        return new StudioFormXlsFormOutcome(
-            true,
-            $"Imported {request.FileName} as draft version {version.Version.ToString(CultureInfo.InvariantCulture)} of {version.FormId}.",
-            [])
-        {
-            FormId = version.FormId
-        };
+        return StudioFormXlsFormOutcome.Imported(
+            $"Imported {upload.FileName} as draft version {version.Version.ToString(CultureInfo.InvariantCulture)} of {version.FormId}.",
+            version.FormId!);
     }
 
     public async Task<StudioFormXlsFormOutcome> ExportAsync(string formId, CancellationToken cancellationToken = default)
@@ -44,34 +38,26 @@ public sealed class HonuaServerStudioFormXlsFormDataSource(IHonuaFormXlsFormClie
         ArgumentException.ThrowIfNullOrWhiteSpace(formId);
 
         var result = await client.ExportAsync(formId, cancellationToken).ConfigureAwait(false);
-        var diagnostics = Diagnostics(result.Data?.Diagnostics);
         if (result.Issue is { } issue)
         {
-            return Failure(issue, HonuaFormXlsFormHttpClient.ExportContract, diagnostics);
+            return Failure(issue, HonuaFormXlsFormHttpClient.ExportContract, result.Data?.Diagnostics);
         }
 
         var workbook = result.Data!.Workbook!;
-        return new StudioFormXlsFormOutcome(true, $"Exported {workbook.FileName}.", [])
-        {
-            Workbook = workbook
-        };
+        return StudioFormXlsFormOutcome.Exported($"Exported {workbook.FileName}.", workbook);
     }
-
-    private static StudioFormXlsFormDiagnostic[] Diagnostics(HonuaFormXlsFormDiagnostic[]? diagnostics) =>
-        (diagnostics ?? []).Select(StudioFormXlsFormDiagnostic.From).ToArray();
 
     private static StudioFormXlsFormOutcome Failure(
         HonuaAdminEndpointIssue issue,
         string contract,
-        IReadOnlyList<StudioFormXlsFormDiagnostic> diagnostics)
+        HonuaFormXlsFormDiagnostic[]? diagnostics)
     {
         var detail = issue.StatusCode is { } status
             ? $"{issue.Detail} HTTP {status.ToString(CultureInfo.InvariantCulture)}."
             : issue.Detail;
-        return new StudioFormXlsFormOutcome(
-            false,
+        return StudioFormXlsFormOutcome.Rejected(
             issue.Detail,
-            diagnostics,
+            diagnostics ?? [],
             new StudioFormCapabilityState(Surface, issue.State, issue.Contract ?? contract, detail));
     }
 }

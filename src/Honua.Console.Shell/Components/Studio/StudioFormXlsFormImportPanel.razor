@@ -43,7 +43,7 @@
     private bool _failed;
     private string? _message;
     private object _fileInputKey = new();
-    private IReadOnlyList<StudioFormXlsFormDiagnostic> _diagnostics = [];
+    private IReadOnlyList<HonuaFormXlsFormDiagnostic> _diagnostics = [];
 
     [Parameter, EditorRequired]
     public IStudioFormXlsFormDataSource DataSource { get; set; } = default!;
@@ -83,7 +83,13 @@
         try
         {
             var content = await ReadAsync(_file);
-            var outcome = await DataSource.ImportAsync(new StudioFormXlsFormRequest(_serviceId, _layerId, _file.Name, content));
+            var outcome = await DataSource.ImportAsync(new HonuaFormXlsFormUpload
+            {
+                ServiceId = _serviceId,
+                LayerId = _layerId,
+                FileName = _file.Name,
+                Content = content
+            });
             _message = outcome.Message;
             _failed = !outcome.Succeeded;
             _diagnostics = outcome.Diagnostics;

@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 import { startStaticBundleServer } from './static-bundle-server.mjs';
 import { createContractApi } from './static-contract-server.mjs';
 
-// Published-source fixture for XLSForm import/export on the forms page (honua-console#973). It answers the
-// honua-server#8087 route contract; it is browser proof of the Console, not installed server acceptance.
+// Published-source fixture for XLSForm import/export on the forms page. It answers the server's import and
+// export route contract; it is browser proof of the Console, not installed server acceptance.
 const { chromium } = await import(process.env.HONUA_PLAYWRIGHT_MODULE ?? 'playwright');
 const output = process.env.HONUA_FORM_XLSFORM_OUTPUT ?? 'artifacts/form-xlsform';
 const root = process.env.HONUA_CONSOLE_STATIC_ROOT ?? 'artifacts/static-publish/wwwroot/console';
@@ -23,7 +23,7 @@ try {
 }
 assert.equal(results.filter(row => !row.passed).length, 0, 'Every XLSForm case must pass');
 
-function packageVersion(formId, title, version, status) {
+function packageVersion({ formId, title, version, status }) {
   return {
     formId, version, status, etag: `"${formId}-${version}"`, createdAt: '2026-11-17T00:00:00Z',
     package: { schemaVersion: 'honua.form-package.v1', formId, title, target: { serviceId: 'inspections', layerId: 7 },
@@ -45,45 +45,50 @@ async function readBody(request) {
   return Buffer.concat(chunks).toString('latin1');
 }
 
-async function handleForms(request, response, url, state) {
-  const send = (status, body, headers = { 'Content-Type': 'application/json' }) =>
-    response.writeHead(status, headers).end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
-  if (url.pathname === `${BASE}/import` && request.method === 'POST') {
-    const body = await readBody(request);
-    state.imports.push({ serviceId: url.searchParams.get('serviceId'), layerId: url.searchParams.get('layerId'),
-      multipart: /name="?file"?; filename="?[^";]+\.xlsx/.test(body) });
-    if (body.includes('range')) {
-      return send(400, { title: 'Bad Request', status: 400, detail: 'The workbook is not an XLSForm survey a Honua form package can represent.',
-        diagnostics: [{ sheet: 'survey', row: 4, column: 'type', message: "Question type 'range' is not supported." }] });
+// The fixture's forms API; it records what the Console sent so each case can assert the request contract.
+class FormsApi {
+  state = { imports: [], exports: 0, imported: false };
+
+  async handle(request, response) {
+    const url = new URL(request.url, 'http://localhost');
+    const send = (status, body, headers = { 'Content-Type': 'application/json' }) =>
+      response.writeHead(status, headers).end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
+    if (url.pathname === `${BASE}/import` && request.method === 'POST') {
+      const body = await readBody(request);
+      this.state.imports.push({ serviceId: url.searchParams.get('serviceId'), layerId: url.searchParams.get('layerId'),
+        multipart: /name="?file"?; filename="?[^";]+\.xlsx/.test(body) });
+      if (body.includes('range')) {
+        return send(400, { title: 'Bad Request', status: 400, detail: 'The workbook is not an XLSForm survey a Honua form package can represent.',
+          diagnostics: [{ sheet: 'survey', row: 4, column: 'type', message: "Question type 'range' is not supported." }] });
+      }
+      this.state.imported = true;
+      return send(201, packageVersion({ formId: 'hydrants', title: 'Hydrants', version: 1, status: 'draft' }));
     }
-    state.imported = true;
-    return send(201, packageVersion('hydrants', 'Hydrants', 1, 'draft'));
+    if (url.pathname === `${BASE}/form-1/export`) {
+      this.state.exports++;
+      return send(200, Buffer.from('PK\u0003\u0004fixture-workbook'), { 'Content-Type': WORKBOOK_TYPE,
+        'Content-Disposition': 'attachment; filename=form-1-v2.xlsx; filename*=UTF-8\'\'form-1-v2.xlsx' });
+    }
+    if (url.pathname === BASE) return send(200, summaries(this.state));
+    if (url.pathname === `${BASE}/form-1`) return send(200, packageVersion({ formId: 'form-1', title: 'Hydrant inspection', version: 2, status: 'published' }));
+    if (url.pathname === `${BASE}/hydrants`) return send(200, packageVersion({ formId: 'hydrants', title: 'Hydrants', version: 1, status: 'draft' }));
+    return send(404, { title: 'Not Found', status: 404 });
   }
-  if (url.pathname === `${BASE}/form-1/export`) {
-    state.exports++;
-    return send(200, Buffer.from('PK\u0003\u0004fixture-workbook'), { 'Content-Type': WORKBOOK_TYPE,
-      'Content-Disposition': 'attachment; filename=form-1-v2.xlsx; filename*=UTF-8\'\'form-1-v2.xlsx' });
-  }
-  if (url.pathname === BASE) return send(200, summaries(state));
-  if (url.pathname === `${BASE}/form-1`) return send(200, packageVersion('form-1', 'Hydrant inspection', 2, 'published'));
-  if (url.pathname === `${BASE}/hydrants`) return send(200, packageVersion('hydrants', 'Hydrants', 1, 'draft'));
-  return send(404, { title: 'Not Found', status: 404 });
 }
 
 async function startFixture(scenario) {
-  const state = { imports: [], exports: 0, imported: false };
+  const forms = new FormsApi();
   let api;
   const server = await startStaticBundleServer(root, 0, {
     configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: scenario.v4 },
     handleApi: async (request, response) => {
-      const url = new URL(request.url, 'http://localhost');
-      if (url.pathname.startsWith(BASE)) return handleForms(request, response, url, state);
+      if (new URL(request.url, 'http://localhost').pathname.startsWith(BASE)) return forms.handle(request, response);
       await api(request, response);
     },
   });
   const origin = `http://127.0.0.1:${server.address().port}`;
   api = createContractApi({ allowedOrigin: origin });
-  return { server, origin, state };
+  return { server, origin, state: forms.state };
 }
 
 async function runCase(scenario) {
