@@ -1,3 +1,5 @@
+using System.Net;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 
@@ -49,21 +51,35 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
         }
 
         var (profile, partition) = target.Value;
+        using var http = ConsoleServerSessionCookieClient.Create(partition, profile.ServerBaseUri);
+        // A server without the approval review predates the human-session rule and keeps the bearer path.
+        // Probe before taking the partition lease: the bearer path takes that lease itself.
+        var reviewUri = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, ProposalAdminRoutes.ApprovalReview(proposalId.Trim()));
+        if (!await OffersApprovalReviewAsync(http, reviewUri, cancellationToken).ConfigureAwait(false))
+        {
+            return await inner.ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false);
+        }
+
         using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
         var bound = await services.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
             partition, profile, partition.Key.OperatorKey, partition.AuthenticatedProviderKey, cancellationToken).ConfigureAwait(false);
-        if (!bound)
-        {
-            return OperateSectionResult<ConsoleProposalDetail>.Denied(
+        return bound
+            ? await new HttpConsoleProposalsClient(
+                    http,
+                    services.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    services.GetRequiredService<IConsoleAccountSessionStore>())
+                .ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false)
+            : OperateSectionResult<ConsoleProposalDetail>.Denied(
                 OperateSectionStatus.Forbidden, "The server session changed identity. Sign in again before approving.");
-        }
+    }
 
-        using var http = ConsoleServerSessionCookieClient.Create(partition, profile.ServerBaseUri);
-        var client = new HttpConsoleProposalsClient(
-            http,
-            services.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-            services.GetRequiredService<IConsoleAccountSessionStore>());
-        return await client.ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false);
+    private static async Task<bool> OffersApprovalReviewAsync(
+        HttpClient http,
+        Uri reviewUri,
+        CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync(reviewUri, cancellationToken).ConfigureAwait(false);
+        return response.StatusCode != HttpStatusCode.NotFound;
     }
 
     private async Task<(ConsoleEnvironmentProfile Profile, ConsoleServerSessionPartition Partition)?> ResolveSessionAsync(

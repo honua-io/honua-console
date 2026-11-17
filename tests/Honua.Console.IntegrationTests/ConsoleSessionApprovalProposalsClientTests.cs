@@ -24,7 +24,12 @@ public sealed class ConsoleSessionApprovalProposalsClientTests
 
         Assert.Equal(OperateSectionStatus.Allowed, result.Status);
         Assert.Equal(
-            ["GET /api/v1/admin/proposals/prop-1/approval-review", "GET /api/v1/admin/auth/csrf", "POST /api/v1/admin/proposals/prop-1/approve"],
+            [
+                "GET /api/v1/admin/proposals/prop-1/approval-review",
+                "GET /api/v1/admin/proposals/prop-1/approval-review",
+                "GET /api/v1/admin/auth/csrf",
+                "POST /api/v1/admin/proposals/prop-1/approve"
+            ],
             server.Requests.Select(request => request.Line));
         var approve = server.Requests[^1];
         Assert.Equal("capability-3", approve.Capability);
@@ -35,16 +40,41 @@ public sealed class ConsoleSessionApprovalProposalsClientTests
     }
 
     [Fact]
-    public async Task Approve_ManagerProposalOrMissingSession_KeepsTheInnerClient()
+    public async Task Approve_WithoutServerSession_KeepsTheInnerClient()
     {
         var server = new ApprovalServer();
         await using var harness = await Harness.CreateAsync(server);
 
         await harness.Client.ApproveAsync("prop-1", reviewed: null);
+
+        Assert.Equal(1, harness.Inner.Approvals);
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task Approve_ManagerProposal_KeepsTheInnerClientEvenWithASession()
+    {
+        var server = new ApprovalServer();
+        await using var harness = await Harness.CreateAsync(server);
+        await harness.OpenServerSessionAsync();
+
         await harness.Client.ApproveAsync("manager:prop-2", reviewed: null);
 
-        Assert.Equal(2, harness.Inner.Approvals);
+        Assert.Equal(1, harness.Inner.Approvals);
         Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task Approve_ServerWithoutApprovalReview_KeepsTheBearerPath()
+    {
+        var server = new ApprovalServer { ReviewMissing = true };
+        await using var harness = await Harness.CreateAsync(server);
+        await harness.OpenServerSessionAsync();
+
+        await harness.Client.ApproveAsync("prop-1", reviewed: null);
+
+        Assert.Equal(1, harness.Inner.Approvals);
+        Assert.Equal(["GET /api/v1/admin/proposals/prop-1/approval-review"], server.Requests.Select(request => request.Line));
     }
 
     private sealed class Harness(ServiceProvider services, InnerClient inner) : IAsyncDisposable
@@ -150,6 +180,8 @@ public sealed class ConsoleSessionApprovalProposalsClientTests
 
         public CookieContainer? Cookies { get; set; }
 
+        public bool ReviewMissing { get; init; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -161,6 +193,11 @@ public sealed class ConsoleSessionApprovalProposalsClientTests
                 Capability = Header(request, "X-Honua-Approval-Capability"),
                 Cookies = Cookies?.GetCookieHeader(Server) ?? string.Empty
             });
+            if (ReviewMissing && path.EndsWith("/approval-review", StringComparison.Ordinal))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
+
             var body = path.EndsWith("/approval-review", StringComparison.Ordinal) ? Review
                 : path.EndsWith("/csrf", StringComparison.Ordinal) ? """{ "requestToken": "server-csrf" }""" : Detail;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
