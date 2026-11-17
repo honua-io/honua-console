@@ -488,7 +488,7 @@ public sealed partial class OperateGeoprocessingPageTests
                             cancel: true,
                             phase: "executing",
                             message: "recent event",
-                            first: "earlier",
+                            first: "earlier", truncated: true,
                             attempt: 1));
                 }
 
@@ -498,7 +498,7 @@ public sealed partial class OperateGeoprocessingPageTests
                         retry: true,
                         phase: "cancelled",
                         message: "replacement event",
-                        first: "earlier",
+                        first: "earlier", truncated: true,
                         attempt: 2));
             }
         };

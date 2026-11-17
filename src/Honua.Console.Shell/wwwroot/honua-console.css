@@ -1891,6 +1891,7 @@ p {
 
 .operate-release-detail-head {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     margin-bottom: 6px;
 }
@@ -1911,8 +1912,10 @@ p {
 }
 
 .operate-release-title-row h2 {
+    min-width: 0;
     margin: 0;
     font-size: 1.4rem;
+    overflow-wrap: anywhere;
 }
 
 .operate-release-subline {
@@ -2433,7 +2436,10 @@ p {
 
 .operate-detail-panel {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .operate-detail-panel > p {
@@ -2442,9 +2448,18 @@ p {
 
 .operate-evidence-section {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
     padding-top: 14px;
     border-top: 1px solid var(--honua-border);
+}
+
+/* Long identifiers in these panels wrap anywhere; tables keep word-sized columns. */
+.operate-detail-panel table,
+.operate-evidence-section table {
+    overflow-wrap: normal;
 }
 
 .operate-evidence-list,
