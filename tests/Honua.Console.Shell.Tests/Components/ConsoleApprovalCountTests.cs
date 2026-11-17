@@ -66,6 +66,7 @@ public sealed partial class ConsoleApprovalCountTests : ConsoleComponentTestBase
     [Fact]
     public async Task ReplayReset_TimeoutCancelsReadWithoutAcknowledgement()
     {
+        Services.AddSingleton<TimeProvider>(new RecoveryClock());
         var (inbox, realtime) = Register();
         var component = Render<ConsoleApprovalCount>();
         var pending = new TaskCompletionSource<OperateSectionResult<ApprovalInboxSnapshot>>(
