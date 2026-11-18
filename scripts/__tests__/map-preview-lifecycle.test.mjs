@@ -197,3 +197,89 @@ test('Recenter preserves the initial camera when no feature extent is available'
         assert.equal(recenter(container, [0, 0], 0), false);
     });
 });
+
+test('polygon preview frames source bounds when the first idle has no rendered features', async () => {
+    await fixture('camera-source-bounds', async ({ init, dispose, maps }) => {
+        const container = {};
+        assert.equal(await init(container, { styleUrl: 'https://api.example/styles/polygons.json', center: [0, 0], zoom: 1 }), true);
+        const map = maps[0];
+        map.getStyle = () => ({
+            sources: { layer: { type: 'vector' } },
+            layers: [{ id: 'layer-fill', type: 'fill', source: 'layer', 'source-layer': 'layer' }],
+        });
+        map.getSource = () => ({
+            bounds: {
+                getWest: () => -74.017,
+                getSouth: () => 40.703,
+                getEast: () => -73.943,
+                getNorth: () => 40.812,
+            },
+        });
+        map.fire('load');
+        map.fire('idle');
+        assert.ok(map.center[0] < -73 && map.center[0] > -75);
+        assert.ok(map.center[1] > 40 && map.center[1] < 41);
+        assert.equal(map.zoom, 16);
+        dispose(container);
+    });
+});
+
+test('features that arrive after the first idle still frame the preview', async () => {
+    await fixture('camera-late-features', async ({ init, dispose, maps }) => {
+        const container = {};
+        assert.equal(await init(container, { styleUrl: 'https://api.example/styles/points.json', center: [0, 0], zoom: 1 }), true);
+        const map = maps[0];
+        map.fire('load');
+        map.fire('idle');
+        assert.deepEqual(map.center, [0, 0]);
+        map.features = [{ geometry: { coordinates: [[-74.006, 40.7128], [-73.9465, 40.8116]] } }];
+        map.fire('idle');
+        assert.ok(map.center[0] < -73 && map.center[0] > -75);
+        assert.ok(map.center[1] > 40 && map.center[1] < 41);
+        dispose(container);
+    });
+});
+
+test('a short preview waits for a canvas, then frames with padding that fits', async () => {
+    await fixture('camera-narrow', async ({ init, dispose, maps }) => {
+        const container = {};
+        assert.equal(await init(container, { styleUrl: 'https://api.example/styles/narrow.json', center: [0, 0], zoom: 1 }), true);
+        const map = maps[0];
+        const canvas = { clientWidth: 0, clientHeight: 0 };
+        map.getCanvas = () => canvas;
+        map.features = [{ geometry: { coordinates: [[-74.0, 40.7], [-73.9, 40.8]] } }];
+        map.fitBounds = (bounds, options) => {
+            map.padding = options.padding;
+            map.center = bounds[0].map((value, index) => (value + bounds[1][index]) / 2);
+            map.zoom = 16;
+        };
+        map.fire('load');
+        assert.deepEqual(map.center, [0, 0]);
+        canvas.clientWidth = 390;
+        canvas.clientHeight = 50;
+        map.fire('idle');
+        assert.equal(map.padding, 17);
+        assert.ok(map.center[1] > 40);
+        dispose(container);
+    });
+});
+
+test('projected, whole-world and empty bounds fall through to the feature frame', async () => {
+    for (const bounds of [[-8240000, 4960000, -8230000, 4970000], [-180, -85, 180, 85], [0, 0, 0, 0]]) {
+        await fixture(`camera-bad-bounds-${bounds[0]}`, async ({ init, dispose, maps }) => {
+            const container = {};
+            assert.equal(await init(container, {
+                styleUrl: 'https://api.example/styles/projected.json',
+                center: [0, 0],
+                zoom: 1,
+                bounds,
+            }), true);
+            const map = maps[0];
+            map.features = [{ geometry: { coordinates: [[-74.0, 40.7], [-73.9, 40.8]] } }];
+            map.fire('load');
+            assert.ok(map.center[0] < -73 && map.center[0] > -75, `bounds ${bounds.join(',')}`);
+            assert.ok(map.center[1] > 40 && map.center[1] < 41, `bounds ${bounds.join(',')}`);
+            dispose(container);
+        });
+    }
+});
