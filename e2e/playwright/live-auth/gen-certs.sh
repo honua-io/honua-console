@@ -5,7 +5,8 @@
 #
 # host.docker.internal is in the SAN set so ONE hostname works from all three
 # vantage points: the honua-server container (backchannel discovery/token calls),
-# the host browser (authorize redirect), and the host-run Console.
+# the host browser (authorize redirect), and the host-run Console. `honua` is the quickstart
+# server's compose hostname, reached over its TLS listener by the agent-reflection Console.
 set -euo pipefail
 cd "$(dirname "$0")/certs"
 
@@ -13,6 +14,6 @@ cd "$(dirname "$0")/certs"
 MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
   -keyout kc.key -out kc.crt \
   -subj "/CN=host.docker.internal" \
-  -addext "subjectAltName=DNS:host.docker.internal,DNS:localhost,IP:127.0.0.1"
+  -addext "subjectAltName=DNS:host.docker.internal,DNS:localhost,DNS:honua,IP:127.0.0.1"
 
 openssl x509 -in kc.crt -noout -subject -ext subjectAltName

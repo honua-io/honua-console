@@ -189,7 +189,7 @@ sys.exit(1)
 
 
 class HarnessTests(unittest.TestCase):
-    def test_idp_key_is_copied_by_root_to_keycloak_uid_without_the_runner_reading_it(self):
+    def test_idp_key_is_copied_by_root_for_keycloak_and_the_server_without_the_runner_reading_it(self):
         harness = load_harness()
         with tempfile.TemporaryDirectory() as temp:
             source, target = Path(temp, 'certs'), Path(temp, 'install')
@@ -201,7 +201,7 @@ class HarnessTests(unittest.TestCase):
                 harness.install_idp_certs(source, target)
             self.assertEqual((target / 'kc.crt').read_text(), 'certificate')
             self.assertFalse((target / 'kc.key').exists())
-            run.assert_called_once_with(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0640',
+            run.assert_called_once_with(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0644',
                                          str(source / 'kc.key'), str(target / 'kc.key')], label='sudo install kc.key')
 
     def test_run_raises_command_failed_with_stderr(self):

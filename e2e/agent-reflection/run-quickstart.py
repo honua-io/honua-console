@@ -104,12 +104,12 @@ def runtime_identity():
 
 
 def install_idp_certs(source, target):
-    """Copy the test IdP certificate and key into the private install for its Keycloak (uid 1000, gid 0)."""
+    """Copy the test certificate and key into the private install for Keycloak and the server's TLS listener."""
     shutil.copyfile(source / 'kc.crt', target / 'kc.crt')
-    # The testbed step already gave kc.key to Keycloak's uid 1000 (0640), and the CI runner is uid 1001,
-    # so the runner cannot read it. Copy it as root straight to the owner and mode Keycloak needs; the
-    # private key stays inside the private install directory.
-    run(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0640', str(source / 'kc.key'), str(target / 'kc.key')],
+    # The testbed step chowns kc.key to Keycloak's uid 1000, so copy it as root to keep that owner;
+    # Keycloak (uid 1000) and the server image's user both read this ephemeral per-run test key,
+    # which stays inside the private install directory.
+    run(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0644', str(source / 'kc.key'), str(target / 'kc.key')],
         label='sudo install kc.key')
 
 
@@ -143,15 +143,21 @@ def setup():
     server_auth = source['honua-server']['environment']
     server_auth['PUBLIC_BASE_URL'] = 'http://127.0.0.1:15274'
     server_auth['Oidc__Generic__Authority'] = server_auth['Oidc__Generic__Authority'].replace(':8443', ':18443')
+    # The Console's operator bearer exchange is accepted only over HTTPS with a CSRF token, so the
+    # server also listens on :8445 with the test certificate (its SAN includes `honua`).
+    server_tls = {**server_auth, **yaml.safe_load((ROOT / 'e2e/docker-compose.server-tls.yml').read_text())
+                  ['services']['honua-server']['environment']}
     override = {'services': {
         'keycloak': keycloak,
-        'honua': {'environment': server_auth, 'volumes': ['./auth/certs:/certs:ro']},
+        'honua': {'environment': server_tls, 'volumes': ['./auth/certs:/certs:ro']},
         'compose-manager': {'environment': server_auth, 'volumes': ['./auth/certs:/certs:ro']},
         'console': {'image': CONSOLE_IMAGE, 'ports': ['127.0.0.1:15274:8080'],
                     'environment': {'ASPNETCORE_ENVIRONMENT': 'Development', 'ASPNETCORE_HTTP_PORTS': '8080',
-                                    'HONUA_SERVER_BASE_URL': 'http://honua:8080',
+                                    'HONUA_SERVER_BASE_URL': 'https://honua:8445',
                                     'HONUA_MANAGER_BASE_URL': 'http://compose-manager:8080',
-                                    'Honua__Console__Auth__Mode': 'Dev'}},
+                                    'SSL_CERT_FILE': '/certs/kc.crt',
+                                    'Honua__Console__Auth__Mode': 'Dev'},
+                    'volumes': ['./auth/certs:/certs:ro']},
     }}
     (INSTALL / COMPOSE_FILES[-1]).write_text(json.dumps(override))
     os.chmod(INSTALL / COMPOSE_FILES[-1], 0o600)
