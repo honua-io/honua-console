@@ -95,28 +95,26 @@ function resolveProvider() {
 
   if (forced === 'bedrock' || !forced) {
     const aws = resolveAwsCredsEnv();
-    if (aws) {
-      // Per-run gateway key: LiteLLM refuses to start without one, and with it
-      // nothing but this stack's honua-server can spend the Bedrock credential.
-      const gatewayKey = `sk-${randomBytes(24).toString('hex')}`;
-      return {
-        mode: 'bedrock',
-        composeEnv: {
-          HONUA_LIVE_LLM_PROVIDER: 'local', // LiteLLM endpoint is http -> use the http-tolerant provider id
-          HONUA_LIVE_LLM_ENDPOINT: 'http://localhost:4000/v1',
-          HONUA_LIVE_LLM_MODEL: 'honua-llm',
-          HONUA_LIVE_LLM_API_KEY: gatewayKey,
-          LITELLM_MASTER_KEY: gatewayKey,
-          HONUA_LIVE_LLM_BEDROCK_MODEL: process.env.HONUA_LIVE_LLM_BEDROCK_MODEL || DEFAULT_BEDROCK_MODEL,
-          AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-west-2',
-          ...aws,
-        },
-        profiles: ['bedrock'],
-      };
-    }
+    if (aws) return { mode: 'bedrock', composeEnv: bedrockComposeEnv(aws), profiles: ['bedrock'] };
   }
 
   return { mode: 'none', composeEnv: {}, profiles: [] };
+}
+
+function bedrockComposeEnv(aws) {
+  // Per-run gateway key: LiteLLM refuses to start without one, and with it
+  // nothing but this stack's honua-server can spend the Bedrock credential.
+  const gatewayKey = `sk-${randomBytes(24).toString('hex')}`;
+  return {
+    HONUA_LIVE_LLM_PROVIDER: 'local', // LiteLLM endpoint is http -> use the http-tolerant provider id
+    HONUA_LIVE_LLM_ENDPOINT: 'http://localhost:4000/v1',
+    HONUA_LIVE_LLM_MODEL: 'honua-llm',
+    HONUA_LIVE_LLM_API_KEY: gatewayKey,
+    LITELLM_MASTER_KEY: gatewayKey,
+    HONUA_LIVE_LLM_BEDROCK_MODEL: process.env.HONUA_LIVE_LLM_BEDROCK_MODEL || DEFAULT_BEDROCK_MODEL,
+    AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-west-2',
+    ...aws,
+  };
 }
 
 function waitForUrl(url, timeoutMs) {
