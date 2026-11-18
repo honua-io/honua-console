@@ -15,7 +15,10 @@
 <section class="console-page">
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="Add connection"><ChildContent><p>@Intro</p></ChildContent></ConsolePageHeading>
+        <ConsolePageHeading Title="Add connection">
+            <ChildContent><p>@Intro</p></ChildContent>
+            <Actions><a class="console-button-link console-button-secondary" href="@Nav.ToConsoleHref("/operate/connections/new/object-storage")" data-add-object-storage>Object storage</a></Actions>
+        </ConsolePageHeading>
     }
     else
     {
@@ -23,6 +26,7 @@
             <p class="console-kicker">Operate / Connections</p>
             <h1>Add Connection</h1>
             <p>@Intro</p>
+            <p><a href="@Nav.ToConsoleHref("/operate/connections/new/object-storage")" data-add-object-storage>Connect a bucket instead (object storage)</a></p>
         </div>
     }
 
@@ -210,7 +214,7 @@
             <button class="console-button console-button-secondary" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="TestAsync">
                 @(_testing ? "Testing…" : "Test connection")
             </button>
-            <button class="console-button" type="button" disabled="@(_busy || _testing || !CanUseProvider)" @onclick="CreateAsync">
+            <button class="console-button" type="button" disabled="@(_busy || _testing || _loading || !CanUseProvider)" @onclick="CreateAsync">
                 @(_busy ? "Creating…" : "Create connection")
             </button>
             <a href="@Nav.ToConsoleHref("/operate/connections")">Cancel</a>
@@ -390,7 +394,7 @@
 
     private async Task CreateAsync()
     {
-        if (_disposed || _busy || _testing || !CanUseProvider) return;
+        if (_disposed || _busy || _testing || _loading || !CanUseProvider) return;
         if (Revalidate().Any(error => error.IsBlocking)) return;
 
         var revision = _editRevision;

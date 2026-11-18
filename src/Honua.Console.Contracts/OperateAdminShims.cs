@@ -732,38 +732,6 @@ public sealed record HonuaAdminLayerFieldUpdate
     public JsonElement? DefaultValue { get; init; }
 }
 
-public sealed record HonuaAdminLayerRelationships
-{
-    public int LayerId { get; init; }
-
-    public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
-}
-
-public sealed record HonuaAdminLayerRelationship
-{
-    public string? Id { get; init; }
-
-    public string? Name { get; init; }
-
-    public int? RelatedLayerId { get; init; }
-
-    // Role is origin or destination.
-    public string? Role { get; init; }
-
-    public string? Cardinality { get; init; }
-
-    public string? OriginField { get; init; }
-
-    public string? DestinationField { get; init; }
-
-    public int? EsriRelationshipId { get; init; }
-}
-
-public sealed record HonuaAdminLayerRelationshipsUpdate
-{
-    public IReadOnlyList<HonuaAdminLayerRelationship> Relationships { get; init; } = [];
-}
-
 public sealed record HonuaAdminLayerFilter
 {
     public int LayerId { get; init; }

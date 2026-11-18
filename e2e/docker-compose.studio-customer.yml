@@ -19,7 +19,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:5274
-      HONUA_SERVER_BASE_URL: http://localhost:8080
+      HONUA_SERVER_BASE_URL: https://localhost:8445
       HONUA_ADMIN_API_KEY: ""
       HONUA_CONSOLE_MODE: full
       Studio__EmbedJsStudio: "true"

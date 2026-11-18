@@ -125,17 +125,20 @@ test.describe('Operate · Add Connection (live)', () => {
     await admin.createConnection(sourceConnectionBody(name));
 
     await page.goto('/operate/connections/new');
-    await page.getByPlaceholder('prod-postgis').fill(name);
-    await fillConnectionForm(page, {
-      host: SOURCE_DB.host,
-      database: SOURCE_DB.database,
-      username: SOURCE_DB.username,
-      password: SOURCE_DB.password,
-    });
-    await page.getByRole('button', { name: 'Create connection' }).click();
+    // Re-fill and re-click on each retry: a click before the circuit connects is dropped.
+    await expect(async () => {
+      await page.getByPlaceholder('prod-postgis').fill(name);
+      await fillConnectionForm(page, {
+        host: SOURCE_DB.host,
+        database: SOURCE_DB.database,
+        username: SOURCE_DB.username,
+        password: SOURCE_DB.password,
+      });
+      await page.getByRole('button', { name: 'Create connection' }).click();
+      await expect(page.getByText(`A connection named '${name}' already exists.`)).toBeVisible({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
 
-    // Client-side duplicate guard fires; stays on the form, shows the inline reason, no navigation.
+    // Client-side duplicate guard fired; the form stays put with no navigation.
     await expect(page).toHaveURL(/\/operate\/connections\/new$/);
-    await expect(page.getByText(`A connection named '${name}' already exists.`)).toBeVisible();
   });
 });

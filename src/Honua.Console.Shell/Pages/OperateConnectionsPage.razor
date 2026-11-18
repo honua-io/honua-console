@@ -53,6 +53,7 @@
     private RenderFragment ConnectionActions => @<text>
 <div class="@(V4Enabled ? "console-panel-actions" : "console-toolbar")">
         <a class="console-button-link" href="@Navigation.ToConsoleHref("/operate/connections/new")">Add Connection</a>
+        <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/connections/new/object-storage")" data-add-object-storage>Add object storage</a>
         <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/publishing/quick")">Publish a layer</a>
         <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/resources/import")">Import a file</a>
         <a class="console-button-link @(V4Enabled ? "console-button-secondary" : null)" href="@Navigation.ToConsoleHref("/operate/import/service")">Import from a service</a>
@@ -77,6 +78,10 @@
                             <td>
                                 <a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForConnection(connection.Id)))">@connection.Name</a>
                                 <small>@connection.Principal</small>
+                                @if (IsObjectStorage(connection) && Guid.TryParse(connection.Id, out var bucketConnectionId))
+                                {
+                                    <a href="@Navigation.ToConsoleHref($"/operate/connections/{bucketConnectionId:D}/objects")" data-browse-bucket>Browse files</a>
+                                }
                             </td>
                             <td>@connection.Provider</td>
                             <td>@connection.Target</td>
@@ -118,6 +123,9 @@
             _loading = false;
         }
     }
+
+    private static bool IsObjectStorage(OperateConnectionSummary connection) =>
+        string.Equals(connection.Provider, "aws-s3", StringComparison.OrdinalIgnoreCase);
 
     private static string StatusClass(string status) =>
         string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)

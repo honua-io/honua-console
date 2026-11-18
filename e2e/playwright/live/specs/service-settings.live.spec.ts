@@ -39,9 +39,9 @@ const listsLayer = (items: { id?: unknown }[] | undefined, layer: SeededLayer) =
 const VECTOR_PROTOCOLS: ProtocolCase[] = [
   { protocol: 'FeatureServer', path: (l) => `/rest/services/${l.serviceName}/FeatureServer?f=json`, exposes: (b, l) => listsLayer(JSON.parse(b).layers, l) },
   { protocol: 'MapServer', path: (l) => `/rest/services/${l.serviceName}/MapServer?f=json`, exposes: (b, l) => listsLayer(JSON.parse(b).layers, l) },
-  { protocol: 'Wms', path: (l) => `/rest/services/${l.serviceName}/MapServer/WMS?service=WMS&request=GetCapabilities&version=1.3.0`, exposes: (b, l) => b.includes(`<Name>${l.layerName}</Name>`) },
+  { protocol: 'Wms', path: (l) => `/rest/services/${l.serviceName}/MapServer/WMS?service=WMS&request=GetCapabilities&version=1.3.0`, exposes: (b, l) => b.includes(`<Name>${l.layerId}</Name>`) || b.includes(`<Name>${l.layerName}</Name>`) },
   { protocol: 'Wmts', path: (l) => `/rest/services/${l.serviceName}/MapServer/WMTS?service=WMTS&request=GetCapabilities&version=1.0.0`, exposes: (b, l) => b.includes(`<ows:Identifier>${l.layerId}</ows:Identifier>`) },
-  { protocol: 'Wfs20', path: () => '/wfs?service=WFS&request=GetCapabilities&version=2.0.0', exposes: (b, l) => b.includes(`<Name>honua:${l.serviceName}</Name>`) },
+  { protocol: 'Wfs20', path: () => '/wfs?service=WFS&request=GetCapabilities&version=2.0.0', exposes: (b, l) => b.includes(`<Title>${l.layerName}</Title>`) || b.includes(`<Name>honua:${l.serviceName}</Name>`) },
   { protocol: 'OgcFeatures', path: () => '/ogc/features/collections?f=json', exposes: (b, l) => listsLayer(JSON.parse(b).collections, l) },
   { protocol: 'OGC-API-Tiles', path: () => '/ogc/tiles/collections?f=json', exposes: (b, l) => listsLayer(JSON.parse(b).collections, l) },
   { protocol: 'OData', path: () => '/odata/Layers', exposes: (b, l) => (JSON.parse(b).value ?? []).some((v: any) => v.Id === l.layerId) },

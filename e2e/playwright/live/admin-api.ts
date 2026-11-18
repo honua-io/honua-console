@@ -1,5 +1,6 @@
 import { test as base, expect, request, type APIRequestContext } from '@playwright/test';
 import { establishGovernedOperatorSession } from './operator-session';
+import { withLayerId } from './layer-identity';
 import { readAdminItems } from './admin-items.mjs';
 
 // Shared live fixtures.
@@ -88,7 +89,8 @@ export const test = base.extend<{ admin: AdminApi }>({
       },
       async listLayers(connectionId, serviceName) {
         const q = serviceName ? `?serviceName=${encodeURIComponent(serviceName)}` : '';
-        return readAdminItems(path => this.getJson(path), `/api/v1/admin/connections/${connectionId}/layers/${q}`);
+        const items = await readAdminItems(path => this.getJson(path), `/api/v1/admin/connections/${connectionId}/layers/${q}`);
+        return items.map(withLayerId);
       },
       publishLayer: (connectionId, body) => publishLayer(ctx, connectionId, body),
       putJson: (path, body) => putJson(ctx, path, body),
@@ -114,7 +116,7 @@ async function postConnection(ctx: APIRequestContext, body: Record<string, unkno
 async function publishLayer(ctx: APIRequestContext, connectionId: string, body: Record<string, unknown>): Promise<any> {
   const res = await ctx.post(`/api/v1/admin/connections/${connectionId}/layers/`, { data: body });
   expect(res.status(), `publish layer failed: ${await res.text()}`).toBe(201);
-  return (await res.json()).data;
+  return withLayerId((await res.json()).data);
 }
 
 async function putJson(ctx: APIRequestContext, path: string, body: Record<string, unknown>): Promise<any> {

@@ -20,21 +20,24 @@ const SOURCE_TABLE = SOURCE_DB.table;
 const SERVICE_NAME = `e2e_src_fs_${stamp}`;
 const LAYER_NAME = 'E2E Source';
 
-// The server prerender can draw the legacy layout before the interactive render applies v4, so decide
-// only once the service controls are interactive. v4 moves the protocol editor under a Protocols tab;
-// the legacy layout keeps [data-service-config].
+// The server prerender can draw the legacy layout before the interactive render applies v4, so wait
+// for interactive service controls and keep re-deciding until one layout's editor is usable. v4 moves
+// the protocol editor under a Protocols tab; the legacy layout keeps [data-service-config].
 async function openProtocolEditor(page: Page): Promise<void> {
   await expect(page.getByRole('group', { name: 'Service controls' })).toBeEnabled({ timeout: 30_000 });
   const protocolsTab = page.locator('#service-protocols-tab');
-  if (await protocolsTab.count() === 0) {
-    await expect(page.locator('[data-service-config]')).toBeVisible();
-    return;
-  }
+  // The layout can still swap after the controls enable, so decide again on every attempt.
   await expect(async () => {
+    if (await protocolsTab.count() === 0) {
+      await expect(page.locator('[data-service-config]')).toBeVisible({ timeout: 2_000 });
+      await expect(page.locator('[data-save-protocols]')).toBeVisible({ timeout: 2_000 });
+      await expect(protocolsTab).toHaveCount(0, { timeout: 0 });
+      return;
+    }
     await protocolsTab.click({ timeout: 2_000 });
     await expect(protocolsTab).toHaveAttribute('aria-selected', 'true', { timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
-  await expect(page.locator('[data-save-protocols]')).toBeVisible();
+    await expect(page.locator('[data-save-protocols]')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 test.describe('Operate · Publish layer workflow (live)', () => {
@@ -206,7 +209,13 @@ test.describe('Operate · Publish layer workflow (live)', () => {
     // The console map-proxy serves honua-server's MapLibre style WITHOUT the browser sending the admin key
     // (page.request has no X-API-Key), and rewrites the tile URLs back through the proxy. Proxy URLs are
     // pinned to the active environment; the configured-server seed profile is "local-dev".
-    const styleRes = await page.request.get(`/map-proxy/local-dev/styles/${layer.layerId}.json`);
+    // honua-server keys the style by publication id and links it from the layer's OGC collection;
+    // servers before 7 Nov used the numeric layer id.
+    const collection = await admin.getJson(`/ogc/features/collections/${layer.layerId}?f=json`);
+    const styleId = (collection.links ?? [])
+      .map((link: { href?: string }) => link.href?.match(/\/api\/styles\/([^/?#]+)\.json/)?.[1])
+      .find(Boolean) ?? String(layer.layerId);
+    const styleRes = await page.request.get(`/map-proxy/local-dev/styles/${styleId}.json`);
     expect(styleRes.ok(), `proxy style -> ${styleRes.status()}`).toBeTruthy();
     const style = await styleRes.json();
     expect(style.version, 'a MapLibre v8 style').toBe(8);
@@ -272,14 +281,15 @@ test.describe('Operate · Publish layer workflow (live)', () => {
       headers,
       data: { title: '{name}', fieldInfos: [{ fieldName: 'name', label: 'Name', visible: true }] },
     });
-    await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/relationships`, {
+    const relationships = await page.request.put(`${base}/api/v1/admin/metadata/layers/${LID}/relationships`, {
       headers,
       data: {
         relationships: [
-          { id: 'rel0', name: 'self', relatedLayerId: LID, role: 'origin', cardinality: 'one-to-many', originField: 'id', destinationField: 'id', esriRelationshipId: 7 },
+          { id: 'rel0', name: 'self', relatedStorageLayerId: LID, role: 'origin', cardinality: 'one-to-many', originField: 'id', destinationField: 'id', esriRelationshipId: 7 },
         ],
       },
     });
+    expect(relationships.ok(), `relationships PUT -> ${relationships.status()} ${await relationships.text()}`).toBeTruthy();
 
     // The FeatureServer layer metadata now carries all three (poll absorbs the post-write cache invalidation).
     await expect
