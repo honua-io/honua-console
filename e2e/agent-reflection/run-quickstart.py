@@ -106,9 +106,9 @@ def runtime_identity():
 def install_idp_certs(source, target):
     """Copy the test certificate and key into the private install for Keycloak and the server's TLS listener."""
     shutil.copyfile(source / 'kc.crt', target / 'kc.crt')
-    # The testbed step gave kc.key to Keycloak's uid 1000, and the CI runner is uid 1001, so the runner
-    # cannot read it. Copy it as root; Keycloak (uid 1000) and the server image's user both read this
-    # ephemeral per-run test key, which stays inside the private install directory.
+    # The testbed step chowns kc.key to Keycloak's uid 1000, so copy it as root to keep that owner;
+    # Keycloak (uid 1000) and the server image's user both read this ephemeral per-run test key,
+    # which stays inside the private install directory.
     run(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0644', str(source / 'kc.key'), str(target / 'kc.key')],
         label='sudo install kc.key')
 
