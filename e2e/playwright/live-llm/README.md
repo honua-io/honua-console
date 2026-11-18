@@ -57,11 +57,13 @@ The lane activates a provider from the environment; wire ONE of these as repo se
   `HONUA_LIVE_LLM_OPENAI_ENDPOINT` (default `https://api.openai.com/v1`).
 
 **AWS Bedrock (via the LiteLLM sidecar — all four surfaces):**
-- `HONUA_LIVE_LLM_AWS_ACCESS_KEY_ID`, `HONUA_LIVE_LLM_AWS_SECRET_ACCESS_KEY` (secrets),
-  optional `HONUA_LIVE_LLM_AWS_SESSION_TOKEN`.
+- repo *variable* `HONUA_LIVE_LLM_BEDROCK_ROLE_ARN`: the GitHub OIDC role from honua-iac
+  `bootstrap/aws-ci-oidc-roles` (`honua-console-gha-bedrock-live-llm`). The job runs in the
+  `bedrock-live-llm` environment, which the role trusts, and gets short-lived credentials;
+  no access key is stored. Locally, any AWS credential chain in the environment works.
 - optional variables `HONUA_LIVE_LLM_AWS_REGION` (default `us-west-2`),
   `HONUA_LIVE_LLM_BEDROCK_MODEL` (default `bedrock/invoke/us.anthropic.claude-haiku-4-5-20251001-v1:0`).
-  The credential needs `bedrock:InvokeModel` on an inference-profile-backed model. Note the
+  The role grants `bedrock:InvokeModel` on Anthropic models and US inference profiles. Note the
   `bedrock/invoke/` prefix: it routes via Bedrock InvokeModel (Anthropic tool-use for
   json_schema) rather than Converse native structured output, whose grammar compiler rejects
   the honua QUERY/MAP/FORM strict schemas (`minItems > 1`, "compiled grammar too large").
