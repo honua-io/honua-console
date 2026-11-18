@@ -43,6 +43,12 @@
                           Title="Loading users"
                           Message="Reading users and roles from the environment." />
     }
+    else if (_retiredEnvironmentLink)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="error"
+                          Title="This link is out of date"
+                          Message="It names a workspace. Open Access again and choose the environment. Nothing was changed." />
+    }
     else if (_bindingState is not null)
     {
         <ConsoleStateView HeadingLevel="2" Kind="error"

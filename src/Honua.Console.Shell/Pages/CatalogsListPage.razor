@@ -40,6 +40,12 @@
                           Title="Loading discovery endpoints"
                           Message="Reading the catalog discovery-endpoints registry from honua-server." />
     }
+    else if (_retiredEnvironmentLink)
+    {
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="error"
+                          Title="This link is out of date"
+                          Message="It names a workspace. Open Catalogs again and choose the environment. Nothing was changed." />
+    }
     else if (_bindingState is not null)
     {
         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="missing"
@@ -194,6 +200,7 @@
 
     private CatalogDiscoveryRegistryView? _registry;
     private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _retiredEnvironmentLink;
     private bool _loading = true;
 
     [SupplyParameterFromQuery(Name = "environment")]
@@ -203,6 +210,16 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (ConsoleUrlQuery.HasRetiredEnvironmentKey(ConsoleNavigation.Uri))
+        {
+            _retiredEnvironmentLink = true;
+            _loading = false;
+            _bindingState = null;
+            _registry = null;
+            return;
+        }
+
+        _retiredEnvironmentLink = false;
         _loading = true;
         _bindingState = null;
         _registry = null;

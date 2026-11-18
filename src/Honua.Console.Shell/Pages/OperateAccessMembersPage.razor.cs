@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Validation;
 using Microsoft.AspNetCore.Components;
@@ -9,6 +10,7 @@ public partial class OperateAccessMembersPage
     private TeamMembershipView? _membership;
     private RbacOverviewView? _overview;
     private RbacCapabilityState? _bindingState;
+    private bool _retiredEnvironmentLink;
     private bool _loading = true;
     private bool _inviteOpen;
 
@@ -32,6 +34,9 @@ public partial class OperateAccessMembersPage
     private void OnInviteEdit() =>
         _inviteValidation.SetClientErrors(RbacInviteValidator.Instance.Evaluate(BuildInviteState()));
 
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
     [SupplyParameterFromQuery(Name = "environment")]
     private string? Environment { get; set; }
 
@@ -53,6 +58,19 @@ public partial class OperateAccessMembersPage
 
     protected override async Task OnParametersSetAsync()
     {
+        if (ConsoleUrlQuery.HasRetiredEnvironmentKey(Navigation.Uri))
+        {
+            _retiredEnvironmentLink = true;
+            _loading = false;
+            _membership = null;
+            _overview = null;
+            _bindingState = null;
+            _inviteOpen = false;
+            _environmentId = null;
+            return;
+        }
+
+        _retiredEnvironmentLink = false;
         if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
         _environmentId = EnvironmentId;
         var generation = ++_generation;

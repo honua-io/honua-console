@@ -21,6 +21,12 @@
                           Title="Loading endpoint"
                           Message="Reading the catalog endpoint detail from honua-server." />
     }
+    else if (_retiredEnvironmentLink)
+    {
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="error"
+                          Title="This link is out of date"
+                          Message="It names a workspace. Open Catalogs again and choose the environment. Nothing was changed." />
+    }
     else if (_bindingState is not null)
     {
         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="missing"
@@ -245,6 +251,7 @@
 
     private CatalogEndpointDetailView? _detail;
     private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _retiredEnvironmentLink;
     private bool _loading = true;
     private bool _copied;
     private IJSObjectReference? _clipboardModule;
@@ -253,6 +260,16 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (ConsoleUrlQuery.HasRetiredEnvironmentKey(ConsoleNavigation.Uri))
+        {
+            _retiredEnvironmentLink = true;
+            _loading = false;
+            _bindingState = null;
+            _detail = null;
+            return;
+        }
+
+        _retiredEnvironmentLink = false;
         _loading = true;
         _bindingState = null;
         _detail = null;

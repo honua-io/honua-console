@@ -259,6 +259,14 @@ public static class ConsoleUrlQuery
         return Parse(parsed.Query).GetValueOrDefault(key);
     }
 
+    public static bool HasRetiredEnvironmentKey(string uri)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uri);
+
+        var parsed = new Uri(uri, UriKind.Absolute);
+        return Parse(parsed.Query).Keys.Any(key => string.Equals(key, "workspace", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static string ToQueryString(IReadOnlyDictionary<string, string> parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);

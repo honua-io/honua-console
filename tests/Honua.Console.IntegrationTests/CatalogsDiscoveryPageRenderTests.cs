@@ -438,6 +438,65 @@ public sealed class CatalogsDiscoveryPageRenderTests
         Assert.Contains("href=\"/operate/catalogs?environment=tenant-a\"", page.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void List_RetiredWorkspaceQuery_DoesNotLoadTheDefaultEnvironment()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("operate/catalogs?workspace=prod");
+
+        var page = ctx.Render<CatalogsListPage>();
+
+        Assert.Contains("out of date", page.Markup, StringComparison.Ordinal);
+        Assert.Null(data.LastEnvironmentId);
+    }
+
+    [Fact]
+    public void Detail_RetiredWorkspaceQuery_DoesNotLoadTheDefaultEnvironment()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("operate/catalogs/esri?workspace=prod");
+
+        var page = ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters.Add(page => page.Key, "esri"));
+
+        Assert.Contains("out of date", page.Markup, StringComparison.Ordinal);
+        Assert.Null(data.LastEnvironmentId);
+    }
+
+    [Fact]
+    public void Item_RetiredWorkspaceQuery_DoesNotLoadTheDefaultEnvironment()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            ItemLoad = new CatalogItemLoad(SampleItem(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("operate/catalogs/esri/items/a3bf-0214?workspace=prod");
+
+        var page = ctx.Render<CatalogItemEditorPage>(parameters => parameters
+            .Add(page => page.Key, "esri")
+            .Add(page => page.ItemId, "a3bf-0214"));
+
+        Assert.Contains("out of date", page.Markup, StringComparison.Ordinal);
+        Assert.Null(data.LastEnvironmentId);
+    }
+
     private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? environment = null, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();

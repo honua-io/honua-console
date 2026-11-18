@@ -29,6 +29,25 @@ public sealed class OperateAccessLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void RetiredWorkspaceQueryRefusesTheDefaultEnvironment(bool members)
+    {
+        using var context = Context(true);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(members
+            ? "/operate/access/members?workspace=prod"
+            : "/operate/access?Workspace=prod");
+        var markup = members
+            ? context.Render<OperateAccessMembersPage>().Markup
+            : context.Render<OperateAccessRolesPage>().Markup;
+
+        Assert.Contains("out of date", markup, StringComparison.Ordinal);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
+        Assert.Empty(data.OverviewRequests);
+        Assert.Empty(data.MembershipRequests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Roles_IgnoreOverviewFromPreviousEnvironment(bool v4)
     {
         using var context = Context(v4);
@@ -260,6 +279,7 @@ public sealed class OperateAccessLifecycleTests
         public Func<string, Task<RbacAuditLoad>> Audit { get; set; } = _ => Task.FromResult(new RbacAuditLoad([], []));
         public Func<Task<RbacRoleMutationResult>> Create { get; set; } = () => Task.FromResult(new RbacRoleMutationResult(true, null));
         public List<string> OverviewRequests { get; } = [];
+        public List<string> MembershipRequests { get; } = [];
         public List<string> DeletedEnvironments { get; } = [];
 
         public Task<RbacOverviewLoad> LoadOverviewAsync(string environmentId, CancellationToken cancellationToken = default)
@@ -268,7 +288,11 @@ public sealed class OperateAccessLifecycleTests
             return Overview(environmentId);
         }
 
-        public Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default) => Membership(environmentId);
+        public Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default)
+        {
+            MembershipRequests.Add(environmentId);
+            return Membership(environmentId);
+        }
         public Task<RbacAuditLoad> LoadAuditAsync(string environmentId, CancellationToken cancellationToken = default) => Audit(environmentId);
         public IReadOnlyList<string> CreatedGrants { get; private set; } = [];
 

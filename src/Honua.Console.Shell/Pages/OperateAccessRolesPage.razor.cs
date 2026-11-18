@@ -10,6 +10,7 @@ public partial class OperateAccessRolesPage
 {
     private RbacOverviewView? _overview;
     private RbacCapabilityState? _bindingState;
+    private bool _retiredEnvironmentLink;
     private bool _loading = true;
 
     private bool _showCreate;
@@ -22,6 +23,9 @@ public partial class OperateAccessRolesPage
     private ConsoleConfirmDialog? _confirm;
     private IReadOnlyList<RbacAuditEntryView> _audit = [];
     private RbacCapabilityState? _auditIssue;
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "environment")]
     private string? Environment { get; set; }
@@ -41,6 +45,18 @@ public partial class OperateAccessRolesPage
 
     protected override async Task OnParametersSetAsync()
     {
+        if (ConsoleUrlQuery.HasRetiredEnvironmentKey(Navigation.Uri))
+        {
+            _retiredEnvironmentLink = true;
+            _loading = false;
+            _overview = null;
+            _bindingState = null;
+            _showCreate = false;
+            _environmentId = null;
+            return;
+        }
+
+        _retiredEnvironmentLink = false;
         if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
         _environmentId = EnvironmentId;
         var generation = ++_generation;
