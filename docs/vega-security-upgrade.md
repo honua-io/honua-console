@@ -77,3 +77,16 @@ The web-host build also passed with zero warnings and errors, completing
 The same 18 Chromium fixtures plus the existing same-origin mounted-chart test
 then passed through the built Console host (19 passed, no skips). The solution's
 `dotnet format --verify-no-changes --no-restore` check passed as well.
+
+## Chart resources and expressions (release-phase hardening)
+
+`chart-preview.js` embeds every chart with a loader that refuses all loads, link sanitising,
+requests and file reads, and with `ast: true`, so expressions run through vega-embed's
+bundled interpreter rather than compiled code. A stored or model-authored spec can draw only
+the inline rows the Console supplies: a spec whose data is a URL shows the chart fallback,
+images from URLs are not fetched, and `href` encodings produce no links. The Console's own
+spec builders use inline data and Vega-Lite's generated expressions, which the interpreter
+supports. Hand-written specs that keep their data elsewhere (named `datasets`, `sequence`
+generators, CSV strings, or data only on layers) also show the fallback; inline row arrays
+are the supported form. Coverage: `scripts/__tests__/chart-preview-loader.test.mjs` and the external-resource
+case in `e2e/playwright/specs/chart-runtime.spec.ts`.

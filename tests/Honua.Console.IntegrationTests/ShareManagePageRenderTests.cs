@@ -104,7 +104,7 @@ public sealed partial class ShareManagePageRenderTests
             TimeSpan.FromSeconds(5));
         Assert.Contains("data-share-exports-table", page.Markup, StringComparison.Ordinal);
         Assert.Contains("data-share-exports-link", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("/operate/jobs", page.Markup, StringComparison.Ordinal);
+        Assert.EndsWith("/operate/observability#jobs", page.Find("[data-share-exports-link]").GetAttribute("href"), StringComparison.Ordinal);
 
         CapturePreview(page, "exports", options.V4);
 
