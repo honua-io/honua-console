@@ -60,7 +60,9 @@ services:
       retries: 15
 
   litellm:
-    image: ghcr.io/berriai/litellm:main-stable
+    # Pinned by digest (main-stable on 18 Nov 2026): a floating tag changed the
+    # startup contract under the nightly lane without any change here.
+    image: ghcr.io/berriai/litellm:main-stable@sha256:4295b064b22eb88f9530e616afc812edd47048891ba64896bfc3fa74e2b883c3
     profiles: ["bedrock"]
     network_mode: "service:postgis"
     depends_on:
@@ -75,6 +77,9 @@ services:
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
       AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
       HONUA_LIVE_LLM_BEDROCK_MODEL: "${HONUA_LIVE_LLM_BEDROCK_MODEL:-bedrock/invoke/us.anthropic.claude-haiku-4-5-20251001-v1:0}"
+      # Required by LiteLLM; run-live-llm.mjs generates one per run and hands the
+      # same value to honua-server's local provider as its bearer key.
+      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY:-}"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""]
       interval: 5s
@@ -116,10 +121,11 @@ services:
       WorkflowGeneration__DefaultProvider: "${HONUA_LIVE_LLM_PROVIDER:-local}"
       # Both provider blocks are fed from the same orchestrator env; only the
       # DefaultProvider block is validated at startup, so the unused one is inert.
-      # `local` allows a non-HTTPS endpoint (the LiteLLM gateway) and needs no key;
+      # `local` allows a non-HTTPS endpoint (the LiteLLM gateway; key = the per-run gateway key);
       # `openai` requires HTTPS + a bearer key (direct OpenAI-compatible API).
       WorkflowGeneration__Providers__local__Endpoint: "${HONUA_LIVE_LLM_ENDPOINT:-}"
       WorkflowGeneration__Providers__local__Model: "${HONUA_LIVE_LLM_MODEL:-}"
+      WorkflowGeneration__Providers__local__ApiKey: "${HONUA_LIVE_LLM_API_KEY:-}"
       WorkflowGeneration__Providers__local__MaxTokens: "8192"
       WorkflowGeneration__Providers__local__TimeoutSeconds: "120"
       WorkflowGeneration__Providers__openai__Endpoint: "${HONUA_LIVE_LLM_ENDPOINT:-}"
