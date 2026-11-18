@@ -61,8 +61,8 @@ public sealed class RetryingModuleImport
         CancellationToken cancellationToken)
     {
         var attempt = ++_attempt;
-        // The first try keeps the stable path. A later try uses a new query because an aborted
-        // import leaves that specifier pending for the rest of the browser tab.
+        // The first try keeps the stable path. A later try uses a new query because an
+        // unfinished or failed import stays recorded for that specifier.
         var specifier = attempt == 1
             ? path
             : $"{path}?honuaRetry={Interlocked.Increment(ref _retryNonce)}";

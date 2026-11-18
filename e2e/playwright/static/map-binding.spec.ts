@@ -90,7 +90,7 @@ async function routeLayerFixture(page: Page, v4Enabled: boolean) {
 
 // A map-preview.js fetch that never settles must not leave this page on the schematic.
 // The preview times out and requests a fresh specifier.
-test('aborted map module import recovers on the same page', async ({ page }) => {
+test('unsettled map module import recovers on the same page', async ({ page }) => {
   let held = false;
   let releaseHeld: () => void = () => {};
   const firstRequestHeld = new Promise<void>(resolve => {
