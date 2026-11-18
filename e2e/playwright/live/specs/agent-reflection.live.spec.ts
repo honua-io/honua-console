@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -8,6 +8,18 @@ import { exerciseAgentPublication, exerciseAgentRecovery } from '../../../../scr
 
 // @ts-expect-error Shared ESM evidence helper used by Playwright and CI.
 import { captureMilestone } from '../../../../scripts/journey-gallery.mjs';
+
+async function approveReflectionProposal(page: Page, go: (path: string) => Promise<void>, proposal: { consoleProposalId: string }) {
+  await go(`/inbox?proposalId=${encodeURIComponent(proposal.consoleProposalId)}`);
+  const id = proposal.consoleProposalId.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  const panel = page.locator(`[data-proposal-id="${id}"]:has([data-proposal-status])`).last();
+  await expect(panel).toBeVisible({ timeout: 45_000 });
+  await expect(panel.locator('[data-proposal-approve]')).toBeEnabled();
+  await panel.locator('[data-proposal-approve]').click();
+  // Submitted says "Approved — …". Every later status says "Approval recorded — …".
+  // "Decision returned — proposal is still awaiting approval." matches neither.
+  await expect(panel.locator('[data-proposal-action-message]')).toContainText(/Approved —|Approval recorded —/, { timeout: 30_000 });
+}
 
 function required(name: string): string {
   const value = process.env[name];
@@ -58,6 +70,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     }
   };
   const go = async (path: string) => { await page.goto(new URL(path, consoleUrl).href, { waitUntil: 'domcontentloaded' }); };
+  const approve = (proposal: { consoleProposalId: string }) => approveReflectionProposal(page, go, proposal);
   try {
     await go('/auth/login?returnTo=/version.json');
     await go('/auth/server/login?profileId=local-dev&returnTo=%2Foperate%2Fdeploy');
@@ -67,7 +80,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     await page.waitForURL('**/operate/deploy');
     let proposalId = '';
     await exerciseAgentRecovery({
-      managerUrl, proposerKey: managerProposer, approverKey: managerApprover,
+      managerUrl, proposerKey: managerProposer, approverKey: managerApprover, approve,
       stopRedis: async () => {
         const args = ['docker', 'compose', '--project-directory', composeDir, 'stop', 'redis'];
         if (sshHost) execFileSync('ssh', [sshHost, ...args], { stdio: 'ignore', timeout: 60_000 });
@@ -132,7 +145,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     const fields = { name: 'esriFieldTypeString', population: 'esriFieldTypeBigInteger', rating: 'esriFieldTypeDouble' };
     const seen: Array<{ dataset: string; format: string; layerId: number; geometryType: string }> = [];
     await exerciseAgentPublication({
-      serverUrl, proposerKey: serverProposer, verifierKey: serverApprover, expectedActor: serverActor,
+      serverUrl, proposerKey: serverProposer, verifierKey: serverApprover, expectedActor: serverActor, approve,
       datasets: [
         { format: 'geojson', name: `agent_regions_${suffix}`, data: readFileSync(new URL('customer-regions.geojson', fixture), 'utf8'), geometryType: 'Polygon', fields },
         { format: 'csv', name: `agent_sites_${suffix}`, data: readFileSync(new URL('customer-sites.csv', fixture), 'utf8'), geometryType: 'Point', fields },
