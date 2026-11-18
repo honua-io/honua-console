@@ -80,7 +80,7 @@ public sealed class RetryingModuleImportTests
 
         await cut.InvokeAsync(() => cut.Instance.Open("Delete this item?", () => Task.CompletedTask));
 
-        Assert.Equal(1, runtime.CallCount("show"));
+        Assert.Equal(1, runtime.ShowCalls);
         Assert.Equal("./_content/Honua.Console.Shell/console-confirm-dialog.js", runtime.Specifiers[0]);
         Assert.StartsWith(
             "./_content/Honua.Console.Shell/console-confirm-dialog.js?honuaRetry=",
@@ -101,7 +101,7 @@ public sealed class RetryingModuleImportTests
             .Add(component => component.Label, "Service"));
 
         Assert.Equal("Service", cut.Find("[role='tablist']").GetAttribute("aria-label"));
-        Assert.Equal(1, runtime.CallCount("attach"));
+        Assert.Equal(1, runtime.AttachCalls);
         Assert.Equal("./_content/Honua.Console.Shell/console-tabs.js", runtime.Specifiers[0]);
         Assert.StartsWith(
             "./_content/Honua.Console.Shell/console-tabs.js?honuaRetry=",
@@ -117,13 +117,16 @@ public sealed class RetryingModuleImportTests
         public bool TimeoutInsteadOfHang { get; init; }
         public bool FailFirstWithScriptError { get; init; }
 
-        public int CallCount(string name) => _module.Calls.Count(call => call == name);
+        public int ShowCalls => _module.Calls.Count(static call => call == "show");
+
+        public int AttachCalls => _module.Calls.Count(static call => call == "attach");
 
         public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
         {
             if (identifier != "import")
             {
-                return _module.Invoke<TValue>(identifier);
+                _module.Calls.Add(identifier);
+                return default!;
             }
 
             var specifier = args is { Length: > 0 } && args[0] is string text ? text : "";
@@ -158,12 +161,6 @@ public sealed class RetryingModuleImportTests
     private sealed class ScriptModule : IJSObjectReference
     {
         public List<string> Calls { get; } = [];
-
-        public TValue Invoke<TValue>(string identifier)
-        {
-            Calls.Add(identifier);
-            return default!;
-        }
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
         {
