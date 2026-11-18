@@ -86,5 +86,7 @@ bundled interpreter rather than compiled code. A stored or model-authored spec c
 the inline rows the Console supplies: a spec whose data is a URL shows the chart fallback,
 images from URLs are not fetched, and `href` encodings produce no links. The Console's own
 spec builders use inline data and Vega-Lite's generated expressions, which the interpreter
-supports. Coverage: `scripts/__tests__/chart-preview-loader.test.mjs` and the external-resource
+supports. Hand-written specs that keep their data elsewhere (named `datasets`, `sequence`
+generators, CSV strings, or data only on layers) also show the fallback; inline row arrays
+are the supported form. Coverage: `scripts/__tests__/chart-preview-loader.test.mjs` and the external-resource
 case in `e2e/playwright/specs/chart-runtime.spec.ts`.
