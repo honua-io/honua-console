@@ -45,15 +45,7 @@ public sealed class TemporalReplicaFixture : IAsyncLifetime
             // Explicit mapping for this ephemeral server; real publications must carry the namespace.
             var scopedOptions = Options with
             {
-                ServerEnvironment = string.Join("\n", Options.ServerEnvironment,
-                    $"Console__CatalogDiscovery__Environments__0__Id={CatalogEnvironment}",
-                    "MultiTenancy__Enabled=true",
-                    $"MultiTenancy__DefaultTenantId={CatalogTenant}",
-                    $"Console__CatalogDiscovery__Environments__0__TenantId={CatalogTenant}",
-                    $"Console__CatalogDiscovery__Environments__0__Namespace={CatalogNamespace}",
-                    "Console__CatalogDiscovery__Environments__1__Id=other-tenant-workspace",
-                    "Console__CatalogDiscovery__Environments__1__TenantId=other-tenant",
-                    $"Console__CatalogDiscovery__Environments__1__Namespace={CatalogNamespace}")
+                ServerEnvironment = CatalogDiscoveryEnvironment(Options.ServerEnvironment)
             };
             _container = await HonuaServerTestcontainer.StartAsync(scopedOptions, timeout.Token).ConfigureAwait(false);
             BaseAddress = _container.BaseAddress;
@@ -71,6 +63,26 @@ public sealed class TemporalReplicaFixture : IAsyncLifetime
             }
         }
     }
+
+    // The pinned live image still mounts this registry from the previous configuration
+    // section. Current servers read Environments. Sending both keeps the round trip
+    // mounted on either image; the client still reads environmentId only.
+    private static string CatalogDiscoveryEnvironment(string serverEnvironment) =>
+        string.Join("\n", serverEnvironment,
+            $"Console__CatalogDiscovery__Workspaces__0__Id={CatalogEnvironment}",
+            $"Console__CatalogDiscovery__Workspaces__0__TenantId={CatalogTenant}",
+            $"Console__CatalogDiscovery__Workspaces__0__Namespace={CatalogNamespace}",
+            "Console__CatalogDiscovery__Workspaces__1__Id=other-tenant-workspace",
+            "Console__CatalogDiscovery__Workspaces__1__TenantId=other-tenant",
+            $"Console__CatalogDiscovery__Workspaces__1__Namespace={CatalogNamespace}",
+            $"Console__CatalogDiscovery__Environments__0__Id={CatalogEnvironment}",
+            "MultiTenancy__Enabled=true",
+            $"MultiTenancy__DefaultTenantId={CatalogTenant}",
+            $"Console__CatalogDiscovery__Environments__0__TenantId={CatalogTenant}",
+            $"Console__CatalogDiscovery__Environments__0__Namespace={CatalogNamespace}",
+            "Console__CatalogDiscovery__Environments__1__Id=other-tenant-workspace",
+            "Console__CatalogDiscovery__Environments__1__TenantId=other-tenant",
+            $"Console__CatalogDiscovery__Environments__1__Namespace={CatalogNamespace}");
 
     public async Task DisposeAsync()
     {
