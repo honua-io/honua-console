@@ -38,6 +38,7 @@ test('charts embed with a loader that refuses every external resource', async ()
 
         assert.equal(calls.length, 1);
         assert.equal(calls[0].loader, NO_NETWORK_LOADER);
+        assert.equal(calls[0].ast, true);
         dispose(target);
     });
 });
