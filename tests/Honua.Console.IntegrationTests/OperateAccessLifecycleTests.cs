@@ -9,35 +9,49 @@ namespace Honua.Console.IntegrationTests;
 
 public sealed class OperateAccessLifecycleTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AccessNavigationPreservesEnvironment(bool members)
+    [Fact]
+    public void RolesNavigationPreservesEnvironment()
     {
         using var context = Context(true);
         Navigate(context, "env west");
-        var links = members
-            ? context.Render<OperateAccessMembersPage>().FindAll(".rbac-navigation a")
-            : context.Render<OperateAccessRolesPage>().FindAll(".rbac-navigation a");
+        var links = context.Render<OperateAccessRolesPage>().FindAll(".rbac-navigation a");
 
         Assert.Equal(new[] { "operate/access?environment=env%20west", "operate/access/members?environment=env%20west" },
             links.Select(link => link.GetAttribute("href")));
-        var data = context.Services.GetRequiredService<DeferredRbac>();
-        Assert.Contains("env west", data.OverviewRequests);
+        Assert.Contains("env west", context.Services.GetRequiredService<DeferredRbac>().OverviewRequests);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RetiredWorkspaceQueryRefusesTheDefaultEnvironment(bool members)
+    [Fact]
+    public void MembersNavigationPreservesEnvironment()
     {
         using var context = Context(true);
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo(members
-            ? "/operate/access/members?workspace=prod"
-            : "/operate/access?Workspace=prod");
-        var markup = members
-            ? context.Render<OperateAccessMembersPage>().Markup
-            : context.Render<OperateAccessRolesPage>().Markup;
+        Navigate(context, "env west");
+        var links = context.Render<OperateAccessMembersPage>().FindAll(".rbac-navigation a");
+
+        Assert.Equal(new[] { "operate/access?environment=env%20west", "operate/access/members?environment=env%20west" },
+            links.Select(link => link.GetAttribute("href")));
+        Assert.Contains("env west", context.Services.GetRequiredService<DeferredRbac>().OverviewRequests);
+    }
+
+    [Fact]
+    public void RolesRetiredWorkspaceQueryRefusesTheDefaultEnvironment()
+    {
+        using var context = Context(true);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/access?Workspace=prod");
+        var markup = context.Render<OperateAccessRolesPage>().Markup;
+
+        Assert.Contains("out of date", markup, StringComparison.Ordinal);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
+        Assert.Empty(data.OverviewRequests);
+        Assert.Empty(data.MembershipRequests);
+    }
+
+    [Fact]
+    public void MembersRetiredWorkspaceQueryRefusesTheDefaultEnvironment()
+    {
+        using var context = Context(true);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/access/members?workspace=prod");
+        var markup = context.Render<OperateAccessMembersPage>().Markup;
 
         Assert.Contains("out of date", markup, StringComparison.Ordinal);
         var data = context.Services.GetRequiredService<DeferredRbac>();

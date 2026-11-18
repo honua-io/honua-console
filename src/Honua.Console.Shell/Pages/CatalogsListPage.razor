@@ -210,7 +210,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (ConsoleUrlQuery.HasRetiredEnvironmentKey(ConsoleNavigation.Uri))
+        if (ConsoleRetiredEnvironmentQuery.HasRetiredKey(ConsoleNavigation.Uri))
         {
             _retiredEnvironmentLink = true;
             _loading = false;

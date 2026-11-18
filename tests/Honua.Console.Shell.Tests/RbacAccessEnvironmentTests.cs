@@ -7,55 +7,64 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class RbacAccessEnvironmentTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ReadsAcceptCanonicalEnvironmentIdentity(bool members)
+    [Fact]
+    public async Task OverviewReadAcceptsCanonicalEnvironmentIdentity()
     {
         const string payload = """{"success":true,"data":{"environmentId":"env-west","environmentName":"Public Works","roles":[],"members":[]}}""";
         using var http = new HttpClient(new ResponseHandler(payload));
         using var client = CreateClient(http);
         var source = new HonuaServerRbacAccessDataSource(client);
 
-        if (members)
-        {
-            var result = await source.LoadMembershipAsync("env-west");
-            Assert.NotNull(result.Membership);
-            Assert.Equal("env-west", result.Membership.EnvironmentId);
-            Assert.Equal("Public Works", result.Membership.DisplayEnvironment);
-            Assert.Empty(result.CapabilityStates);
-        }
-        else
-        {
-            var result = await source.LoadOverviewAsync("env-west");
-            Assert.NotNull(result.Overview);
-            Assert.Equal("env-west", result.Overview.EnvironmentId);
-            Assert.Equal("Public Works", result.Overview.DisplayEnvironment);
-            Assert.Empty(result.CapabilityStates);
-        }
+        var result = await source.LoadOverviewAsync("env-west");
+
+        Assert.NotNull(result.Overview);
+        Assert.Equal("env-west", result.Overview.EnvironmentId);
+        Assert.Equal("Public Works", result.Overview.DisplayEnvironment);
+        Assert.Empty(result.CapabilityStates);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RetiredWorkspaceIdentityDoesNotSatisfyEnvironmentContract(bool members)
+    [Fact]
+    public async Task MembershipReadAcceptsCanonicalEnvironmentIdentity()
+    {
+        const string payload = """{"success":true,"data":{"environmentId":"env-west","environmentName":"Public Works","roles":[],"members":[]}}""";
+        using var http = new HttpClient(new ResponseHandler(payload));
+        using var client = CreateClient(http);
+        var source = new HonuaServerRbacAccessDataSource(client);
+
+        var result = await source.LoadMembershipAsync("env-west");
+
+        Assert.NotNull(result.Membership);
+        Assert.Equal("env-west", result.Membership.EnvironmentId);
+        Assert.Equal("Public Works", result.Membership.DisplayEnvironment);
+        Assert.Empty(result.CapabilityStates);
+    }
+
+    [Fact]
+    public async Task RetiredWorkspaceIdentityDoesNotSatisfyOverviewContract()
     {
         const string payload = """{"success":true,"data":{"workspaceId":"env-west","workspaceName":"Public Works","roles":[],"members":[]}}""";
         using var http = new HttpClient(new ResponseHandler(payload));
         using var client = CreateClient(http);
         var source = new HonuaServerRbacAccessDataSource(client);
-        if (members)
-        {
-            var result = await source.LoadMembershipAsync("env-west");
-            Assert.Null(result.Membership);
-            Assert.NotEmpty(result.CapabilityStates);
-        }
-        else
-        {
-            var result = await source.LoadOverviewAsync("env-west");
-            Assert.Null(result.Overview);
-            Assert.NotEmpty(result.CapabilityStates);
-        }
+
+        var result = await source.LoadOverviewAsync("env-west");
+
+        Assert.Null(result.Overview);
+        Assert.NotEmpty(result.CapabilityStates);
+    }
+
+    [Fact]
+    public async Task RetiredWorkspaceIdentityDoesNotSatisfyMembershipContract()
+    {
+        const string payload = """{"success":true,"data":{"workspaceId":"env-west","workspaceName":"Public Works","roles":[],"members":[]}}""";
+        using var http = new HttpClient(new ResponseHandler(payload));
+        using var client = CreateClient(http);
+        var source = new HonuaServerRbacAccessDataSource(client);
+
+        var result = await source.LoadMembershipAsync("env-west");
+
+        Assert.Null(result.Membership);
+        Assert.NotEmpty(result.CapabilityStates);
     }
 
     [Theory]

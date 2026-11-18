@@ -45,7 +45,7 @@ public partial class OperateAccessRolesPage
 
     protected override async Task OnParametersSetAsync()
     {
-        if (ConsoleUrlQuery.HasRetiredEnvironmentKey(Navigation.Uri))
+        if (ConsoleRetiredEnvironmentQuery.HasRetiredKey(Navigation.Uri))
         {
             _retiredEnvironmentLink = true;
             _loading = false;
