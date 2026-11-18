@@ -472,10 +472,17 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             })
             .ToArray();
 
-    // The editor groups the palette and lays out the graph by source/transform/sink. The server models node
-    // shape via ports, so derive the bucket from port presence (no inputs => source, no outputs => sink).
+    // The editor groups the palette and lays out the graph by source/transform/sink. The registry names that
+    // role in its category for the process nodes (a sink still declares a FeatureLayer or File output), so a
+    // category that is one of the three wins. Other categories (publish, style, map...) fall back to port
+    // shape: no inputs => source, no outputs => sink.
     private static string DeriveCategory(WorkflowNodeDefinition node)
     {
+        if (TryReadEditorCategory(node.Category) is { } declared)
+        {
+            return declared;
+        }
+
         if ((node.InputSchemas?.Count ?? 0) == 0)
         {
             return StudioWorkflowContractValues.NodeCategorySource;
@@ -485,6 +492,16 @@ public sealed partial class ServerStudioWorkflowPackageClient : IStudioWorkflowP
             ? StudioWorkflowContractValues.NodeCategorySink
             : StudioWorkflowContractValues.NodeCategoryTransform;
     }
+
+    private static string? TryReadEditorCategory(string? category) =>
+        EditorCategories.FirstOrDefault(known => string.Equals(known, category?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private static readonly string[] EditorCategories =
+    [
+        StudioWorkflowContractValues.NodeCategorySource,
+        StudioWorkflowContractValues.NodeCategoryTransform,
+        StudioWorkflowContractValues.NodeCategorySink
+    ];
 
     private StudioWorkflowPackageDraft ToDraft(
         WorkflowPackage package,

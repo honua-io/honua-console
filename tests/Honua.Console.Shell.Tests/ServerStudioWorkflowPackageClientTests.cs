@@ -7,7 +7,7 @@ namespace Honua.Console.Shell.Tests;
 public sealed partial class ServerStudioWorkflowPackageClientTests
 {
     [Fact]
-    public async Task OpenEditor_MapsNodeRegistryCategories_FromPorts()
+    public async Task OpenEditor_MapsNodeRegistryCategories_FromRegistryCategoryThenPorts()
     {
         var client = new ServerStudioWorkflowPackageClient(new FakeWorkflowApi());
 
@@ -19,6 +19,15 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
         Assert.Contains(context.NodeDefinitions, d => d.Category == StudioWorkflowContractValues.NodeCategorySource);
         Assert.Contains(context.NodeDefinitions, d => d.Category == StudioWorkflowContractValues.NodeCategoryTransform);
         Assert.Contains(context.NodeDefinitions, d => d.Category == StudioWorkflowContractValues.NodeCategorySink);
+        Assert.Equal(
+            StudioWorkflowContractValues.NodeCategorySink,
+            Assert.Single(context.NodeDefinitions, d => d.Type == "honua.sink.feature-service").Category);
+        Assert.Equal(
+            StudioWorkflowContractValues.NodeCategoryTransform,
+            Assert.Single(context.NodeDefinitions, d => d.Type == "authoring:publish.feature-service").Category);
+        Assert.Equal(
+            StudioWorkflowContractValues.NodeCategorySource,
+            Assert.Single(context.NodeDefinitions, d => d.Type == "authoring:stac.catalog").Category);
     }
 
     [Fact]
@@ -344,43 +353,36 @@ public sealed partial class ServerStudioWorkflowPackageClientTests
             {
                 RegistryVersion = "test-1",
                 GeneratedAt = DateTimeOffset.UtcNow,
-                Nodes =
-                [
-                    new WorkflowNodeDefinition
-                    {
-                        NodeTypeId = "honua.source.feature-layer",
-                        ProviderId = "test",
-                        RuntimeKind = WorkflowNodeRuntimeKind.Geoprocessing,
-                        Title = "Feature source",
-                        Description = "source",
-                        Category = "Source",
-                        OutputSchemas = [Port("features")]
-                    },
-                    new WorkflowNodeDefinition
-                    {
-                        NodeTypeId = "honua.transform.filter",
-                        ProviderId = "test",
-                        RuntimeKind = WorkflowNodeRuntimeKind.Geoprocessing,
-                        Title = "Filter",
-                        Description = "transform",
-                        Category = "Transform",
-                        InputSchemas = [Port("features")],
-                        OutputSchemas = [Port("matched")]
-                    },
-                    new WorkflowNodeDefinition
-                    {
-                        NodeTypeId = "honua.sink.feature-service",
-                        ProviderId = "test",
-                        RuntimeKind = WorkflowNodeRuntimeKind.Geoprocessing,
-                        Title = "Feature sink",
-                        Description = "sink",
-                        Category = "Sink",
-                        InputSchemas = [Port("features")]
-                    }
-                ]
+                Nodes = RegistryNodes()
             };
             return Task.FromResult(WorkflowEndpointResult<WorkflowNodeRegistrySnapshot>.FromData(snapshot));
         }
+
+        private static IReadOnlyList<WorkflowNodeDefinition> RegistryNodes() =>
+        [
+            RegistryNode("honua.source.feature-layer", "Source", ports: ([], ["features"])),
+            RegistryNode("honua.transform.filter", "Transform", ports: (["features"], ["matched"])),
+            // A registry sink still declares an output, so only its category marks it a sink.
+            RegistryNode("honua.sink.feature-service", "Sink", ports: (["features"], ["FeatureLayer"])),
+            RegistryNode("authoring:publish.feature-service", "publish", ports: (["sourceLayerId"], ["publishedService"])),
+            RegistryNode("authoring:stac.catalog", "stac", ports: ([], ["stacCatalog"]))
+        ];
+
+        private static WorkflowNodeDefinition RegistryNode(
+            string nodeTypeId,
+            string category,
+            (string[] Inputs, string[] Outputs) ports) =>
+            new()
+            {
+                NodeTypeId = nodeTypeId,
+                ProviderId = "test",
+                RuntimeKind = WorkflowNodeRuntimeKind.Geoprocessing,
+                Title = nodeTypeId,
+                Description = category,
+                Category = category,
+                InputSchemas = ports.Inputs.Select(Port).ToArray(),
+                OutputSchemas = ports.Outputs.Select(Port).ToArray()
+            };
 
         public Task<WorkflowEndpointResult<WorkflowPackageListResponse>> ListPackagesAsync(
             CancellationToken cancellationToken = default) =>
