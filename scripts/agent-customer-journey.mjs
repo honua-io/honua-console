@@ -36,10 +36,10 @@ export async function refuseApiKeyApproval(base, key, proposalPath) {
     throw new Error('API-key approval changed the proposal');
 }
 
-async function approveInConsole(base, key, proposalPath, approve, proposalId, consoleProposalId) {
-  if (typeof approve !== 'function') throw new Error('A Console approval is required');
-  await refuseApiKeyApproval(base, key, proposalPath);
-  await approve({ proposalId, consoleProposalId });
+async function approveInConsole(request) {
+  if (typeof request.approve !== 'function') throw new Error('A Console approval is required');
+  await refuseApiKeyApproval(request.base, request.key, request.proposalPath);
+  await request.approve({ proposalId: request.proposalId, consoleProposalId: request.consoleProposalId });
 }
 
 /** Call the manager's actual MCP tools and let the customer-facing test observe each state. */
@@ -70,7 +70,10 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   const path = `/api/v1/admin/proposals/${encodeURIComponent(proposed.proposalId)}`;
   const pending = await poll(() => api(managerUrl, approverKey, path), value => value.status?.toLowerCase() === 'awaitingapproval');
   await observe('pending', pending);
-  await approveInConsole(managerUrl, approverKey, path, approve, proposed.proposalId, `manager:${proposed.proposalId}`);
+  await approveInConsole({
+    base: managerUrl, key: approverKey, proposalPath: path, approve,
+    proposalId: proposed.proposalId, consoleProposalId: `manager:${proposed.proposalId}`,
+  });
   const completed = await poll(() => api(managerUrl, approverKey, path),
     value => ['completed', 'succeeded', 'failed', 'rejected', 'cancelled'].includes(value.status?.toLowerCase()));
   if (!['completed', 'succeeded'].includes(completed.status.toLowerCase())) throw new Error('The approved restart failed');
@@ -103,7 +106,10 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
       if (!verifierKey || proposerKey === verifierKey) throw new Error('A separate publisher approver is required');
       const proposalPath = `/api/v1/admin/proposals/${encodeURIComponent(result.proposalId)}`;
       await poll(() => api(serverUrl, verifierKey, proposalPath), value => value.status?.toLowerCase() === 'awaitingapproval');
-      await approveInConsole(serverUrl, verifierKey, proposalPath, approve, result.proposalId, result.proposalId);
+      await approveInConsole({
+        base: serverUrl, key: verifierKey, proposalPath, approve,
+        proposalId: result.proposalId, consoleProposalId: result.proposalId,
+      });
       const terminal = await poll(() => api(serverUrl, verifierKey, proposalPath),
         value => ['completed', 'succeeded', 'failed', 'rejected', 'cancelled'].includes(value.status?.toLowerCase()));
       if (!['completed', 'succeeded'].includes(terminal.status.toLowerCase())) throw new Error('The approved publication failed');
