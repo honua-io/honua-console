@@ -19,13 +19,11 @@ public sealed class CatalogServerBindingRenderTests
     {
         var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse
         {
-            Total = 4,
+            Total = 2,
             Items =
             [
                 ServerItem("svc-1", "Coastal Flood Service", "service", "public", ["view"]),
-                ServerItem("map-1", "Storm Response Map", "map", "organization", ["view", "edit", "publish"]),
-                ServerItem("ds-1", "Coastal Dataset", "dataset", "organization", ["view"]),
-                ServerItem("app-1", "Flood App", "app", "organization", ["view"])
+                ServerItem("map-1", "Storm Response Map", "saved-map", "organization", ["view", "edit", "publish"])
             ]
         }));
         using var ctx = new Bunit.BunitContext();
@@ -38,9 +36,7 @@ public sealed class CatalogServerBindingRenderTests
             () => Assert.Contains("Coastal Flood Service", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.Contains("Storm Response Map", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Coastal Dataset", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("Flood App", page.Markup, StringComparison.Ordinal);
-        // Canonical kinds retain their catalog labels.
+        // saved-map item type projects onto the Console "Maps" type label.
         Assert.Contains("Maps", page.Markup, StringComparison.Ordinal);
     }
 
@@ -53,7 +49,7 @@ public sealed class CatalogServerBindingRenderTests
             Items =
             [
                 ServerItem("svc-1", "Coastal Flood Service", "service", "public", ["view"]),
-                ServerItem("map-1", "Storm Response Map", "map", "private", ["view", "edit"])
+                ServerItem("map-1", "Storm Response Map", "saved-map", "private", ["view", "edit"])
             ]
         }));
         using var ctx = new Bunit.BunitContext();

@@ -5,13 +5,14 @@ using System.Text.Json.Serialization;
 
 namespace Honua.Console.Contracts;
 
-// Environment-scope roles inherit downward; a narrower scope overrides them.
+// Workspace-scope roles inherit downward; a narrower scope overrides them.
 public static class HonuaConsoleAccessScopeLevels
 {
+    public const string Workspace = "workspace";
     public const string Environment = "environment";
     public const string Content = "content";
-    public const string Layer = "layer";
-    public const string DatasetField = "dataset-field";
+    public const string Publication = "publication";
+    public const string ResourceField = "resource-field";
 }
 
 public static class HonuaConsolePermissionGrants
@@ -30,31 +31,31 @@ public interface IHonuaConsoleRbacClient
     Uri BaseUri { get; }
 
     Task<HonuaAdminEndpointResult<HonuaConsoleRbacOverview>> GetOverviewAsync(
-        string environmentId,
+        string workspaceId,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaConsoleTeamMembership>> GetMembershipAsync(
-        string environmentId,
+        string workspaceId,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaConsoleRbacRole>> CreateRoleAsync(
-        string environmentId,
+        string workspaceId,
         HonuaConsoleRoleWriteRequest request,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaConsoleRbacRole>> UpdateRoleAsync(
-        string environmentId,
+        string workspaceId,
         string roleId,
         HonuaConsoleRoleWriteRequest request,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<bool>> DeleteRoleAsync(
-        string environmentId,
+        string workspaceId,
         string roleId,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaConsoleRoleAuditPage>> GetRoleAuditAsync(
-        string environmentId,
+        string workspaceId,
         int pageSize = 50,
         CancellationToken cancellationToken = default);
 }
@@ -96,71 +97,71 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
     public Uri BaseUri { get; }
 
     public Task<HonuaAdminEndpointResult<HonuaConsoleRbacOverview>> GetOverviewAsync(
-        string environmentId,
+        string workspaceId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
 
         return SendAsync<HonuaConsoleRbacOverview>(
-            $"{Base}/{Uri.EscapeDataString(environmentId)}/roles",
-            "GET /api/v1/console/access/{environmentId}/roles",
+            $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles",
+            "GET /api/v1/console/access/{workspaceId}/roles",
             cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaConsoleTeamMembership>> GetMembershipAsync(
-        string environmentId,
+        string workspaceId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
 
         return SendAsync<HonuaConsoleTeamMembership>(
-            $"{Base}/{Uri.EscapeDataString(environmentId)}/members",
-            "GET /api/v1/console/access/{environmentId}/members",
+            $"{Base}/{Uri.EscapeDataString(workspaceId)}/members",
+            "GET /api/v1/console/access/{workspaceId}/members",
             cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaConsoleRbacRole>> CreateRoleAsync(
-        string environmentId,
+        string workspaceId,
         HonuaConsoleRoleWriteRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentNullException.ThrowIfNull(request);
 
         return SendWithBodyAsync<HonuaConsoleRbacRole>(
-            () => JsonRequest(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(environmentId)}/roles", request),
-            "POST /api/v1/console/access/{environmentId}/roles",
+            () => JsonRequest(HttpMethod.Post, $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles", request),
+            "POST /api/v1/console/access/{workspaceId}/roles",
             cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaConsoleRbacRole>> UpdateRoleAsync(
-        string environmentId,
+        string workspaceId,
         string roleId,
         HonuaConsoleRoleWriteRequest request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
         ArgumentNullException.ThrowIfNull(request);
 
         return SendWithBodyAsync<HonuaConsoleRbacRole>(
-            () => JsonRequest(HttpMethod.Put, $"{Base}/{Uri.EscapeDataString(environmentId)}/roles/{Uri.EscapeDataString(roleId)}", request),
-            "PUT /api/v1/console/access/{environmentId}/roles/{roleId}",
+            () => JsonRequest(HttpMethod.Put, $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/{Uri.EscapeDataString(roleId)}", request),
+            "PUT /api/v1/console/access/{workspaceId}/roles/{roleId}",
             cancellationToken);
     }
 
     public async Task<HonuaAdminEndpointResult<bool>> DeleteRoleAsync(
-        string environmentId,
+        string workspaceId,
         string roleId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
 
-        var path = $"{Base}/{Uri.EscapeDataString(environmentId)}/roles/{Uri.EscapeDataString(roleId)}";
+        var path = $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/{Uri.EscapeDataString(roleId)}";
         var call = new AdminEndpointCall<bool>(
             () => new HttpRequestMessage(HttpMethod.Delete, path),
-            "DELETE /api/v1/console/access/{environmentId}/roles/{roleId}",
+            "DELETE /api/v1/console/access/{workspaceId}/roles/{roleId}",
             new(
                 AdminFailureMappings.FromStatusWithServerMessage(CreateWriteIssue),
                 static (_, _, _) => Task.FromResult(HonuaAdminEndpointResult<bool>.FromData(true))));
@@ -168,15 +169,15 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
     }
 
     public Task<HonuaAdminEndpointResult<HonuaConsoleRoleAuditPage>> GetRoleAuditAsync(
-        string environmentId,
+        string workspaceId,
         int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
 
         return SendAsync<HonuaConsoleRoleAuditPage>(
-            $"{Base}/{Uri.EscapeDataString(environmentId)}/roles/audit?pageSize={pageSize}",
-            "GET /api/v1/console/access/{environmentId}/roles/audit",
+            $"{Base}/{Uri.EscapeDataString(workspaceId)}/roles/audit?pageSize={pageSize}",
+            "GET /api/v1/console/access/{workspaceId}/roles/audit",
             cancellationToken);
     }
 
@@ -346,11 +347,11 @@ public sealed record HonuaConsoleRbacRole
 
 public sealed record HonuaConsoleRbacOverview
 {
-    [JsonPropertyName("environmentId")]
-    public required string EnvironmentId { get; init; }
+    [JsonPropertyName("workspaceId")]
+    public required string WorkspaceId { get; init; }
 
-    [JsonPropertyName("environmentName")]
-    public string? EnvironmentName { get; init; }
+    [JsonPropertyName("workspaceName")]
+    public string? WorkspaceName { get; init; }
 
     [JsonPropertyName("scopes")]
     public IReadOnlyList<HonuaConsoleAccessScope> Scopes { get; init; } = Array.Empty<HonuaConsoleAccessScope>();
@@ -431,11 +432,11 @@ public sealed record HonuaConsoleTeamInvitation
 
 public sealed record HonuaConsoleTeamMembership
 {
-    [JsonPropertyName("environmentId")]
-    public required string EnvironmentId { get; init; }
+    [JsonPropertyName("workspaceId")]
+    public required string WorkspaceId { get; init; }
 
-    [JsonPropertyName("environmentName")]
-    public string? EnvironmentName { get; init; }
+    [JsonPropertyName("workspaceName")]
+    public string? WorkspaceName { get; init; }
 
     [JsonPropertyName("members")]
     public IReadOnlyList<HonuaConsoleTeamMember> Members { get; init; } = Array.Empty<HonuaConsoleTeamMember>();

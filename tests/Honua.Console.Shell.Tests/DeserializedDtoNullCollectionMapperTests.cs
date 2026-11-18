@@ -15,13 +15,13 @@ public sealed class DeserializedDtoNullCollectionMapperTests
     {
         var registry = new HonuaCatalogDiscoveryRegistry
         {
-            EnvironmentId = "ws-1",
+            WorkspaceId = "ws-1",
             Endpoints = null!
         };
 
         var view = CatalogDiscoveryMapper.ToView(registry);
 
-        Assert.Equal("ws-1", view.EnvironmentId);
+        Assert.Equal("ws-1", view.WorkspaceId);
         Assert.Empty(view.Endpoints);
     }
 
@@ -66,7 +66,7 @@ public sealed class DeserializedDtoNullCollectionMapperTests
     {
         var overview = new HonuaConsoleRbacOverview
         {
-            EnvironmentId = "ws-1",
+            WorkspaceId = "ws-1",
             Scopes = null!,
             Permissions = null!,
             Roles = null!
@@ -84,7 +84,7 @@ public sealed class DeserializedDtoNullCollectionMapperTests
     {
         var membership = new HonuaConsoleTeamMembership
         {
-            EnvironmentId = "ws-1",
+            WorkspaceId = "ws-1",
             Members = null!,
             Invitations = null!
         };

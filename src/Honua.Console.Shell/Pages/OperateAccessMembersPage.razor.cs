@@ -1,4 +1,3 @@
-using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Validation;
 using Microsoft.AspNetCore.Components;
@@ -10,7 +9,6 @@ public partial class OperateAccessMembersPage
     private TeamMembershipView? _membership;
     private RbacOverviewView? _overview;
     private RbacCapabilityState? _bindingState;
-    private bool _retiredEnvironmentLink;
     private bool _loading = true;
     private bool _inviteOpen;
 
@@ -34,23 +32,16 @@ public partial class OperateAccessMembersPage
     private void OnInviteEdit() =>
         _inviteValidation.SetClientErrors(RbacInviteValidator.Instance.Evaluate(BuildInviteState()));
 
-    [Inject]
-    private NavigationManager Navigation { get; set; } = default!;
+    [SupplyParameterFromQuery(Name = "workspace")]
+    private string? Workspace { get; set; }
 
-    [SupplyParameterFromQuery(Name = "environment")]
-    private string? Environment { get; set; }
-
-    private string EnvironmentId => string.IsNullOrWhiteSpace(Environment) ? "current" : Environment!;
+    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
 
     private RbacRoleView? SelectedRole =>
         _overview?.Roles.FirstOrDefault(role => string.Equals(role.Id, _inviteRoleId, StringComparison.Ordinal))
         ?? _overview?.Roles.FirstOrDefault();
 
-    private string AccessHref(string path) => string.IsNullOrWhiteSpace(Environment)
-        ? path
-        : $"{path}?environment={Uri.EscapeDataString(Environment!)}";
-
-    private string? _environmentId;
+    private string? _workspaceId;
     private int _generation;
     private bool _disposed;
 
@@ -58,32 +49,18 @@ public partial class OperateAccessMembersPage
 
     protected override async Task OnParametersSetAsync()
     {
-        if (ConsoleRetiredEnvironmentQuery.HasRetiredKey(Navigation.Uri))
-        {
-            _retiredEnvironmentLink = true;
-            _loading = false;
-            _membership = null;
-            _overview = null;
-            _bindingState = null;
-            _inviteOpen = false;
-            _environmentId = null;
-            _generation++;
-            return;
-        }
-
-        _retiredEnvironmentLink = false;
-        if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
-        _environmentId = EnvironmentId;
+        if (string.Equals(_workspaceId, WorkspaceId, StringComparison.Ordinal)) return;
+        _workspaceId = WorkspaceId;
         var generation = ++_generation;
-        var environment = _environmentId;
-        ResetEnvironment();
-        var load = await RbacData.LoadMembershipAsync(environment);
+        var workspace = _workspaceId;
+        ResetWorkspace();
+        var load = await RbacData.LoadMembershipAsync(workspace);
         if (!IsCurrent(generation)) return;
         _membership = load.Membership;
         _bindingState = load.CapabilityStates.FirstOrDefault();
         if (load.HasMembership)
         {
-            var overviewLoad = await RbacData.LoadOverviewAsync(environment);
+            var overviewLoad = await RbacData.LoadOverviewAsync(workspace);
             if (!IsCurrent(generation)) return;
             _overview = overviewLoad.Overview;
             _inviteRoleId = _overview?.Roles.FirstOrDefault()?.Id;
@@ -91,7 +68,7 @@ public partial class OperateAccessMembersPage
         _loading = false;
     }
 
-    private void ResetEnvironment()
+    private void ResetWorkspace()
     {
         _loading = true;
         _bindingState = null;

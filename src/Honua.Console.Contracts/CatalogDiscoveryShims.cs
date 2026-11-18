@@ -20,16 +20,16 @@ public interface IHonuaCatalogDiscoveryClient
     Uri BaseUri { get; }
 
     Task<HonuaAdminEndpointResult<HonuaCatalogDiscoveryRegistry>> GetRegistryAsync(
-        string environmentId,
+        string workspaceId,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaCatalogEndpointDetail>> GetEndpointAsync(
-        string environmentId,
+        string workspaceId,
         string endpointKey,
         CancellationToken cancellationToken = default);
 
     Task<HonuaAdminEndpointResult<HonuaCatalogItem>> GetItemAsync(
-        string environmentId,
+        string workspaceId,
         string endpointKey,
         string itemId,
         CancellationToken cancellationToken = default);
@@ -70,44 +70,44 @@ public sealed class HonuaCatalogDiscoveryHttpClient : IHonuaCatalogDiscoveryClie
     public Uri BaseUri { get; }
 
     public Task<HonuaAdminEndpointResult<HonuaCatalogDiscoveryRegistry>> GetRegistryAsync(
-        string environmentId,
+        string workspaceId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
 
         return SendAsync<HonuaCatalogDiscoveryRegistry>(
-            $"{Base}/{Uri.EscapeDataString(environmentId)}",
-            "GET /api/v1/console/catalog-endpoints/{environmentId}",
+            $"{Base}/{Uri.EscapeDataString(workspaceId)}",
+            "GET /api/v1/console/catalog-endpoints/{workspaceId}",
             cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaCatalogEndpointDetail>> GetEndpointAsync(
-        string environmentId,
+        string workspaceId,
         string endpointKey,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointKey);
 
         return SendAsync<HonuaCatalogEndpointDetail>(
-            $"{Base}/{Uri.EscapeDataString(environmentId)}/{Uri.EscapeDataString(endpointKey)}",
-            "GET /api/v1/console/catalog-endpoints/{environmentId}/{endpointKey}",
+            $"{Base}/{Uri.EscapeDataString(workspaceId)}/{Uri.EscapeDataString(endpointKey)}",
+            "GET /api/v1/console/catalog-endpoints/{workspaceId}/{endpointKey}",
             cancellationToken);
     }
 
     public Task<HonuaAdminEndpointResult<HonuaCatalogItem>> GetItemAsync(
-        string environmentId,
+        string workspaceId,
         string endpointKey,
         string itemId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemId);
 
         return SendAsync<HonuaCatalogItem>(
-            $"{Base}/{Uri.EscapeDataString(environmentId)}/{Uri.EscapeDataString(endpointKey)}/items/{Uri.EscapeDataString(itemId)}",
-            "GET /api/v1/console/catalog-endpoints/{environmentId}/{endpointKey}/items/{itemId}",
+            $"{Base}/{Uri.EscapeDataString(workspaceId)}/{Uri.EscapeDataString(endpointKey)}/items/{Uri.EscapeDataString(itemId)}",
+            "GET /api/v1/console/catalog-endpoints/{workspaceId}/{endpointKey}/items/{itemId}",
             cancellationToken);
     }
 
@@ -195,11 +195,11 @@ public sealed record HonuaCatalogEndpoint
 
 public sealed record HonuaCatalogDiscoveryRegistry
 {
-    [JsonPropertyName("environmentId")]
-    public required string EnvironmentId { get; init; }
+    [JsonPropertyName("workspaceId")]
+    public required string WorkspaceId { get; init; }
 
-    [JsonPropertyName("environmentName")]
-    public string? EnvironmentName { get; init; }
+    [JsonPropertyName("workspaceName")]
+    public string? WorkspaceName { get; init; }
 
     [JsonPropertyName("publicHost")]
     public string? PublicHost { get; init; }

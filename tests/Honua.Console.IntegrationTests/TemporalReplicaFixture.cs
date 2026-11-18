@@ -10,7 +10,7 @@ public sealed class TemporalReplicaIntegrationCollection : ICollectionFixture<Te
 
 public sealed class TemporalReplicaFixture : IAsyncLifetime
 {
-    public const string CatalogEnvironment = "default";
+    public const string CatalogWorkspace = "default";
     public const string CatalogTenant = "public";
     public const string CatalogNamespace = "console-catalog-fixture";
 
@@ -46,14 +46,14 @@ public sealed class TemporalReplicaFixture : IAsyncLifetime
             var scopedOptions = Options with
             {
                 ServerEnvironment = string.Join("\n", Options.ServerEnvironment,
-                    $"Console__CatalogDiscovery__Environments__0__Id={CatalogEnvironment}",
+                    $"Console__CatalogDiscovery__Workspaces__0__Id={CatalogWorkspace}",
                     "MultiTenancy__Enabled=true",
                     $"MultiTenancy__DefaultTenantId={CatalogTenant}",
-                    $"Console__CatalogDiscovery__Environments__0__TenantId={CatalogTenant}",
-                    $"Console__CatalogDiscovery__Environments__0__Namespace={CatalogNamespace}",
-                    "Console__CatalogDiscovery__Environments__1__Id=other-tenant-workspace",
-                    "Console__CatalogDiscovery__Environments__1__TenantId=other-tenant",
-                    $"Console__CatalogDiscovery__Environments__1__Namespace={CatalogNamespace}")
+                    $"Console__CatalogDiscovery__Workspaces__0__TenantId={CatalogTenant}",
+                    $"Console__CatalogDiscovery__Workspaces__0__Namespace={CatalogNamespace}",
+                    "Console__CatalogDiscovery__Workspaces__1__Id=other-tenant-workspace",
+                    "Console__CatalogDiscovery__Workspaces__1__TenantId=other-tenant",
+                    $"Console__CatalogDiscovery__Workspaces__1__Namespace={CatalogNamespace}")
             };
             _container = await HonuaServerTestcontainer.StartAsync(scopedOptions, timeout.Token).ConfigureAwait(false);
             BaseAddress = _container.BaseAddress;
