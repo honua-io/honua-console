@@ -93,14 +93,14 @@ public sealed class ConsoleContentHttpClientTests
 
         await client.ListAsync(new HonuaConsoleContentListQuery
         {
-            ItemType = HonuaConsoleContentItemTypes.Map,
+            ItemType = HonuaConsoleContentItemTypes.SavedMap,
             Visibility = HonuaConsoleVisibilities.Organization,
             Owner = "resilience",
             SearchTerm = "flood",
             Limit = 50
         });
 
-        Assert.Contains("itemType=map", query, StringComparison.Ordinal);
+        Assert.Contains("itemType=saved-map", query, StringComparison.Ordinal);
         Assert.Contains("visibility=organization", query, StringComparison.Ordinal);
         Assert.Contains("owner=resilience", query, StringComparison.Ordinal);
         Assert.Contains("q=flood", query, StringComparison.Ordinal);

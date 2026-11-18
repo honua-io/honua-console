@@ -12,14 +12,14 @@ public sealed class UnsupportedRbacAccessDataSource : IRbacAccessDataSource
         "Honua:Server:BaseUrl",
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so the Access surface can bind the server-owned Console metadata/RBAC API (honua-server#1162).");
 
-    public Task<RbacOverviewLoad> LoadOverviewAsync(string environmentId, CancellationToken cancellationToken = default) =>
+    public Task<RbacOverviewLoad> LoadOverviewAsync(string workspaceId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new RbacOverviewLoad(null, [MissingBinding]));
 
-    public Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default) =>
+    public Task<TeamMembershipLoad> LoadMembershipAsync(string workspaceId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new TeamMembershipLoad(null, [MissingBinding]));
 
     public Task<RbacRoleMutationResult> CreateRoleAsync(
-        string environmentId,
+        string workspaceId,
         string name,
         string? description,
         IReadOnlyList<string> grantedPermissionKeys,
@@ -27,11 +27,11 @@ public sealed class UnsupportedRbacAccessDataSource : IRbacAccessDataSource
         Task.FromResult(new RbacRoleMutationResult(false, MissingBinding.Detail));
 
     public Task<RbacRoleMutationResult> DeleteRoleAsync(
-        string environmentId,
+        string workspaceId,
         string roleId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new RbacRoleMutationResult(false, MissingBinding.Detail));
 
-    public Task<RbacAuditLoad> LoadAuditAsync(string environmentId, CancellationToken cancellationToken = default) =>
+    public Task<RbacAuditLoad> LoadAuditAsync(string workspaceId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new RbacAuditLoad([], [MissingBinding]));
 }

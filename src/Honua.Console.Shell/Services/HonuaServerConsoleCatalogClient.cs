@@ -21,14 +21,6 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         ArgumentNullException.ThrowIfNull(context);
 
         var query = ConsoleContentMapper.ToListQuery(request);
-        if (!string.IsNullOrWhiteSpace(request.Type) && query.ItemType is null)
-        {
-            return CatalogSearchResult.Failed(
-                request,
-                CatalogReadStatus.UnsupportedContentBinding,
-                $"The connected server does not support filtering catalog items by '{request.Type}'.");
-        }
-
         var result = await _client.ListAsync(query, cancellationToken).ConfigureAwait(false);
         if (result.Data is null)
         {
@@ -112,7 +104,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
             return ToMapFailure(result.Issue, "The requested map was not found.");
         }
 
-        if (!ConsoleContentMapper.IsMap(result.Data))
+        if (!ConsoleContentMapper.IsSavedMap(result.Data))
         {
             return MapReadResult.Denied(
                 CatalogReadStatus.Missing,
@@ -181,7 +173,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
             return ToMapFailure(result.Issue, "The embedded map was not found.");
         }
 
-        if (!ConsoleContentMapper.IsMap(result.Data))
+        if (!ConsoleContentMapper.IsSavedMap(result.Data))
         {
             return MapReadResult.Denied(
                 CatalogReadStatus.Missing,

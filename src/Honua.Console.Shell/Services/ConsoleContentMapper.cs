@@ -55,8 +55,8 @@ internal static class ConsoleContentMapper
             || string.Equals(item.ItemType, HonuaConsoleContentItemTypes.Service, StringComparison.Ordinal)
             || string.Equals(item.ItemType, HonuaConsoleContentItemTypes.Layer, StringComparison.Ordinal));
 
-    public static bool IsMap(HonuaConsoleContentItem item) =>
-        string.Equals(item.ItemType, HonuaConsoleContentItemTypes.Map, StringComparison.Ordinal);
+    public static bool IsSavedMap(HonuaConsoleContentItem item) =>
+        string.Equals(item.ItemType, HonuaConsoleContentItemTypes.SavedMap, StringComparison.Ordinal);
 
     public static bool IsDraftMapSource(HonuaConsoleContentItem item) =>
         string.Equals(item.ItemType, HonuaConsoleContentItemTypes.Service, StringComparison.Ordinal)
@@ -239,6 +239,8 @@ internal static class ConsoleContentMapper
 
     private static string ToConsoleType(string itemType) => itemType switch
     {
+        HonuaConsoleContentItemTypes.SavedMap => "map",
+        HonuaConsoleContentItemTypes.GeneratedApp => "app",
         HonuaConsoleContentItemTypes.OpenData => "document",
         _ => itemType
     };
@@ -252,12 +254,11 @@ internal static class ConsoleContentMapper
 
         return consoleType switch
         {
-            "map" => HonuaConsoleContentItemTypes.Map,
-            "app" => HonuaConsoleContentItemTypes.App,
+            "map" => HonuaConsoleContentItemTypes.SavedMap,
+            "app" => HonuaConsoleContentItemTypes.GeneratedApp,
             "document" => HonuaConsoleContentItemTypes.OpenData,
             "service" => HonuaConsoleContentItemTypes.Service,
             "layer" => HonuaConsoleContentItemTypes.Layer,
-            "dataset" => HonuaConsoleContentItemTypes.Dataset,
             "dashboard" => HonuaConsoleContentItemTypes.Dashboard,
             "report" => HonuaConsoleContentItemTypes.Report,
             _ => null
@@ -293,10 +294,10 @@ internal static class ConsoleContentMapper
 
     private static string[] ItemTypeFormats(string itemType) => itemType switch
     {
-        HonuaConsoleContentItemTypes.Map => ["honua-webmap/v1"],
+        HonuaConsoleContentItemTypes.SavedMap => ["honua-webmap/v1"],
         HonuaConsoleContentItemTypes.Dashboard => ["dashboard-package/v1"],
         HonuaConsoleContentItemTypes.Report => ["report-package/v1"],
-        HonuaConsoleContentItemTypes.App => ["app-package/v1"],
+        HonuaConsoleContentItemTypes.GeneratedApp => ["app-package/v1"],
         _ => []
     };
 

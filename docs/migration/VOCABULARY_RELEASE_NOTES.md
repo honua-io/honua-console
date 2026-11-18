@@ -7,9 +7,3 @@ Data > Services now opens its own service list. Data > Layers opens the layer li
 Console navigation menus stay open while pointer focus moves between their links, so Services and Layers receive the click before the menu closes. Delayed initial page-heading focus preserves a menu the user has already opened after hydration; subsequent route changes still focus the new page heading.
 
 The [transition guide](VOCABULARY.md) records the remaining coordinated model, SDK, kind-filter, and search-alias work. The Catalog administration feature keeps its separate capability gate.
-
-Access role and membership responses use `environmentId`/`environmentName`, and Roles/Users links use `?environment=<id>`. Update saved access links that use `workspace`. Access scopes are Environment, Content, Layer, and Dataset field. Environment and role identifier values, API URL values, and audit operation names remain unchanged. Deploy the matching server ownership migration and canonical contract together with this client; retired field and scope aliases are not supplied.
-
-Catalog discovery uses `environmentId`/`environmentName` in registry responses and `Console:CatalogDiscovery:Environments` in server fixture configuration. Console links use `?environment=<id>`; update saved discovery links that use the retired `workspace` query. Environment identifier values and item handles are unchanged. Deploy with a server that supplies the canonical Environment contract.
-
-Catalog item types and filters use `dataset`, `map`, and `app`. Retired `saved-map` and `generated-app` filters report an unsupported binding before a request is sent. Publication contracts remain separate. Deploy with the matching canonical catalog server contract.
