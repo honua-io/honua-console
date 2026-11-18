@@ -88,6 +88,39 @@ public sealed class RbacAccessEnvironmentTests
         Assert.DoesNotContain("workspace", issue.Contract, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("workspace")]
+    [InlineData("publication")]
+    [InlineData("resource-field")]
+    public async Task RetiredScopeLevelDoesNotSatisfyEnvironmentContract(string level)
+    {
+        var payload = "{\"success\":true,\"data\":{\"environmentId\":\"env-west\",\"environmentName\":\"Public Works\",\"scopes\":[{\"level\":\""
+            + level
+            + "\",\"label\":\"Retired\"}],\"roles\":[],\"permissions\":[]}}";
+        using var http = new HttpClient(new ResponseHandler(payload));
+        using var client = CreateClient(http);
+        var source = new HonuaServerRbacAccessDataSource(client);
+
+        var result = await source.LoadOverviewAsync("env-west");
+
+        Assert.Null(result.Overview);
+        Assert.Contains(result.CapabilityStates, state => state.State == "Rejected");
+    }
+
+    [Fact]
+    public async Task CanonicalScopeLevelsStillSatisfyEnvironmentContract()
+    {
+        const string payload = """{"success":true,"data":{"environmentId":"env-west","environmentName":"Public Works","scopes":[{"level":"environment","label":"Environment"},{"level":"content","label":"Content"},{"level":"layer","label":"Layer"},{"level":"dataset-field","label":"Dataset field"}],"roles":[],"permissions":[]}}""";
+        using var http = new HttpClient(new ResponseHandler(payload));
+        using var client = CreateClient(http);
+        var source = new HonuaServerRbacAccessDataSource(client);
+
+        var result = await source.LoadOverviewAsync("env-west");
+
+        Assert.NotNull(result.Overview);
+        Assert.Equal(["environment", "content", "layer", "dataset-field"], result.Overview.Scopes.Select(scope => scope.Level));
+    }
+
     [Fact]
     public void ScopeLevelsMatchCanonicalProducer()
     {

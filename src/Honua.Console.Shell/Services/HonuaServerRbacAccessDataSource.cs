@@ -25,7 +25,16 @@ public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
             return new RbacOverviewLoad(null, [ToCapabilityState(issue)]);
         }
 
-        return new RbacOverviewLoad(RbacAccessMapper.ToView(result.Data!), []);
+        if (result.Data!.Scopes?.Any(scope => scope.Level is "workspace" or "publication" or "resource-field") == true)
+        {
+            return new RbacOverviewLoad(null, [new RbacCapabilityState(
+                Surface,
+                "Rejected",
+                "GET /api/v1/console/access/{environmentId}/roles",
+                "The access response uses a retired scope.")]);
+        }
+
+        return new RbacOverviewLoad(RbacAccessMapper.ToView(result.Data), []);
     }
 
     public async Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default)

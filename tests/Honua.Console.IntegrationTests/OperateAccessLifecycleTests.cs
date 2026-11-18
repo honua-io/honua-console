@@ -45,6 +45,50 @@ public sealed class OperateAccessLifecycleTests
         Assert.Empty(data.MembershipRequests);
     }
 
+    [Fact]
+    public async Task Roles_RetiredLinkDropsAuditAndAnInFlightCreate()
+    {
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
+        data.Audit = _ => Task.FromResult(new RbacAuditLoad([new(1, "t", "ada", "create", "custom", "ok")], []));
+        var created = new TaskCompletionSource<RbacRoleMutationResult>();
+        data.Create = () => created.Task;
+        Navigate(context, "first");
+        var page = context.Render<OperateAccessRolesPage>();
+        await page.Find("[data-rbac-audit]").ClickAsync();
+        page.WaitForAssertion(() => Assert.Contains("data-rbac-audit-table", page.Markup, StringComparison.Ordinal));
+        OpenDraft(page, "draft");
+        var pending = page.Find("[data-rbac-create-form]").SubmitAsync();
+
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/access?workspace=prod");
+        created.SetResult(new(true, null));
+        await pending;
+
+        page.WaitForAssertion(() => Assert.Contains("out of date", page.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("data-rbac-audit-table", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Couldn't create the role", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(["first"], data.OverviewRequests);
+    }
+
+    [Fact]
+    public async Task Members_RetiredLinkIgnoresTheInFlightRoster()
+    {
+        using var context = Context(true);
+        var data = context.Services.GetRequiredService<DeferredRbac>();
+        var pendingMembership = new TaskCompletionSource<TeamMembershipLoad>();
+        data.Membership = environment => pendingMembership.Task;
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/access/members?environment=first");
+        var page = context.Render<OperateAccessMembersPage>();
+
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/access/members?Workspace=kept");
+        pendingMembership.SetResult(Membership("first"));
+
+        page.WaitForAssertion(() => Assert.Contains("out of date", page.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("first user", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(data.OverviewRequests);
+        Assert.Equal(["first"], data.MembershipRequests);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -233,8 +277,8 @@ public sealed class OperateAccessLifecycleTests
     {
         using var context = Context(true);
         var data = context.Services.GetRequiredService<DeferredRbac>();
-        data.Overview = workspace => Task.FromResult(new RbacOverviewLoad(
-            new(workspace, workspace, [], [new("view-public", "View public"), new("comment", "Comment")], [], 3, 0, 0, true), []));
+        data.Overview = environment => Task.FromResult(new RbacOverviewLoad(
+            new(environment, environment, [], [new("view-public", "View public"), new("comment", "Comment")], [], 3, 0, 0, true), []));
         Navigate(context, "first");
         var page = context.Render<OperateAccessRolesPage>();
         OpenDraft(page, "Field crew");

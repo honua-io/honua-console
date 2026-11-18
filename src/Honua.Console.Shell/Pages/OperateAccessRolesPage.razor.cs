@@ -52,7 +52,13 @@ public partial class OperateAccessRolesPage
             _overview = null;
             _bindingState = null;
             _showCreate = false;
+            _showAudit = false;
+            _audit = [];
+            _auditIssue = null;
+            _mutationError = null;
+            _saving = false;
             _environmentId = null;
+            _generation++;
             return;
         }
 

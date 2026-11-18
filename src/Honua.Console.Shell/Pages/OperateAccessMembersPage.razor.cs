@@ -67,6 +67,7 @@ public partial class OperateAccessMembersPage
             _bindingState = null;
             _inviteOpen = false;
             _environmentId = null;
+            _generation++;
             return;
         }
 
