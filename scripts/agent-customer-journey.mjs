@@ -70,10 +70,7 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   const path = `/api/v1/admin/proposals/${encodeURIComponent(proposed.proposalId)}`;
   const pending = await poll(() => api(managerUrl, approverKey, path), value => value.status?.toLowerCase() === 'awaitingapproval');
   await observe('pending', pending);
-  await approveInConsole({
-    base: managerUrl, key: approverKey, proposalPath: path, approve,
-    proposalId: proposed.proposalId, consoleProposalId: `manager:${proposed.proposalId}`,
-  });
+  await approveInConsole({ base: managerUrl, key: approverKey, proposalPath: path, approve, proposalId: proposed.proposalId, consoleProposalId: `manager:${proposed.proposalId}` });
   const completed = await poll(() => api(managerUrl, approverKey, path),
     value => ['completed', 'succeeded', 'failed', 'rejected', 'cancelled'].includes(value.status?.toLowerCase()));
   if (!['completed', 'succeeded'].includes(completed.status.toLowerCase())) throw new Error('The approved restart failed');
