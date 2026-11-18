@@ -9,7 +9,9 @@ name: Console Live-LLM Smoke (nightly)
 #
 # Credential gating (resolved by e2e/run-live-llm.mjs from the env below):
 #   - HONUA_LIVE_LLM_OPENAI_API_KEY secret set  -> direct OpenAI-compatible, all 4 surfaces.
-#   - HONUA_LIVE_LLM_AWS_* secrets set           -> Bedrock via a LiteLLM sidecar, all 4 surfaces.
+#   - HONUA_LIVE_LLM_BEDROCK_ROLE_ARN variable   -> Bedrock via a LiteLLM sidecar, all 4 surfaces,
+#     with short-lived credentials from GitHub OIDC (environment bedrock-live-llm;
+#     the role lives in honua-iac bootstrap/aws-ci-oidc-roles). No access key is stored.
 #   - neither                                    -> gated mode: every spec skips, job stays green.
 # The lane never fails for missing credentials — only for a genuine generation regression.
 
@@ -40,6 +42,11 @@ jobs:
     name: Live-LLM smoke (real AI generation)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # The Bedrock role trusts only jobs in this environment.
+    environment: bedrock-live-llm
+    permissions:
+      contents: read
+      id-token: write
 
     env:
       # Pinned, override-able honua-server image (dispatch input > repo var > literal).
@@ -50,9 +57,6 @@ jobs:
       HONUA_LIVE_LLM_OPENAI_API_KEY: ${{ secrets.HONUA_LIVE_LLM_OPENAI_API_KEY }}
       HONUA_LIVE_LLM_OPENAI_MODEL: ${{ vars.HONUA_LIVE_LLM_OPENAI_MODEL }}
       HONUA_LIVE_LLM_OPENAI_ENDPOINT: ${{ vars.HONUA_LIVE_LLM_OPENAI_ENDPOINT }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.HONUA_LIVE_LLM_AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.HONUA_LIVE_LLM_AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.HONUA_LIVE_LLM_AWS_SESSION_TOKEN }}
       AWS_REGION: ${{ vars.HONUA_LIVE_LLM_AWS_REGION || 'us-west-2' }}
       HONUA_LIVE_LLM_BEDROCK_MODEL: ${{ vars.HONUA_LIVE_LLM_BEDROCK_MODEL }}
       DOTNET_NOLOGO: "1"
@@ -86,6 +90,15 @@ jobs:
         run: |
           npm ci
           npx --no-install playwright install --with-deps chromium
+
+      # Exports AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for
+      # the LiteLLM sidecar. Without the variable the lane resolves mode=none.
+      - name: Configure AWS credentials for Bedrock (OIDC)
+        if: ${{ vars.HONUA_LIVE_LLM_BEDROCK_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.HONUA_LIVE_LLM_BEDROCK_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Pre-pull honua-server image
         run: docker pull "${HONUA_LIVE_LLM_SERVER_IMAGE}"
