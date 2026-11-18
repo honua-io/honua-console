@@ -21,6 +21,8 @@
 
 const CESIUM_BASE_URL = new URL('./vendor/cesium/', import.meta.url).href;
 const CESIUM_JS = `${CESIUM_BASE_URL}Cesium.js`;
+// Viewer.zoomTo's default view of a tileset: this pitch (radians below the horizon), one radius out.
+const ZOOM_TO_PITCH = -0.5;
 const CESIUM_CSS = `${CESIUM_BASE_URL}Widgets/widgets.css`;
 
 const instances = new Map();
@@ -98,19 +100,10 @@ async function initializeScene(Cesium, instance) {
     if (instances.get(instance.element) !== instance) return;
     const loaded = sceneTilesetSource(Cesium, instance.tilesetUrl, authorize);
     instance.releaseSceneGate = loaded.release;
-    const viewer = instance.viewer = new Cesium.Viewer(instance.element, {
-        // Render only the supplied tileset without Cesium's default Ion layer.
-        baseLayer: false,
-        baseLayerPicker: false,
-        geocoder: false,
-        homeButton: false,
-        sceneModePicker: false,
-        navigationHelpButton: false,
-        animation: false,
-        timeline: false,
-        fullscreenButton: false,
-        infoBox: false,
-    });
+    // CesiumWidget, not Viewer: Viewer's toolbar widgets bind through Knockout, which compiles its
+    // bindings with Function() and fails under the Console policy (no 'unsafe-eval'). Only the
+    // supplied tileset renders, without Cesium's default Ion layer.
+    const viewer = instance.viewer = new Cesium.CesiumWidget(instance.element, { baseLayer: false });
     const tileset = await Cesium.Cesium3DTileset.fromUrl(loaded.source);
     if (instances.get(instance.element) !== instance) {
         tileset.destroy();
@@ -118,7 +111,9 @@ async function initializeScene(Cesium, instance) {
     }
     instance.tileset = tileset;
     viewer.scene.primitives.add(tileset);
-    await viewer.zoomTo(tileset);
+    // Viewer.zoomTo's default view of a tileset, then release the camera from the sphere's frame.
+    viewer.camera.viewBoundingSphere(tileset.boundingSphere, new Cesium.HeadingPitchRange(0, ZOOM_TO_PITCH, tileset.boundingSphere.radius));
+    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
 }
 
 function destroyScene(instance) {

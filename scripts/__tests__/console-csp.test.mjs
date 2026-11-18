@@ -104,3 +104,11 @@ test("--header rejects a space-separated form name instead of printing the app f
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /--header=embed/);
 });
+
+test("no policy form lets script evaluate strings; WASM compilation stays allowed", () => {
+  for (const policy of [metaPolicy(), headerPolicy("app"), headerPolicy("embed")]) {
+    const scripts = directive(policy, "script-src").split(" ");
+    assert.equal(scripts.includes("'unsafe-eval'"), false, policy);
+    assert.equal(scripts.includes("'wasm-unsafe-eval'"), true, policy);
+  }
+});
