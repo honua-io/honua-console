@@ -45,6 +45,16 @@ const VEGA_EMBED_JS = 'vega-embed/vega-embed.min.js';
 
 const instances = new Map();
 const initializations = new WeakMap();
+// A chart draws only the rows the Console supplies. A stored or model-authored spec may not fetch
+// URLs (data, lookups, images) or turn marks into links, so every loader entry point refuses.
+const refuseExternalResource = () => Promise.reject(new Error('Chart specs cannot load external resources.'));
+export const NO_NETWORK_LOADER = Object.freeze({
+    load: refuseExternalResource,
+    sanitize: refuseExternalResource,
+    http: refuseExternalResource,
+    file: refuseExternalResource,
+});
+
 let vegaEmbedPromise = null;
 
 function loadScript(path) {
@@ -198,7 +208,7 @@ async function mountChart(container, { spec, vegaEmbed, isCurrent }) {
     mount.style.height = '100%';
     container.appendChild(mount);
     try {
-        const result = await vegaEmbed(mount, spec, { actions: false, renderer: 'svg' });
+        const result = await vegaEmbed(mount, spec, { actions: false, renderer: 'svg', loader: NO_NETWORK_LOADER });
         if (!isCurrent()) {
             finalize(result);
             return false;
