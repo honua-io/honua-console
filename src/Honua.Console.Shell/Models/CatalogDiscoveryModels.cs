@@ -35,14 +35,14 @@ public sealed record CatalogEndpointView(
 }
 
 public sealed record CatalogDiscoveryRegistryView(
-    string WorkspaceId,
-    string? WorkspaceName,
+    string EnvironmentId,
+    string? EnvironmentName,
     string? PublicHost,
     IReadOnlyList<CatalogEndpointView> Endpoints,
     int AutoDefaultCount,
     int OptInCount)
 {
-    public string DisplayWorkspace => string.IsNullOrWhiteSpace(WorkspaceName) ? WorkspaceId : WorkspaceName!;
+    public string DisplayEnvironment => string.IsNullOrWhiteSpace(EnvironmentName) ? EnvironmentId : EnvironmentName!;
 }
 
 public sealed record CatalogEndpointItemView(
@@ -145,8 +145,8 @@ public static class CatalogDiscoveryMapper
         ArgumentNullException.ThrowIfNull(registry);
 
         return new CatalogDiscoveryRegistryView(
-            WorkspaceId: registry.WorkspaceId,
-            WorkspaceName: registry.WorkspaceName,
+            EnvironmentId: registry.EnvironmentId,
+            EnvironmentName: registry.EnvironmentName,
             PublicHost: registry.PublicHost,
             Endpoints: (registry.Endpoints ?? []).Select(ToView).ToArray(),
             AutoDefaultCount: registry.AutoDefaultCount,

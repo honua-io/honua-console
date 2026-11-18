@@ -40,6 +40,12 @@
                           Title="Loading discovery endpoints"
                           Message="Reading the catalog discovery-endpoints registry from honua-server." />
     }
+    else if (_retiredEnvironmentLink)
+    {
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="error"
+                          Title="This link is out of date"
+                          Message="It names a workspace. Open Catalogs again and choose the environment. Nothing was changed." />
+    }
     else if (_bindingState is not null)
     {
         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" HeadingLevel="2" Kind="missing"
@@ -194,20 +200,31 @@
 
     private CatalogDiscoveryRegistryView? _registry;
     private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _retiredEnvironmentLink;
     private bool _loading = true;
 
-    [SupplyParameterFromQuery(Name = "workspace")]
-    private string? Workspace { get; set; }
+    [SupplyParameterFromQuery(Name = "environment")]
+    private string? Environment { get; set; }
 
-    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+    private string EnvironmentId => string.IsNullOrWhiteSpace(Environment) ? "current" : Environment!;
 
     protected override async Task OnParametersSetAsync()
     {
+        if (ConsoleRetiredEnvironmentQuery.HasRetiredKey(ConsoleNavigation.Uri))
+        {
+            _retiredEnvironmentLink = true;
+            _loading = false;
+            _bindingState = null;
+            _registry = null;
+            return;
+        }
+
+        _retiredEnvironmentLink = false;
         _loading = true;
         _bindingState = null;
         _registry = null;
 
-        var load = await CatalogDiscovery.LoadRegistryAsync(WorkspaceId);
+        var load = await CatalogDiscovery.LoadRegistryAsync(EnvironmentId);
         if (load.HasRegistry)
         {
             _registry = load.Registry;
@@ -220,17 +237,13 @@
         _loading = false;
     }
 
-    // Carry the active workspace through drill-down links so browsing a non-default workspace's registry
-    // (e.g. /operate/catalogs?workspace=tenant-a) does not silently switch the detail/item pages back to the
-    // `current` default. An absent workspace stays absent (ToQueryString drops empty values), so the default
-    // never gains a spurious ?workspace=current.
     private string DetailHref(string key) =>
-        $"/operate/catalogs/{Uri.EscapeDataString(key)}{WorkspaceQuery()}";
+        $"/operate/catalogs/{Uri.EscapeDataString(key)}{EnvironmentQuery()}";
 
-    private string WorkspaceQuery() =>
+    private string EnvironmentQuery() =>
         ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["workspace"] = Workspace ?? string.Empty
+            ["environment"] = Environment ?? string.Empty
         });
 
     private static string FormatUrl(string? host, string? path)
