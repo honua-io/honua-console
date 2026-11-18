@@ -23,6 +23,37 @@ public sealed class RetryingModuleImportTests
     }
 
     [Fact]
+    public async Task TimedOutImport_StopsAfterThreeAttempts()
+    {
+        var runtime = new ScriptRuntime();
+        var session = new RetryingModuleImport(ModuleImportScriptError.Stop, TimeSpan.FromMilliseconds(40));
+
+        var module = await session.LoadAsync(runtime, "./tabs.js", CancellationToken.None);
+
+        Assert.Null(module);
+        Assert.Equal(3, runtime.Specifiers.Count);
+        Assert.Equal("./tabs.js", runtime.Specifiers[0]);
+        Assert.StartsWith("./tabs.js?honuaRetry=", runtime.Specifiers[1], StringComparison.Ordinal);
+        Assert.StartsWith("./tabs.js?honuaRetry=", runtime.Specifiers[2], StringComparison.Ordinal);
+        Assert.NotEqual(runtime.Specifiers[1], runtime.Specifiers[2]);
+    }
+
+    [Fact]
+    public async Task ScriptError_RetriesOnlyWhenTheCallerAsks()
+    {
+        var stopRuntime = new ScriptRuntime { FailFirstWithScriptError = true };
+        var stop = new RetryingModuleImport(ModuleImportScriptError.Stop, TimeSpan.FromMilliseconds(40));
+        Assert.Null(await stop.LoadAsync(stopRuntime, "./tabs.js", CancellationToken.None));
+        Assert.Equal(["./tabs.js"], stopRuntime.Specifiers);
+
+        var retryRuntime = new ScriptRuntime { FailFirstWithScriptError = true, SecondAttemptSucceeds = true };
+        var retry = new RetryingModuleImport(ModuleImportScriptError.Retry, TimeSpan.FromMilliseconds(40));
+        Assert.NotNull(await retry.LoadAsync(retryRuntime, "./tabs.js", CancellationToken.None));
+        Assert.Equal("./tabs.js", retryRuntime.Specifiers[0]);
+        Assert.StartsWith("./tabs.js?honuaRetry=", retryRuntime.Specifiers[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CancelledImport_DoesNotReturnAModule()
     {
         var runtime = new ScriptRuntime();
@@ -36,12 +67,12 @@ public sealed class RetryingModuleImportTests
     }
 
     [Fact]
-    public async Task ConfirmDialog_HungScript_RetriesAndShows()
+    public async Task ConfirmDialog_ScriptError_RetriesAndShows()
     {
         using var ctx = new BunitContext();
         // The hung-import timer is covered on the map and by TimedOutImport. Here the
         // first import fails immediately so the dialog loop is what is under test.
-        var runtime = new ScriptRuntime { SecondAttemptSucceeds = true, TimeoutInsteadOfHang = true };
+        var runtime = new ScriptRuntime { SecondAttemptSucceeds = true, FailFirstWithScriptError = true };
         ctx.Services.AddSingleton<IJSRuntime>(runtime);
         var cut = ctx.Render<ConsoleConfirmDialog>();
         Assert.Empty(cut.FindAll("[data-console-confirm]"));
@@ -59,10 +90,10 @@ public sealed class RetryingModuleImportTests
     }
 
     [Fact]
-    public void Tabs_HungScript_RetriesAttachOnTheSamePage()
+    public void Tabs_ScriptError_RetriesAttachOnTheSamePage()
     {
         using var ctx = new BunitContext();
-        var runtime = new ScriptRuntime { SecondAttemptSucceeds = true, TimeoutInsteadOfHang = true };
+        var runtime = new ScriptRuntime { SecondAttemptSucceeds = true, FailFirstWithScriptError = true };
         ctx.Services.AddSingleton<IJSRuntime>(runtime);
         var cut = ctx.Render<ConsoleTabs>(parameters => parameters
             .Add(component => component.Tabs, [new Honua.Console.Shell.Models.ConsoleTab("layers-tab", "Layers", "layers-panel")])
@@ -84,6 +115,7 @@ public sealed class RetryingModuleImportTests
         public List<string> Specifiers { get; } = [];
         public bool SecondAttemptSucceeds { get; init; }
         public bool TimeoutInsteadOfHang { get; init; }
+        public bool FailFirstWithScriptError { get; init; }
 
         public int CallCount(string name) => _module.Calls.Count(call => call == name);
 
@@ -99,6 +131,11 @@ public sealed class RetryingModuleImportTests
             if (SecondAttemptSucceeds && specifier.Contains("honuaRetry=", StringComparison.Ordinal))
             {
                 return (TValue)(object)_module;
+            }
+
+            if (FailFirstWithScriptError)
+            {
+                throw new JSException("simulated script error");
             }
 
             if (TimeoutInsteadOfHang)

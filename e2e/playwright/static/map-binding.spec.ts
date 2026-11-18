@@ -88,15 +88,20 @@ async function routeLayerFixture(page: Page, v4Enabled: boolean) {
     });
 }
 
-// An aborted map-preview.js fetch must not leave this page on the schematic. The component
-// gives up on the pending import and requests a fresh specifier (honua-console#862).
+// A map-preview.js fetch that never settles must not leave this page on the schematic.
+// The preview times out and requests a fresh specifier.
 test('aborted map module import recovers on the same page', async ({ page }) => {
-  let aborted = false;
+  let held = false;
+  let releaseHeld: () => void = () => {};
+  const firstRequestHeld = new Promise<void>(resolve => {
+    releaseHeld = resolve;
+  });
   const moduleUrls: string[] = [];
   await page.route(/map-preview\.js(\?|$)/, async route => {
     moduleUrls.push(route.request().url());
-    if (!aborted) {
-      aborted = true;
+    if (!held) {
+      held = true;
+      await firstRequestHeld;
       await route.abort('failed');
       return;
     }
@@ -108,9 +113,13 @@ test('aborted map module import recovers on the same page', async ({ page }) => 
   await signInWithFixturePassword(page, 'http://127.0.0.1:5185', '/operate/connections');
   await page.goto(`http://127.0.0.1:5185/console/operate/layers/${connection}-layer-7`);
   const map = page.getByRole('figure', { name: 'Map preview of layer Parcels', exact: true });
-  await expect(map).toHaveAttribute('data-map-bound', 'true', { timeout: 8_000 });
-  expect(moduleUrls.some(url => url.includes('honuaRetry='))).toBe(true);
-  await expect(map.locator('canvas.maplibregl-canvas')).toHaveCount(1);
+  try {
+    await expect(map).toHaveAttribute('data-map-bound', 'true', { timeout: 8_000 });
+    expect(moduleUrls.some(url => url.includes('honuaRetry='))).toBe(true);
+    await expect(map.locator('canvas.maplibregl-canvas')).toHaveCount(1);
+  } finally {
+    releaseHeld();
+  }
 });
 
 async function installDisposalProbe(page: Page) {

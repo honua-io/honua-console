@@ -36,11 +36,19 @@ public sealed class RetryingModuleImport
             {
                 return await ImportOnceAsync(runtime, path, cancellationToken);
             }
-            catch (TimeoutException) when (_attempt < MaxAttempts)
+            catch (TimeoutException)
             {
             }
-            catch (JSException) when (_scriptErrors == ModuleImportScriptError.Retry && _attempt < MaxAttempts)
+            catch (JSException) when (_scriptErrors == ModuleImportScriptError.Retry)
             {
+            }
+            catch (JSException)
+            {
+                return null;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
             }
         }
 
@@ -90,13 +98,16 @@ public sealed class RetryingModuleImport
         _ = pending.ContinueWith(
             static task =>
             {
-                if (task.Status == TaskStatus.RanToCompletion)
+                if (task.IsFaulted)
                 {
-                    _ = task.Result.DisposeAsync().AsTask();
+                    _ = task.Exception;
+                    return;
                 }
+
+                _ = task.Result.DisposeAsync().AsTask();
             },
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnRanToCompletion,
+            TaskContinuationOptions.NotOnCanceled,
             TaskScheduler.Default);
     }
 }

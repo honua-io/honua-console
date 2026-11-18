@@ -51,16 +51,13 @@
                 await _module.InvokeVoidAsync("attach", _element);
             }
         }
-        catch (TimeoutException)
-        {
-        }
         catch (JSDisconnectedException)
         {
             // The circuit is gone.
         }
         catch (JSException)
         {
-            // Attach failed after the import attempts were used.
+            // Attach failed.
         }
         catch (OperationCanceledException)
         {

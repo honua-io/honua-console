@@ -87,23 +87,11 @@
                     ModulePath,
                     _importLifetime.Token);
             }
-            catch (TimeoutException)
-            {
-                return;
-            }
             catch (JSDisconnectedException)
             {
                 return;
             }
-            catch (JSException)
-            {
-                return;
-            }
             catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (InvalidOperationException)
             {
                 return;
             }
