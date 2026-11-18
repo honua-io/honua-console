@@ -4,7 +4,7 @@
     { "name": "default-src", "sources": ["'self'"], "reason": "Anything not listed below loads only from the Console origin." },
     { "name": "base-uri", "sources": ["'self'"], "reason": "The <base href> stays on the Console origin." },
     { "name": "object-src", "sources": ["'none'"], "reason": "No plugins or <object>/<embed> content." },
-    { "name": "script-src", "sources": ["'self'", "'wasm-unsafe-eval'", "'unsafe-eval'"], "reason": "Same-origin scripts only, no inline script; WASM for the .NET runtime and Cesium/MapLibre decoders; eval because the vendored Vega chart stack and the Cesium Viewer widgets (Knockout bindings) compile code with Function()." },
+    { "name": "script-src", "sources": ["'self'", "'wasm-unsafe-eval'"], "reason": "Same-origin scripts only, no inline script and no eval; WASM for the .NET runtime and Cesium/MapLibre decoders. Charts evaluate Vega expressions with the AST interpreter and parse CSV/TSV data strings without compiled row builders; scenes use CesiumWidget, whose Viewer toolbar (Knockout bindings) would need eval." },
     { "name": "style-src", "sources": ["'self'", "'unsafe-inline'"], "reason": "Razor components render style attributes and Vega/Studio inject <style> elements." },
     { "name": "img-src", "sources": ["'self'", "https:", "data:", "blob:"], "reason": "Map tiles, sprites and thumbnails come from operator-chosen servers; MapLibre and Vega decode into data:/blob: URLs." },
     { "name": "font-src", "sources": ["'self'", "data:"], "reason": "Bundled fonts and data: glyphs embedded in vendored stylesheets." },

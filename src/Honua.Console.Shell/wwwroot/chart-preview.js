@@ -205,7 +205,54 @@ function prepareSpec(spec, rows) {
     return true;
 }
 
+// Vega parses inline CSV/TSV with d3-dsv, which compiles each row object with new Function: the
+// Console policy has no 'unsafe-eval', so those specs would fail. These readers parse the same
+// delimited text without compiling code: a field is quoted only when it starts with a quote (RFC 4180),
+// a blank line is a row of empty fields and a trailing line break adds no row, as in d3-dsv.
+export function delimitedRows(text, delimiter) {
+    if (typeof delimiter !== 'string' || delimiter.length !== 1) throw new Error('invalid delimiter');
+    const separator = delimiter.replace(/[\\\]^-]/g, '\\$&');
+    const field = new RegExp(`"((?:[^"]|"")*)"([^\\r\\n${separator}]*)|([^\\r\\n${separator}]*)`, 'y');
+    const rows = [];
+    let row = [];
+    let position = 0;
+    while (position <= text.length) {
+        field.lastIndex = position;
+        const match = field.exec(text);
+        row.push(match[1] === undefined ? match[3] : match[1].replaceAll('""', '"') + match[2]);
+        position = field.lastIndex;
+        if (text[position] === delimiter) {
+            position += 1;
+            continue;
+        }
+        rows.push(row);
+        row = [];
+        position += text.startsWith('\r\n', position) ? 2 : 1;
+    }
+    const last = rows.at(-1);
+    if (last?.length === 1 && last[0] === '') rows.pop();
+    return rows;
+}
+
+export function delimitedObjects(text, format) {
+    const rows = delimitedRows(String(text), format.delimiter);
+    const header = Array.isArray(format.header) ? format.header.map(String) : rows.shift() ?? [];
+    return rows.map(cells => Object.fromEntries(header.map((name, index) => [name, cells[index] ?? ''])));
+}
+
+export function useCodeFreeDelimitedReaders(vega) {
+    if (typeof vega?.formats !== 'function') return;
+    // Like Vega's own readers: csv and tsv fix their delimiter; dsv requires format.delimiter.
+    const reader = (delimiter) => Object.assign(
+        (data, format = {}) => delimitedObjects(data, { ...format, delimiter: delimiter ?? format.delimiter }),
+        { responseType: 'text' });
+    vega.formats('csv', reader(','));
+    vega.formats('tsv', reader('\t'));
+    vega.formats('dsv', reader(undefined));
+}
+
 async function mountChart(container, { spec, vegaEmbed, isCurrent }) {
+    useCodeFreeDelimitedReaders(window.vega);
     const mount = document.createElement('div');
     mount.style.width = '100%';
     mount.style.height = '100%';

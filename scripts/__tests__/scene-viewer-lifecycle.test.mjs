@@ -14,19 +14,25 @@ async function fixture() {
     const pending = [];
     const scripts = [];
     const Cesium = {
-        Viewer: class {
-            constructor(element) {
+        CesiumWidget: class {
+            constructor(element, options) {
                 this.element = element;
+                this.options = options;
                 this.destroyed = false;
                 this.scene = { primitives: { add: (tile) => { this.tile = tile; } } };
                 this.imageryLayers = [];
+                this.camera = {
+                    viewBoundingSphere: (sphere, offset) => { this.view = { sphere, offset }; },
+                    lookAtTransform: (transform) => { this.view.transform = transform; },
+                };
                 viewers.push(this);
             }
-            zoomTo() { return Promise.resolve(); }
             destroy() { this.destroyed = true; this.tile?.destroy(); }
             isDestroyed() { return this.destroyed; }
         },
         Cesium3DTileset: { fromUrl: (url) => new Promise((resolve) => pending.push({ url, resolve })) },
+        HeadingPitchRange: class { constructor(heading, pitch, range) { Object.assign(this, { heading, pitch, range }); } },
+        Matrix4: { IDENTITY: 'identity' },
     };
     globalThis.window = {
         location: { href: 'https://console.example/', origin: 'https://console.example' },
@@ -41,7 +47,9 @@ async function fixture() {
     return { module, viewers, pending, scripts, Cesium };
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve));
-const tile = () => ({ tilesLoaded: true, root: { content: {} }, destroy() { this.destroyed = true; } });
+const tile = () => ({
+    tilesLoaded: true, root: { content: {} }, boundingSphere: { radius: 15 }, destroy() { this.destroyed = true; },
+});
 
 for (const failure of ['error', 'missing global', 'append exception']) {
     test(`scene runtime recovers after ${failure}`, async () => {
@@ -136,33 +144,21 @@ for (const action of ['dispose', 'replace']) {
         f.module.dispose(element);
     });
 
-    test(`${action} during camera movement cannot resurrect the old scene`, async () => {
-        const f = await fixture();
-        let finishZoom;
-        f.Cesium.Viewer.prototype.zoomTo = () => new Promise((resolve) => { finishZoom = resolve; });
-        const element = {};
-        const older = f.module.init(element, '/scenes/old/tileset.json', 'env');
-        await flush();
-        const oldTile = tile();
-        f.pending[0].resolve(oldTile);
-        await flush();
-        assert.equal(f.module.inspect(element), null);
-        if (action === 'dispose') f.module.dispose(element);
-        f.Cesium.Viewer.prototype.zoomTo = () => Promise.resolve();
-        const newer = action === 'replace' ? f.module.init(element, '/scenes/new/tileset.json', 'env') : null;
-        finishZoom();
-        assert.equal(await older, false);
-        assert.equal(f.viewers[0].destroyed, true);
-        assert.equal(oldTile.destroyed, true);
-        if (newer) {
-            await flush();
-            f.pending[1].resolve(tile());
-            assert.equal(await newer, true);
-            assert.match(f.module.inspect(element).tilesetUrl, /scenes\/new\//);
-        }
-        f.module.dispose(element);
-    });
 }
+
+test('the scene uses the eval-free widget and frames the tileset as Viewer.zoomTo did', async () => {
+    const f = await fixture();
+    const element = {};
+    const mounting = f.module.init(element, '/scenes/a/tileset.json', 'env');
+    await flush();
+    f.pending[0].resolve(tile());
+    assert.equal(await mounting, true);
+    assert.deepEqual(f.viewers[0].options, { baseLayer: false });
+    assert.deepEqual(f.viewers[0].view, {
+        sphere: { radius: 15 }, offset: new f.Cesium.HeadingPitchRange(0, -0.5, 15), transform: 'identity',
+    });
+    f.module.dispose(element);
+});
 
 test('runtime loading is shared by active elements without coupling disposal', async () => {
     const f = await fixture();
@@ -227,7 +223,7 @@ for (const failure of ['dispose', 'tileset rejection', 'viewer exception']) {
         globalThis.honuaConsoleCaptureResourceAuthorization = async () => (url) => ({
             api: true, url, headers: {}, credentials: 'same-origin',
         });
-        if (failure === 'viewer exception') f.Cesium.Viewer = class {
+        if (failure === 'viewer exception') f.Cesium.CesiumWidget = class {
             constructor() { throw new Error('no WebGL'); }
         };
         if (failure === 'tileset rejection') f.Cesium.Cesium3DTileset.fromUrl = () => Promise.reject(new Error('offline'));
