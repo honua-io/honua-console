@@ -42,7 +42,7 @@
             <dl class="console-definition-list" data-export-access>
                 <dt>Access</dt>
                 <dd>@ExportPresentation.AccessLabel(export)</dd>
-                @if (!string.IsNullOrWhiteSpace(export.PublicUrl))
+                @if (!string.IsNullOrWhiteSpace(export.PublicUrl) && !ExportPresentation.IsUnpublished(export))
                 {
                     <dt>Public URL</dt>
                     <dd><code>@export.PublicUrl</code> <ConsoleCopyButton Text="@export.PublicUrl" Label="Copy public URL" /></dd>
@@ -52,7 +52,7 @@
                     <dt>Why not public</dt>
                     <dd>@export.NotPublicReason</dd>
                 }
-                @if (!string.IsNullOrWhiteSpace(export.CollectionUrl))
+                @if (!string.IsNullOrWhiteSpace(export.CollectionUrl) && !ExportPresentation.IsUnpublished(export))
                 {
                     <dt>Signed-in URL</dt>
                     <dd><code>@export.CollectionUrl</code> <ConsoleCopyButton Text="@export.CollectionUrl" Label="Copy signed-in URL" /></dd>
@@ -90,7 +90,10 @@
                                             {
                                                 <li data-export-artifact="@artifact.Kind">
                                                     @ExportPresentation.ArtifactLabel(artifact.Kind) · @ExportPresentation.Size(artifact.Bytes)
-                                                    <ConsoleCopyButton Text="@artifact.Href" Label="Copy URL" />
+                                                    @if (!ExportPresentation.IsUnpublished(export))
+                                                    {
+                                                        <ConsoleCopyButton Text="@artifact.Href" Label="Copy URL" />
+                                                    }
                                                 </li>
                                             }
                                         </ul>

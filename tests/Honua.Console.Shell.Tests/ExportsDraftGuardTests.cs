@@ -96,10 +96,16 @@ public sealed class ExportsDraftGuardTests
             Id = "parcels",
             Title = "County parcels",
             Status = "ready",
-            Versions = [new ExportVersionResponse { Version = "v2" }]
+            CollectionUrl = "https://server.example/exports/parcels/collection.json",
+            Versions = [new ExportVersionResponse
+            {
+                Version = "v2",
+                Artifacts = [new ExportArtifactResponse { Kind = "geoparquet", Href = "https://server.example/exports/parcels/v2/data.parquet" }]
+            }]
         });
         fixture.Client.Unpublish = OperateSectionResult<ExportResponse>.Allowed(new ExportResponse { Id = "parcels", Status = "unpublished" });
         var page = fixture.Context.Render<OperateExportDetailPage>(parameters => parameters.Add(p => p.ExportId, "parcels"));
+        Assert.Equal(2, page.FindAll("[data-console-copy]").Count);
 
         page.Find("[data-export-unpublish='parcels']").Click();
         await page.Find("[data-console-confirm-accept]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
@@ -107,6 +113,7 @@ public sealed class ExportsDraftGuardTests
         page.WaitForAssertion(() => Assert.True(page.Find("[data-export-unpublish='parcels']").HasAttribute("disabled")));
         Assert.NotNull(page.Find("[data-export-version='v2']"));
         Assert.Contains("County parcels", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-console-copy]"));
     }
 
     private static void Fill(IRenderedComponent<OperateConnectionObjectStorageNewPage> page)
