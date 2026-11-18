@@ -40,9 +40,9 @@
 @code {
     private const string ModulePath = "./_content/Honua.Console.Shell/console-confirm-dialog.js";
     private readonly CancellationTokenSource _importLifetime = new();
+    private readonly RetryingModuleImport _moduleImport = new(ModuleImportScriptError.Retry);
     private ElementReference _element;
     private IJSObjectReference? _module;
-    private int _importAttempt;
     private bool _importing;
     private bool _shown;
     private bool _open;
@@ -72,34 +72,20 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Stay lazy: a closed dialog that has never tried to import does not fetch the script.
-        if (_module is null && _open == _shown && _importAttempt == 0)
+        if (_module is null && !_open)
         {
             return;
         }
 
-        if (_module is null && !_importing && _importAttempt < RetryingModuleImport.MaxAttempts)
+        if (_module is null && !_importing)
         {
             _importing = true;
             try
             {
-                // Stay in this render. A timeout that calls StateHasChanged is rendered
-                // before _importing clears, so that pass never reaches show().
-                while (_module is null && _importAttempt < RetryingModuleImport.MaxAttempts)
-                {
-                    try
-                    {
-                        _module = await RetryingModuleImport.ImportAsync(
-                            Services.GetRequiredService<IJSRuntime>(),
-                            ModulePath,
-                            ++_importAttempt,
-                            _importLifetime.Token);
-                    }
-                    catch (TimeoutException) when (_importAttempt < RetryingModuleImport.MaxAttempts)
-                    {
-                        continue;
-                    }
-                }
+                _module = await _moduleImport.LoadAsync(
+                    Services.GetRequiredService<IJSRuntime>(),
+                    ModulePath,
+                    _importLifetime.Token);
             }
             catch (TimeoutException)
             {

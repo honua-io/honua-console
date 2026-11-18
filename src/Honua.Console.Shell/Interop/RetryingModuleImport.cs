@@ -2,42 +2,68 @@ using Microsoft.JSInterop;
 
 namespace Honua.Console.Shell.Interop;
 
-/// <summary>
-/// Loads a same-origin browser module, and retries when the import does not settle.
-/// An aborted fetch can leave the browser's module entry pending forever. A later import of the
-/// same specifier waits on that entry, so a retry uses a new query. The first attempt keeps the
-/// stable path the rest of the harness imports.
-/// </summary>
-public static class RetryingModuleImport
+public enum ModuleImportScriptError
+{
+    Stop,
+    Retry,
+}
+
+public sealed class RetryingModuleImport
 {
     public const int MaxAttempts = 3;
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(2);
+    private static int _retryNonce;
 
-    public static string Specifier(string path, int attempt)
+    private readonly ModuleImportScriptError _scriptErrors;
+    private readonly TimeSpan _timeout;
+    private int _attempt;
+
+    public RetryingModuleImport(ModuleImportScriptError scriptErrors, TimeSpan? timeout = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(attempt, 1);
-        return attempt == 1 ? path : $"{path}?honuaRetry={attempt}";
+        _scriptErrors = scriptErrors;
+        _timeout = timeout ?? Timeout;
     }
 
-    public static async Task<IJSObjectReference?> ImportAsync(
+    public async Task<IJSObjectReference?> LoadAsync(
         IJSRuntime runtime,
         string path,
-        int attempt,
-        CancellationToken cancellationToken,
-        TimeSpan? timeout = null)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        if (attempt > MaxAttempts)
+        while (_attempt < MaxAttempts)
         {
-            return null;
+            try
+            {
+                return await ImportOnceAsync(runtime, path, cancellationToken);
+            }
+            catch (TimeoutException) when (_attempt < MaxAttempts)
+            {
+            }
+            catch (JSException) when (_scriptErrors == ModuleImportScriptError.Retry && _attempt < MaxAttempts)
+            {
+            }
         }
 
-        // The analyzer requires the interop call itself to handle a failed runtime.
-        // Callers choose whether that failure is retried.
+        return null;
+    }
+
+    private async Task<IJSObjectReference> ImportOnceAsync(
+        IJSRuntime runtime,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var attempt = ++_attempt;
+        // The first try keeps the stable path. A later try uses a new query because an aborted
+        // import leaves that specifier pending for the rest of the browser tab.
+        var specifier = attempt == 1
+            ? path
+            : $"{path}?honuaRetry={Interlocked.Increment(ref _retryNonce)}";
+
+        cancellationToken.ThrowIfCancellationRequested();
         Task<IJSObjectReference> pending;
         try
         {
-            pending = runtime.InvokeAsync<IJSObjectReference>("import", Specifier(path, attempt)).AsTask();
+            pending = runtime.InvokeAsync<IJSObjectReference>("import", specifier).AsTask();
         }
         catch (JSDisconnectedException)
         {
@@ -48,17 +74,7 @@ public static class RetryingModuleImport
             throw;
         }
 
-        Task completed;
-        try
-        {
-            completed = await Task.WhenAny(pending, Task.Delay(timeout ?? Timeout, cancellationToken));
-        }
-        catch (OperationCanceledException)
-        {
-            ObserveAbandoned(pending);
-            throw;
-        }
-
+        var completed = await Task.WhenAny(pending, Task.Delay(_timeout, cancellationToken));
         if (completed != pending)
         {
             ObserveAbandoned(pending);

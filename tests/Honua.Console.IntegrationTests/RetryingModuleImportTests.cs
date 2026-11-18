@@ -9,36 +9,26 @@ namespace Honua.Console.IntegrationTests;
 public sealed class RetryingModuleImportTests
 {
     [Fact]
-    public void Specifier_KeepsTheFirstPathAndBustsTheBrowserEntryAfterThat()
-    {
-        const string path = "./_content/Honua.Console.Shell/console-tabs.js";
-        Assert.Equal(path, RetryingModuleImport.Specifier(path, 1));
-        Assert.Equal(path + "?honuaRetry=2", RetryingModuleImport.Specifier(path, 2));
-        Assert.Equal(path + "?honuaRetry=3", RetryingModuleImport.Specifier(path, 3));
-    }
-
-    [Fact]
     public async Task TimedOutImport_CanBeRetriedWithAFreshSpecifier()
     {
         var runtime = new ScriptRuntime { SecondAttemptSucceeds = true };
-        using var lifetime = new CancellationTokenSource();
+        var session = new RetryingModuleImport(ModuleImportScriptError.Stop, TimeSpan.FromMilliseconds(40));
 
-        await Assert.ThrowsAsync<TimeoutException>(() => RetryingModuleImport.ImportAsync(
-            runtime, "./tabs.js", 1, lifetime.Token, TimeSpan.FromMilliseconds(40)));
-        var module = await RetryingModuleImport.ImportAsync(
-            runtime, "./tabs.js", 2, lifetime.Token, TimeSpan.FromMilliseconds(40));
+        var module = await session.LoadAsync(runtime, "./tabs.js", CancellationToken.None);
 
         Assert.NotNull(module);
-        Assert.Equal(["./tabs.js", "./tabs.js?honuaRetry=2"], runtime.Specifiers);
+        Assert.Equal("./tabs.js", runtime.Specifiers[0]);
+        Assert.StartsWith("./tabs.js?honuaRetry=", runtime.Specifiers[1], StringComparison.Ordinal);
+        Assert.Equal(2, runtime.Specifiers.Count);
     }
 
     [Fact]
     public async Task CancelledImport_DoesNotReturnAModule()
     {
         var runtime = new ScriptRuntime();
+        var session = new RetryingModuleImport(ModuleImportScriptError.Stop, TimeSpan.FromSeconds(2));
         using var lifetime = new CancellationTokenSource();
-        var importing = RetryingModuleImport.ImportAsync(
-            runtime, "./tabs.js", 1, lifetime.Token, TimeSpan.FromSeconds(2));
+        var importing = session.LoadAsync(runtime, "./tabs.js", lifetime.Token);
         lifetime.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await importing);
@@ -55,13 +45,16 @@ public sealed class RetryingModuleImportTests
         ctx.Services.AddSingleton<IJSRuntime>(runtime);
         var cut = ctx.Render<ConsoleConfirmDialog>();
         Assert.Empty(cut.FindAll("[data-console-confirm]"));
+        Assert.Empty(runtime.Specifiers);
 
         await cut.InvokeAsync(() => cut.Instance.Open("Delete this item?", () => Task.CompletedTask));
 
         Assert.Equal(1, runtime.CallCount("show"));
-        Assert.Equal(
-            "./_content/Honua.Console.Shell/console-confirm-dialog.js?honuaRetry=2",
-            runtime.Specifiers[1]);
+        Assert.Equal("./_content/Honua.Console.Shell/console-confirm-dialog.js", runtime.Specifiers[0]);
+        Assert.StartsWith(
+            "./_content/Honua.Console.Shell/console-confirm-dialog.js?honuaRetry=",
+            runtime.Specifiers[1],
+            StringComparison.Ordinal);
         Assert.Equal("Delete this item?", cut.Find(".console-confirm-title").TextContent);
     }
 
@@ -78,9 +71,11 @@ public sealed class RetryingModuleImportTests
 
         Assert.Equal("Service", cut.Find("[role='tablist']").GetAttribute("aria-label"));
         Assert.Equal(1, runtime.CallCount("attach"));
-        Assert.Equal(
-            "./_content/Honua.Console.Shell/console-tabs.js?honuaRetry=2",
-            runtime.Specifiers[1]);
+        Assert.Equal("./_content/Honua.Console.Shell/console-tabs.js", runtime.Specifiers[0]);
+        Assert.StartsWith(
+            "./_content/Honua.Console.Shell/console-tabs.js?honuaRetry=",
+            runtime.Specifiers[1],
+            StringComparison.Ordinal);
     }
 
     private sealed class ScriptRuntime : IJSRuntime

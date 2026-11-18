@@ -213,10 +213,11 @@
     private readonly string _gridId = $"mp-grid-{Guid.NewGuid():N}";
     private readonly string _sheenId = $"mp-sheen-{Guid.NewGuid():N}";
     private readonly CancellationTokenSource _importLifetime = new();
+    private readonly RetryingModuleImport _moduleImport = new(ModuleImportScriptError.Stop);
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private Task<IJSObjectReference?>? _moduleTask;
-    private int _moduleAttempt;
+
 
     private const string MapPreviewModulePath = "./_content/Honua.Console.Shell/map-preview.js";
     private long _initializingVersion = -1;
@@ -399,8 +400,6 @@
         }
         catch (TimeoutException)
         {
-            // ImportModuleAsync already used its attempts. A later render can try again
-            // only when the parent changes something that reaches this method.
         }
         catch (JSException)
         {
@@ -466,37 +465,19 @@
 
     private async Task<IJSObjectReference?> ImportModuleAsync()
     {
-        // Retry here, not via StateHasChanged. A render requested from the timeout
-        // handler runs before this method returns, sees the in-flight version, and
-        // drops the recovery (honua-console#862).
-        while (_moduleAttempt < RetryingModuleImport.MaxAttempts)
+        var module = await _moduleImport.LoadAsync(JS, MapPreviewModulePath, _importLifetime.Token);
+        if (module is null || _disposed)
         {
-            IJSObjectReference? module;
-            try
+            if (module is not null)
             {
-                module = await RetryingModuleImport.ImportAsync(
-                    JS, MapPreviewModulePath, ++_moduleAttempt, _importLifetime.Token);
-            }
-            catch (TimeoutException) when (_moduleAttempt < RetryingModuleImport.MaxAttempts && !_disposed)
-            {
-                continue;
+                await module.DisposeAsync();
             }
 
-            if (module is null || _disposed)
-            {
-                if (module is not null)
-                {
-                    await module.DisposeAsync();
-                }
-
-                return null;
-            }
-
-            _module = module;
-            return module;
+            return null;
         }
 
-        return null;
+        _module = module;
+        return module;
     }
 
     private async Task ClearBindingAsync()
