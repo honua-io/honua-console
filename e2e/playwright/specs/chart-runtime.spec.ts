@@ -221,6 +221,23 @@ test('an empty bound feature result does not fabricate chart values', async ({ p
   expect(rendered).toEqual({ mounted: false, svgCount: 0 });
 });
 
+const remoteDataSpec = {
+  $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+  data: { url: 'https://data.example/rows.json' },
+  mark: 'bar',
+  encoding: { x: { field: 'category', type: 'nominal' }, y: { field: 'amount', type: 'quantitative' } },
+};
+const remoteImageSpec = {
+  $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
+  data: { values: [{ x: 1, y: 1, picture: 'https://data.example/picture.png' }] },
+  mark: { type: 'image', width: 20, height: 20 },
+  encoding: {
+    x: { field: 'x', type: 'quantitative' },
+    y: { field: 'y', type: 'quantitative' },
+    url: { field: 'picture', type: 'nominal' },
+  },
+};
+
 test('a stored spec cannot fetch external data or images', async ({ page }) => {
   let externalRequests = 0;
   await page.route('https://data.example/**', async route => {
@@ -228,40 +245,23 @@ test('a stored spec cannot fetch external data or images', async ({ page }) => {
     await route.fulfill({ json: [{ category: 'east', amount: 12 }] });
   });
   await page.goto('/studio', { waitUntil: 'domcontentloaded' });
-  const rendered = await page.evaluate(async modulePath => {
+  const rendered = await page.evaluate(async ({ modulePath, specs }) => {
     const mod = await import(modulePath);
-    const mount = async (spec: object) => {
+    const mounted: boolean[] = [];
+    for (const spec of specs) {
       const container = document.createElement('div');
       document.body.appendChild(container);
       try {
-        const mounted = await mod.init(container, { spec: JSON.stringify(spec) });
+        mounted.push(await mod.init(container, { spec: JSON.stringify(spec) }));
         await new Promise(resolve => setTimeout(resolve, 500));
-        return mounted;
       } finally {
         mod.dispose(container);
         container.remove();
       }
-    };
-    const remoteData = await mount({
-      $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
-      data: { url: 'https://data.example/rows.json' },
-      mark: 'bar',
-      encoding: { x: { field: 'category', type: 'nominal' }, y: { field: 'amount', type: 'quantitative' } },
-    });
-    const remoteImage = await mount({
-      $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
-      data: { values: [{ x: 1, y: 1, picture: 'https://data.example/picture.png' }] },
-      mark: { type: 'image', width: 20, height: 20 },
-      encoding: {
-        x: { field: 'x', type: 'quantitative' },
-        y: { field: 'y', type: 'quantitative' },
-        url: { field: 'picture', type: 'nominal' },
-      },
-    });
-    return { remoteData, remoteImage };
-  }, modulePath);
+    }
+    return mounted;
+  }, { modulePath, specs: [remoteDataSpec, remoteImageSpec] });
 
-  expect(rendered.remoteData).toBe(false);
-  expect(rendered.remoteImage).toBe(true);
+  expect(rendered).toEqual([false, true]);
   expect(externalRequests).toBe(0);
 });
