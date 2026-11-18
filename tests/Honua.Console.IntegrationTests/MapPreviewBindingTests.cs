@@ -157,6 +157,7 @@ public sealed class MapPreviewBindingTests
         cut.WaitForAssertion(() => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")));
         Assert.Equal(2, runtime.Imports);
         Assert.Equal(1, module.Initializations);
+        AssertRetryUsesAFreshSpecifier(runtime);
     }
 
     [Fact]
@@ -224,6 +225,37 @@ public sealed class MapPreviewBindingTests
         Assert.Equal(2, runtime.Imports);
         Assert.Equal(1, module.Initializations);
         Assert.Equal("/style.json", module.LastStyleUrl);
+        AssertRetryUsesAFreshSpecifier(runtime);
+    }
+
+    [Fact]
+    public void MapPreview_HungImport_RetriesWithoutLeavingThePage()
+    {
+        using var ctx = new BunitContext();
+        var runtime = new DeferredMapRuntime { SecondImportSucceeds = true };
+        ctx.Services.AddSingleton<IJSRuntime>(runtime);
+        var module = new MapModule();
+        runtime.SecondModule = module;
+        var cut = ctx.Render<MapPreview>(p => p.Add(x => x.StyleUrl, "/style.json"));
+
+        Assert.Equal(1, runtime.Imports);
+        Assert.Equal("false", cut.Find("figure").GetAttribute("data-map-bound"));
+        cut.WaitForAssertion(
+            () => Assert.Equal("true", cut.Find("figure").GetAttribute("data-map-bound")),
+            TimeSpan.FromSeconds(6));
+
+        Assert.Equal(2, runtime.Imports);
+        Assert.Equal(1, module.Initializations);
+        Assert.Equal("/style.json", module.LastStyleUrl);
+        AssertRetryUsesAFreshSpecifier(runtime);
+        Assert.All(cut.FindAll(".map-preview-zoom button"), button => Assert.False(button.HasAttribute("disabled")));
+    }
+
+    private static void AssertRetryUsesAFreshSpecifier(DeferredMapRuntime runtime)
+    {
+        Assert.Equal(2, runtime.Specifiers.Count);
+        Assert.Equal("./_content/Honua.Console.Shell/map-preview.js", runtime.Specifiers[0]);
+        Assert.StartsWith(runtime.Specifiers[0] + "?honuaRetry=", runtime.Specifiers[1], StringComparison.Ordinal);
     }
 
     private sealed class DeferredMapRuntime : IJSRuntime
@@ -231,11 +263,24 @@ public sealed class MapPreviewBindingTests
         public TaskCompletionSource<IJSObjectReference> Import { get; set; } = new();
         public int Imports { get; private set; }
         public bool ImportStarted { get; private set; }
+        public List<string> Specifiers { get; } = [];
+        public bool SecondImportSucceeds { get; init; }
+        public IJSObjectReference? SecondModule { get; set; }
 
         public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
         {
             ImportStarted = true;
             Imports++;
+            if (args is { Length: > 0 } && args[0] is string specifier)
+            {
+                Specifiers.Add(specifier);
+            }
+
+            if (SecondImportSucceeds && Imports > 1)
+            {
+                return (TValue)(object)(SecondModule ?? throw new InvalidOperationException("Missing retry module."))!;
+            }
+
             return (TValue)await Import.Task;
         }
 

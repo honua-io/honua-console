@@ -88,6 +88,40 @@ async function routeLayerFixture(page: Page, v4Enabled: boolean) {
     });
 }
 
+// A map-preview.js fetch that never settles must not leave this page on the schematic.
+// The preview times out and requests a fresh specifier.
+test('unsettled map module import recovers on the same page', async ({ page }) => {
+  let held = false;
+  let releaseHeld: () => void = () => {};
+  const firstRequestHeld = new Promise<void>(resolve => {
+    releaseHeld = resolve;
+  });
+  const moduleUrls: string[] = [];
+  await page.route(/map-preview\.js(\?|$)/, async route => {
+    moduleUrls.push(route.request().url());
+    if (!held) {
+      held = true;
+      await firstRequestHeld;
+      await route.abort('failed');
+      return;
+    }
+    await route.continue();
+  });
+  await routeLayerFixture(page, true);
+  await page.route('**/api/styles/parcels.json', route => route.fulfill({ json: { version: 8, sources: {},
+    layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e7eddf' } }] } }));
+  await signInWithFixturePassword(page, 'http://127.0.0.1:5185', '/operate/connections');
+  await page.goto(`http://127.0.0.1:5185/console/operate/layers/${connection}-layer-7`);
+  const map = page.getByRole('figure', { name: 'Map preview of layer Parcels', exact: true });
+  try {
+    await expect(map).toHaveAttribute('data-map-bound', 'true', { timeout: 8_000 });
+    expect(moduleUrls.some(url => url.includes('honuaRetry='))).toBe(true);
+    await expect(map.locator('canvas.maplibregl-canvas')).toHaveCount(1);
+  } finally {
+    releaseHeld();
+  }
+});
+
 async function installDisposalProbe(page: Page) {
     await page.evaluate(async () => {
       const modulePath = './_content/Honua.Console.Shell/map-preview.js';

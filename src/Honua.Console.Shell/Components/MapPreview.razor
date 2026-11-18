@@ -1,4 +1,5 @@
 @namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Interop
 @using Honua.Console.Shell.Models
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
@@ -211,6 +212,9 @@
 
     private readonly string _gridId = $"mp-grid-{Guid.NewGuid():N}";
     private readonly string _sheenId = $"mp-sheen-{Guid.NewGuid():N}";
+    private const string MapPreviewModulePath = "./_content/Honua.Console.Shell/map-preview.js";
+    private readonly CancellationTokenSource _importLifetime = new();
+    private readonly RetryingModuleImport _moduleImport = new(ModuleImportScriptError.Stop);
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private Task<IJSObjectReference?>? _moduleTask;
@@ -415,7 +419,8 @@
 
     private async Task BindMapAsync(string styleUrl, long version)
     {
-        if (_moduleTask is null || _moduleTask.IsFaulted || _moduleTask.IsCanceled)
+        if (_moduleTask is null || _moduleTask.IsFaulted || _moduleTask.IsCanceled
+            || (_moduleTask.IsCompletedSuccessfully && _module is null))
         {
             _moduleTask = ImportModuleAsync();
         }
@@ -456,11 +461,14 @@
 
     private async Task<IJSObjectReference?> ImportModuleAsync()
     {
-        var module = await JS.InvokeAsync<IJSObjectReference>(
-            "import", "./_content/Honua.Console.Shell/map-preview.js");
-        if (_disposed)
+        var module = await _moduleImport.LoadAsync(JS, MapPreviewModulePath, _importLifetime.Token);
+        if (module is null || _disposed)
         {
-            await module.DisposeAsync();
+            if (module is not null)
+            {
+                await module.DisposeAsync();
+            }
+
             return null;
         }
 
@@ -568,6 +576,7 @@
         }
 
         _disposed = true;
+        _importLifetime.Cancel();
         ++_bindingVersion;
         await ClearBindingAsync();
         if (_module is not null)
