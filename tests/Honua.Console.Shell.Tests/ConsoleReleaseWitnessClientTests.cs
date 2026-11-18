@@ -123,6 +123,51 @@ public sealed class ConsoleReleaseWitnessClientTests
         Assert.Null(result.Detail);
     }
 
+    [Theory]
+    [InlineData("javascript:void(0)")]
+    [InlineData("https://other.example/share/map-1")]
+    [InlineData("http://server.example/share/map-1")]
+    public async Task ObserveRefusesAPublicRouteOffThisServer(string routePath)
+    {
+        var client = CreateClient(new RecordingHandler(request => WitnessReply(request, routePath)));
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-content", "proposal-1"));
+
+        Assert.False(result.IsAllowed);
+        Assert.Null(result.Value);
+        Assert.Equal("The active publication's public route is not on this server.", result.Message);
+    }
+
+    [Fact]
+    public async Task ObserveAcceptsAnExplicitDefaultPortOnThisServer()
+    {
+        var client = CreateClient(new RecordingHandler(request => WitnessReply(request, "https://server.example:443/share/map-1")));
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-content", "proposal-1"));
+
+        Assert.True(result.IsAllowed, result.Message);
+        Assert.Equal("https://server.example/share/map-1", result.Value!.PublicUrl);
+    }
+
+    private static HttpResponseMessage WitnessReply(HttpRequestMessage request, string routePath) => request.RequestUri!.AbsolutePath switch
+    {
+        "/api/v1/admin/version" => Json("{\"data\":{\"sourceRevision\":\"" + new string('a', 40) + "\"}}"),
+        "/api/v1/studio/content-items" => Json("""
+            {"items":[{"itemId":"item-1","publishedVersionId":"version-1","publication":{"publicationId":"pub-1"}}]}
+            """),
+        "/api/v1/console/publications/pub-1" => Json(
+            "{\"route\":{\"publicationId\":\"pub-1\",\"activeVersionId\":\"active-1\",\"routePath\":"
+            + System.Text.Json.JsonSerializer.Serialize(routePath)
+            + "},\"versions\":[{\"versionId\":\"active-1\",\"sourceContentId\":\"item-1\",\"contentVersionId\":\"version-1\",\"contentHash\":\"sha256-content\"}]}"),
+        "/api/v1/admin/observability/audit" => Json("""
+            {"items":[{"auditId":7,"resourceType":"operation_proposal","resourceId":"proposal-1",
+             "action":"operation.applied","outcome":"Success","correlationId":"corr-1",
+             "details":"{\"executionOperationId\":\"operation-1\"}"}]}
+            """),
+        "/api/v1/admin/observability/audit/verify" => Json("""{"verified":true}"""),
+        _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+    };
+
     private static HttpConsoleReleaseWitnessClient CreateClient(HttpMessageHandler handler)
     {
         var profile = new ConsoleEnvironmentProfile
