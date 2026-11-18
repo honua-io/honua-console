@@ -88,6 +88,31 @@ async function routeLayerFixture(page: Page, v4Enabled: boolean) {
     });
 }
 
+// An aborted map-preview.js fetch must not leave this page on the schematic. The component
+// gives up on the pending import and requests a fresh specifier (honua-console#862).
+test('aborted map module import recovers on the same page', async ({ page }) => {
+  let aborted = false;
+  const moduleUrls: string[] = [];
+  await page.route(/map-preview\.js(\?|$)/, async route => {
+    moduleUrls.push(route.request().url());
+    if (!aborted) {
+      aborted = true;
+      await route.abort('failed');
+      return;
+    }
+    await route.continue();
+  });
+  await routeLayerFixture(page, true);
+  await page.route('**/api/styles/parcels.json', route => route.fulfill({ json: { version: 8, sources: {},
+    layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e7eddf' } }] } }));
+  await signInWithFixturePassword(page, 'http://127.0.0.1:5185', '/operate/connections');
+  await page.goto(`http://127.0.0.1:5185/console/operate/layers/${connection}-layer-7`);
+  const map = page.getByRole('figure', { name: 'Map preview of layer Parcels', exact: true });
+  await expect(map).toHaveAttribute('data-map-bound', 'true', { timeout: 8_000 });
+  expect(moduleUrls.some(url => url.includes('honuaRetry='))).toBe(true);
+  await expect(map.locator('canvas.maplibregl-canvas')).toHaveCount(1);
+});
+
 async function installDisposalProbe(page: Page) {
     await page.evaluate(async () => {
       const modulePath = './_content/Honua.Console.Shell/map-preview.js';

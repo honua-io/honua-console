@@ -1,4 +1,5 @@
 @namespace Honua.Console.Shell.Components
+@using Honua.Console.Shell.Interop
 @using Honua.Console.Shell.Models
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
@@ -211,9 +212,13 @@
 
     private readonly string _gridId = $"mp-grid-{Guid.NewGuid():N}";
     private readonly string _sheenId = $"mp-sheen-{Guid.NewGuid():N}";
+    private readonly CancellationTokenSource _importLifetime = new();
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private Task<IJSObjectReference?>? _moduleTask;
+    private int _moduleAttempt;
+
+    private const string MapPreviewModulePath = "./_content/Honua.Console.Shell/map-preview.js";
     private long _initializingVersion = -1;
     private bool _needsCleanup;
     private bool _liveMapBound;
@@ -392,6 +397,11 @@
         {
             await BindMapAsync(styleUrl, version);
         }
+        catch (TimeoutException)
+        {
+            // ImportModuleAsync already used its attempts. A later render can try again
+            // only when the parent changes something that reaches this method.
+        }
         catch (JSException)
         {
             // A failed preview leaves the schematic available.
@@ -456,16 +466,37 @@
 
     private async Task<IJSObjectReference?> ImportModuleAsync()
     {
-        var module = await JS.InvokeAsync<IJSObjectReference>(
-            "import", "./_content/Honua.Console.Shell/map-preview.js");
-        if (_disposed)
+        // Retry here, not via StateHasChanged. A render requested from the timeout
+        // handler runs before this method returns, sees the in-flight version, and
+        // drops the recovery (honua-console#862).
+        while (_moduleAttempt < RetryingModuleImport.MaxAttempts)
         {
-            await module.DisposeAsync();
-            return null;
+            IJSObjectReference? module;
+            try
+            {
+                module = await RetryingModuleImport.ImportAsync(
+                    JS, MapPreviewModulePath, ++_moduleAttempt, _importLifetime.Token);
+            }
+            catch (TimeoutException) when (_moduleAttempt < RetryingModuleImport.MaxAttempts && !_disposed)
+            {
+                continue;
+            }
+
+            if (module is null || _disposed)
+            {
+                if (module is not null)
+                {
+                    await module.DisposeAsync();
+                }
+
+                return null;
+            }
+
+            _module = module;
+            return module;
         }
 
-        _module = module;
-        return module;
+        return null;
     }
 
     private async Task ClearBindingAsync()
@@ -568,6 +599,7 @@
         }
 
         _disposed = true;
+        _importLifetime.Cancel();
         ++_bindingVersion;
         await ClearBindingAsync();
         if (_module is not null)
