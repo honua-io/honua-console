@@ -48,6 +48,7 @@ const initializations = new WeakMap();
 // A chart draws only the rows the Console supplies. A stored or model-authored spec may not fetch
 // URLs (data, lookups, images) or turn marks into links, so every loader entry point refuses.
 // Expressions run through vega-embed's bundled AST interpreter (`ast: true`), never compiled code.
+// An `href` encoding therefore renders without links (Vega logs a console error per mark); clicks do nothing.
 const refuseExternalResource = () => Promise.reject(new Error('Chart specs cannot load external resources.'));
 export const NO_NETWORK_LOADER = Object.freeze({
     load: refuseExternalResource,
@@ -186,7 +187,8 @@ function prepareSpec(spec, rows) {
     }
     if (rows.length > 0) {
         spec.data = { values: rows };
-    } else if (!spec.data || (Array.isArray(spec.data.values) && spec.data.values.length === 0)) {
+    } else if (!spec.data || !Array.isArray(spec.data.values) || spec.data.values.length === 0) {
+        // Only inline rows can be drawn; a data URL would load nothing, so show the fallback instead.
         return false;
     }
 

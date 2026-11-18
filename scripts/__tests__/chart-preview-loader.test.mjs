@@ -43,6 +43,20 @@ test('charts embed with a loader that refuses every external resource', async ()
     });
 });
 
+test('a spec whose data is a URL shows the fallback without embedding', async () => {
+    await withChartModule('url', async ({ init, dispose }) => {
+        let embeds = 0;
+        Object.assign(window, { vega: {}, vegaLite: {}, vegaEmbed: async () => { embeds++; return { finalize() {} }; } });
+        const target = container();
+
+        const mounted = await init(target, { spec: JSON.stringify({ data: { url: 'https://data.example/rows.json' }, mark: 'bar' }) });
+
+        assert.equal(mounted, false);
+        assert.equal(embeds, 0);
+        dispose(target);
+    });
+});
+
 test('the no-network loader rejects data, link, request and file loads', async () => {
     await withChartModule('refuse', async ({ NO_NETWORK_LOADER }) => {
         assert.ok(Object.isFrozen(NO_NETWORK_LOADER));
