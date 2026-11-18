@@ -16,7 +16,9 @@ async function approveReflectionProposal(page: Page, go: (path: string) => Promi
   await expect(panel).toBeVisible({ timeout: 45_000 });
   await expect(panel.locator('[data-proposal-approve]')).toBeEnabled();
   await panel.locator('[data-proposal-approve]').click();
-  await expect(panel.locator('[data-proposal-action-message]')).toContainText('Approved', { timeout: 30_000 });
+  // Submitted says "Approved — …". Every later status says "Approval recorded — …".
+  // "Decision returned — proposal is still awaiting approval." matches neither.
+  await expect(panel.locator('[data-proposal-action-message]')).toContainText(/Approved —|Approval recorded —/, { timeout: 30_000 });
 }
 
 function required(name: string): string {

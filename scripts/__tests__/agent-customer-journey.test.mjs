@@ -64,3 +64,18 @@ test('an API-key approval that the server accepts fails the control', async () =
     globalThis.fetch = original;
   }
 });
+
+test('an API-key refusal that changes the proposal fails the control', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith('/approve')) return new Response('{}', { status: 403 });
+    return new Response(JSON.stringify({ status: 'Succeeded' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    await assert.rejects(
+      refuseApiKeyApproval('https://server.example', 'key', '/api/v1/admin/proposals/p1'),
+      /changed the proposal/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
