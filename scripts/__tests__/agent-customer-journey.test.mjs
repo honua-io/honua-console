@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { exerciseAgentPublication, exerciseAgentRecovery, refuseApiKeyApproval } from '../agent-customer-journey.mjs';
+import { approveRecordedProposal, exerciseAgentPublication, exerciseAgentRecovery, refuseApiKeyApproval } from '../agent-customer-journey.mjs';
 
 test('recovery refuses a missing or shared approver before stopping Redis', async () => {
   let stopped = false;
@@ -63,6 +63,48 @@ test('an API-key approval that the server accepts fails the control', async () =
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test('a server without approval-review still approves with the API key', async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  let clicked = false;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method ?? 'GET' });
+    return new Response('{}', { status: String(url).endsWith('/approval-review') ? 404 : 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    await approveRecordedProposal({
+      base: 'https://server.example', key: 'key', proposalPath: '/api/v1/admin/proposals/p1',
+      proposalId: 'p1', consoleProposalId: 'p1', approve: async () => { clicked = true; },
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(clicked, false);
+  assert.deepEqual(calls.map(call => [call.method, call.url.endsWith('/approve')]), [['GET', false], ['POST', true]]);
+});
+
+test('a server with approval-review refuses the API key and then uses the Console', async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  let clicked = false;
+  globalThis.fetch = async (url, init) => {
+    calls.push(init?.method ?? 'GET');
+    if (String(url).endsWith('/approve')) return new Response('{}', { status: 403 });
+    if (String(url).endsWith('/approval-review')) return new Response('{}', { status: 200 });
+    return new Response(JSON.stringify({ status: 'AwaitingApproval' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    await approveRecordedProposal({
+      base: 'https://server.example', key: 'key', proposalPath: '/api/v1/admin/proposals/p1',
+      proposalId: 'p1', consoleProposalId: 'manager:p1', approve: async () => { clicked = true; },
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(clicked, true);
+  assert.deepEqual(calls, ['GET', 'POST', 'GET']);
 });
 
 test('an API-key refusal that changes the proposal fails the control', async () => {
