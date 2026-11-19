@@ -22,4 +22,4 @@ Epic 6297 acceptance still requires these additional real journeys:
 - Simultaneous tabs, navigation during a pending real native turn, hostile agent resource selection, principal/environment changes, and interrupted-stream/restart reconciliation against actual HTTP services. Current focused unit/integration tests cover these boundaries but do not replace deployed browser evidence.
 - Built-in and custom Processes repair/run/artifact → layer → same Studio draft, including retained immutable snapshots, dirty-editor conflict, command reconciliation and real failed-run diagnostics.
 
-The legacy `playwright.live-llm.config.ts` exercises shelved generators and skips unsupported/error results. It is not an acceptance gate for this workspace. No live acceptance result is claimed until this new lane runs against the actual provisioned candidate.
+The legacy `playwright.live-llm.config.ts` exercises only the `/support` GIS assistant against a live provider (honua-console#1047). It is not an acceptance gate for this workspace. No live acceptance result is claimed until this new lane runs against the actual provisioned candidate.

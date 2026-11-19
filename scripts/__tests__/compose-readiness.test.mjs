@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-const composeFiles = ['../../e2e/docker-compose.yml', '../../e2e/playwright/live-llm/docker-compose.yml'];
+const composeFiles = ['../../e2e/docker-compose.yml'];
 
 for (const composeFile of composeFiles) {
   test(`${composeFile} readiness succeeds only on HTTP 200 using released-image tools`, async () => {

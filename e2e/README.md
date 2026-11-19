@@ -30,9 +30,8 @@ teardown. The older published images need the existing Bash probe; enable this
 option only for images containing the native probe. The Console live journey
 workflow chooses for itself: `scripts/select-live-server-probe.mjs` reads the
 server image's declared `HEALTHCHECK` and applies the overlay to the chiseled
-rc.2 image, which has no Bash. The live LLM runner does
-not support this option; using that stack requires adding the overlay's `-f`
-argument to `composeArgs()` in `e2e/run-live-llm.mjs`.
+rc.2 image, which has no Bash. The live LLM runner starts no honua-server
+(honua-console#1047), so the option does not apply to it.
 
 ### Prerequisites
 

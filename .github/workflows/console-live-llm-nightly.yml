@@ -1,19 +1,20 @@
 name: Console Live-LLM Smoke (nightly)
 
-# Non-blocking nightly lane that exercises REAL AI generation through the console
-# studio generate-from-prompt surfaces (QUERY / MAP / FORM / WORKFLOW) against a
-# LOCAL honua-server wired to a real provider. Because LLM output is
-# non-deterministic, assertions are tolerant ("a coherent generated result
-# appeared"). This is a signal lane, NOT a PR-required check: it only runs on a
-# schedule and on manual dispatch, and it NEVER runs on pull_request/push.
+# Non-blocking nightly lane that exercises REAL AI inference through the console
+# /support GIS assistant, wired to a real provider. ADR-0076 moved generation to
+# client-side inference, so there is no honua-server in the stack. Because LLM output is non-deterministic, the
+# answer check is tolerant ("a substantive reply appeared"). This is a signal
+# lane, NOT a PR-required check: it only runs on a schedule and on manual
+# dispatch, and it NEVER runs on pull_request/push.
 #
 # Credential gating (resolved by e2e/run-live-llm.mjs from the env below):
-#   - HONUA_LIVE_LLM_OPENAI_API_KEY secret set  -> direct OpenAI-compatible, all 4 surfaces.
-#   - HONUA_LIVE_LLM_BEDROCK_ROLE_ARN variable   -> Bedrock via a LiteLLM sidecar, all 4 surfaces,
+#   - HONUA_LIVE_LLM_OPENAI_API_KEY secret set  -> direct OpenAI-compatible endpoint.
+#   - HONUA_LIVE_LLM_BEDROCK_ROLE_ARN variable   -> Bedrock via a LiteLLM sidecar,
 #     with short-lived credentials from GitHub OIDC (environment bedrock-live-llm;
 #     the role lives in honua-iac bootstrap/aws-ci-oidc-roles). No access key is stored.
 #   - neither                                    -> gated mode: every spec skips, job stays green.
-# The lane never fails for missing credentials — only for a genuine generation regression.
+# The lane never fails for missing credentials — only when a resolved provider
+# does not produce an assistant answer.
 
 on:
   schedule:
@@ -23,10 +24,6 @@ on:
     inputs:
       mode:
         description: "Force provider mode: openai | bedrock | none (blank = auto-resolve from secrets)."
-        required: false
-        type: string
-      server_image:
-        description: "honua-server image to pin (overrides the HONUA_LIVE_LLM_SERVER_IMAGE repo variable)."
         required: false
         type: string
 
@@ -49,8 +46,6 @@ jobs:
       id-token: write
 
     env:
-      # Pinned, override-able honua-server image (dispatch input > repo var > literal).
-      HONUA_LIVE_LLM_SERVER_IMAGE: ${{ github.event.inputs.server_image || vars.HONUA_LIVE_LLM_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly' }}
       # Provider credentials — empty when the secret is unset; the orchestrator
       # then resolves mode=none and the lane skips cleanly (non-blocking).
       HONUA_LIVE_LLM_MODE: ${{ github.event.inputs.mode }}
@@ -100,10 +95,7 @@ jobs:
           role-to-assume: ${{ vars.HONUA_LIVE_LLM_BEDROCK_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Pre-pull honua-server image
-        run: docker pull "${HONUA_LIVE_LLM_SERVER_IMAGE}"
-
-      # Runs the whole lane: resolve provider -> stack up -> Console up -> specs ->
+      # Runs the whole lane: resolve provider -> LiteLLM (bedrock) -> Console up -> spec ->
       # teardown. Writes the surface summary to $GITHUB_STEP_SUMMARY itself.
       - name: Run live-LLM smoke lane
         run: node e2e/run-live-llm.mjs
