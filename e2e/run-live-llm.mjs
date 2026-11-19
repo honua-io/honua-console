@@ -1,25 +1,27 @@
 #!/usr/bin/env node
-// Orchestrator for the live-LLM smoke lane (honua-console#283).
+// Orchestrator for the live-LLM smoke lane.
 //
-// Resolves a REAL AI generation provider, stands up a LOCAL honua-server wired to
-// it, starts the Console bound to that server, runs the live-LLM Playwright specs
-// with TOLERANT assertions, then tears everything down. NON-BLOCKING: with no
-// resolvable provider the lane runs in gated mode (every spec skips, exit 0) — it
-// is designed to fail only on a genuine generation regression, never on missing
-// credentials.
+// Resolves a REAL AI provider, starts the Console with its /support GIS assistant
+// wired to that provider, runs the live-LLM Playwright spec, then tears everything
+// down. NON-BLOCKING by design: with no resolvable provider the lane runs in gated
+// mode (the spec skips, exit 0). With a provider, a missing or failing assistant
+// is a real regression and fails the lane.
+//
+// There is no honua-server in this lane: under ADR-0076 studio generation is
+// client-side inference, covered by the sdk-js mcp-eval-live lane.
 //
 // Provider resolution (first that applies wins; override with HONUA_LIVE_LLM_MODE):
 //   openai  — a direct OpenAI-compatible key is present
-//             (HONUA_LIVE_LLM_OPENAI_API_KEY or OPENAI_API_KEY). All four surfaces.
+//             (HONUA_LIVE_LLM_OPENAI_API_KEY or OPENAI_API_KEY). No containers.
 //   bedrock — AWS credentials resolve from the ambient chain; a LiteLLM sidecar
-//             exposes an OpenAI-compatible endpoint backed by Bedrock. All four.
+//             exposes an OpenAI-compatible endpoint backed by Bedrock.
 //   none    — nothing resolved; gated skip (proves clean gating).
 //
 // Usage: node e2e/run-live-llm.mjs
 //   (also: npm run e2e:live-llm)
 //
-// Prerequisites: Docker running, dotnet SDK + npx/Playwright on PATH.
-// Host ports used: 5674 (Console), 5681 (server), 5644 (PostGIS), 4000 (LiteLLM).
+// Prerequisites: dotnet SDK + npx/Playwright on PATH; Docker for bedrock mode.
+// Host ports used: 5674 (Console), 4000 (LiteLLM, bedrock mode).
 
 import { spawnSync, spawn } from 'node:child_process';
 import http from 'node:http';
@@ -35,13 +37,9 @@ const COMPOSE_FILE = join(PW_DIR, 'live-llm', 'docker-compose.yml');
 const RESULTS_DIR = join(PW_DIR, 'live-llm', 'results');
 const SURFACES_FILE = join(RESULTS_DIR, 'surfaces.jsonl');
 
-const SERVER_URL = process.env.HONUA_CONSOLE_E2E_LIVE_LLM_SERVER_URL ?? 'http://127.0.0.1:5681';
-const ADMIN_KEY = process.env.HONUA_CONSOLE_E2E_ADMIN_KEY ?? 'honua-console-dev-key';
 const CONSOLE_PORT = process.env.HONUA_CONSOLE_E2E_LIVE_LLM_PORT ?? '5674';
 const CONSOLE_BASE = `http://127.0.0.1:${CONSOLE_PORT}`;
-// InvokeModel path (bedrock/invoke/...), NOT Converse: the honua strict json_schemas
-// exceed Bedrock's Converse native-structured-output grammar limits, but the
-// InvokeModel path satisfies them via Anthropic tool-use. See live-llm/config/litellm-config.yaml.
+// InvokeModel path (bedrock/invoke/...); see live-llm/config/litellm-config.yaml.
 const DEFAULT_BEDROCK_MODEL = 'bedrock/invoke/us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 function log(msg) { console.log(`[e2e-live-llm] ${msg}`); }
@@ -83,37 +81,42 @@ function resolveProvider() {
   if ((forced === 'openai' || (!forced && openaiKey)) && openaiKey) {
     return {
       mode: 'openai',
-      composeEnv: {
-        HONUA_LIVE_LLM_PROVIDER: 'openai',
-        HONUA_LIVE_LLM_ENDPOINT: process.env.HONUA_LIVE_LLM_OPENAI_ENDPOINT || 'https://api.openai.com/v1',
-        HONUA_LIVE_LLM_MODEL: process.env.HONUA_LIVE_LLM_OPENAI_MODEL || 'gpt-4o-mini',
-        HONUA_LIVE_LLM_API_KEY: openaiKey,
+      stack: false,
+      composeEnv: {},
+      consoleEnv: {
+        HONUA_LLM_BASE_URL: process.env.HONUA_LIVE_LLM_OPENAI_ENDPOINT || 'https://api.openai.com/v1',
+        HONUA_LLM_MODEL: process.env.HONUA_LIVE_LLM_OPENAI_MODEL || 'gpt-4o-mini',
+        HONUA_LLM_API_KEY: openaiKey,
       },
-      profiles: [],
     };
   }
 
   if (forced === 'bedrock' || !forced) {
     const aws = resolveAwsCredsEnv();
-    if (aws) return { mode: 'bedrock', composeEnv: bedrockComposeEnv(aws), profiles: ['bedrock'] };
+    if (aws) return bedrockProvider(aws);
   }
 
-  return { mode: 'none', composeEnv: {}, profiles: [] };
+  return { mode: 'none', stack: false, composeEnv: {}, consoleEnv: {} };
 }
 
-function bedrockComposeEnv(aws) {
+function bedrockProvider(aws) {
   // Per-run gateway key: LiteLLM refuses to start without one, and with it
-  // nothing but this stack's honua-server can spend the Bedrock credential.
+  // nothing but this run's Console can spend the Bedrock credential.
   const gatewayKey = `sk-${randomBytes(24).toString('hex')}`;
   return {
-    HONUA_LIVE_LLM_PROVIDER: 'local', // LiteLLM endpoint is http -> use the http-tolerant provider id
-    HONUA_LIVE_LLM_ENDPOINT: 'http://localhost:4000/v1',
-    HONUA_LIVE_LLM_MODEL: 'honua-llm',
-    HONUA_LIVE_LLM_API_KEY: gatewayKey,
-    LITELLM_MASTER_KEY: gatewayKey,
-    HONUA_LIVE_LLM_BEDROCK_MODEL: process.env.HONUA_LIVE_LLM_BEDROCK_MODEL || DEFAULT_BEDROCK_MODEL,
-    AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-west-2',
-    ...aws,
+    mode: 'bedrock',
+    stack: true,
+    composeEnv: {
+      LITELLM_MASTER_KEY: gatewayKey,
+      HONUA_LIVE_LLM_BEDROCK_MODEL: process.env.HONUA_LIVE_LLM_BEDROCK_MODEL || DEFAULT_BEDROCK_MODEL,
+      AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-west-2',
+      ...aws,
+    },
+    consoleEnv: {
+      HONUA_LLM_BASE_URL: 'http://127.0.0.1:4000/v1',
+      HONUA_LLM_MODEL: 'honua-llm',
+      HONUA_LLM_API_KEY: gatewayKey,
+    },
   };
 }
 
@@ -140,10 +143,38 @@ function killTree(pid) {
   else { try { process.kill(-pid, 'SIGKILL'); } catch {} }
 }
 
-function composeArgs(profiles, ...rest) {
-  const args = ['compose', '-f', COMPOSE_FILE];
-  for (const p of profiles) args.push('--profile', p);
-  return args.concat(rest);
+function composeArgs(...rest) {
+  return ['compose', '-f', COMPOSE_FILE, ...rest];
+}
+
+// Bedrock mode only: start the LiteLLM gateway (blocks on its healthcheck).
+function startGateway(env) {
+  run('docker', composeArgs('pull', '--quiet'), { env });
+  const upCode = run('docker', composeArgs('up', '-d', '--wait'), { env });
+  if (upCode !== 0) {
+    log('LiteLLM failed to start — logs follow');
+    run('docker', composeArgs('logs', '--tail=60'), { env });
+    throw new Error('stack up failed');
+  }
+  log('LiteLLM gateway ready.');
+}
+
+// Start the legacy regression fixture with the support assistant on the provider.
+// Returns before readiness so the caller can always stop it.
+function startConsole(consoleEnv) {
+  log(`starting Console on ${CONSOLE_BASE} (assistant model ${consoleEnv.HONUA_LLM_MODEL})...`);
+  // detached: own process group, so killTree's kill(-pid) reaches dotnet's child.
+  const proc = spawn('dotnet',
+    ['run', '--project', join(REPO_ROOT, 'tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj'), '--urls', CONSOLE_BASE],
+    {
+      stdio: 'inherit', shell: false, detached: true,
+      env: { ...process.env, ...consoleEnv, ASPNETCORE_ENVIRONMENT: 'Development',
+        DOTNET_CLI_TELEMETRY_OPTOUT: '1', ASPNETCORE_URLS: CONSOLE_BASE },
+    });
+  // A spawn failure (no dotnet on PATH) surfaces as the readiness timeout, not a crash past teardown.
+  proc.on('error', (err) => log(`Console failed to start: ${err.message}`));
+  if (process.platform !== 'win32') proc.unref?.();
+  return proc;
 }
 
 function writeSummary(mode) {
@@ -184,60 +215,41 @@ const childEnvBase = { ...process.env, ...provider.composeEnv };
 const specEnv = {
   HONUA_LIVE_LLM_ENABLED: provider.mode === 'none' ? '' : '1',
   HONUA_LIVE_LLM_MODE: provider.mode,
-  HONUA_CONSOLE_E2E_LIVE_LLM_SERVER_URL: SERVER_URL,
   HONUA_CONSOLE_E2E_LIVE_LLM_PORT: CONSOLE_PORT,
-  HONUA_CONSOLE_E2E_ADMIN_KEY: ADMIN_KEY,
 };
 
 let consoleProc = null;
 let stackUp = false;
 let pwExit = 0;
 
-try {
+function runSpecs() {
+  const pw = spawnSync('npx', ['playwright', 'test', '--config', 'playwright.live-llm.config.ts'],
+    { cwd: PW_DIR, stdio: 'inherit', shell: false, env: { ...process.env, ...specEnv } });
+  return pw.status ?? 1;
+}
+
+async function runLane() {
   if (provider.mode === 'none') {
     log('no provider — running the lane in gated mode (specs skip; proves clean gating).');
-    const pw = spawnSync('npx', ['playwright', 'test', '--config', 'playwright.live-llm.config.ts'],
-      { cwd: PW_DIR, stdio: 'inherit', shell: false, env: { ...process.env, ...specEnv } });
-    pwExit = pw.status ?? 1;
-  } else {
-    // 1. Pull + start the stack (blocks on healthchecks).
-    run('docker', composeArgs(provider.profiles, 'pull', '--quiet'), { env: childEnvBase });
-    const upCode = run('docker', composeArgs(provider.profiles, 'up', '-d', '--wait'), { env: childEnvBase });
-    if (upCode !== 0) {
-      log('stack failed to start — logs follow');
-      run('docker', composeArgs(provider.profiles, 'logs', '--tail=60'), { env: childEnvBase });
-      throw new Error('stack up failed');
-    }
-    stackUp = true;
-    await waitForUrl(`${SERVER_URL}/healthz/ready`, 120_000);
-    log('honua-server ready.');
-
-    // 2. Start the legacy regression fixture bound to the stack.
-    log(`starting Console on ${CONSOLE_BASE} (server -> ${SERVER_URL})...`);
-    const consoleOpts = {
-      stdio: 'inherit', shell: false,
-      env: { ...process.env, ASPNETCORE_ENVIRONMENT: 'Development', DOTNET_CLI_TELEMETRY_OPTOUT: '1',
-        ASPNETCORE_URLS: CONSOLE_BASE, HONUA_SERVER_BASE_URL: SERVER_URL, HONUA_ADMIN_API_KEY: ADMIN_KEY },
-    };
-    if (process.platform === 'win32') consoleOpts.detached = true;
-    consoleProc = spawn('dotnet',
-      ['run', '--project', join(REPO_ROOT, 'tests/Honua.Console.LegacyHost/Honua.Console.LegacyHost.csproj'), '--urls', CONSOLE_BASE],
-      consoleOpts);
-    if (process.platform !== 'win32') consoleProc.unref?.();
-    await waitForUrl(`${CONSOLE_BASE}/version.json`, 180_000);
-    log('Console ready.');
-
-    // 3. Run the live-LLM specs.
-    const pw = spawnSync('npx', ['playwright', 'test', '--config', 'playwright.live-llm.config.ts'],
-      { cwd: PW_DIR, stdio: 'inherit', shell: false, env: { ...process.env, ...specEnv } });
-    pwExit = pw.status ?? 1;
+    return runSpecs();
   }
+  // Set before starting, so teardown also runs after a failed start.
+  stackUp = provider.stack;
+  if (stackUp) startGateway(childEnvBase);
+  consoleProc = startConsole(provider.consoleEnv);
+  await waitForUrl(`${CONSOLE_BASE}/version.json`, 180_000);
+  log('Console ready.');
+  return runSpecs();
+}
+
+try {
+  pwExit = await runLane();
 } catch (err) {
   log(`error: ${err.message}`);
   pwExit = pwExit || 1;
 } finally {
   if (consoleProc) { log('stopping Console...'); killTree(consoleProc.pid); }
-  if (stackUp) { log('tearing down stack...'); run('docker', composeArgs(provider.profiles, 'down', '-v'), { env: childEnvBase }); }
+  if (stackUp) { log('tearing down stack...'); run('docker', composeArgs('down', '-v'), { env: childEnvBase }); }
   writeSummary(provider.mode);
 }
 
