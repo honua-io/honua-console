@@ -48,11 +48,10 @@ async function startPublicCapabilityServer(manifestStatus: number) {
           }] }));
           return;
         }
-        if (path === '/api/v1/console/content/public-layer') {
+        if (path === '/api/v1/open-data/datasets/public-layer') {
           response.writeHead(200, { 'Content-Type': 'application/json' });
           response.end(JSON.stringify({ success: true, data: {
-            id: 'public-layer', name: 'public-layer', title: 'Public layer', itemType: 'layer',
-            visibility: 'public', ownerId: 'publisher', actions: ['view'], tags: [],
+            itemId: 'public-layer', title: 'Public layer', publisherName: 'publisher', tags: [], distributions: [],
           } }));
           return;
         }

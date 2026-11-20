@@ -237,7 +237,7 @@ internal static class ConsoleContentMapper
     private static bool CanEditInStudio(string consoleType) =>
         consoleType is "map" or "dashboard" or "report" or "app";
 
-    private static string ToConsoleType(string itemType) => itemType switch
+    internal static string ToConsoleType(string itemType) => itemType switch
     {
         HonuaConsoleContentItemTypes.OpenData => "document",
         _ => itemType

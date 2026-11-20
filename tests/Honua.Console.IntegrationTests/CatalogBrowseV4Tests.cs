@@ -116,6 +116,7 @@ public sealed class CatalogBrowseV4Tests
     {
         public Task<CatalogSearchResult> SearchAsync(CatalogListRequest request, CatalogReadContext context, CancellationToken cancellationToken = default) => search;
         public Task<CatalogItemReadResult> GetCatalogItemAsync(string idOrSlug, CatalogReadContext context, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MapReadResult> GetMapAsync(string mapId, CatalogReadContext context, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<MapReadResult> GetDraftMapAsync(string sourceItemId, CatalogReadContext context, CancellationToken cancellationToken = default) => throw new NotSupportedException();

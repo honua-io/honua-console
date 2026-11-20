@@ -213,6 +213,7 @@ public sealed class StudioHomeRenderTests
         public Task<CatalogItemReadResult> GetCatalogItemAsync(string idOrSlug, CatalogReadContext context, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

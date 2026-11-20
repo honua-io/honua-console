@@ -364,34 +364,73 @@ public sealed class HonuaServerConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task GetOpenDataItem_NonPublicItem_IsMissing()
+    public async Task GetOpenDataItem_ReadsAnonymousOpenDataRouteWithoutApiKey()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("svc-1", "internal", "service", "organization", actions: ["view"])));
-        var catalog = CreateCatalog(handler);
-
-        var openData = await catalog.GetOpenDataItemAsync("svc-1");
-
-        Assert.Equal(CatalogReadStatus.Missing, openData.Status);
-    }
-
-    [Fact]
-    public async Task GetOpenDataItem_PublicService_IsAllowedAnonymous()
-    {
-        var handler = new RecordingHandler(_ => Envelope(Item("svc-1", "coastal", "service", "public", actions: ["view"])));
-        var catalog = CreateCatalog(handler);
+        var handler = new RecordingHandler(_ => Envelope(new HonuaOpenDataPage { ItemId = "svc-1", Title = "Coastal", PublisherName = "publisher" }));
+        var catalog = CreateCatalog(handler, apiKey: "admin-key");
 
         var openData = await catalog.GetOpenDataItemAsync("svc-1");
 
         Assert.Equal(CatalogReadStatus.Allowed, openData.Status);
         Assert.True(openData.AnonymousRead);
-        Assert.True(openData.Item!.Summary.Access.OpenData);
+        Assert.Equal("Coastal", openData.Item!.Summary.Title);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("/api/v1/open-data/datasets/svc-1", request.RequestUri!.AbsolutePath);
+        Assert.False(request.Headers.Contains("X-API-Key"));
     }
+
+    [Fact]
+    public async Task GetOpenDataItem_ServerNotFound_IsMissing()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var catalog = CreateCatalog(handler);
+
+        var openData = await catalog.GetOpenDataItemAsync("svc-1");
+
+        Assert.Equal(CatalogReadStatus.Missing, openData.Status);
+        Assert.Null(openData.Item);
+    }
+
+    [Fact]
+    public async Task OpenDataReads_WithoutOpenDataClient_AreUnavailableAndNeverUseContentRoutes()
+    {
+        var handler = new RecordingHandler(_ => Envelope(Item("svc-1", "coastal", "service", "public", actions: ["view"])));
+        var client = new HonuaConsoleContentHttpClient(new HttpClient(handler) { BaseAddress = BaseUri }, new HonuaConsoleContentClientOptions(BaseUri));
+        var catalog = new HonuaServerConsoleCatalogClient(client);
+
+        Assert.Equal(CatalogReadStatus.Unavailable, (await catalog.GetOpenDataItemAsync("svc-1")).Status);
+        Assert.False((await catalog.ListOpenDataItemsAsync()).Succeeded);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ListOpenDataItems_FollowsCursorAndLinksByItemId()
+    {
+        var handler = new RecordingHandler(request => Envelope(request.RequestUri!.Query.Contains("cursor=", StringComparison.Ordinal)
+            ? new HonuaOpenDataDatasetList { Items = [Entry("lyr-2", "layer")] }
+            : new HonuaOpenDataDatasetList { Items = [Entry("svc-1", "service")], NextCursor = "next" }));
+        var catalog = CreateCatalog(handler, apiKey: "admin-key");
+
+        var result = await catalog.ListOpenDataItemsAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(["svc-1", "lyr-2"], result.Items.Select(item => item.Id).ToArray());
+        Assert.All(result.Items, item => Assert.Equal(item.Id, item.Slug));
+        Assert.All(result.Items, item => Assert.True(item.Access.OpenData));
+        Assert.Equal(["service", "layer"], result.Items.Select(item => item.Type).ToArray());
+        Assert.All(handler.Requests, request => Assert.Equal("/api/v1/open-data/datasets", request.RequestUri!.AbsolutePath));
+        Assert.All(handler.Requests, request => Assert.False(request.Headers.Contains("X-API-Key")));
+    }
+
+    private static HonuaOpenDataDatasetEntry Entry(string id, string itemType) =>
+        new() { ItemType = itemType, Page = new HonuaOpenDataPage { ItemId = id, Title = id } };
 
     private static HonuaServerConsoleCatalogClient CreateCatalog(RecordingHandler handler, string? apiKey = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
         var client = new HonuaConsoleContentHttpClient(httpClient, new HonuaConsoleContentClientOptions(BaseUri, apiKey));
-        return new HonuaServerConsoleCatalogClient(client);
+        var openData = new HonuaOpenDataHttpClient(new HttpClient(handler) { BaseAddress = BaseUri }, BaseUri);
+        return new HonuaServerConsoleCatalogClient(client, openData);
     }
 
     private static HonuaConsoleContentItem Item(

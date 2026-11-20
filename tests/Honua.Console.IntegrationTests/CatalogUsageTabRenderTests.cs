@@ -102,6 +102,7 @@ public sealed class CatalogUsageTabRenderTests
         public Task<CatalogItemReadResult> GetCatalogItemAsync(string idOrSlug, CatalogReadContext context, CancellationToken cancellationToken = default) =>
             Task.FromResult(CatalogItemReadResult.Allowed(detail));
 
+        public Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CatalogItemReadResult> GetOpenDataItemAsync(string idOrSlug, CancellationToken cancellationToken = default) =>
             Task.FromResult(CatalogItemReadResult.Allowed(detail, anonymousRead: true));
 

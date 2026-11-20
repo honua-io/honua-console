@@ -2,9 +2,8 @@ import { expect, test } from '@playwright/test';
 
 const origin = 'http://127.0.0.1:5185';
 const item = {
-  id: 'reflow-item', name: 'reflow-item', itemType: 'layer', visibility: 'public', actions: ['view'],
-  title: 'CoastalFloodResource'.repeat(12), description: 'Description'.repeat(30),
-  ownerId: 'Owner'.repeat(25), tags: ['longtag'.repeat(30)],
+  itemId: 'reflow-item', title: 'CoastalFloodResource'.repeat(12), description: 'Description'.repeat(30),
+  publisherName: 'Owner'.repeat(25), tags: ['longtag'.repeat(30)], distributions: [],
 };
 
 for (const width of [320, 390, 1280]) {
@@ -23,7 +22,7 @@ for (const width of [320, 390, 1280]) {
             id: 'console.content.persistent', lifecycle: 'Implemented', optInRequired: false,
             available: true, supported: true,
           }] } });
-        } else if (request.url().endsWith('/api/v1/console/content/reflow-item')) {
+        } else if (request.url().endsWith('/api/v1/open-data/datasets/reflow-item')) {
           await route.fulfill({ json: { success: true, data: item } });
         } else {
           await route.continue();
@@ -37,7 +36,7 @@ for (const width of [320, 390, 1280]) {
       await expect(page.locator('.share-opendata-intro')).toHaveText(item.description);
       await expect(page.locator('.share-opendata-intro')).toHaveCSS('font-size', `${14 * fontSize / 16}px`);
       await expect(page.locator('.share-opendata-v4 .console-chip-row span')).toHaveText(`#${item.tags[0]}`);
-      await expect(page.locator('[data-share-opendata-footer]')).toContainText(item.ownerId);
+      await expect(page.locator('[data-share-opendata-footer]')).toContainText(item.publisherName);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const back = page.getByRole('link', { name: 'Back to open data', exact: true });
       await back.focus();

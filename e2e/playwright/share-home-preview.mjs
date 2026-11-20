@@ -15,7 +15,7 @@ await runV4PagePresentation({
     const enabled = name.endsWith("-v4");
     assert.equal(await page.locator(".console-shell").getAttribute("data-console-v4"), enabled ? "true" : null);
     assert.equal(await page.locator(".console-page-heading-v4").count(), enabled ? 1 : 0);
-    assert.equal(await page.locator("[data-share-kpi]").count(), 5);
+    assert.equal(await page.locator("[data-share-kpi]").count(), 3);
     assert.equal(await page.locator("[data-share-row]").count(), 2);
     assert.equal(await page.getByRole("link", { name: "Configure", exact: true }).first().getAttribute("href"), "/share/manage?itemId=svc-parcels");
     assert.equal(await page.getByRole("link", { name: "Tax Parcels (FY 2024)", exact: true }).getAttribute("href"), "/share/public/items/svc-parcels");
@@ -25,7 +25,7 @@ await runV4PagePresentation({
       assert.equal((await lead.textContent()).trim(), "2");
       const size = await lead.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
       const secondary = await page.locator(".console-share-summary-details dd").evaluateAll(elements => elements.map(element => parseFloat(getComputedStyle(element).fontSize)));
-      assert.equal(secondary.length, 4);
+      assert.equal(secondary.length, 2);
       assert.ok(secondary.every(value => value < size));
       assert.equal(await page.locator(".console-metric-tile").evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
     }
