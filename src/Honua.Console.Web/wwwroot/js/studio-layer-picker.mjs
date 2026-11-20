@@ -68,7 +68,7 @@ export class StudioLayerPicker {
         if (!selected) throw new Error('Choose a layer from the current authorized catalog.');
         // Studio refuses every edit while one waits; only a hold this call creates belongs to this layer.
         const prior = this.app.pendingEditorApproval?.proposalId;
-        if (prior) throw new Error(`Proposal ${prior} is waiting for separate human approval. Check the approval or stop waiting before adding another layer.`);
+        if (prior) throw new HeldEditRefusal(prior);
         const result = await this.app.addPublishedLayer({ serviceName: selected.serviceName,
             layerId: selected.layerId, layerName: selected.title }, { isCurrent: () => {
                 try { return this.binding === binding && this.generation === generation && this.capture() === binding; }
@@ -101,6 +101,13 @@ export class StudioLayerPicker {
     dispose() { this.generation++; this.abort.abort(); this.binding = undefined; this.choices = []; }
 }
 
+// Studio refuses another edit while one waits; the refusal applies only while that hold lasts.
+class HeldEditRefusal extends Error {
+    constructor(proposalId) {
+        super(`Proposal ${proposalId} is waiting for separate human approval. Check the approval or stop waiting before adding another layer.`);
+    }
+}
+
 // A held edit is not a failure: it carries the proposal a person approves in the Inbox.
 function readAddOutcome(result) {
     const proposalId = result?.approval?.proposalId;
@@ -120,7 +127,8 @@ function heldEditControls(section) {
 }
 
 // Mirrors Studio's hold, including one started elsewhere or still active when this view mounts.
-export function mountHeldEdit({ section, picker, app }) {
+// onRelease runs when a hold ends, so text that only applied while it lasted can be cleared.
+export function mountHeldEdit({ section, picker, app, onRelease }) {
     const { notice, inbox, reload, discard } = heldEditControls(section);
     let held, busy = false;
     const render = () => {
@@ -128,7 +136,7 @@ export function mountHeldEdit({ section, picker, app }) {
         held = picker.heldEdit();
         inbox.hidden = reload.hidden = discard.hidden = !held;
         reload.disabled = discard.disabled = busy;
-        if (!held) { if (wasHeld) notice.textContent = ''; return; }
+        if (!held) { if (wasHeld) { notice.textContent = ''; onRelease?.(); } return; }
         notice.textContent = `A map edit is waiting for separate human approval. Proposal ${held.proposalId}. Approve it in the Inbox, then check the approval here.`;
         inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(held.proposalId)}`, inbox.ownerDocument?.baseURI);
     };
@@ -152,15 +160,22 @@ export function mountHeldEdit({ section, picker, app }) {
     return { render };
 }
 
+// A message showing a hold's refusal; a later message from another action is not one.
+export const showsHoldRefusal = message => 'holdRefusal' in message.dataset;
+
 async function addChoice({ picker, choice, button, open, message, list, status, heldEdit }) {
-    button.disabled = true; open.disabled = true; message.textContent = 'Adding layer…';
+    button.disabled = true; open.disabled = true; message.textContent = 'Adding layer…'; delete message.dataset.holdRefusal;
     try {
         const { held } = await picker.add(choice.id);
         message.textContent = held ? '' : `${choice.title} added to the map.`;
+        delete message.dataset.holdRefusal;
         if (held) heldEdit.render();
         status.textContent = message.textContent;
         list.hidden = true; open.setAttribute('aria-expanded', 'false');
-    } catch (error) { message.textContent = error instanceof Error ? error.message : 'The layer could not be added.'; }
+    } catch (error) {
+        message.textContent = error instanceof Error ? error.message : 'The layer could not be added.';
+        if (error instanceof HeldEditRefusal) message.dataset.holdRefusal = '';
+    }
     finally { button.disabled = false; open.disabled = false; }
 }
 
@@ -174,11 +189,14 @@ export function mountStudioLayerPicker({ app, host, status }) {
     const message = document.createElement('p'); message.setAttribute('role', 'status');
     const list = document.createElement('ul'); list.hidden = true;
     section.append(open, message, list);
-    const heldEdit = mountHeldEdit({ section, picker, app });
+    const heldEdit = mountHeldEdit({ section, picker, app, onRelease: () => {
+        if (!showsHoldRefusal(message)) return;
+        delete message.dataset.holdRefusal; message.textContent = '';
+    } });
     host.querySelector('[data-studio-mount]').before(section);
     open.addEventListener('click', async () => {
         if (!list.hidden) { list.hidden = true; open.setAttribute('aria-expanded', 'false'); return; }
-        open.disabled = true; message.textContent = 'Loading published layers…'; list.replaceChildren();
+        open.disabled = true; message.textContent = 'Loading published layers…'; delete message.dataset.holdRefusal; list.replaceChildren();
         try {
             const choices = await picker.list();
             for (const choice of choices) {

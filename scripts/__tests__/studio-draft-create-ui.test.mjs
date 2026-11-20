@@ -134,3 +134,41 @@ test('after a reload the completed map is reported open only once Studio attache
         assert.equal(app.listeners['honua-workspace-draft-change'], undefined);
     } finally { globalThis.document = original; }
 });
+
+test('an approved New map proposal is no longer linked once the map is open', () => {
+    const original = globalThis.document;
+    globalThis.document = { createElement: element };
+    try {
+        let form;
+        const host = { isConnected: true, querySelector: () => ({ before: value => { form = value; } }) };
+        const app = { isConnected: true, workspaceCookieBinding: { principalId: 'human', environmentId: 'local' },
+            workspaceDraftIdentity: { draftId: 'draft', generation: 1 },
+            workspace: { workspaceId: 'workspace', storage: { getItem: () => JSON.stringify({
+                packageKey: 'map', commandId: 'command', status: 'completed', draftId: 'draft',
+                receipt: { operationInstanceId: 'operation-1', proposalId: 'proposal_1' },
+            }) } } };
+        const mounted = mountStudioDraftCreate({ app, host });
+        assert.equal(form.children.find(child => child.tagName === 'p').textContent, 'Shared server draft opened.');
+        assert.equal(form.children.find(child => child.textContent === 'Review approval in Inbox').hidden, true);
+        assert.equal(form.children.find(child => child.textContent === 'Check approval and open map').hidden, true);
+        mounted.dispose();
+    } finally { globalThis.document = original; }
+});
+
+test('a failed New map keeps its proposal link for review but offers no approval check', () => {
+    const original = globalThis.document;
+    globalThis.document = { createElement: element };
+    try {
+        let form;
+        const host = { isConnected: true, querySelector: () => ({ before: value => { form = value; } }) };
+        const app = { isConnected: true, workspaceCookieBinding: { principalId: 'human', environmentId: 'local' },
+            workspace: { workspaceId: 'workspace', storage: { getItem: () => JSON.stringify({
+                packageKey: 'map', commandId: 'command', status: 'failed',
+                receipt: { operationInstanceId: 'operation-1', proposalId: 'proposal_1' },
+            }) } } };
+        const mounted = mountStudioDraftCreate({ app, host });
+        assert.equal(form.children.find(child => child.textContent === 'Review approval in Inbox').hidden, false);
+        assert.equal(form.children.find(child => child.textContent === 'Check approval and open map').hidden, true);
+        mounted.dispose();
+    } finally { globalThis.document = original; }
+});
