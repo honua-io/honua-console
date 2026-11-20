@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { StudioLayerPicker } from '../../src/Honua.Console.Web/wwwroot/js/studio-layer-picker.mjs';
+import { StudioLayerPicker, mountHeldEdit } from '../../src/Honua.Console.Web/wwwroot/js/studio-layer-picker.mjs';
 
 const source = { id: 'roads', title: 'Roads', protocol: 'geoservices-feature-service',
   locator: { url: '/rest/services/folder/roads/FeatureServer', layerId: 2 } };
@@ -122,4 +122,113 @@ test('a renewed lease reloads the catalog before exposing choices', async () => 
   finish([source]);
   assert.deepEqual(await pending, []);
   assert.equal(reads, 2);
+});
+
+function heldFixture() {
+  const { app, picker } = fixture();
+  const attached = [];
+  app.addPublishedLayer = async () => {
+    app.pendingEditorApproval = { proposalId: 'proposal 1' };
+    return { ok: false, reason: 'Waiting for separate human approval.', approval: { proposalId: 'proposal 1' } };
+  };
+  app.attachWorkspaceDraft = async draftId => { attached.push(draftId); };
+  app.discardWorkspaceApprovalHold = () => { app.pendingEditorApproval = undefined; };
+  return { app, picker, attached };
+}
+
+test('an addition the server holds reports the hold; a second addition waits for it', async () => {
+  const { picker, app } = heldFixture();
+  await picker.list();
+  assert.deepEqual(await picker.add('roads'), { held: true });
+  assert.deepEqual(picker.heldEdit(), { proposalId: 'proposal 1', draftId: 'draft', binding: picker.binding });
+  app.addPublishedLayer = async () => assert.fail('a held map must not receive another addition');
+  await assert.rejects(picker.add('roads'), /proposal 1 is waiting/i);
+});
+
+test('reloading reports whether Studio ended the hold, on the same map and authority only', async () => {
+  const { picker, app, attached } = heldFixture();
+  await picker.list();
+  await picker.add('roads');
+  const held = picker.heldEdit();
+  assert.equal(await picker.reloadHeld(held), false);
+  app.pendingEditorApproval = undefined;
+  assert.equal(await picker.reloadHeld(held), true);
+  app.workspaceCookieBinding = { ...app.workspaceCookieBinding, principalId: 'another' };
+  await assert.rejects(picker.reloadHeld(held), /changed/i);
+  assert.deepEqual(attached, ['draft', 'draft']);
+});
+
+test('stopping the wait drops the hold and reloads the same map only', async () => {
+  const { picker, app, attached } = heldFixture();
+  await picker.list();
+  await picker.add('roads');
+  const held = picker.heldEdit();
+  app.workspaceDraftIdentity = { draftId: 'other' };
+  assert.equal(picker.heldEdit().draftId, 'other');
+  await assert.rejects(picker.discardHeld(held), /changed/i);
+  assert.deepEqual(app.pendingEditorApproval, { proposalId: 'proposal 1' });
+  app.workspaceDraftIdentity = { draftId: 'draft' };
+  await picker.discardHeld(held);
+  assert.equal(app.pendingEditorApproval, undefined);
+  assert.deepEqual(attached, ['draft']);
+});
+
+function node(tagName) {
+  return { tagName, children: [], listeners: {}, hidden: false, disabled: false, textContent: '', href: '',
+    append(...children) { this.children.push(...children); }, setAttribute() {}, focus() { this.focused = true; },
+    addEventListener(name, listener) { this.listeners[name] = listener; } };
+}
+
+function mountedHold() {
+  const { app, picker } = heldFixture();
+  const listeners = {};
+  app.addEventListener = (name, listener) => { listeners[name] = listener; };
+  app.pendingEditorApproval = { proposalId: 'proposal 1' };
+  const section = node('section');
+  mountHeldEdit({ section, picker, app });
+  const [notice, inbox, reload, discard] = section.children;
+  return { app, notice, inbox, reload, discard, listeners };
+}
+
+test('a hold that already exists when the view mounts shows its proposal and Inbox link', () => {
+  const original = globalThis.document;
+  globalThis.document = { createElement: node };
+  try {
+    const { app, notice, inbox, reload, listeners } = mountedHold();
+    assert.match(notice.textContent, /Proposal proposal 1\./);
+    assert.equal(inbox.hidden, false);
+    assert.equal(reload.hidden, false);
+    assert.match(inbox.href, /\/inbox\?proposalId=proposal%201$/);
+    app.pendingEditorApproval = undefined;
+    listeners['honua-studio-editor-approval-change']();
+    assert.equal(inbox.hidden, true);
+    assert.equal(notice.textContent, '');
+  } finally { globalThis.document = original; }
+});
+
+test('a failed reload after stopping the wait reports the failure and leaves no stale controls', async () => {
+  const original = globalThis.document;
+  globalThis.document = { createElement: node };
+  try {
+    const { app, notice, discard } = mountedHold();
+    app.attachWorkspaceDraft = async () => { throw new Error('The draft could not be read.'); };
+    await discard.listeners.click();
+    assert.equal(notice.textContent, 'The draft could not be read.');
+    assert.equal(discard.hidden, true);
+    assert.equal(notice.focused, true);
+  } finally { globalThis.document = original; }
+});
+
+test('a reload that leaves the hold in place keeps its own result visible', async () => {
+  const original = globalThis.document;
+  globalThis.document = { createElement: node };
+  try {
+    const { app, notice, reload } = mountedHold();
+    await reload.listeners.click();
+    assert.equal(notice.textContent, 'Still waiting for separate human approval. Proposal proposal 1.');
+    app.attachWorkspaceDraft = async () => { throw new Error('The session expired.'); };
+    await reload.listeners.click();
+    assert.equal(notice.textContent, 'The session expired.');
+    assert.equal(reload.hidden, false);
+  } finally { globalThis.document = original; }
 });

@@ -25,6 +25,7 @@ const methods = {
     attachWorkspaceDraft: 'attachEditorDraft',
     refreshWorkspaceDraft: 'refreshEditorDraft',
     prepareWorkspaceTurn: 'prepareEditorTurn',
+    discardWorkspaceApprovalHold: 'discardEditorApprovalHold',
     saveWorkspaceVersion: 'saveEditorVersion',
     listWorkspaceVersions: 'listEditorVersions',
     reviewWorkspacePublication: 'reviewEditorRelease',
