@@ -20,8 +20,8 @@
             <Actions>@HeaderActions</Actions>
         </ConsolePageHeading>
         <nav class="console-chip-row rbac-navigation" aria-label="Access settings">
-            <a href="operate/access" aria-current="false">Roles and permissions</a>
-            <a href="operate/access/members" aria-current="page">Users</a>
+            <a href="@AccessHref("operate/access")" aria-current="false">Roles and permissions</a>
+            <a href="@AccessHref("operate/access/members")" aria-current="page">Users</a>
         </nav>
     }
     else
@@ -29,7 +29,7 @@
         <div class="console-detail-heading">
             <div>
                 <p class="console-kicker">Settings <span class="console-crumb-sep">/</span> Access <span class="console-crumb-sep">/</span> Users</p>
-                <h1>Users @if (_membership is { } headerView) { <text>· @headerView.DisplayWorkspace</text> }</h1>
+                <h1>Users @if (_membership is { } headerView) { <text>· @headerView.DisplayEnvironment</text> }</h1>
                 <p class="console-muted rbac-lede">Manage users and invitations by role and permitted scope. Access is enforced by the environment.</p>
             </div>
             <div class="console-detail-actions">@HeaderActions</div>
@@ -43,6 +43,12 @@
                           Title="Loading users"
                           Message="Reading users and roles from the environment." />
     }
+    else if (_retiredEnvironmentLink)
+    {
+        <ConsoleStateView HeadingLevel="2" Kind="error"
+                          Title="This link is out of date"
+                          Message="It names a workspace. Open Access again and choose the environment. Nothing was changed." />
+    }
     else if (_bindingState is not null)
     {
         <ConsoleStateView HeadingLevel="2" Kind="error"
@@ -55,7 +61,7 @@
         @if (V4Enabled)
         {
             <ConsoleMetricTile Label="Active users" Value="@membership.ActiveCount">
-                <p class="console-muted">@membership.DisplayWorkspace · @membership.PendingCount pending · @membership.DeactivatedCount deactivated</p>
+                <p class="console-muted">@membership.DisplayEnvironment · @membership.PendingCount pending · @membership.DeactivatedCount deactivated</p>
             </ConsoleMetricTile>
         }
 
@@ -157,7 +163,7 @@
             {
                 <aside class="rbac-invite-drawer" data-rbac-invite-drawer aria-label="Scoped invitation">
                     <header class="rbac-invite-head">
-                        <strong>Invite to @membership.DisplayWorkspace</strong>
+                        <strong>Invite to @membership.DisplayEnvironment</strong>
                         <p class="console-muted">scoped per-env or per-content if you want</p>
                     </header>
                     <div class="rbac-invite-body">

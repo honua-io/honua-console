@@ -8,8 +8,8 @@ namespace Honua.Console.Contracts;
 
 // honua-server owns the form
 // content/publication contract (FormPackage* records in Honua.Core.Features.Forms.Packages,
-// admin lifecycle under /api/v1/admin/forms/packages and runtime offline-policy under
-// /api/v1/forms/packages). honua-sdk-dotnet does not yet project these as a consumable stable
+// admin lifecycle under /api/v1/admin/forms and runtime offline-policy under
+// /api/v1/forms). honua-sdk-dotnet does not yet project these as a consumable stable
 // package, and honua-console wires no SDK NuGet feed (see SDK_SHIM_POLICY.md and the Operate
 // admin shim above). Per the Console Patterns Charter section 11 and SDK_SHIM_POLICY, the
 // form authoring surface binds through a thin HttpClient behind this single Honua.Console.Contracts
@@ -79,8 +79,8 @@ public interface IHonuaFormPackageClient
 
 public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDisposable
 {
-    private const string AdminBase = "/api/v1/admin/forms/packages";
-    private const string RuntimeBase = "/api/v1/forms/packages";
+    private const string AdminBase = "/api/v1/admin/forms";
+    private const string RuntimeBase = "/api/v1/forms";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -116,7 +116,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
         CancellationToken cancellationToken = default) =>
         SendAsync<HonuaFormPackageSummary[]>(
             () => new HttpRequestMessage(HttpMethod.Get, AdminBase),
-            "GET /api/v1/admin/forms/packages",
+            "GET /api/v1/admin/forms",
             cancellationToken);
 
     public Task<HonuaAdminEndpointResult<HonuaFormPackageVersion>> CreateDraftAsync(
@@ -127,7 +127,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageVersion>(
             () => JsonRequest(HttpMethod.Post, AdminBase, document),
-            "POST /api/v1/admin/forms/packages",
+            "POST /api/v1/admin/forms",
             cancellationToken);
     }
 
@@ -139,7 +139,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageVersion>(
             () => new HttpRequestMessage(HttpMethod.Get, $"{AdminBase}/{Uri.EscapeDataString(formId)}"),
-            "GET /api/v1/admin/forms/packages/{formId}",
+            "GET /api/v1/admin/forms/{formId}",
             cancellationToken);
     }
 
@@ -151,7 +151,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageVersion[]>(
             () => new HttpRequestMessage(HttpMethod.Get, $"{AdminBase}/{Uri.EscapeDataString(formId)}/versions"),
-            "GET /api/v1/admin/forms/packages/{formId}/versions",
+            "GET /api/v1/admin/forms/{formId}/versions",
             cancellationToken);
     }
 
@@ -164,7 +164,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageVersion>(
             () => new HttpRequestMessage(HttpMethod.Get, VersionPath(formId, packageVersion)),
-            "GET /api/v1/admin/forms/packages/{formId}/versions/{version}",
+            "GET /api/v1/admin/forms/{formId}/versions/{version}",
             cancellationToken);
     }
 
@@ -181,7 +181,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageVersion>(
             () => DraftUpdateRequest(VersionPath(formId, packageVersion), document, etag),
-            "PUT /api/v1/admin/forms/packages/{formId}/versions/{version}",
+            "PUT /api/v1/admin/forms/{formId}/versions/{version}",
             cancellationToken);
     }
 
@@ -194,7 +194,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageValidationResult>(
             () => new HttpRequestMessage(HttpMethod.Post, $"{VersionPath(formId, packageVersion)}/validate"),
-            "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/validate",
+            "POST /api/v1/admin/forms/{formId}/versions/{version}/validate",
             cancellationToken);
     }
 
@@ -207,7 +207,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         var call = new AdminEndpointCall<HonuaFormPackageVersion>(
             () => new HttpRequestMessage(HttpMethod.Post, $"{VersionPath(formId, packageVersion)}/publish"),
-            "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish",
+            "POST /api/v1/admin/forms/{formId}/versions/{version}/publish",
             new(
                 ReadPublishRejection(formId, packageVersion),
                 AdminResponseBodies.Required<HonuaFormPackageVersion>(BodyFormat, EmptyBody)))
@@ -226,7 +226,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormPackageVersion>(
             () => new HttpRequestMessage(HttpMethod.Post, $"{VersionPath(formId, packageVersion)}/reopen"),
-            "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/reopen",
+            "POST /api/v1/admin/forms/{formId}/versions/{version}/reopen",
             cancellationToken);
     }
 
@@ -238,7 +238,7 @@ public sealed class HonuaFormPackageHttpClient : IHonuaFormPackageClient, IDispo
 
         return SendAsync<HonuaFormOfflinePolicyResponse>(
             () => new HttpRequestMessage(HttpMethod.Get, $"{RuntimeBase}/{Uri.EscapeDataString(formId)}/offline-policy"),
-            "GET /api/v1/forms/packages/{formId}/offline-policy",
+            "GET /api/v1/forms/{formId}/offline-policy",
             cancellationToken);
     }
 

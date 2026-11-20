@@ -7,13 +7,13 @@ namespace Honua.Console.Shell.Services;
 public sealed class HonuaServerStudioFormPackageDataSource : IStudioFormPackageDataSource
 {
     private const string Surface = "Form builder";
-    private const string ListContract = "GET /api/v1/admin/forms/packages";
-    private const string LoadContract = "GET /api/v1/admin/forms/packages/{formId}";
-    private const string SaveContract = "POST/PUT /api/v1/admin/forms/packages";
-    private const string ValidateContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/validate";
-    private const string PublishContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish";
-    private const string ReopenContract = "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/reopen";
-    private const string OfflineContract = "GET /api/v1/forms/packages/{formId}/offline-policy";
+    private const string ListContract = "GET /api/v1/admin/forms";
+    private const string LoadContract = "GET /api/v1/admin/forms/{formId}";
+    private const string SaveContract = "POST/PUT /api/v1/admin/forms";
+    private const string ValidateContract = "POST /api/v1/admin/forms/{formId}/versions/{version}/validate";
+    private const string PublishContract = "POST /api/v1/admin/forms/{formId}/versions/{version}/publish";
+    private const string ReopenContract = "POST /api/v1/admin/forms/{formId}/versions/{version}/reopen";
+    private const string OfflineContract = "GET /api/v1/forms/{formId}/offline-policy";
     private const string GenProvidersContract = "GET /api/v1/admin/forms/packages/generation/providers";
     private const string GenerateContract = "POST /api/v1/admin/forms/packages/generate";
 

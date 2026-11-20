@@ -104,8 +104,8 @@ routes. Path prefixes are frozen for downstream tickets:
 /operate/sensors/datastreams/:datastreamId  SensorThings · datastream detail with $expand observation navigation + a time-series chart of the datastream's observations
 /operate/scenes                3D Scenes · discover renderable scenes (GET /api/scenes) and ingest a LAS point cloud into a servable 3D Tiles tileset (POST /api/v1/admin/scenes/ingest/pointcloud; bound to honua-server #1840 / #1201, else missing-binding)
 /operate/scenes/:sceneId       3D Scenes · view a scene's 3D Tiles tileset (/scenes/{id}/tileset.json) in the Cesium-backed scene viewer
-/operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162; shared v4 flag changes presentation only)
-/operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162; v4 title Users, same scoped membership and invitation actions)
+/operate/access                Access · roles & permissions (RBAC overview: scope hierarchy + role × permission matrix; bound to Console metadata/RBAC #1162; shared v4 flag changes presentation only; optional environment query selects the Environment and survives access navigation)
+/operate/access/members        Access · team members + scoped-invite drawer (bound to Console metadata/RBAC #1162; v4 title Users, same scoped membership and invitation actions; optional environment query selects the Environment and survives access navigation)
 /operate/releases              GitOps metadata releases (server has no list endpoint; open a release by package id)
 /operate/releases/:id          Release detail (v4 agent context uses the server release package id in route and releaseId filter): proposal/semantic diff, environment matrix + drift, Git PR preview, CI/GitOps timeline, rollback readiness (bound to honua-server release package #1163 + release-operation lifecycle #1165)
 /operate/deploy                Deploy (#201): one governed flow for two capabilities, both hiding the gitops plumbing behind an approval + outcome surface — (1) server version upgrade with current-version detection (capability manifest /api/v1/capabilities/manifest) + version-mismatch gating (only a behind target may proceed; no-op/downgrade/unknown gated), and (2) cross-environment metadata promotion (dev→staging→prod). Submit/approve/rollback route through the deploy-control admin endpoints (GET/POST /api/v1/admin/deploy/operations/{id}{,/submit,/rollback}); the server has no list-all endpoint, so the queue is projected from release-derived + operator-tracked operation ids. Gitops/PR details live behind a Details toggle. Bound to honua-server #1738 + honua-devops#97/#57, else the missing-binding state.
@@ -203,6 +203,8 @@ Services and Layers lists at `/operate/services` and `/operate/layers`,
 and Connections at `/operate/connections`. The old `/operate/resources`
 list route redirects into `/operate/data`.
 
+Catalog discovery routes use `?environment=<id>` for the registry selection and preserve it through endpoint/item links and breadcrumbs. An omitted selection keeps the `current` default. Configured identifiers and item handles are unchanged.
+
 Catalogs (`/operate/catalogs`) is the discovery-endpoints surface
 (`honua-console#125`): which catalog dialects the server publishes
 (GeoServices service catalog / OGC API Records / OData / STAC / DCAT), their server-wide on/off
@@ -215,6 +217,12 @@ content catalog at `/catalog` (`CatalogPage.razor`), which is the
 member-facing content search/list. It binds the catalog
 discovery-endpoints registry (`honua-server#1279`) and renders the
 missing-binding state until that contract ships.
+
+The content catalog uses canonical `dataset`, `map` and `app` item types
+for both search filters and returned items. Dataset entries describe readable
+published data; Map entries support the authenticated Map viewer. Retired
+`saved-map` and `generated-app` search filters are rejected before sending a
+request. Publication contracts remain separate from catalog item types.
 
 `honua-console#36` implements the first native Blazor transition group:
 Connections, Resources, Services, Layers, and Settings. These entries use

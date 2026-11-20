@@ -39,7 +39,7 @@ public sealed class FileImportCoordinateSystemLiveServerTests(ServiceLayerPublis
             .Add(component => component.AuthorityBinding, preview.AuthorityBinding));
         Assert.Contains("source coordinate system", step.Markup, StringComparison.OrdinalIgnoreCase);
 
-        var table = $"crs_import_{Guid.NewGuid():N}";
+        var table = $"crs_import_{Guid.NewGuid():N}"[..24];
         var result = await operation.ImportAsync(new ConsoleFileImportCommand
         {
             FileContent = bytes,
@@ -53,9 +53,15 @@ public sealed class FileImportCoordinateSystemLiveServerTests(ServiceLayerPublis
         Assert.True(result.Succeeded, result.Detail);
         Assert.Equal(expectedStored, result.StoredSrid);
         Assert.Equal(target.HasValue, result.Reprojected);
+        var physicalTable = $"imported_{table}";
+        Assert.Equal(physicalTable, result.PhysicalTableName);
+        if (!string.IsNullOrWhiteSpace(result.Schema))
+        {
+            Assert.Equal("public", result.Schema);
+        }
         await using var database = new NpgsqlConnection(fixture.PostgresConnectionString);
         await database.OpenAsync();
-        await using var command = new NpgsqlCommand($"SELECT ST_SRID(geom) FROM public.\"{table}\"", database);
+        await using var command = new NpgsqlCommand($"SELECT ST_SRID(geometry) FROM public.\"{physicalTable}\"", database);
         Assert.Equal(expectedStored, Convert.ToInt32(await command.ExecuteScalarAsync()));
     }
 

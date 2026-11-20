@@ -511,14 +511,14 @@ public sealed class ServerStateVerifier : IDisposable
             GetLong(replica, "lastSyncGeneration"));
 
     // ---------------------------------------------------------------------------------------------
-    //  Catalog discovery registry: GET /api/v1/console/catalog-endpoints/{workspaceId}
+    //  Catalog discovery registry: GET /api/v1/console/catalog-endpoints/{environmentId}
     // ---------------------------------------------------------------------------------------------
 
     public async Task<VerifiedCatalogRegistry?> GetCatalogDiscoveryRegistryAsync(
-        string workspaceId,
+        string environmentId,
         CancellationToken cancellationToken = default)
     {
-        var path = $"/api/v1/console/catalog-endpoints/{Uri.EscapeDataString(workspaceId)}";
+        var path = $"/api/v1/console/catalog-endpoints/{Uri.EscapeDataString(environmentId)}";
         using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
         if (document is null || !document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
         {
@@ -538,7 +538,7 @@ public sealed class ServerStateVerifier : IDisposable
             }
         }
 
-        return new VerifiedCatalogRegistry(GetString(data, "workspaceId"), endpoints);
+        return new VerifiedCatalogRegistry(GetString(data, "environmentId"), endpoints);
     }
 
     // A mounted gated route returns 401, an absent route returns 404, and status zero means the server was unreachable.
@@ -789,15 +789,15 @@ public sealed class ServerStateVerifier : IDisposable
     }
 
     // ---------------------------------------------------------------------------------------------
-    //  Form package: GET /api/v1/admin/forms/packages/{formId}[/versions/{version}]
-    //               + GET /api/v1/forms/packages/{formId}/offline-policy
+    //  Form package: GET /api/v1/admin/forms/{formId}[/versions/{version}]
+    //               + GET /api/v1/forms/{formId}/offline-policy
     // ---------------------------------------------------------------------------------------------
 
     public async Task<VerifiedFormPackage?> GetFormPackageAsync(
         string formId,
         CancellationToken cancellationToken = default)
     {
-        var path = $"/api/v1/admin/forms/packages/{Uri.EscapeDataString(formId)}";
+        var path = $"/api/v1/admin/forms/{Uri.EscapeDataString(formId)}";
         using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
         if (document is null)
         {
@@ -840,7 +840,7 @@ public sealed class ServerStateVerifier : IDisposable
         string formId,
         CancellationToken cancellationToken = default)
     {
-        var path = $"/api/v1/forms/packages/{Uri.EscapeDataString(formId)}/offline-policy";
+        var path = $"/api/v1/forms/{Uri.EscapeDataString(formId)}/offline-policy";
         using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
         if (document is null)
         {
@@ -1186,7 +1186,7 @@ public sealed record VerifiedReplica(
 
 public sealed record VerifiedCatalogEndpoint(string? Key, string? Dialect, bool? Enabled, int? Entries);
 
-public sealed record VerifiedCatalogRegistry(string? WorkspaceId, IReadOnlyList<VerifiedCatalogEndpoint> Endpoints);
+public sealed record VerifiedCatalogRegistry(string? EnvironmentId, IReadOnlyList<VerifiedCatalogEndpoint> Endpoints);
 
 public sealed record VerifiedCommentThread(
     string? ThreadId,
