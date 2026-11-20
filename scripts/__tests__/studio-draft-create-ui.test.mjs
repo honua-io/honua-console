@@ -109,3 +109,28 @@ test('the New map controls use the Console input and button styles', () => {
         mounted.dispose();
     } finally { globalThis.document = original; }
 });
+
+test('after a reload the completed map is reported open only once Studio attaches its draft', () => {
+    const original = globalThis.document;
+    globalThis.document = { createElement: element };
+    try {
+        let form;
+        const host = { isConnected: true, querySelector: () => ({ before: value => { form = value; } }) };
+        const app = { ...element('honua-studio-app'), removeEventListener(name, listener) { if (this.listeners[name] === listener) delete this.listeners[name]; },
+            workspaceCookieBinding: { principalId: 'human', environmentId: 'local' },
+            workspace: { workspaceId: 'workspace', storage: { getItem: () => JSON.stringify({
+                packageKey: 'map', commandId: 'command', status: 'completed', draftId: 'draft',
+            }) } } };
+        const mounted = mountStudioDraftCreate({ app, host });
+        const notice = form.children.find(child => child.tagName === 'p');
+        assert.equal(notice.textContent, 'Open map to continue editing map.');
+        app.workspaceDraftIdentity = { draftId: 'draft', generation: 1 };
+        app.listeners['honua-workspace-draft-change']();
+        assert.equal(notice.textContent, 'Shared server draft opened.');
+        app.workspaceDraftIdentity = { draftId: 'other', generation: 1 };
+        app.listeners['honua-workspace-draft-change']();
+        assert.equal(notice.textContent, 'Open map to continue editing map.');
+        mounted.dispose();
+        assert.equal(app.listeners['honua-workspace-draft-change'], undefined);
+    } finally { globalThis.document = original; }
+});
