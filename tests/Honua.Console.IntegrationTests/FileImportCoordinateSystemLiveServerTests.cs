@@ -61,7 +61,7 @@ public sealed class FileImportCoordinateSystemLiveServerTests(ServiceLayerPublis
         }
         await using var database = new NpgsqlConnection(fixture.PostgresConnectionString);
         await database.OpenAsync();
-        await using var command = new NpgsqlCommand($"SELECT ST_SRID(geom) FROM public.\"{physicalTable}\"", database);
+        await using var command = new NpgsqlCommand($"SELECT ST_SRID(geometry) FROM public.\"{physicalTable}\"", database);
         Assert.Equal(expectedStored, Convert.ToInt32(await command.ExecuteScalarAsync()));
     }
 
