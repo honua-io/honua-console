@@ -1,3 +1,4 @@
+import { consoleHref } from './console-links.mjs';
 // Lists human-authorized published sources and keeps the selection bound to one
 // workspace authority and draft. Studio revalidates the source before dispatch.
 export class StudioLayerPicker {
@@ -72,9 +73,74 @@ export class StudioLayerPicker {
         this.assertCurrent(binding);
         if (this.generation !== generation || this.binding !== binding)
             throw new Error('The layer choices changed. Refresh the picker.');
-        if (!result?.ok) throw new Error(result?.reason || 'The layer could not be added to the map.');
+        return readAddOutcome(result, JSON.parse(binding)[0]);
+    }
+    // Studio keeps a held edit until the approved write reaches the draft; a reload reports whether it did.
+    async reloadHeld(held) {
+        this.#requireHeldMap(held);
+        await this.app.attachWorkspaceDraft(held.draftId);
+        return this.app.pendingEditorApproval?.proposalId !== held.proposalId;
+    }
+    async discardHeld(held) {
+        this.#requireHeldMap(held);
+        this.app.discardWorkspaceApprovalHold();
+        await this.app.attachWorkspaceDraft(held.draftId);
+    }
+    #requireHeldMap(held) {
+        if (this.app.workspaceDraftIdentity?.draftId !== held.draftId)
+            throw new Error('The map changed. Open the held map again to check its approval.');
     }
     dispose() { this.generation++; this.abort.abort(); this.binding = undefined; this.choices = []; }
+}
+
+// A held edit is not a failure: it carries the proposal a person approves in the Inbox.
+function readAddOutcome(result, draftId) {
+    const proposalId = result?.approval?.proposalId;
+    if (typeof proposalId === 'string' && proposalId) return { held: { proposalId, draftId } };
+    if (!result?.ok) throw new Error(result?.reason || 'The layer could not be added to the map.');
+    return { held: undefined };
+}
+
+function mountHeldEdit(section, picker) {
+    const notice = document.createElement('p'); notice.setAttribute('role', 'status');
+    const inbox = document.createElement('a'); inbox.textContent = 'Review approval in Inbox';
+    const reload = document.createElement('button'); reload.type = 'button'; reload.textContent = 'Check approval and reload map';
+    const discard = document.createElement('button'); discard.type = 'button'; discard.textContent = 'Stop waiting and reload map';
+    inbox.className = reload.className = discard.className = 'console-button console-button-secondary';
+    section.append(notice, inbox, reload, discard);
+    let held;
+    const show = (next, text) => {
+        held = next; notice.textContent = text;
+        inbox.hidden = reload.hidden = discard.hidden = !held;
+        if (held) inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(held.proposalId)}`, inbox.ownerDocument?.baseURI);
+    };
+    const run = async action => {
+        reload.disabled = discard.disabled = true;
+        try { await action(held); } catch (error) { notice.textContent = error instanceof Error ? error.message : 'The map could not be reloaded.'; }
+        finally { reload.disabled = discard.disabled = false; }
+    };
+    reload.addEventListener('click', () => run(async current => {
+        if (await picker.reloadHeld(current)) show(undefined, 'The approved change is on the map.');
+        else notice.textContent = `Still waiting for separate human approval. Proposal ${current.proposalId}.`;
+    }), { signal: picker.abort.signal });
+    discard.addEventListener('click', () => run(async current => {
+        await picker.discardHeld(current);
+        show(undefined, `Stopped waiting for proposal ${current.proposalId}. The map shows the server draft.`);
+    }), { signal: picker.abort.signal });
+    show(undefined, '');
+    return { show: (next, title) => show(next, `Adding ${title} is waiting for separate human approval. Proposal ${next.proposalId}. Approve it in the Inbox, then check the approval here.`) };
+}
+
+async function addChoice({ picker, choice, button, open, message, list, status, heldEdit }) {
+    button.disabled = true; open.disabled = true; message.textContent = 'Adding layer…';
+    try {
+        const { held } = await picker.add(choice.id);
+        message.textContent = held ? '' : `${choice.title} added to the map.`;
+        if (held) heldEdit.show(held, choice.title);
+        status.textContent = message.textContent;
+        list.hidden = true; open.setAttribute('aria-expanded', 'false');
+    } catch (error) { message.textContent = error instanceof Error ? error.message : 'The layer could not be added.'; }
+    finally { button.disabled = false; open.disabled = false; }
 }
 
 export function mountStudioLayerPicker({ app, host, status }) {
@@ -87,6 +153,7 @@ export function mountStudioLayerPicker({ app, host, status }) {
     const message = document.createElement('p'); message.setAttribute('role', 'status');
     const list = document.createElement('ul'); list.hidden = true;
     section.append(open, message, list);
+    const heldEdit = mountHeldEdit(section, picker);
     host.querySelector('[data-studio-mount]').before(section);
     open.addEventListener('click', async () => {
         if (!list.hidden) { list.hidden = true; open.setAttribute('aria-expanded', 'false'); return; }
@@ -97,16 +164,8 @@ export function mountStudioLayerPicker({ app, host, status }) {
                 const row = document.createElement('li'); const button = document.createElement('button');
                 button.type = 'button'; button.textContent = `Add ${choice.title} to map`;
                 button.className = 'console-button console-button-secondary console-button-small';
-                button.addEventListener('click', async () => {
-                    button.disabled = true; open.disabled = true; message.textContent = 'Adding layer…';
-                    try {
-                        await picker.add(choice.id);
-                        message.textContent = `${choice.title} added to the map.`;
-                        status.textContent = message.textContent;
-                        list.hidden = true; open.setAttribute('aria-expanded', 'false');
-                    } catch (error) { message.textContent = error instanceof Error ? error.message : 'The layer could not be added.'; }
-                    finally { button.disabled = false; open.disabled = false; }
-                }, { signal: picker.abort.signal });
+                button.addEventListener('click', () => addChoice({ picker, choice, button, open, message, list, status, heldEdit }),
+                    { signal: picker.abort.signal });
                 row.append(button); list.append(row);
             }
             message.textContent = choices.length ? 'Choose a published layer.' : 'No published vector layers are available.';

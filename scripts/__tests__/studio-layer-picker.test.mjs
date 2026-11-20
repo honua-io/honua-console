@@ -123,3 +123,43 @@ test('a renewed lease reloads the catalog before exposing choices', async () => 
   assert.deepEqual(await pending, []);
   assert.equal(reads, 2);
 });
+
+function heldFixture() {
+  const { app, picker } = fixture();
+  const attached = [];
+  app.addPublishedLayer = async () => ({ ok: false, reason: 'Waiting for separate human approval.',
+    approval: { proposalId: 'proposal-1' } });
+  app.pendingEditorApproval = { proposalId: 'proposal-1' };
+  app.attachWorkspaceDraft = async draftId => { attached.push(draftId); };
+  app.discardWorkspaceApprovalHold = () => { app.pendingEditorApproval = undefined; };
+  return { app, picker, attached };
+}
+
+test('an addition held for approval reports its proposal instead of failing', async () => {
+  const { picker } = heldFixture();
+  await picker.list();
+  assert.deepEqual(await picker.add('roads'), { held: { proposalId: 'proposal-1', draftId: 'draft' } });
+});
+
+test('reloading a held map reports approval only once Studio released the hold', async () => {
+  const { picker, app, attached } = heldFixture();
+  await picker.list();
+  const { held } = await picker.add('roads');
+  assert.equal(await picker.reloadHeld(held), false);
+  app.pendingEditorApproval = undefined;
+  assert.equal(await picker.reloadHeld(held), true);
+  assert.deepEqual(attached, ['draft', 'draft']);
+});
+
+test('stopping the wait drops the hold and reloads the same map only', async () => {
+  const { picker, app, attached } = heldFixture();
+  await picker.list();
+  const { held } = await picker.add('roads');
+  app.workspaceDraftIdentity = { draftId: 'other' };
+  await assert.rejects(picker.discardHeld(held), /map changed/i);
+  assert.deepEqual(app.pendingEditorApproval, { proposalId: 'proposal-1' });
+  app.workspaceDraftIdentity = { draftId: 'draft' };
+  await picker.discardHeld(held);
+  assert.equal(app.pendingEditorApproval, undefined);
+  assert.deepEqual(attached, ['draft']);
+});
