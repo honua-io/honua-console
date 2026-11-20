@@ -789,15 +789,15 @@ public sealed class ServerStateVerifier : IDisposable
     }
 
     // ---------------------------------------------------------------------------------------------
-    //  Form package: GET /api/v1/admin/forms/packages/{formId}[/versions/{version}]
-    //               + GET /api/v1/forms/packages/{formId}/offline-policy
+    //  Form package: GET /api/v1/admin/forms/{formId}[/versions/{version}]
+    //               + GET /api/v1/forms/{formId}/offline-policy
     // ---------------------------------------------------------------------------------------------
 
     public async Task<VerifiedFormPackage?> GetFormPackageAsync(
         string formId,
         CancellationToken cancellationToken = default)
     {
-        var path = $"/api/v1/admin/forms/packages/{Uri.EscapeDataString(formId)}";
+        var path = $"/api/v1/admin/forms/{Uri.EscapeDataString(formId)}";
         using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
         if (document is null)
         {
@@ -840,7 +840,7 @@ public sealed class ServerStateVerifier : IDisposable
         string formId,
         CancellationToken cancellationToken = default)
     {
-        var path = $"/api/v1/forms/packages/{Uri.EscapeDataString(formId)}/offline-policy";
+        var path = $"/api/v1/forms/{Uri.EscapeDataString(formId)}/offline-policy";
         using var document = await GetJsonAsync(path, cancellationToken).ConfigureAwait(false);
         if (document is null)
         {

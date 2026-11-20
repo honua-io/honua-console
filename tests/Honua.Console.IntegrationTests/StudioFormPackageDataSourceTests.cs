@@ -48,7 +48,7 @@ public sealed class StudioFormPackageDataSourceTests
         var client = new FakeFormPackageClient
         {
             Packages = HonuaAdminEndpointResult<HonuaFormPackageSummary[]>.FromIssue(
-                new HonuaAdminEndpointIssue("Missing permission", "GET /api/v1/admin/forms/packages", "Forbidden.", 403))
+                new HonuaAdminEndpointIssue("Missing permission", "GET /api/v1/admin/forms", "Forbidden.", 403))
         };
         var source = new HonuaServerStudioFormPackageDataSource(client);
 
@@ -144,7 +144,7 @@ public sealed class StudioFormPackageDataSourceTests
                 },
                 new HonuaAdminEndpointIssue(
                     "Rejected",
-                    "POST /api/v1/admin/forms/packages/{formId}/versions/{version}/publish",
+                    "POST /api/v1/admin/forms/{formId}/versions/{version}/publish",
                     "The Honua server rejected the form package document.",
                     400))
         };

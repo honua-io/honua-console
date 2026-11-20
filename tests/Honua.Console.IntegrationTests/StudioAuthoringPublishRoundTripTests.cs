@@ -16,7 +16,7 @@ namespace Honua.Console.IntegrationTests;
 // publication and offline-policy surfaces, with a negative companion proving an invalid publish lands nothing.
 //   • report → the content publication registry (POST /api/v1/console/publications), verified via the admin
 //     publication-route detail.
-//   • form   → the admin form-package lifecycle (/api/v1/admin/forms/packages), verified via the admin form
+//   • form   → the admin form-package lifecycle (/api/v1/admin/forms), verified via the admin form
 //     read and the runtime offline-policy contract.
 // Off by default; every fact skips cleanly without Docker and the opt-in env, and runs in the nightly lane
 // (.github/workflows/console-nightly.yml).
