@@ -128,6 +128,16 @@ public sealed class InMemoryConsoleCatalogClient : IConsoleCatalogClient
         return Task.FromResult(CatalogItemReadResult.Allowed(item, anonymousRead: true));
     }
 
+    public Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var items = _items.Select(static item => item.Summary).Where(IsOpenDataItem).ToArray();
+        var typeCounts = items
+            .GroupBy(static item => item.Type, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
+        return Task.FromResult(new CatalogSearchResult(items, typeCounts, new CatalogListRequest { Sharing = CatalogSharingTiers.Public }));
+    }
+
     public Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,

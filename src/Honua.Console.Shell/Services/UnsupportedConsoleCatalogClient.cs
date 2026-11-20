@@ -47,6 +47,15 @@ public sealed class UnsupportedConsoleCatalogClient : IConsoleCatalogClient
         return Task.FromResult(MissingItem());
     }
 
+    public Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(CatalogSearchResult.Failed(
+            new CatalogListRequest { Sharing = CatalogSharingTiers.Public },
+            CatalogReadStatus.Unavailable,
+            MissingBindingMessage));
+    }
+
     public Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,

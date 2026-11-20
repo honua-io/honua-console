@@ -26,6 +26,10 @@ internal static class CatalogShareRegistrations
                 new HonuaConsoleContentHttpClient(
                     HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri),
                     new HonuaConsoleContentClientOptions(baseUri, server.AdminApiKey)));
+
+            // Anonymous open-data reads send no API key, so a public page never sees more than the public does.
+            services.TryAddSingleton<IHonuaOpenDataClient>(serviceProvider =>
+                new HonuaOpenDataHttpClient(HonuaServerClientFactory.CreatePublic(serviceProvider, baseUri), baseUri));
         }
 
         services.AddServerBound<IConsoleCatalogClient, HonuaServerConsoleCatalogClient, UnsupportedConsoleCatalogClient>(server);

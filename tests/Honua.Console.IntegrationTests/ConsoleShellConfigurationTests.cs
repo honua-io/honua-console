@@ -1,5 +1,6 @@
 using Honua.Console.Shell.DependencyInjection;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
 using Honua.Console.Web;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,5 +67,41 @@ public sealed class ConsoleShellConfigurationTests
         services.AddHonuaConsoleShell(shellOptions);
         using var provider = services.BuildServiceProvider();
         Assert.Equal(expectedEnabled, provider.GetRequiredService<ConsoleV4Options>().Enabled);
+    }
+
+    [Fact]
+    public async Task BoundShell_ReadsPublicOpenDataThroughAnonymousRouteWithoutApiKey()
+    {
+        var handler = new RecordingHandler();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHonuaServerBoundClientFactory>(new RecordingClientFactory(handler));
+        services.AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = "https://server.honua.test/", ServerAdminApiKey = "shared-admin-secret" });
+        using var provider = services.BuildServiceProvider();
+
+        await provider.GetRequiredService<IConsoleCatalogClient>().GetOpenDataItemAsync("svc-1");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("/api/v1/open-data/datasets/svc-1", request.RequestUri!.AbsolutePath);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
+    private sealed class RecordingClientFactory(HttpMessageHandler handler) : IHonuaServerBoundClientFactory
+    {
+        public HttpClient CreateServerBoundClient(Uri baseUri, TimeSpan? timeout = null) => Create(baseUri);
+
+        public HttpClient CreatePublicClient(Uri baseUri, TimeSpan? timeout = null) => Create(baseUri);
+
+        private HttpClient Create(Uri baseUri) => new(handler, disposeHandler: false) { BaseAddress = baseUri };
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        }
     }
 }

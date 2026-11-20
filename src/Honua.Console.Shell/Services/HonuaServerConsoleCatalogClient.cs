@@ -5,11 +5,17 @@ namespace Honua.Console.Shell.Services;
 // Map-package, embed, and open-data reads surface unsupported or unavailable when the package document or anonymous token is not server-backed, and they do not substitute mock data.
 public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
 {
-    private readonly IHonuaConsoleContentClient _client;
+    private const string OpenDataUnavailableMessage = "This public open-data item is not available.";
+    private const int OpenDataPageSize = 50;
+    private const int MaxOpenDataPages = 4;
 
-    public HonuaServerConsoleCatalogClient(IHonuaConsoleContentClient client)
+    private readonly IHonuaConsoleContentClient _client;
+    private readonly IHonuaOpenDataClient? _openData;
+
+    public HonuaServerConsoleCatalogClient(IHonuaConsoleContentClient client, IHonuaOpenDataClient? openData = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _openData = openData;
     }
 
     public async Task<CatalogSearchResult> SearchAsync(
@@ -68,26 +74,54 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         return CatalogItemReadResult.Allowed(ConsoleContentMapper.ToDetail(result.Data), context.Anonymous);
     }
 
+    // Public pages read the server's anonymous open-data routes, never the admin content routes:
+    // the server decides eligibility, and Console shows only what an anonymous reader may open.
     public async Task<CatalogItemReadResult> GetOpenDataItemAsync(
         string idOrSlug,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(idOrSlug);
-
-        var result = await _client.GetAsync(idOrSlug, cancellationToken).ConfigureAwait(false);
-        if (result.Data is null)
+        if (_openData is null)
         {
-            return ToItemFailure(result.Issue, "This public open-data item is not available.");
+            return CatalogItemReadResult.Denied(CatalogReadStatus.Unavailable, UnsupportedConsoleCatalogClient.MissingBindingMessage);
         }
 
-        if (!ConsoleContentMapper.IsOpenDataItem(result.Data))
+        var result = await _openData.GetDatasetAsync(idOrSlug, cancellationToken).ConfigureAwait(false);
+        return result.Data is null
+            ? ToItemFailure(result.Issue, OpenDataUnavailableMessage)
+            : CatalogItemReadResult.Allowed(OpenDataPageMapper.ToDetail(result.Data), anonymousRead: true);
+    }
+
+    public async Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new CatalogListRequest { Sharing = CatalogSharingTiers.Public };
+        if (_openData is null)
         {
-            return CatalogItemReadResult.Denied(
-                CatalogReadStatus.Missing,
-                "This public open-data item is not available.");
+            return CatalogSearchResult.Failed(request, CatalogReadStatus.Unavailable, UnsupportedConsoleCatalogClient.MissingBindingMessage);
         }
 
-        return CatalogItemReadResult.Allowed(ConsoleContentMapper.ToDetail(result.Data), anonymousRead: true);
+        var summaries = new List<ConsoleContentSummary>();
+        string? cursor = null;
+        for (var page = 0; page < MaxOpenDataPages; page++)
+        {
+            var result = await _openData.ListDatasetsAsync(cursor, OpenDataPageSize, cancellationToken).ConfigureAwait(false);
+            if (result.Data is null)
+            {
+                return ToSearchFailure(result.Issue, request);
+            }
+
+            summaries.AddRange(result.Data.Items.Select(static entry => OpenDataPageMapper.ToSummary(entry.Page, entry.ItemType)));
+            cursor = result.Data.NextCursor;
+            if (string.IsNullOrEmpty(cursor))
+            {
+                break;
+            }
+        }
+
+        var typeCounts = summaries
+            .GroupBy(static item => item.Type, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
+        return new CatalogSearchResult(summaries, typeCounts, request);
     }
 
     public async Task<MapReadResult> GetMapAsync(

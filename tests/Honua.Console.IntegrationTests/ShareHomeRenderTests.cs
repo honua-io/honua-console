@@ -19,15 +19,19 @@ public sealed class ShareHomeRenderTests
     [InlineData(false)]
     public void ShareHome_BoundToServer_RendersKpiStripAndSharedItemsTable(bool enabled)
     {
-        var handler = new StubHandler(_ => Envelope(new HonuaConsoleContentListResponse
+        var paths = new List<string>();
+        var handler = new StubHandler(request =>
         {
-            Total = 2,
-            Items =
-            [
-                OpenDataItem("svc-parcels", "Tax Parcels (FY 2024)", "service"),
-                OpenDataItem("lyr-wetlands", "Wetlands Inventory", "layer")
-            ]
-        }));
+            paths.Add(request.RequestUri!.AbsolutePath);
+            return Envelope(new HonuaOpenDataDatasetList
+            {
+                Items =
+                [
+                    OpenDataEntry("svc-parcels", "Tax Parcels (FY 2024)", "service"),
+                    OpenDataEntry("lyr-wetlands", "Wetlands Inventory", "layer")
+                ]
+            });
+        });
         using var ctx = new Bunit.BunitContext();
         RegisterCatalog(ctx, handler);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
@@ -48,6 +52,7 @@ public sealed class ShareHomeRenderTests
         Assert.Contains("data-share-row=\"lyr-wetlands\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Tax Parcels (FY 2024)", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/share/manage?itemId=svc-parcels", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("href=\"/share/public/items/svc-parcels\"", page.Markup, StringComparison.Ordinal);
         // Visibility column is unambiguous for the public open-data items.
         Assert.Contains("data-share-visibility", page.Markup, StringComparison.Ordinal);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
@@ -55,8 +60,9 @@ public sealed class ShareHomeRenderTests
         if (enabled)
         {
             Assert.Equal("2", page.Find(".console-metric-value").TextContent.Trim());
-            Assert.Equal(4, page.FindAll(".console-share-summary-details > div").Count);
+            Assert.Equal(2, page.FindAll(".console-share-summary-details > div").Count);
         }
+        Assert.Equal(["/api/v1/open-data/datasets"], paths.Distinct().ToArray());
         CatalogAdminPreview.Capture($"share-home-{(enabled ? "v4" : "legacy")}",
             $"<div class=\"console-shell\" {(enabled ? "data-console-v4=\"true\"" : string.Empty)}>{page.Markup}</div>");
     }
@@ -64,7 +70,7 @@ public sealed class ShareHomeRenderTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ShareHome_WhenServerUnavailable_RendersEmptySurfaceNotMockData(bool enabled)
+    public void ShareHome_WhenServerUnavailable_RendersErrorStateNotMockData(bool enabled)
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         using var ctx = new Bunit.BunitContext();
@@ -75,14 +81,13 @@ public sealed class ShareHomeRenderTests
         var page = ctx.Render<SharePage>();
 
         page.WaitForAssertion(
-            () => Assert.Contains("No public open-data items", page.Markup, StringComparison.Ordinal),
+            () => Assert.Contains("Public items could not load", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        // The merged runtime never falls back to seeded demo content on a server failure.
+        // A failed read is an error with a retry, never the "no public items" empty state or seeded demo content.
+        Assert.DoesNotContain("No public open-data items", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-home-table", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-share-kpis", page.Markup, StringComparison.Ordinal);
-        // The empty state carries a real CTA matching its prose (honua-console#313), mirroring Catalog's.
-        Assert.NotEmpty(page.FindAll("a.console-button-link[href='/operate/publishing']"));
-        Assert.Contains("Open Publishing", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Retry", page.Markup, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -128,23 +133,24 @@ public sealed class ShareHomeRenderTests
     {
         var httpClient = new HttpClient(handler) { BaseAddress = BaseUri };
         var client = new HonuaConsoleContentHttpClient(httpClient, new HonuaConsoleContentClientOptions(BaseUri, "admin-key"));
-        ctx.Services.AddSingleton<IConsoleCatalogClient>(new HonuaServerConsoleCatalogClient(client));
+        var openData = new HonuaOpenDataHttpClient(new HttpClient(handler) { BaseAddress = BaseUri }, BaseUri);
+        ctx.Services.AddSingleton<IConsoleCatalogClient>(new HonuaServerConsoleCatalogClient(client, openData));
         ctx.Services.AddSingleton(ConsoleCapabilityTestManifest.All);
     }
 
-    private static HonuaConsoleContentItem OpenDataItem(string id, string title, string itemType) =>
+    private static HonuaOpenDataDatasetEntry OpenDataEntry(string id, string title, string itemType) =>
         new()
         {
-            Id = id,
-            Name = id,
-            Title = title,
-            Description = $"{title} open-data description",
             ItemType = itemType,
-            Visibility = "public",
-            OwnerId = "owner-1",
-            Actions = ["view"],
-            Tags = ["open-data"],
-            UpdatedAt = new DateTimeOffset(2026, 5, 24, 8, 0, 0, TimeSpan.Zero)
+            Page = new HonuaOpenDataPage
+            {
+                ItemId = id,
+                Title = title,
+                Description = $"{title} open-data description",
+                PublisherName = "owner-1",
+                Tags = ["open-data"],
+                UpdatedAt = new DateTimeOffset(2026, 5, 24, 8, 0, 0, TimeSpan.Zero)
+            }
         };
 
     private static HttpResponseMessage Envelope<T>(T data)

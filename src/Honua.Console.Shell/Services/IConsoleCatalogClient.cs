@@ -18,6 +18,9 @@ public interface IConsoleCatalogClient
         string idOrSlug,
         CancellationToken cancellationToken = default);
 
+    // The public open-data items exactly as the server lists them for an anonymous reader.
+    Task<CatalogSearchResult> ListOpenDataItemsAsync(CancellationToken cancellationToken = default);
+
     Task<MapReadResult> GetMapAsync(
         string mapId,
         CatalogReadContext context,
