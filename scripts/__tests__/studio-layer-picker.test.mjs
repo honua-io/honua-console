@@ -218,3 +218,17 @@ test('a failed reload after stopping the wait reports the failure and leaves no 
     assert.equal(notice.focused, true);
   } finally { globalThis.document = original; }
 });
+
+test('a reload that leaves the hold in place keeps its own result visible', async () => {
+  const original = globalThis.document;
+  globalThis.document = { createElement: node };
+  try {
+    const { app, notice, reload } = mountedHold();
+    await reload.listeners.click();
+    assert.equal(notice.textContent, 'Still waiting for separate human approval. Proposal proposal 1.');
+    app.attachWorkspaceDraft = async () => { throw new Error('The session expired.'); };
+    await reload.listeners.click();
+    assert.equal(notice.textContent, 'The session expired.');
+    assert.equal(reload.hidden, false);
+  } finally { globalThis.document = original; }
+});

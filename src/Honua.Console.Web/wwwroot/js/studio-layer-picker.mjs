@@ -137,7 +137,7 @@ export function mountHeldEdit({ section, picker, app }) {
         const current = held; busy = true; render();
         try { notice.textContent = await action(current); }
         catch (error) { notice.textContent = error instanceof Error ? error.message : 'The map could not be reloaded.'; }
-        finally { busy = false; const text = notice.textContent; render(); if (!held) { notice.textContent = text; notice.focus?.(); } }
+        finally { busy = false; const text = notice.textContent; render(); notice.textContent = text; if (!held) notice.focus?.(); }
     };
     reload.addEventListener('click', () => run(async current => (await picker.reloadHeld(current))
         ? 'Studio ended the hold. The map shows the server draft.'
