@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { StudioLayerPicker, mountHeldEdit } from '../../src/Honua.Console.Web/wwwroot/js/studio-layer-picker.mjs';
+import { StudioLayerPicker, mountHeldEdit, showsHoldRefusal } from '../../src/Honua.Console.Web/wwwroot/js/studio-layer-picker.mjs';
 
 const source = { id: 'roads', title: 'Roads', protocol: 'geoservices-feature-service',
   locator: { url: '/rest/services/folder/roads/FeatureServer', layerId: 2 } };
@@ -179,13 +179,13 @@ function node(tagName) {
     addEventListener(name, listener) { this.listeners[name] = listener; } };
 }
 
-function mountedHold() {
+function mountedHold(onRelease) {
   const { app, picker } = heldFixture();
   const listeners = {};
   app.addEventListener = (name, listener) => { listeners[name] = listener; };
   app.pendingEditorApproval = { proposalId: 'proposal 1' };
   const section = node('section');
-  mountHeldEdit({ section, picker, app });
+  mountHeldEdit({ section, picker, app, onRelease });
   const [notice, inbox, reload, discard] = section.children;
   return { app, notice, inbox, reload, discard, listeners };
 }
@@ -231,4 +231,31 @@ test('a reload that leaves the hold in place keeps its own result visible', asyn
     assert.equal(notice.textContent, 'The session expired.');
     assert.equal(reload.hidden, false);
   } finally { globalThis.document = original; }
+});
+
+test('stopping the wait tells the picker the hold ended, so its refusal line is cleared', async () => {
+  const original = globalThis.document;
+  globalThis.document = { createElement: node };
+  try {
+    let released = 0;
+    const { notice, discard } = mountedHold(() => { released += 1; });
+    assert.equal(released, 0);
+    await discard.listeners.click();
+    assert.equal(released, 1);
+    assert.equal(notice.textContent, 'Stopped waiting for proposal proposal 1. The map shows the server draft.');
+  } finally { globalThis.document = original; }
+});
+
+test('only a hold refusal is marked for clearing when the hold ends', () => {
+  assert.equal(showsHoldRefusal({ dataset: { holdRefusal: '' } }), true);
+  assert.equal(showsHoldRefusal({ dataset: {} }), false);
+});
+
+test('a second addition refused by a hold is marked as that hold\'s refusal', async () => {
+  const { picker } = heldFixture();
+  await picker.list();
+  await picker.add('roads');
+  const error = await picker.add('roads').catch(caught => caught);
+  assert.match(error.message, /Proposal proposal 1 is waiting/);
+  assert.equal(error.constructor.name, 'HeldEditRefusal');
 });

@@ -180,7 +180,8 @@ export function mountStudioDraftCreate({ app, host }) {
                 : record.status === 'completed' ? completedNotice(app, record)
                     : record.status === 'submitting' ? 'The original New map action is retained. Retry to recover its result.'
                         : `New map ${record.status}. The original action is retained.`;
-            if (record.receipt) {
+            // An approved proposal whose map is open has nothing left to approve, so it is not linked.
+            if (record.receipt && record.status !== 'completed') {
                 inbox.hidden = false;
                 inbox.href = consoleHref(`/inbox?proposalId=${encodeURIComponent(record.receipt.proposalId)}`, inbox.ownerDocument?.baseURI);
                 refresh.hidden = record.status !== 'awaiting-approval'; refresh.disabled = busy;
