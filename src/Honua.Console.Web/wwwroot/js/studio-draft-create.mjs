@@ -135,6 +135,9 @@ export class StudioDraftCreateSession {
     }
 }
 
+const completedNotice = (app, record) => app.workspaceDraftIdentity?.draftId === record.draftId
+    ? 'Shared server draft opened.' : `Open map to continue editing ${record.packageKey}.`;
+
 export function mountStudioDraftCreate({ app, host }) {
     const session = new StudioDraftCreateSession(app, { isCurrent: () => host.isConnected && app.isConnected });
     const form = document.createElement('form');
@@ -174,7 +177,7 @@ export function mountStudioDraftCreate({ app, host }) {
             acknowledge.hidden = !terminal(record.status); acknowledge.disabled = busy;
             notice.textContent = record.status === 'awaiting-approval'
                 ? `Waiting for separate human approval. Proposal ${record.receipt.proposalId}; operation ${record.receipt.operationInstanceId}.`
-                : record.status === 'completed' ? 'Shared server draft opened.'
+                : record.status === 'completed' ? completedNotice(app, record)
                     : record.status === 'submitting' ? 'The original New map action is retained. Retry to recover its result.'
                         : `New map ${record.status}. The original action is retained.`;
             if (record.receipt) {
@@ -193,6 +196,9 @@ export function mountStudioDraftCreate({ app, host }) {
         finally { busy = false; if (!disposed) { render(); if (failure) notice.textContent = failure.message; } }
     };
     key.addEventListener('input', updateCreateLabel);
+    // A reload keeps the completed handoff but not the attached draft; follow Studio's attachment.
+    const onDraftChange = () => { if (!busy) render(); };
+    app.addEventListener?.('honua-workspace-draft-change', onDraftChange);
     form.addEventListener('submit', event => {
         event.preventDefault();
         const packageKey = key.value.trim();
@@ -205,5 +211,5 @@ export function mountStudioDraftCreate({ app, host }) {
             void run(() => { session.acknowledgeUnreadable(); key.value = ''; });
     });
     render();
-    return { dispose() { disposed = true; session.dispose(); form.remove(); } };
+    return { dispose() { disposed = true; app.removeEventListener?.('honua-workspace-draft-change', onDraftChange); session.dispose(); form.remove(); } };
 }
