@@ -15,11 +15,11 @@ public sealed class HonuaServerCatalogDiscoveryDataSource : ICatalogDiscoveryDat
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    public async Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string workspaceId, CancellationToken cancellationToken = default)
+    public async Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string environmentId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
 
-        var result = await _client.GetRegistryAsync(workspaceId, cancellationToken).ConfigureAwait(false);
+        var result = await _client.GetRegistryAsync(environmentId, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
             var state = issue.StatusCode is 404 or 501
@@ -32,12 +32,12 @@ public sealed class HonuaServerCatalogDiscoveryDataSource : ICatalogDiscoveryDat
         return new CatalogDiscoveryRegistryLoad(CatalogDiscoveryMapper.ToView(result.Data!), []);
     }
 
-    public async Task<CatalogEndpointDetailLoad> LoadEndpointAsync(string workspaceId, string endpointKey, CancellationToken cancellationToken = default)
+    public async Task<CatalogEndpointDetailLoad> LoadEndpointAsync(string environmentId, string endpointKey, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointKey);
 
-        var result = await _client.GetEndpointAsync(workspaceId, endpointKey, cancellationToken).ConfigureAwait(false);
+        var result = await _client.GetEndpointAsync(environmentId, endpointKey, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
             return new CatalogEndpointDetailLoad(null, [ToCapabilityState(issue)]);
@@ -46,13 +46,13 @@ public sealed class HonuaServerCatalogDiscoveryDataSource : ICatalogDiscoveryDat
         return new CatalogEndpointDetailLoad(CatalogDiscoveryMapper.ToView(result.Data!), []);
     }
 
-    public async Task<CatalogItemLoad> LoadItemAsync(string workspaceId, string endpointKey, string itemId, CancellationToken cancellationToken = default)
+    public async Task<CatalogItemLoad> LoadItemAsync(string environmentId, string endpointKey, string itemId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemId);
 
-        var result = await _client.GetItemAsync(workspaceId, endpointKey, itemId, cancellationToken).ConfigureAwait(false);
+        var result = await _client.GetItemAsync(environmentId, endpointKey, itemId, cancellationToken).ConfigureAwait(false);
         if (result.Issue is { } issue)
         {
             return new CatalogItemLoad(null, [ToCapabilityState(issue)]);

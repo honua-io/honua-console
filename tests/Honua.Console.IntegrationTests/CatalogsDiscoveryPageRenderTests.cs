@@ -16,7 +16,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         "Configure Honua:Server:BaseUrl so the Catalogs surface can bind the catalog discovery-endpoints registry (honua-server#1279).");
 
     [Fact]
-    public void List_WhenWorkspaceUnconfigured_RendersNeutralSetupGuidance()
+    public void List_WhenEnvironmentUnconfigured_RendersNeutralSetupGuidance()
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
@@ -209,7 +209,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
         module.Setup<bool>("copyText", _ => true).SetResult(true);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, "operate/catalogs/esri", workspace: null);
+        NavigateToEnvironment(ctx, "operate/catalogs/esri", environment: null);
         var page = ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters
             .Add(p => p.Key, "esri"));
 
@@ -322,7 +322,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         var module = ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/catalog-item-editor.js");
         module.Setup<bool>("copyText", _ => true).SetResult(true);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, "operate/catalogs/esri/items/a3bf-0214", workspace: null);
+        NavigateToEnvironment(ctx, "operate/catalogs/esri/items/a3bf-0214", environment: null);
         var page = ctx.Render<CatalogItemEditorPage>(parameters => parameters
             .Add(p => p.Key, "esri")
             .Add(p => p.ItemId, "a3bf-0214"));
@@ -350,41 +350,43 @@ public sealed class CatalogsDiscoveryPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void List_WithWorkspaceQuery_PreservesWorkspaceOnDrillDownLinks(bool enabled)
+    public void List_WithEnvironmentQuery_PreservesEnvironmentOnDrillDownLinks(bool enabled)
     {
-        // Regression: a non-default workspace (e.g. /operate/catalogs?workspace=tenant-a) must carry the
-        // ?workspace= query through the "Browse items" drill-down so the detail page does not default the
-        // missing query back to the current workspace.
+        // Regression: a non-default environment (e.g. /operate/catalogs?environment=tenant-a) must carry the
+        // ?environment= query through the "Browse items" drill-down so the detail page does not default the
+        // missing query back to the current environment.
         var data = new FakeCatalogDiscoveryDataSource
         {
             RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
         };
 
-        var page = RenderList(data, workspace: "tenant-a", options: new ConsoleV4Options { Enabled = enabled });
+        var page = RenderList(data, environment: "tenant-a", options: new ConsoleV4Options { Enabled = enabled });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
+        Assert.Equal("tenant-a", data.LastEnvironmentId);
         var browse = page.Find("[data-catalog-browse]");
-        Assert.Equal("/operate/catalogs/esri?workspace=tenant-a", browse.GetAttribute("href"));
+        Assert.Equal("/operate/catalogs/esri?environment=tenant-a", browse.GetAttribute("href"));
     }
 
     [Fact]
-    public void List_WithoutWorkspaceQuery_OmitsWorkspaceFromDrillDownLinks()
+    public void List_WithoutEnvironmentQuery_OmitsEnvironmentFromDrillDownLinks()
     {
-        // The default workspace must not gain a spurious ?workspace=current on the drill-down link.
+        // The default environment must not gain a spurious ?environment=current on the drill-down link.
         var data = new FakeCatalogDiscoveryDataSource
         {
             RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
         };
 
-        var page = RenderList(data, workspace: null);
+        var page = RenderList(data, environment: null);
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalogs-grid", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
+        Assert.Equal("current", data.LastEnvironmentId);
         var browse = page.Find("[data-catalog-browse]");
         Assert.Equal("/operate/catalogs/esri", browse.GetAttribute("href"));
     }
@@ -392,54 +394,115 @@ public sealed class CatalogsDiscoveryPageRenderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Detail_WithWorkspaceQuery_PreservesWorkspaceOnItemAndBreadcrumbLinks(bool enabled)
+    public void Detail_WithEnvironmentQuery_PreservesEnvironmentOnItemAndBreadcrumbLinks(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
         };
 
-        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Workspace = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
+        var page = RenderDetail(data, new CatalogRoute { Key = "esri", Environment = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-items-table", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        // Item drill-down carries the workspace.
+        Assert.Equal("tenant-a", data.LastEnvironmentId);
+        // Item drill-down carries the environment.
         var itemLink = page.Find("[data-catalog-item-link]");
-        Assert.Equal("/operate/catalogs/esri/items/a3bf-0214?workspace=tenant-a", itemLink.GetAttribute("href"));
+        Assert.Equal("/operate/catalogs/esri/items/a3bf-0214?environment=tenant-a", itemLink.GetAttribute("href"));
 
         // The back-to-list breadcrumb also carries it.
-        Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("href=\"/operate/catalogs?environment=tenant-a\"", page.Markup, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Item_WithWorkspaceQuery_PreservesWorkspaceOnBreadcrumbLinks(bool enabled)
+    public void Item_WithEnvironmentQuery_PreservesEnvironmentOnBreadcrumbLinks(bool enabled)
     {
         var data = new FakeCatalogDiscoveryDataSource
         {
             ItemLoad = new CatalogItemLoad(SampleItem(), [])
         };
 
-        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Workspace = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
+        var page = RenderItem(data, new CatalogRoute { Key = "esri", ItemId = "a3bf-0214", Environment = "tenant-a", Presentation = new ConsoleV4Options { Enabled = enabled } });
 
         page.WaitForAssertion(
             () => Assert.Contains("data-catalog-field-legend", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
 
-        // Endpoint and list breadcrumbs both carry the workspace back up the hierarchy.
-        Assert.Contains("href=\"/operate/catalogs/esri?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("href=\"/operate/catalogs?workspace=tenant-a\"", page.Markup, StringComparison.Ordinal);
+        Assert.Equal("tenant-a", data.LastEnvironmentId);
+        // Endpoint and list breadcrumbs both carry the environment back up the hierarchy.
+        Assert.Contains("href=\"/operate/catalogs/esri?environment=tenant-a\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("href=\"/operate/catalogs?environment=tenant-a\"", page.Markup, StringComparison.Ordinal);
     }
 
-    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? workspace = null, ConsoleV4Options? options = null)
+    [Fact]
+    public void List_RetiredWorkspaceQuery_DoesNotLoadTheDefaultEnvironment()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            RegistryLoad = new CatalogDiscoveryRegistryLoad(SampleRegistry(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("operate/catalogs?workspace=prod");
+
+        var page = ctx.Render<CatalogsListPage>();
+
+        Assert.Contains("out of date", page.Markup, StringComparison.Ordinal);
+        Assert.Null(data.LastEnvironmentId);
+    }
+
+    [Fact]
+    public void Detail_RetiredWorkspaceQuery_DoesNotLoadTheDefaultEnvironment()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            EndpointLoad = new CatalogEndpointDetailLoad(SampleEndpointDetail(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("operate/catalogs/esri?workspace=prod");
+
+        var page = ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters.Add(page => page.Key, "esri"));
+
+        Assert.Contains("out of date", page.Markup, StringComparison.Ordinal);
+        Assert.Null(data.LastEnvironmentId);
+    }
+
+    [Fact]
+    public void Item_RetiredWorkspaceQuery_DoesNotLoadTheDefaultEnvironment()
+    {
+        var data = new FakeCatalogDiscoveryDataSource
+        {
+            ItemLoad = new CatalogItemLoad(SampleItem(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
+        ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>()
+            .NavigateTo("operate/catalogs/esri/items/a3bf-0214?workspace=prod");
+
+        var page = ctx.Render<CatalogItemEditorPage>(parameters => parameters
+            .Add(page => page.Key, "esri")
+            .Add(page => page.ItemId, "a3bf-0214"));
+
+        Assert.Contains("out of date", page.Markup, StringComparison.Ordinal);
+        Assert.Null(data.LastEnvironmentId);
+    }
+
+    private static IRenderedComponent<CatalogsListPage> RenderList(FakeCatalogDiscoveryDataSource data, string? environment = null, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
         ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
-        NavigateToWorkspace(ctx, "operate/catalogs", workspace);
+        NavigateToEnvironment(ctx, "operate/catalogs", environment);
         return ctx.Render<CatalogsListPage>();
     }
 
@@ -448,7 +511,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(route.Presentation);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, $"operate/catalogs/{route.Key}", route.Workspace);
+        NavigateToEnvironment(ctx, $"operate/catalogs/{route.Key}", route.Environment);
         return ctx.Render<CatalogsEndpointDetailPage>(parameters => parameters
             .Add(p => p.Key, route.Key));
     }
@@ -458,7 +521,7 @@ public sealed class CatalogsDiscoveryPageRenderTests
         var ctx = new Bunit.BunitContext();
         ctx.Services.AddSingleton(route.Presentation);
         ctx.Services.AddSingleton<ICatalogDiscoveryDataSource>(data);
-        NavigateToWorkspace(ctx, $"operate/catalogs/{route.Key}/items/{route.ItemId}", route.Workspace);
+        NavigateToEnvironment(ctx, $"operate/catalogs/{route.Key}/items/{route.ItemId}", route.Environment);
         return ctx.Render<CatalogItemEditorPage>(parameters => parameters
             .Add(p => p.Key, route.Key)
             .Add(p => p.ItemId, route.ItemId));
@@ -468,23 +531,23 @@ public sealed class CatalogsDiscoveryPageRenderTests
     {
         public required string Key { get; init; }
         public string? ItemId { get; init; }
-        public string? Workspace { get; init; }
+        public string? Environment { get; init; }
         public ConsoleV4Options Presentation { get; init; } = new();
     }
 
-    // Drives the page's [SupplyParameterFromQuery] workspace via the navigation URI, since the parameter is
+    // Drives the page's [SupplyParameterFromQuery] environment via the navigation URI, since the parameter is
     // private and cannot be set through the bUnit parameter builder.
-    private static void NavigateToWorkspace(Bunit.BunitContext ctx, string path, string? workspace)
+    private static void NavigateToEnvironment(Bunit.BunitContext ctx, string path, string? environment)
     {
         var nav = ctx.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
-        var query = string.IsNullOrEmpty(workspace) ? string.Empty : $"?workspace={Uri.EscapeDataString(workspace)}";
+        var query = string.IsNullOrEmpty(environment) ? string.Empty : $"?environment={Uri.EscapeDataString(environment)}";
         nav.NavigateTo(path + query);
     }
 
     private static CatalogDiscoveryRegistryView SampleRegistry() => CatalogDiscoveryMapper.ToView(new HonuaCatalogDiscoveryRegistry
     {
-        WorkspaceId = "ws-public-works",
-        WorkspaceName = "Public Works",
+        EnvironmentId = "ws-public-works",
+        EnvironmentName = "Public Works",
         PublicHost = "https://honua.example.gov",
         AutoDefaultCount = 2,
         OptInCount = 3,
@@ -670,17 +733,27 @@ public sealed class CatalogsDiscoveryPageRenderTests
 
     private sealed class FakeCatalogDiscoveryDataSource : ICatalogDiscoveryDataSource
     {
+        public string? LastEnvironmentId { get; private set; }
         public CatalogDiscoveryRegistryLoad RegistryLoad { get; set; } = new(null, []);
         public CatalogEndpointDetailLoad EndpointLoad { get; set; } = new(null, []);
         public CatalogItemLoad ItemLoad { get; set; } = new(null, []);
 
-        public Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string workspaceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(RegistryLoad);
+        public Task<CatalogDiscoveryRegistryLoad> LoadRegistryAsync(string environmentId, CancellationToken cancellationToken = default)
+        {
+            LastEnvironmentId = environmentId;
+            return Task.FromResult(RegistryLoad);
+        }
 
-        public Task<CatalogEndpointDetailLoad> LoadEndpointAsync(string workspaceId, string endpointKey, CancellationToken cancellationToken = default) =>
-            Task.FromResult(EndpointLoad);
+        public Task<CatalogEndpointDetailLoad> LoadEndpointAsync(string environmentId, string endpointKey, CancellationToken cancellationToken = default)
+        {
+            LastEnvironmentId = environmentId;
+            return Task.FromResult(EndpointLoad);
+        }
 
-        public Task<CatalogItemLoad> LoadItemAsync(string workspaceId, string endpointKey, string itemId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(ItemLoad);
+        public Task<CatalogItemLoad> LoadItemAsync(string environmentId, string endpointKey, string itemId, CancellationToken cancellationToken = default)
+        {
+            LastEnvironmentId = environmentId;
+            return Task.FromResult(ItemLoad);
+        }
     }
 }

@@ -21,6 +21,12 @@
                           Title="Loading endpoint"
                           Message="Reading the catalog endpoint detail from honua-server." />
     }
+    else if (_retiredEnvironmentLink)
+    {
+        <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="error"
+                          Title="This link is out of date"
+                          Message="It names a workspace. Open Catalogs again and choose the environment. Nothing was changed." />
+    }
     else if (_bindingState is not null)
     {
         <ConsoleStateView Treatment="@(V4Enabled ? ConsoleStateTreatment.Informational : ConsoleStateTreatment.Standard)" Kind="missing"
@@ -240,24 +246,35 @@
     [Parameter]
     public string Key { get; set; } = string.Empty;
 
-    [SupplyParameterFromQuery(Name = "workspace")]
-    private string? Workspace { get; set; }
+    [SupplyParameterFromQuery(Name = "environment")]
+    private string? Environment { get; set; }
 
     private CatalogEndpointDetailView? _detail;
     private CatalogDiscoveryCapabilityState? _bindingState;
+    private bool _retiredEnvironmentLink;
     private bool _loading = true;
     private bool _copied;
     private IJSObjectReference? _clipboardModule;
 
-    private string WorkspaceId => string.IsNullOrWhiteSpace(Workspace) ? "current" : Workspace!;
+    private string EnvironmentId => string.IsNullOrWhiteSpace(Environment) ? "current" : Environment!;
 
     protected override async Task OnParametersSetAsync()
     {
+        if (ConsoleRetiredEnvironmentQuery.HasRetiredKey(ConsoleNavigation.Uri))
+        {
+            _retiredEnvironmentLink = true;
+            _loading = false;
+            _bindingState = null;
+            _detail = null;
+            return;
+        }
+
+        _retiredEnvironmentLink = false;
         _loading = true;
         _bindingState = null;
         _detail = null;
 
-        var load = await CatalogDiscovery.LoadEndpointAsync(WorkspaceId, Key);
+        var load = await CatalogDiscovery.LoadEndpointAsync(EnvironmentId, Key);
         if (load.HasDetail)
         {
             _detail = load.Detail;
@@ -313,16 +330,14 @@
         }
     }
 
-    // Carry the active workspace through the item drill-down and the back-to-list breadcrumb so a non-default
-    // workspace's registry stays selected instead of silently reverting to the `current` default.
     private string ItemHref(string itemId) =>
-        $"/operate/catalogs/{Uri.EscapeDataString(Key)}/items/{Uri.EscapeDataString(itemId)}{WorkspaceQuery()}";
+        $"/operate/catalogs/{Uri.EscapeDataString(Key)}/items/{Uri.EscapeDataString(itemId)}{EnvironmentQuery()}";
 
-    private string CatalogsListHref => $"/operate/catalogs{WorkspaceQuery()}";
+    private string CatalogsListHref => $"/operate/catalogs{EnvironmentQuery()}";
 
-    private string WorkspaceQuery() =>
+    private string EnvironmentQuery() =>
         ConsoleUrlQuery.ToQueryString(new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["workspace"] = Workspace ?? string.Empty
+            ["environment"] = Environment ?? string.Empty
         });
 }
