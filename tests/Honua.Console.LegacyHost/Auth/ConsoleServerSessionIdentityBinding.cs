@@ -28,6 +28,8 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             return true;
         }
 
+        var clearAccountSession = SameBase(partition.ResourceBaseUri, profile.ServerBaseUri);
+
         var snapshots = sessions as IConsoleAccountSessionSnapshotStore
             ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.");
         var snapshot = await snapshots.CaptureSessionAsync(profile.Id, cancellationToken).ConfigureAwait(false);
@@ -38,7 +40,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
                 && !string.IsNullOrWhiteSpace(providerKey))
             {
                 using var response = await partition.Client.GetAsync(
-                    ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/session"),
+                    ConsoleServerHttp.BuildUri(partition.ResourceBaseUri, "api/v1/admin/auth/session"),
                     cancellationToken).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
@@ -62,12 +64,21 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             // HttpClient timeout: discard this session instead of retaining an unchecked bearer.
         }
 
-        if (!matches && serverSessions.TryRemove(partition))
+        if (!matches && serverSessions.TryRemove(partition) && clearAccountSession)
         {
             await snapshots.TryClearSessionAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
         }
 
         return matches;
+    }
+
+    private static bool SameBase(Uri left, Uri right)
+    {
+        static string Normalize(Uri value) => value.AbsoluteUri.EndsWith('/')
+            ? value.AbsoluteUri
+            : value.AbsoluteUri + "/";
+
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasUniqueClaim(

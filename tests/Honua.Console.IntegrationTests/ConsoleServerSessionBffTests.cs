@@ -190,6 +190,72 @@ public sealed class ConsoleServerSessionBffTests
     }
 
     [Fact]
+    public async Task CompleteSignIn_SeparateManager_ContinuesThereAndKeepsTheServingBearer()
+    {
+        var manager = new Uri("https://manager.example/");
+        var context = new SwitchableOperatorContext("operator-a");
+        var profiles = new OperatorScopedEnvironmentProfileStore(context);
+        var sessions = new OperatorScopedAccountSessionStore(context);
+        await using var serverSessions = new ConsoleServerSessionClientStore(
+            TimeProvider.System,
+            static (key, cookies) => new SimulatedServerAuthHandler(key, cookies));
+        var coordinator = new ConsoleServerSessionBffCoordinator(
+            context,
+            profiles,
+            sessions,
+            serverSessions,
+            TimeProvider.System,
+            managerEndpoint: new RecordingManager(manager));
+        await SeedOperatorAsync(context, profiles, sessions, "operator-a", "env");
+
+        var begin = await coordinator.BeginSignInAsync("env", providerKey: null, "/operate/deploy");
+        var serving = await coordinator.CompleteSignInAsync("code-a", State(begin.RedirectUri), error: null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, serving.Status);
+        Assert.StartsWith("https://idp.example/authorize", serving.RedirectUri, StringComparison.Ordinal);
+        var managerComplete = await coordinator.CompleteSignInAsync("code-m", State(serving.RedirectUri), error: null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, managerComplete.Status);
+        Assert.Equal("/operate/deploy", managerComplete.RedirectUri);
+        Assert.Equal("bearer-operator-a-env", (await sessions.GetSessionAsync("env"))!.AccessToken);
+        Assert.True(serverSessions.TryGet("operator-a", "env", manager, out var managerPartition));
+        Assert.Equal("oidc", managerPartition!.AuthenticatedProviderKey);
+        Assert.True(serverSessions.TryGet("operator-a", Profile("env"), out var servingPartition));
+        Assert.Equal("oidc", servingPartition!.AuthenticatedProviderKey);
+        Assert.NotSame(servingPartition, managerPartition);
+    }
+
+    [Fact]
+    public async Task CompleteSignIn_ManagerWithoutBrowserIdentity_KeepsTheServingReturn()
+    {
+        var manager = new Uri("https://manager.example/");
+        var context = new SwitchableOperatorContext("operator-a");
+        var profiles = new OperatorScopedEnvironmentProfileStore(context);
+        var sessions = new OperatorScopedAccountSessionStore(context);
+        await using var serverSessions = new ConsoleServerSessionClientStore(
+            TimeProvider.System,
+            static (key, cookies) => new Uri(key.ServerOrigin).Host.Equals("manager.example", StringComparison.OrdinalIgnoreCase)
+                ? new NoBrowserIdentityHandler()
+                : new SimulatedServerAuthHandler(key, cookies));
+        var coordinator = new ConsoleServerSessionBffCoordinator(
+            context,
+            profiles,
+            sessions,
+            serverSessions,
+            TimeProvider.System,
+            managerEndpoint: new RecordingManager(manager));
+        await SeedOperatorAsync(context, profiles, sessions, "operator-a", "env");
+
+        var begin = await coordinator.BeginSignInAsync("env", providerKey: null, "/operate/deploy");
+        var complete = await coordinator.CompleteSignInAsync("code-a", State(begin.RedirectUri), error: null);
+
+        Assert.Equal(ConsoleServerSignInStatus.Redirect, complete.Status);
+        Assert.Equal("/operate/deploy", complete.RedirectUri);
+        Assert.Equal("bearer-operator-a-env", (await sessions.GetSessionAsync("env"))!.AccessToken);
+        Assert.False(serverSessions.TryGet("operator-a", "env", manager, out _));
+    }
+
+    [Fact]
     public async Task CompleteSignIn_SameOperatorSwitchingProfiles_KeepsPartitionsIsolated()
     {
         var context = new SwitchableOperatorContext("operator-a");
@@ -447,6 +513,11 @@ public sealed class ConsoleServerSessionBffTests
         return query["state"].ToString();
     }
 
+    private sealed class RecordingManager(Uri manager) : IConsoleManagerEndpoint
+    {
+        public Uri? Resolve(Uri servingBaseUri) => manager;
+    }
+
     private sealed class SwitchableOperatorContext(string operatorKey) : IConsoleOperatorContext
     {
         public string OperatorKey { get; set; } = operatorKey;
@@ -477,6 +548,28 @@ public sealed class ConsoleServerSessionBffTests
             Task.FromResult(new HttpResponseMessage(status));
     }
 
+    private sealed class NoBrowserIdentityHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (!path.EndsWith("/config", StringComparison.Ordinal))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """{"oidcEnabled":false,"providers":[]}""",
+                    System.Text.Encoding.UTF8,
+                    "application/json")
+            });
+        }
+    }
+
     private sealed class SimulatedServerAuthHandler(
         ConsoleServerSessionPartitionKey key,
         CookieContainer cookies,
@@ -487,6 +580,13 @@ public sealed class ConsoleServerSessionBffTests
             CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
+            var host = request.RequestUri.Host;
+            if (!string.Equals(host, new Uri(key.ServerOrigin).Host, StringComparison.OrdinalIgnoreCase))
+            {
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
+            }
+
+            var cookieUri = new Uri(request.RequestUri.GetLeftPart(UriPartial.Authority) + "/");
             if (path.EndsWith("/config", StringComparison.Ordinal))
             {
                 return Json("""
@@ -497,7 +597,7 @@ public sealed class ConsoleServerSessionBffTests
             if (path.EndsWith("/authorize-url", StringComparison.Ordinal))
             {
                 var state = $"state-{key.OperatorKey}-{key.ProfileId}";
-                cookies.SetCookies(ServerOrigin, $"honua_admin_pending=pending-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
+                cookies.SetCookies(cookieUri, $"honua_admin_pending=pending-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
                 return Json($"{{\"authorizeUrl\":\"https://idp.example/authorize?state={state}\"}}");
             }
 
@@ -510,16 +610,19 @@ public sealed class ConsoleServerSessionBffTests
 
                 var body = await request.Content!.ReadAsStringAsync(cancellationToken);
                 Assert.Contains($"state-{key.OperatorKey}-{key.ProfileId}", body, StringComparison.Ordinal);
-                Assert.Contains($"pending-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(ServerOrigin), StringComparison.Ordinal);
-                cookies.SetCookies(ServerOrigin, $"honua_admin_session=session-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
+                Assert.Contains($"pending-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(cookieUri), StringComparison.Ordinal);
+                cookies.SetCookies(cookieUri, $"honua_admin_session=session-{key.OperatorKey}-{key.ProfileId}; Path=/; HttpOnly");
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
 
             if (path.EndsWith("/bearer", StringComparison.Ordinal))
             {
-                Assert.Contains($"session-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(ServerOrigin), StringComparison.Ordinal);
+                Assert.Contains($"session-{key.OperatorKey}-{key.ProfileId}", cookies.GetCookieHeader(cookieUri), StringComparison.Ordinal);
+                var token = string.Equals(host, "server.example", StringComparison.OrdinalIgnoreCase)
+                    ? $"bearer-{key.OperatorKey}-{key.ProfileId}"
+                    : $"bearer-{key.OperatorKey}-{key.ProfileId}-{host}";
                 return Json($$"""
-                    {"accessToken":"bearer-{{key.OperatorKey}}-{{key.ProfileId}}","tokenType":"Bearer","expiresAt":"2099-01-01T00:00:00Z","expiresIn":300}
+                    {"accessToken":"{{token}}","tokenType":"Bearer","expiresAt":"2099-01-01T00:00:00Z","expiresIn":300}
                     """);
             }
 
