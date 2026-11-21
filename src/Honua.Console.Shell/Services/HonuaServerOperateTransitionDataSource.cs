@@ -111,10 +111,20 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         return new OperateSettingsView(settingsChanges, states);
     }
 
+    // The dataset page shows resources and services from one layer read (#1084).
+    public Task<OperateDataView> GetDataViewAsync(CancellationToken cancellationToken = default) =>
+        BuildDataViewAsync(includeRuntimeSettings: true, cancellationToken);
+
+    private async Task<OperateServicesView> BuildServicesViewAsync(
+        bool includeRuntimeSettings,
+        CancellationToken cancellationToken,
+        LayerScope? scope = null) =>
+        (await BuildDataViewAsync(includeRuntimeSettings, cancellationToken, scope).ConfigureAwait(false)).Services;
+
     // Services and layers share the same service/layer projection. The services surface needs the
     // per-service settings reads (runtime settings, protocol endpoints); the layers surface does not,
     // so it skips those calls.
-    private async Task<OperateServicesView> BuildServicesViewAsync(
+    private async Task<OperateDataView> BuildDataViewAsync(
         bool includeRuntimeSettings,
         CancellationToken cancellationToken,
         LayerScope? scope = null)
@@ -157,10 +167,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             serviceSettings = settings;
         }
 
-        if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], [ConsoleEnvironmentRead.Unavailable]);
+        if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false)) return new([], new([], [ConsoleEnvironmentRead.Unavailable]));
         var services = new ServiceProjection(serviceSettings, layerRows, new OperateServiceEndpointResolver(environment.ServerBaseUri)).Map(summaries);
 
-        return new OperateServicesView(services, states);
+        return new OperateDataView(BuildResourceEdits(layerRows), new OperateServicesView(services, states));
     }
 
     public async Task<OperateConnectionSummary?> FindConnectionAsync(

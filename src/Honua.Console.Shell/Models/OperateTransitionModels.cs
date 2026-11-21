@@ -24,6 +24,11 @@ public sealed record OperateServicesView(
     IReadOnlyList<OperateServiceDetail> Services,
     IReadOnlyList<OperateCapabilityState> CapabilityStates);
 
+// The dataset page needs resources and services together; one read keeps the per-connection layer lists from being fetched twice.
+public sealed record OperateDataView(
+    IReadOnlyList<OperateResourceEditPreview> ResourceEdits,
+    OperateServicesView Services);
+
 public sealed record OperateSettingsView(
     IReadOnlyList<OperateSettingsChange> SettingsChanges,
     IReadOnlyList<OperateCapabilityState> CapabilityStates);
