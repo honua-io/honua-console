@@ -54,6 +54,7 @@ test('manage Folder membership through the human UI and preserve saved public pa
 
   await page.goto('/operate/services');
   await management.locator('[data-folder-select]').selectOption(created.metadata.id);
+  await expect(management.locator('[data-folder-name]')).toHaveValue(folderName);
   await management.locator('[data-folder-name]').fill(renamed);
   await management.locator('[data-folder-title]').fill('Renamed transport');
   await mutate(management, '[data-folder-save]');
@@ -72,14 +73,19 @@ test('manage Folder membership through the human UI and preserve saved public pa
 
   await page.goto('/operate/services');
   await management.locator('[data-folder-select]').selectOption(created.metadata.id);
+  await expect(management.locator('[data-folder-name]')).toHaveValue(renamed);
   await management.locator('[data-folder-title]').fill('Retained after conflict');
   const second = await page.context().newPage();
-  await second.goto('/operate/services');
-  const other = second.locator('[data-folder-management]');
-  await other.locator('[data-folder-select]').selectOption(created.metadata.id);
-  await other.locator('[data-folder-title]').fill('Other human edit');
-  await mutate(other, '[data-folder-save]');
-  await second.close();
+  try {
+    await second.goto('/operate/services');
+    const other = second.locator('[data-folder-management]');
+    await other.locator('[data-folder-select]').selectOption(created.metadata.id);
+    await expect(other.locator('[data-folder-name]')).toHaveValue(renamed);
+    await other.locator('[data-folder-title]').fill('Other human edit');
+    await mutate(other, '[data-folder-save]');
+  } finally {
+    await second.close().catch(() => {});
+  }
   await mutate(management, '[data-folder-save]', 'Snapshot changed');
   await expect(management.locator('[data-folder-title]')).toHaveValue('Retained after conflict');
   await expect(management.locator('[data-folder-save]')).toBeDisabled();
@@ -109,7 +115,7 @@ test('manage Folder membership through the human UI and preserve saved public pa
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('folder-management-mobile.png') });
   } finally {
-    await admin.deleteConnection(connection.connectionId);
+    await admin.deleteConnection(connection.connectionId).catch(() => {});
     // The isolated testbed's volume teardown removes its published Services and Layers.
   }
 });

@@ -4,7 +4,7 @@
 <div data-publish-folders>
     <label class="console-field">
         <span>Folder</span>
-        <select class="console-input" aria-label="Publishing Folder" value="@Selection" @onchange="ChangedAsync" disabled="@_loading" data-publish-folder>
+        <select class="console-input" aria-label="Publishing Folder" value="@Selection" @onchange="ChangedAsync" disabled="@(!_interactive || _loading)" data-publish-folder>
             <option value="preserve:">Preserve existing membership (new Services use Root)</option>
             <option value="root:" disabled="@(_read?.IsAllowed != true)">Root</option>
             @if (Value.IsSpecified && Value.Value is not null && _read?.Value?.ActiveFolders.Any(folder => folder.Metadata.Id == Value.Value) != true)
@@ -21,10 +21,10 @@
     {
         <OperateSectionStatusPanel Heading="Publishing Folders" Status="read.Status" Message="@read.Message" />
     }
-    <button class="console-button console-button-secondary" type="button" @onclick="ReadAsync" disabled="@_loading" data-publish-folder-refresh>Refresh Folders</button>
+    <button class="console-button console-button-secondary" type="button" @onclick="ReadAsync" disabled="@(!_interactive || _loading)" data-publish-folder-refresh>Refresh Folders</button>
     @if (Value.IsSpecified)
     {
-        <button class="console-button console-button-secondary" type="button" @onclick="ReviewSelectionAsync" disabled="@(!CanReviewSelection)" data-publish-folder-review>Use selected destination</button>
+        <button class="console-button console-button-secondary" type="button" @onclick="ReviewSelectionAsync" disabled="@(!_interactive || !CanReviewSelection)" data-publish-folder-review>Use selected destination</button>
         <p class="console-muted">Refreshing keeps your previous selection and review. Choose Use selected destination to confirm this selection for the refreshed environment.</p>
         @if (!_loading && !CanReviewSelection)
         {
@@ -40,11 +40,20 @@
     [Parameter] public EventCallback<string?> AuthorityBindingChanged { get; set; }
     private OperateSectionResult<ConsoleFolderCatalog>? _read;
     private bool _loading = true;
+    private bool _interactive;
     private string Selection => !Value.IsSpecified ? "preserve:" : Value.Value is null ? "root:" : "folder:" + Value.Value;
     private bool CanReviewSelection => !_loading && _read is { IsAllowed: true, Value: { } catalog } &&
         !string.IsNullOrWhiteSpace(catalog.AuthorityBinding) &&
         Value.IsSpecified && (Value.Value is null || catalog.ActiveFolders.Any(folder => folder.Metadata.Id == Value.Value));
     protected override Task OnInitializedAsync() => ReadAsync();
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _interactive = true;
+            StateHasChanged();
+        }
+    }
     private async Task ReadAsync()
     {
         _loading = true;
