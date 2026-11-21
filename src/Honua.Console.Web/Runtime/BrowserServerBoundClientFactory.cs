@@ -131,7 +131,7 @@ internal sealed class BrowserApiHandler(
         {
             throw new HttpRequestException(
                 managementCall
-                    ? "Sign in with the deployment password before using the management endpoint."
+                    ? session.ManagementUnavailableReason ?? "Sign in with the deployment password before using the management endpoint."
                     : "Cross-origin Console access requires an operator bearer token.",
                 null, System.Net.HttpStatusCode.Unauthorized);
         }

@@ -156,11 +156,7 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
                 var csrf = await api.GetCsrfAsync(cancellationToken);
                 session.Set(new ClaimsPrincipal(new ClaimsIdentity()), new ConsoleSessionCredentials(CsrfToken: csrf));
                 await api.SignInCookieAsync(password, cancellationToken);
-                if (api.CapturesManagementBearer)
-                {
-                    var bearer = await api.GetPasswordTokenAsync(password, cancellationToken);
-                    session.RememberManagementBearer(bearer.AccessToken!, bearer.ExpiresAt);
-                }
+                if (api.CapturesManagementBearer) await CaptureManagementBearerAsync(password, cancellationToken);
             }
             else
             {
@@ -173,6 +169,25 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
         {
             await ClearAuthenticationAsync();
             throw;
+        }
+    }
+
+    // Serving pages stay usable when the server issues no manager bearer; management calls say why.
+    private async Task CaptureManagementBearerAsync(string password, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var bearer = await api.GetPasswordTokenAsync(password, cancellationToken);
+            session.RememberManagementBearer(bearer.AccessToken!, bearer.ExpiresAt);
+        }
+        catch (HttpRequestException exception)
+        {
+            session.RememberManagementUnavailable(exception.StatusCode);
+        }
+        catch (Exception exception) when (exception is JsonException
+            || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            session.RememberManagementUnavailable(null);
         }
     }
 
