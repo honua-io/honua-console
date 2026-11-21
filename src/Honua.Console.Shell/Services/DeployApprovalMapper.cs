@@ -70,7 +70,10 @@ public static class DeployApprovalMapper
             Warnings: operation.Warnings,
             BlockingReasons: operation.BlockingReasons,
             CreatedAt: operation.CreatedAt,
-            UpdatedAt: operation.UpdatedAt);
+            UpdatedAt: operation.UpdatedAt)
+        {
+            Version = operation.Version,
+        };
     }
 
     private static string DeriveAction(DeployOperationLifecycle lifecycle) => lifecycle switch

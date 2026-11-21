@@ -253,6 +253,75 @@ public sealed class SupportTicketDetailTrustRenderTests
         Assert.DoesNotContain("PASS", markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Detail_BreakGlassSupportSession_DisplaysScopesCountdownAndRevokesWithAuditReceipt()
+    {
+        var activeTicket = BaseTicket() with
+        {
+            AllowedAccessMode = "operator-scoped",
+            TtlMinutes = 30,
+            Trust = new SupportTicketTrust
+            {
+                DelegatedSession = new SupportTrustDelegatedSession
+                {
+                    Mode = "break-glass",
+                    SessionId = "sess-bg-9",
+                    Scopes = ["ops:read", "ops:propose"],
+                    EstablishedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+                    ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(25),
+                    CustomerVisible = true,
+                    Active = true
+                }
+            }
+        };
+        var revokedTicket = activeTicket with
+        {
+            Trust = new SupportTicketTrust
+            {
+                DelegatedSession = activeTicket.Trust.DelegatedSession with
+                {
+                    Mode = "revoked",
+                    Active = false,
+                    RevokedAt = DateTimeOffset.Parse("2026-06-05T12:40:00Z"),
+                    RevokedBy = "operator.alice",
+                    AuditEntryId = "audit-sess-44",
+                    AuditEntryHash = "hmac-sha256:998877",
+                    AuditChainVerified = true
+                }
+            }
+        };
+
+        var fakeClient = new FakeSupportTicketClient(activeTicket, revokedTicket);
+        using var ctx = new Bunit.BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddSingleton<IConsoleSupportTicketClient>(fakeClient);
+
+        var page = ctx.Render<SupportTicketDetailPage>(
+            p => p.Add(c => c.TicketId, activeTicket.Id));
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("ops:read + ops:propose", page.Find("[data-support-session-scopes]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("remaining", page.Find("[data-support-session-countdown]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("Revoke Support Session", page.Find("[data-revoke-support-session]").TextContent, StringComparison.Ordinal);
+        }, TimeSpan.FromSeconds(5));
+
+        page.Find("[data-revoke-support-session]").Click();
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal(["ticket-9"], fakeClient.RevokedTickets);
+            Assert.NotNull(page.Find("[data-support-session-revoked]"));
+            Assert.Empty(page.FindAll("[data-revoke-support-session]"));
+            var receipt = page.Find("[data-support-session-audit-receipt]");
+            Assert.Contains("break-glass -> revoked", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("operator.alice", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("audit-sess-44", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("hmac-sha256:998877", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("HMAC audit chain verified", receipt.TextContent, StringComparison.Ordinal);
+        }, TimeSpan.FromSeconds(5));
+    }
+
     private static string Render(SupportTicketResponse ticket)
     {
         using var ctx = new Bunit.BunitContext();
@@ -295,16 +364,32 @@ public sealed class SupportTicketDetailTrustRenderTests
             DiagnosedAt = DateTimeOffset.Parse("2026-06-05T12:20:00Z")
         };
 
-    private sealed class FakeSupportTicketClient(SupportTicketResponse ticket) : IConsoleSupportTicketClient
+    private sealed class FakeSupportTicketClient(
+        SupportTicketResponse ticket,
+        SupportTicketResponse? revokedTicket = null) : IConsoleSupportTicketClient
     {
+        private SupportTicketResponse _current = ticket;
+
+        public List<string> RevokedTickets { get; } = [];
+
         public Task<SupportTicketResult> CreateTicketAsync(
             CreateSupportTicketRequest request,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(SupportTicketResult.Allowed(ticket));
+            Task.FromResult(SupportTicketResult.Allowed(_current));
 
         public Task<SupportTicketResult> GetTicketAsync(
             string ticketId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(SupportTicketResult.Allowed(ticket));
+            Task.FromResult(SupportTicketResult.Allowed(_current));
+
+        public Task<SupportTicketResult> RevokeSessionAsync(
+            string ticketId,
+            string? reason = null,
+            CancellationToken cancellationToken = default)
+        {
+            RevokedTickets.Add(ticketId);
+            _current = revokedTicket ?? _current;
+            return Task.FromResult(SupportTicketResult.Allowed(_current));
+        }
     }
 }

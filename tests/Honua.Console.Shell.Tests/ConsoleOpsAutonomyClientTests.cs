@@ -228,6 +228,51 @@ public sealed class ConsoleOpsAutonomyClientTests
         Assert.Contains("Backlog remained above", bounded.OutcomeEvidence, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AuditMapperMapsChainedPolicyTransitionAndSupportSessionEvents()
+    {
+        var mapped = OpsAutonomyAuditMapper.Map(
+        [
+            new OperateEventResponse
+            {
+                EventId = "audit:101",
+                Kind = "audit",
+                Severity = "notice",
+                OccurredAt = DateTimeOffset.Parse("2026-07-10T11:00:00Z"),
+                Title = "ops.autonomy.policy_changed",
+                Actor = "operator.alice",
+                CorrelationId = "alert-dispatch-backlog",
+                ResourceRef = "ops_autonomy_policy/alert-dispatch-backlog",
+                DetailsJson = """{"rule":"alert-dispatch-backlog","previous":{"mode":"ProposeOnly"},"current":{"mode":"AutoApply"},"entryHash":"hmac:abc123","chainVerified":true}"""
+            },
+            new OperateEventResponse
+            {
+                EventId = "audit:102",
+                Kind = "audit",
+                Severity = "notice",
+                OccurredAt = DateTimeOffset.Parse("2026-07-10T11:05:00Z"),
+                Title = "ops.support_session.revoked",
+                Actor = "operator.alice",
+                CorrelationId = "ticket-9",
+                ResourceRef = "support_session/ticket-9",
+                DetailsJson = """{"entryHash":"hmac:def456","chainVerified":true}"""
+            }
+        ]);
+
+        var policy = mapped.Single(entry => entry.EventId == "audit:101");
+        Assert.True(policy.IsPolicyChange);
+        Assert.Equal("ProposeOnly", policy.PreviousMode);
+        Assert.Equal("AutoApply", policy.PolicyMode);
+        Assert.Equal("hmac:abc123", policy.AuditEntryHash);
+        Assert.True(policy.ChainVerified);
+        Assert.Contains("ProposeOnly -> AutoApply", policy.OutcomeEvidence, StringComparison.Ordinal);
+
+        var supportRevoke = mapped.Single(entry => entry.EventId == "audit:102");
+        Assert.Equal("Support session revoked", supportRevoke.Outcome.Label);
+        Assert.Equal("hmac:def456", supportRevoke.AuditEntryHash);
+        Assert.True(supportRevoke.ChainVerified);
+    }
+
     private static HttpConsoleOpsAutonomyClient CreateClient(
         HttpMessageHandler handler,
         string? adminApiKey = null,

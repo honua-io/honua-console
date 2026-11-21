@@ -46,6 +46,10 @@ public sealed record DeployOperationProposal(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
+    public long Version { get; init; }
+
+    public string? PlanHash { get; init; }
+
     public bool IsAwaitingApproval => Lifecycle == DeployOperationLifecycle.AwaitingApproval;
 
     public bool IsRollbackEligible => Lifecycle is

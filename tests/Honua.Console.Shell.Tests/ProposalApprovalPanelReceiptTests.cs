@@ -135,6 +135,193 @@ public sealed class ProposalApprovalPanelReceiptTests
         Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
     }
 
+    [Fact]
+    public void UnblindedProposalReviewRendersPlanHashOperationIdInitiationCveHighlightAndExecutionPayload()
+    {
+        using var context = new BunitContext();
+        const string digest = "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        var detail = new ConsoleProposalDetail(
+            ProposalId: "prop-cve-9",
+            Kind: ConsoleProposalKind.Deploy,
+            Status: ConsoleProposalStatus.AwaitingApproval,
+            RequestedBy: "support:ticket-42",
+            RequestedByAgent: "honua-support-agent",
+            Summary: "Urgent CVE-2026-99999 image patch",
+            Diff: [$"+ image ghcr.io/honua-io/honua-server{digest}"],
+            DryRun: ["ECS task definition validated"],
+            RiskLevel: ConsoleProposalRisk.High,
+            BlockingReasons: [],
+            Warnings: [],
+            GuardrailTier: "RequiresApproval",
+            ResolvedBy: null,
+            ResolutionReason: null,
+            ExecutionOperationId: null,
+            CreatedAt: DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
+            UpdatedAt: DateTimeOffset.Parse("2026-06-28T10:05:00Z"),
+            ResolvedAt: null)
+        {
+            Version = 3,
+            PlanHash = "sha256:plan-hash-99",
+            OperationId = "deploy.ecs.patch",
+            ActionDiscriminator = "deploy.image.cve_patch",
+            Initiation = "SupportAgent",
+            ExecutionPayload = $$"""{"targetId":"ecs-prod","imageUri":"ghcr.io/honua-io/honua-server{{digest}}"}"""
+        };
+        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail));
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "prop-cve-9"));
+
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Contains("sha256:plan-hash-99", panel.Find("[data-proposal-plan-hash]").TextContent, StringComparison.Ordinal);
+            Assert.Equal("deploy.ecs.patch", panel.Find("[data-proposal-operation-id]").TextContent.Trim());
+            Assert.Equal("deploy.image.cve_patch", panel.Find("[data-proposal-action-discriminator]").TextContent.Trim());
+            Assert.Equal("SupportAgent", panel.Find("[data-proposal-initiation]").TextContent.Trim());
+            Assert.Contains("honua-support-agent", panel.Find("[data-proposal-support-initiation]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("CVE-2026-99999", panel.Find("[data-proposal-cve-patch]").TextContent, StringComparison.Ordinal);
+            Assert.Contains(digest, panel.Find("[data-proposal-cve-patch]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("ecs-prod", panel.Find("[data-proposal-execution-payload]").TextContent, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void RuleBackedProposalAutoApplyTogglePromotesPolicyAndSurfacesAuditTrailReceipt()
+    {
+        using var context = new BunitContext();
+        var detail = new ConsoleProposalDetail(
+            ProposalId: "prop-rule-1",
+            Kind: ConsoleProposalKind.AdminConfigChange,
+            Status: ConsoleProposalStatus.AwaitingApproval,
+            RequestedBy: "ops-copilot",
+            RequestedByAgent: "ops-copilot",
+            Summary: "Redrive dead-lettered alert deliveries",
+            Diff: ["+ redrive 4 dead-lettered deliveries"],
+            DryRun: ["4 deliveries eligible"],
+            RiskLevel: ConsoleProposalRisk.Low,
+            BlockingReasons: [],
+            Warnings: [],
+            GuardrailTier: "RequiresApproval",
+            ResolvedBy: null,
+            ResolutionReason: null,
+            ExecutionOperationId: null,
+            CreatedAt: DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
+            UpdatedAt: DateTimeOffset.Parse("2026-06-28T10:05:00Z"),
+            ResolvedAt: null)
+        {
+            Version = 1,
+            PlanHash = "sha256:rule-plan-1",
+            AutonomyRule = "alert-dispatch-backlog",
+            ActionDiscriminator = "alerts.redrive_dead_letters"
+        };
+        var autonomy = new FakeInboxAutonomyClient("alert-dispatch-backlog", "ProposeOnly");
+        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail));
+        context.Services.AddSingleton<IConsoleOpsAutonomyClient>(autonomy);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "prop-rule-1"));
+
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal("ProposeOnly", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
+            Assert.NotNull(panel.Find("[data-proposal-auto-apply-toggle]"));
+        });
+
+        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
+        panel.Find("[data-proposal-approve]").Click();
+
+        panel.WaitForAssertion(() =>
+        {
+            var call = Assert.Single(autonomy.PolicyUpdates);
+            Assert.Equal(("alert-dispatch-backlog", "AutoApply"), (call.Rule, call.Mode));
+            Assert.Equal("AutoApply", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
+            var receipt = panel.Find("[data-policy-audit-receipt]");
+            Assert.Contains("ProposeOnly -> AutoApply", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("operator.alice", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("audit-policy-77", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("hmac-sha256:deadbeef", receipt.TextContent, StringComparison.Ordinal);
+            Assert.Contains("HMAC audit chain verified", receipt.TextContent, StringComparison.Ordinal);
+        });
+    }
+
+    private sealed class SingleDetailProposalClient(ConsoleProposalDetail detail) : IConsoleProposalsClient
+    {
+        private ConsoleProposalDetail _current = detail;
+
+        public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
+            string? status = null, string? kind = null, string? requestedBy = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed([_current.ToSummary()]));
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(
+            string proposalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(_current));
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+            string proposalId, CancellationToken cancellationToken = default)
+        {
+            _current = _current with { Status = ConsoleProposalStatus.Submitted, ExecutionOperationId = "op-approved-1" };
+            return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(_current));
+        }
+
+        public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
+            string proposalId, string reason, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, "n/a"));
+    }
+
+    private sealed class FakeInboxAutonomyClient(string rule, string initialMode) : IConsoleOpsAutonomyClient
+    {
+        private string _mode = initialMode;
+
+        public List<(string Rule, string Mode, string Reason)> PolicyUpdates { get; } = [];
+
+        public Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<OpsAutonomySnapshot>.Allowed(new OpsAutonomySnapshot(
+                new Honua.Console.Contracts.OpsAutonomySettingsResponse { KillSwitchEnabled = false },
+                [
+                    new Honua.Console.Contracts.OpsAutonomyPolicyResponse
+                    {
+                        Rule = rule,
+                        Mode = _mode,
+                        MaxAutoActionsPerWindow = 2,
+                        WindowSeconds = 3600,
+                        MaxBlastRadius = 1,
+                        UpdatedBy = "operator.alice",
+                        UpdatedAt = DateTimeOffset.Parse("2026-06-28T10:00:00Z")
+                    }
+                ],
+                [])));
+
+        public Task<OperateSectionResult<Honua.Console.Contracts.OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
+            string targetRule, string mode, string reason, CancellationToken cancellationToken = default)
+        {
+            var previous = _mode;
+            _mode = mode;
+            PolicyUpdates.Add((targetRule, mode, reason));
+            return Task.FromResult(OperateSectionResult<Honua.Console.Contracts.OpsAutonomyPolicyResponse>.Allowed(
+                new Honua.Console.Contracts.OpsAutonomyPolicyResponse
+                {
+                    Rule = targetRule,
+                    Mode = mode,
+                    PreviousMode = previous,
+                    MaxAutoActionsPerWindow = 2,
+                    WindowSeconds = 3600,
+                    MaxBlastRadius = 1,
+                    UpdatedBy = "operator.alice",
+                    UpdatedAt = DateTimeOffset.Parse("2026-06-28T10:12:00Z"),
+                    AuditEntryId = "audit-policy-77",
+                    AuditEntryHash = "hmac-sha256:deadbeef",
+                    AuditChainVerified = true
+                }));
+        }
+
+        public Task<OperateSectionResult<Honua.Console.Contracts.OpsAutonomySettingsResponse>> SetKillSwitchAsync(
+            bool enabled, string reason, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperateSectionResult<Honua.Console.Contracts.OpsAutonomySettingsResponse>.Allowed(
+                new Honua.Console.Contracts.OpsAutonomySettingsResponse { KillSwitchEnabled = enabled }));
+    }
+
     private sealed class PendingProposalClient : IConsoleProposalsClient
     {
         private readonly ReceiptProposalClient _inner = new();

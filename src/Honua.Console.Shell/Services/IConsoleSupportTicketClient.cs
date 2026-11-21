@@ -11,6 +11,14 @@ public interface IConsoleSupportTicketClient
     Task<SupportTicketResult> GetTicketAsync(
         string ticketId,
         CancellationToken cancellationToken = default);
+
+    Task<SupportTicketResult> RevokeSessionAsync(
+        string ticketId,
+        string? reason = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(SupportTicketResult.Denied(
+            OperateSectionStatus.Unsupported,
+            "Support session revocation is not supported by this client."));
 }
 
 public sealed record SupportTicketResult

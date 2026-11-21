@@ -19,6 +19,9 @@ public static class DeployControlAdminRoutes
     public const string SubmitTemplate = OperationTemplate + "/submit";
 
     [OpsParityRoute("POST")]
+    public const string PromoteTemplate = OperationTemplate + "/promote";
+
+    [OpsParityRoute("POST")]
     public const string RollbackTemplate = OperationTemplate + "/rollback";
 
     // Not a pinned contract: a 404 or 501 means this server has no converge action.
@@ -30,6 +33,12 @@ public static class DeployControlAdminRoutes
 
     public static string Submit(string operationId) =>
         SubmitTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
+
+    public static string Promote(string operationId) =>
+        PromoteTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
+
+    public static string ApprovalReview(string operationId, string action) =>
+        $"{Operation(operationId)}/approval-review/{Uri.EscapeDataString(action)}";
 
     public static string Rollback(string operationId) =>
         RollbackTemplate.Replace("{operationId}", Uri.EscapeDataString(operationId), StringComparison.Ordinal);
@@ -68,6 +77,45 @@ public sealed record SubmitDeployOperationRequest
 {
     [JsonPropertyName("reason")]
     public string? Reason { get; init; }
+}
+
+public sealed record PromoteDeployOperationRequest
+{
+    [JsonPropertyName("reason")]
+    public string? Reason { get; init; }
+}
+
+public sealed record DeployHumanApprovalReviewResponse
+{
+    [JsonPropertyName("operation")]
+    public DeployOperationResponse? Operation { get; init; }
+
+    [JsonPropertyName("action")]
+    public string? Action { get; init; }
+
+    [JsonPropertyName("review")]
+    public DeployHumanApprovalReviewGrant? Review { get; init; }
+}
+
+public sealed record DeployHumanApprovalReviewGrant
+{
+    [JsonPropertyName("tenantId")]
+    public string? TenantId { get; init; }
+
+    [JsonPropertyName("proposalId")]
+    public string? ProposalId { get; init; }
+
+    [JsonPropertyName("proposalVersion")]
+    public long ProposalVersion { get; init; }
+
+    [JsonPropertyName("planHash")]
+    public string? PlanHash { get; init; }
+
+    [JsonPropertyName("expiresAt")]
+    public DateTimeOffset ExpiresAt { get; init; }
+
+    [JsonPropertyName("capability")]
+    public string? Capability { get; init; }
 }
 
 // A data-affecting rollback can be refused by the server approval gate.
@@ -285,6 +333,9 @@ public sealed record PlatformReleaseConvergeResponse
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(SubmitDeployOperationRequest))]
+[JsonSerializable(typeof(PromoteDeployOperationRequest))]
+[JsonSerializable(typeof(DeployHumanApprovalReviewResponse))]
+[JsonSerializable(typeof(DeployHumanApprovalReviewGrant))]
 [JsonSerializable(typeof(RollbackDeployOperationRequest))]
 [JsonSerializable(typeof(DeployOperationListResponse))]
 [JsonSerializable(typeof(DeployPreflightResponse))]

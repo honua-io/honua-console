@@ -138,6 +138,55 @@ public sealed class ConsoleProposalsClientTests
         Assert.EndsWith("/api/v1/admin/proposals/prop-1", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetMapsUnblindedPlanHashOperationIdInitiationAndExecutionPayload()
+    {
+        const string body = """
+        {
+          "proposalId": "prop-cve-1",
+          "version": 2,
+          "sealedPlanHash": "sha256:sealed-abc123",
+          "operationId": "deploy.image.patch",
+          "initiation": "SupportAgent",
+          "approvalChannel": "console-human-session",
+          "kind": "Deploy",
+          "status": "AwaitingApproval",
+          "requestedBy": "support:ticket-99",
+          "requestedByAgent": "honua-support-agent",
+          "summary": "Apply CVE-2026-12345 hotfix image",
+          "actionDiscriminator": "deploy.ecs.update_image",
+          "executionPayload": {
+            "targetId": "ecs-prod",
+            "imageUri": "ghcr.io/honua-io/honua-server@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          },
+          "diff": ["~ image -> @sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"],
+          "dryRun": ["ECS rolling deploy verified"],
+          "riskLevel": "High",
+          "blockingReasons": [],
+          "warnings": [],
+          "createdAt": "2026-06-28T10:00:00Z",
+          "updatedAt": "2026-06-28T10:05:00Z"
+        }
+        """;
+        var client = CreateClient(new RecordingHandler(_ => Json(body)));
+
+        var result = await client.GetAsync("prop-cve-1");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var detail = result.Value!;
+        Assert.Equal("sha256:sealed-abc123", detail.PlanHash);
+        Assert.Equal(2, detail.Version);
+        Assert.Equal("deploy.image.patch", detail.OperationId);
+        Assert.Equal("SupportAgent", detail.Initiation);
+        Assert.Equal("deploy.ecs.update_image", detail.ActionDiscriminator);
+        Assert.NotNull(detail.ExecutionPayload);
+        Assert.Contains("ecs-prod", detail.ExecutionPayload, StringComparison.Ordinal);
+        Assert.Contains("@sha256:0123456789abcdef", detail.ExecutionPayload, StringComparison.Ordinal);
+        Assert.True(ConsoleProposalPresentation.IsSupportAgentInitiated(detail));
+        Assert.True(ConsoleProposalPresentation.IsUrgentCvePatch(detail));
+        Assert.Equal(["CVE-2026-12345"], ConsoleProposalPresentation.ExtractCveIdentifiers(detail));
+    }
+
     private const string SubmittedDetail = """
         {
           "proposalId": "prop-1",
@@ -402,6 +451,38 @@ public sealed class ConsoleProposalsClientTests
         Assert.Equal(HttpMethod.Post, request.Method);
         Assert.EndsWith("/api/v1/admin/proposals/prop-1/reject", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
         Assert.Contains("Out of change window", capturedBody!, StringComparison.Ordinal);
+        Assert.Null(request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+    }
+
+    [Theory]
+    [InlineData(ConsoleServerCredentialMode.Interactive, ConsoleAccountAuthMode.AccountRbac)]
+    [InlineData(ConsoleServerCredentialMode.HeadlessService, ConsoleAccountAuthMode.ServiceApiKey)]
+    public async Task RejectNeverSendsBearerOrAdminKey(ConsoleServerCredentialMode mode, ConsoleAccountAuthMode authMode)
+    {
+        var handler = new RecordingHandler(_ => Json(SubmittedDetail));
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: BearerSessions(),
+            credentialMode: mode, accountAuthMode: authMode);
+
+        var result = await client.RejectAsync("prop-1", "Out of change window");
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        var request = Assert.Single(handler.Requests);
+        Assert.Null(request.Headers.Authorization);
+        Assert.False(request.Headers.Contains("X-API-Key"));
+        Assert.DoesNotContain(request.Headers, header => header.Key.Contains("Actor", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RejectHumanSessionRefusalExplainsBrowserSessionRequirement()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        var client = CreateClient(handler, sessions: BearerSessions());
+
+        var result = await client.RejectAsync("prop-1", "Out of change window");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Contains("live signed-in browser session", result.Message, StringComparison.Ordinal);
     }
 
     [Fact]

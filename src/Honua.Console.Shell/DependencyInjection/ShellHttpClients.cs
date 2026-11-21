@@ -19,6 +19,11 @@ internal static class ShellHttpClients
             ? factory.CreateManagerBoundClient(UnboundBaseUri, ReadTimeout)
             : Standalone(ReadTimeout);
 
+    public static HttpClient ManagerBoundStream(IServiceProvider services) =>
+        services.GetService<IHonuaServerBoundClientFactory>() is { } factory
+            ? factory.CreateManagerBoundClient(UnboundBaseUri, Timeout.InfiniteTimeSpan)
+            : Standalone(Timeout.InfiniteTimeSpan);
+
     public static HttpClient ServerBound(IServiceProvider services) => ServerBound(services, ReadTimeout);
 
     // Heartbeat deadlines are enforced by the SSE reader, not the lifetime of an HTTP request.

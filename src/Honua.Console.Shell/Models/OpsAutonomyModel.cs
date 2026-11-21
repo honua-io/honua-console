@@ -30,7 +30,10 @@ public sealed record OpsAutonomyAuditEntry(
     string? OperationKind = null,
     string? ActionDiscriminator = null,
     string? PolicyMode = null,
-    bool? KillSwitchEnabled = null)
+    bool? KillSwitchEnabled = null,
+    string? PreviousMode = null,
+    string? AuditEntryHash = null,
+    bool? ChainVerified = null)
 {
     public OperateTimelineEntry ToTimelineEntry() => new(
         Kind: IsPolicyChange ? "policy" : "autonomy",
@@ -79,14 +82,18 @@ public static class OpsAutonomyAuditMapper
         item.ResourceRef?.StartsWith("operation_autonomy/", StringComparison.Ordinal) == true
         || item.ResourceRef?.StartsWith("ops_autonomy_policy/", StringComparison.Ordinal) == true
         || item.Title.StartsWith("operation.auto_", StringComparison.Ordinal)
-        || item.Title.StartsWith("ops_autonomy.", StringComparison.Ordinal);
+        || item.Title.StartsWith("ops_autonomy.", StringComparison.Ordinal)
+        || item.Title.StartsWith("ops.autonomy.", StringComparison.Ordinal)
+        || item.Title.StartsWith("ops.support_session.", StringComparison.Ordinal);
 
     private static OpsAutonomyAuditEntry MapEvent(OperateEventResponse item)
     {
         var details = ParseDetails(item.DetailsJson);
         var resourceRef = item.ResourceRef ?? string.Empty;
         var policyChange = resourceRef.StartsWith("ops_autonomy_policy/", StringComparison.Ordinal)
-            || item.Title.StartsWith("ops_autonomy.", StringComparison.Ordinal);
+            || item.Title.StartsWith("ops_autonomy.", StringComparison.Ordinal)
+            || item.Title.StartsWith("ops.autonomy.", StringComparison.Ordinal)
+            || item.Title.StartsWith("ops.support_session.", StringComparison.Ordinal);
         var resourceId = ExtractResourceId(resourceRef);
         var findingId = FirstNonBlank(details.FindingId, policyChange ? null : resourceId);
         var rule = FirstNonBlank(details.Rule, policyChange && resourceId != "global" ? resourceId : null);
@@ -108,7 +115,10 @@ public static class OpsAutonomyAuditMapper
             OperationKind: details.Kind,
             ActionDiscriminator: details.ActionDiscriminator,
             PolicyMode: details.Mode,
-            KillSwitchEnabled: details.KillSwitchEnabled);
+            KillSwitchEnabled: details.KillSwitchEnabled,
+            PreviousMode: details.PreviousMode,
+            AuditEntryHash: details.AuditEntryHash,
+            ChainVerified: details.ChainVerified);
     }
 
     private static OpsAutonomyOutcome MapOutcome(string action, string severity) => action switch
@@ -130,8 +140,10 @@ public static class OpsAutonomyAuditMapper
         "operation.auto_rolled_back" => Outcome("Rolled back", "rolled back", action),
         "operation.auto_indeterminate" => Outcome("Manual intervention required", "manual intervention required", action),
         "operation.auto_canceled" => Outcome("Canceled", "unknown", action),
-        "ops_autonomy.policy.update" => Outcome("Policy changed", "info", action),
+        "ops_autonomy.policy.update" or "ops.autonomy.policy_changed" => Outcome("Policy changed", "info", action),
         "ops_autonomy.settings.update" => Outcome("Global policy changed", "info", action),
+        "ops.support_session.granted" => Outcome("Support session granted", "warning", action),
+        "ops.support_session.revoked" => Outcome("Support session revoked", "info", action),
         _ => Outcome("Autonomy event", string.IsNullOrWhiteSpace(severity) ? "unknown" : severity, action)
     };
 
@@ -201,16 +213,24 @@ public static class OpsAutonomyAuditMapper
                 }
             }
 
+            var currentMode = FirstNonBlank(ReadString(root, "mode"), ReadNestedString(root, "current", "mode"));
+            var previousMode = FirstNonBlank(ReadString(root, "previousMode"), ReadNestedString(root, "previous", "mode"));
+            var entryHash = FirstNonBlank(ReadString(root, "entryHash"), ReadString(root, "chainHash"));
+            var chainVerified = ReadBoolean(root, "chainVerified") ?? ReadBoolean(root, "auditChainVerified");
+
             return new ParsedDetails(
                 ReadString(root, "findingId"),
-                ReadString(root, "rule"),
+                FirstNonBlank(ReadString(root, "rule"), ReadString(root, "ruleId")),
                 ReadString(root, "operationId"),
                 ReadString(root, "status"),
                 ReadString(root, "message"),
                 ReadString(root, "kind"),
                 ReadString(root, "actionDiscriminator"),
-                ReadString(root, "mode"),
+                currentMode,
                 ReadBoolean(root, "killSwitchEnabled"),
+                previousMode,
+                entryHash,
+                chainVerified,
                 evidence);
         }
         catch (JsonException)
@@ -218,6 +238,11 @@ public static class OpsAutonomyAuditMapper
             return ParsedDetails.Empty;
         }
     }
+
+    private static string? ReadNestedString(JsonElement root, string objectName, string propertyName) =>
+        root.TryGetProperty(objectName, out var nested) && nested.ValueKind == JsonValueKind.Object
+            ? ReadString(nested, propertyName)
+            : null;
 
     private static string? ReadString(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
@@ -244,7 +269,14 @@ public static class OpsAutonomyAuditMapper
         AddPart(parts, "Status", details.Status);
         AddPart(parts, "Evidence", details.Message);
         AddPart(parts, "Operation", details.OperationId);
-        AddPart(parts, "Mode", details.Mode);
+        if (!string.IsNullOrWhiteSpace(details.PreviousMode) && !string.IsNullOrWhiteSpace(details.Mode))
+        {
+            parts.Add($"Transition: {details.PreviousMode} -> {details.Mode}");
+        }
+        else
+        {
+            AddPart(parts, "Mode", details.Mode);
+        }
         if (details.KillSwitchEnabled is { } enabled)
         {
             parts.Add($"Kill switch: {(enabled ? "enabled" : "disabled")}");
@@ -280,8 +312,11 @@ public static class OpsAutonomyAuditMapper
         string? ActionDiscriminator,
         string? Mode,
         bool? KillSwitchEnabled,
+        string? PreviousMode,
+        string? AuditEntryHash,
+        bool? ChainVerified,
         IReadOnlyList<string> EvidenceRefs)
     {
-        public static ParsedDetails Empty { get; } = new(null, null, null, null, null, null, null, null, null, []);
+        public static ParsedDetails Empty { get; } = new(null, null, null, null, null, null, null, null, null, null, null, null, []);
     }
 }

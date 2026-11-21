@@ -89,6 +89,36 @@ public sealed class InMemoryConsoleDeployApprovalClient : IConsoleDeployApproval
         return Task.FromResult(OperateSectionResult<DeployOperationProposal>.Allowed(submitted));
     }
 
+    public Task<OperateSectionResult<DeployOperationProposal>> PromoteAsync(
+        string operationId,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_operations.TryGetValue(operationId.Trim(), out var op))
+        {
+            return Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(
+                OperateSectionStatus.Missing,
+                $"No deploy-control operation '{operationId}' is known to this in-memory client."));
+        }
+
+        if (op.Lifecycle is not (DeployOperationLifecycle.Submitted or DeployOperationLifecycle.Reconciling))
+        {
+            return Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(
+                OperateSectionStatus.Unavailable,
+                $"Operation '{operationId}' is '{op.RawStatus}' and cannot be promoted."));
+        }
+
+        var promoted = op with
+        {
+            Lifecycle = DeployOperationLifecycle.Succeeded,
+            RawStatus = "Succeeded",
+            Reason = string.IsNullOrWhiteSpace(reason) ? op.Reason : reason,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        _operations[op.OperationId] = promoted;
+        return Task.FromResult(OperateSectionResult<DeployOperationProposal>.Allowed(promoted));
+    }
+
     public Task<OperateSectionResult<DeployOperationProposal>> RollbackAsync(
         string operationId,
         string? reason,
