@@ -19,11 +19,11 @@
     }
     @if (!_loading)
     {
-        <button class="console-button console-button-secondary" type="button" @onclick="RefreshAsync" disabled="@_busy" data-folder-refresh>Refresh Folders</button>
+        <button class="console-button console-button-secondary" type="button" @onclick="RefreshAsync" disabled="@(!_interactive || _busy)" data-folder-refresh>Refresh Folders</button>
     }
     @if (_catalog is { } catalog)
     {
-        <fieldset disabled="@(_busy || _loading)" class="console-folder-fields">
+        <fieldset disabled="@(!_interactive || _busy || _loading)" class="console-folder-fields">
             <legend>@(ServiceName is null ? "Manage Folders" : "Choose destination")</legend>
             @if (ServiceName is null)
             {
@@ -133,11 +133,21 @@
     private bool _requiresRefresh;
     private string? _unverifiedAuthority;
     private bool _initialized;
+    private bool _interactive;
     private int _generation;
     private int _completedMutations;
     private IConsoleFolderClient Client => Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
     private Folder? SelectedFolder => _catalog?.Folders.SingleOrDefault(folder => folder.Metadata.Id == _folderId);
-    private bool CanWrite => !_busy && !_loading && !_requiresRefresh && !string.IsNullOrWhiteSpace(_catalog?.ETag);
+    private bool CanWrite => _interactive && !_busy && !_loading && !_requiresRefresh && !string.IsNullOrWhiteSpace(_catalog?.ETag);
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _interactive = true;
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {

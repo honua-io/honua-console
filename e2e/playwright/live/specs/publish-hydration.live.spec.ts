@@ -41,3 +41,25 @@ test('connection selection is unavailable until its interactive handler is ready
     await expect(page.getByLabel('Table', { exact: true })).toBeEnabled();
   } finally { release(); }
 });
+
+test('folder selection on /operate/services is unavailable until its interactive handler is ready', async ({ page }) => {
+  await establishGovernedOperatorSession(page);
+
+  let release!: () => void;
+  let blocked = false;
+  const allowed = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/_framework/blazor.web*.js*', async route => {
+    blocked = true;
+    await allowed;
+    await route.continue();
+  });
+  try {
+    await page.goto('/operate/services', { waitUntil: 'commit' });
+    await expect.poll(() => blocked).toBe(true);
+    const folderSelect = page.locator('[data-folder-management] [data-folder-select]');
+    await expect(folderSelect).toBeVisible();
+    await expect(folderSelect).toBeDisabled();
+    release();
+    await expect(folderSelect).toBeEnabled();
+  } finally { release(); }
+});
