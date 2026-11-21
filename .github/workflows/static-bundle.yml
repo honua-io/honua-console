@@ -148,3 +148,35 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.bundle.outputs.path }}
+      # The release lock requires an SBOM statement beside provenance for every non-image
+      # artifact. This SBOM covers the locked NuGet graph of the shipped projects under src/
+      # (tests excluded) at the bundle's commit; the bundled Studio release, Cesium assets and
+      # .NET WASM runtime are not listed (Studio carries its own provenance, checked in build).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: source
+          sparse-checkout: src
+      # CycloneDX: actions/attest types SPDX as .../Document/v2.3, which the release
+      # collector does not accept; it accepts https://cyclonedx.org/bom.
+      - name: Generate the bundle SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: source/src
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/bundle.cdx.json
+          syft-version: v1.57.2
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Refuse an SBOM without the NuGet graph
+        run: |
+          python3 - "${RUNNER_TEMP}/bundle.cdx.json" <<'PY'
+          import json, sys
+          bom = json.load(open(sys.argv[1], encoding="utf-8"))
+          nuget = [c for c in bom.get("components") or [] if str(c.get("purl", "")).startswith("pkg:nuget/")]
+          if bom.get("bomFormat") != "CycloneDX" or not nuget:
+              raise SystemExit(f"{sys.argv[1]} is not a CycloneDX SBOM listing the NuGet graph")
+          PY
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.bundle.outputs.path }}
+          sbom-path: ${{ runner.temp }}/bundle.cdx.json
