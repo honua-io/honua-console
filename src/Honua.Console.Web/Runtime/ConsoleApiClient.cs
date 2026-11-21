@@ -67,7 +67,12 @@ public sealed class ConsoleApiClient(HttpClient http)
 
     public async Task<ConsoleSessionCredentials> GetPasswordTokenAsync(string password, CancellationToken cancellationToken = default)
     {
-        using var response = await http.PostAsJsonAsync("api/v1/admin/auth/password-token", new { password }, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/admin/auth/password-token")
+        {
+            Content = JsonContent.Create(new { password })
+        };
+        request.Options.Set(BrowserCredentialRequestOptions.Omit, true);
+        using var response = await http.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var root = document?.RootElement ?? throw new JsonException("Missing token response.");
@@ -153,7 +158,6 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
                 await api.SignInCookieAsync(password, cancellationToken);
                 if (api.CapturesManagementBearer)
                 {
-                    await PrepareCookieRequestAsync(cancellationToken);
                     var bearer = await api.GetPasswordTokenAsync(password, cancellationToken);
                     session.RememberManagementBearer(bearer.AccessToken!, bearer.ExpiresAt);
                 }
