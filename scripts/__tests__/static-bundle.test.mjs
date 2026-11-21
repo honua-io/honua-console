@@ -17,6 +17,21 @@ test("static bundle supersedes stale pull-request heads but never cancels releas
   );
 });
 
+test("every trunk commit publishes a SHA-bound bundle the release resolver can bind", async () => {
+  const workflow = await readFile(join(root, ".github/workflows/static-bundle.yml"), "utf8");
+  assert.match(workflow, /\n  push:\n    branches: \[trunk\]\n/);
+  assert.match(workflow, /SOURCE_SHA: \$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /elif \[ -z "\$PR_NUMBER" \]; then\n\s+version="0\.0\.0-trunk\.\$\{SOURCE_SHA:0:12\}"/);
+  const attest = workflow.indexOf("  attest:\n");
+  assert.ok(attest > 0);
+  const job = workflow.slice(attest);
+  assert.match(job, /if: github.event_name == 'push'/);
+  assert.match(job, /id-token: write\n      attestations: write/);
+  assert.match(job, /sha256sum --check --strict/);
+  assert.ok(job.indexOf("sha256sum --check") < job.indexOf("actions/attest-build-provenance@"));
+  assert.doesNotMatch(workflow.slice(0, attest), /id-token: write|attestations: write/);
+});
+
 test("static release validates locked assets before packaging and limits release writes", async () => {
   const workflow = await readFile(join(root, ".github/workflows/static-bundle.yml"), "utf8");
   assert.match(workflow, /permissions:\n  contents: read/);
