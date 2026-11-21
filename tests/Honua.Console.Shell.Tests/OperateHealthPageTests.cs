@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -76,7 +77,7 @@ public sealed class OperateHealthPageTests
             Result = OperateSectionResult<OpsHealthView>.Allowed(OpsHealthDataSource.Map(snapshot))
         }, presentation);
 
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, "No active geoprocessing jobs"));
+        Assert.Single(Regex.Matches(html, "No active geoprocessing jobs"));
         Assert.DoesNotContain("Geoprocessing queues", html, StringComparison.Ordinal);
     }
 

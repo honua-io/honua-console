@@ -51,11 +51,8 @@
     overflow-wrap: anywhere;
 }
 
-.console-monitoring-v4 .operate-table {
-    overflow-wrap: normal;
-}
-
 .console-monitoring-v4 .operate-table :is(th, .console-status) {
+    overflow-wrap: normal;
     white-space: nowrap;
 }
 

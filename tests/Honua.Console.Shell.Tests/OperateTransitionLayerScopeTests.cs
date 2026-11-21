@@ -12,29 +12,50 @@ public sealed class OperateTransitionLayerScopeTests
     [Fact]
     public async Task WorkspaceSkipsLayerReadsForServicesWithoutLayers()
     {
-        var handler = new RecordingHandler(new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["/api/v1/admin/connections/"] = $$"""
-                {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
-                """,
-            [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = EmptyLayerPage,
-            [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
-                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
-                """,
-            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
-                {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"geoprocessing","layerCount":0,"enabledProtocols":["GeoprocessingServer"]}],"page":1,"pageSize":100,"total":2}}
-                """,
-        });
-        var client = new HonuaAdminOperateHttpClient(
-            new HttpClient(handler) { BaseAddress = new Uri("https://server.example") },
-            new HonuaAdminOperateClientOptions(new Uri("https://server.example"), "test-api-key"));
+        var handler = new RecordingHandler(Fixtures("/api/v1/admin/services/?page=1&pageSize=100"));
 
-        var workspace = await new HonuaServerOperateTransitionDataSource(client).GetWorkspaceAsync();
+        var workspace = await new HonuaServerOperateTransitionDataSource(CreateClient(handler)).GetWorkspaceAsync();
 
         Assert.Contains(workspace.ResourceEdits, resource => resource.Name == "Console Parcels");
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Fact]
+    public async Task SingleLayerViewSkipsLayerReadsForServicesWithoutLayers()
+    {
+        var handler = new RecordingHandler(Fixtures(
+            $"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7"));
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
+            .GetLayerViewAsync($"{ConnectionId:D}-layer-7");
+
+        Assert.Contains(view.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    private static void AssertOnlyLayerServicesRead(RecordingHandler handler)
+    {
         Assert.Contains(handler.Requests, path => path.EndsWith("serviceName=planning", StringComparison.Ordinal));
         Assert.DoesNotContain(handler.Requests, path => path.Contains("serviceName=geoprocessing", StringComparison.Ordinal));
     }
+
+    private static HonuaAdminOperateHttpClient CreateClient(HttpMessageHandler handler) => new(
+        new HttpClient(handler) { BaseAddress = new Uri("https://server.example") },
+        new HonuaAdminOperateClientOptions(new Uri("https://server.example"), "test-api-key"));
+
+    private static Dictionary<string, string> Fixtures(string servicesPath) => new(StringComparer.Ordinal)
+    {
+        ["/api/v1/admin/connections/"] = $$"""
+            {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
+            """,
+        [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = EmptyLayerPage,
+        [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+            {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+            """,
+        [servicesPath] = """
+            {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"geoprocessing","layerCount":0,"enabledProtocols":["GeoprocessingServer"]}],"page":1,"pageSize":100,"total":2}}
+            """,
+    };
 
     private const string EmptyLayerPage = """
         {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
