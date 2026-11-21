@@ -119,7 +119,8 @@ internal sealed class BrowserApiHandler(
             ? session.ManagementExpiresAt
             : session.ExpiresAt;
         var bearerCall = managementCall || !sameOrigin;
-        if (bearerCall
+        var omitCredentials = request.Options.TryGetValue(BrowserCredentialRequestOptions.Omit, out var omit) && omit;
+        if (bearerCall && !omitCredentials
             && !string.IsNullOrWhiteSpace(bearer)
             && bearerExpiry > DateTimeOffset.UtcNow
             && (session.IsAuthenticated || access == BrowserApiAccess.Public))
@@ -130,12 +131,12 @@ internal sealed class BrowserApiHandler(
         {
             throw new HttpRequestException(
                 managementCall
-                    ? "Sign in with the deployment password before using the management endpoint."
+                    ? session.ManagementUnavailableReason ?? "Sign in with the deployment password before using the management endpoint."
                     : "Cross-origin Console access requires an operator bearer token.",
                 null, System.Net.HttpStatusCode.Unauthorized);
         }
 
-        if (!bearerCall && request.Method != HttpMethod.Get && request.Method != HttpMethod.Head
+        if (!bearerCall && !omitCredentials && request.Method != HttpMethod.Get && request.Method != HttpMethod.Head
             && request.Method != HttpMethod.Options)
         {
             if (string.IsNullOrWhiteSpace(session.CsrfToken))
@@ -145,9 +146,15 @@ internal sealed class BrowserApiHandler(
             request.Headers.Add("X-Honua-CSRF", session.CsrfToken);
         }
 
-        request.SetBrowserRequestCredentials(bearerCall ? BrowserRequestCredentials.Omit : BrowserRequestCredentials.SameOrigin);
+        request.SetBrowserRequestCredentials(bearerCall || omitCredentials ? BrowserRequestCredentials.Omit : BrowserRequestCredentials.SameOrigin);
         request.SetBrowserRequestOption("redirect", "error");
     }
+}
+
+// The server refuses a password-token request that carries the browser session (cookie or CSRF token).
+internal static class BrowserCredentialRequestOptions
+{
+    internal static readonly HttpRequestOptionsKey<bool> Omit = new("Honua.Console.OmitBrowserCredentials");
 }
 
 public sealed record BrowserApiOrigins(Uri Api, Uri Application, Uri? Management = null);

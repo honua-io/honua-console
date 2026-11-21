@@ -20,6 +20,9 @@ public sealed class ConsoleBrowserSession
     // Bearer for a separate manager. It is not the serving session and is not published to script.
     internal string? ManagementAccessToken { get; private set; }
     internal DateTimeOffset? ManagementExpiresAt { get; private set; }
+
+    // Why sign-in got no manager bearer; management calls report it instead of asking for another sign-in.
+    internal string? ManagementUnavailableReason { get; private set; }
     public bool IsAuthenticated => Principal.Identity?.IsAuthenticated == true
         && (ExpiresAt is null || ExpiresAt > DateTimeOffset.UtcNow);
 
@@ -53,6 +56,7 @@ public sealed class ConsoleBrowserSession
         ExpiresAt = credentials?.ExpiresAt;
         ManagementAccessToken = null;
         ManagementExpiresAt = null;
+        ManagementUnavailableReason = null;
         liveAnnouncement = IsAuthenticated;
         Changed?.Invoke(CreateSnapshot());
     }
@@ -61,8 +65,10 @@ public sealed class ConsoleBrowserSession
     {
         var managementToken = ManagementAccessToken;
         var managementExpiry = ManagementExpiresAt;
+        var managementUnavailable = ManagementUnavailableReason;
         Set(principal, credentials);
         if (!string.IsNullOrWhiteSpace(managementToken)) RememberManagementBearer(managementToken, managementExpiry);
+        ManagementUnavailableReason = managementUnavailable;
     }
 
     private ConsoleBrowserSessionSnapshot CreateSnapshot() => new(
@@ -80,6 +86,18 @@ public sealed class ConsoleBrowserSession
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
         ManagementAccessToken = token;
         ManagementExpiresAt = expiresAt;
+        ManagementUnavailableReason = null;
+    }
+
+    internal void RememberManagementUnavailable(System.Net.HttpStatusCode? status)
+    {
+        ManagementAccessToken = null;
+        ManagementExpiresAt = null;
+        ManagementUnavailableReason = status == System.Net.HttpStatusCode.TooManyRequests
+            ? "The serving API is limiting sign-in attempts, so it issued no bearer for the management endpoint (HTTP 429). Wait a few minutes, then sign in again."
+            : status is { } code
+            ? $"The serving API did not issue a bearer for the management endpoint (HTTP {(int)code}). Check its operator bearer and allowed origin settings, then sign in again."
+            : "The serving API did not issue a bearer for the management endpoint. Check its operator bearer and allowed origin settings, then sign in again.";
     }
 }
 
