@@ -49,7 +49,7 @@ for (const v4Enabled of [false, true]) {
     try {
       const address = fixture.server.address();
       if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
-      await page.goto(`http://127.0.0.1:${address.port}/console/operate/access/members?workspace=first`);
+      await page.goto(`http://127.0.0.1:${address.port}/console/operate/access/members?environment=first`);
       const region = page.getByRole('region', { name: 'Users', exact: true });
       await expect(region.locator('tbody')).toContainText('Synthetic operator');
       await page.evaluate(() => document.fonts.ready);

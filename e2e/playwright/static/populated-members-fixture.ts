@@ -15,9 +15,9 @@ export async function populatedMembersFixture(v4Enabled: boolean) {
       return;
     } else if (path.endsWith('/access/first/members') && request.method === 'GET') {
       response.end(JSON.stringify({ success: true, data: {
-        workspaceId: 'first', workspaceName: 'RegionalOperationsAndInfrastructurePlanningWorkspace',
-        members: [{ id: 'operator', displayName: 'Synthetic operator', identity: 'fixture-operator@example.invalid', roleName: 'Operator', scope: 'RegionalOperationsAndInfrastructurePlanningWorkspace', source: 'OIDC', lastActive: '2026-11-16', principalKind: 'user' }],
-        invitations: [{ id: 'invite', identity: 'synthetic-invitation@example.invalid', roleName: 'Operator', scope: 'RegionalOperationsAndInfrastructurePlanningWorkspace', status: 'pending' }],
+        environmentId: 'first', environmentName: 'RegionalOperationsAndInfrastructurePlanningEnvironment',
+        members: [{ id: 'operator', displayName: 'Synthetic operator', identity: 'fixture-operator@example.invalid', roleName: 'Operator', scope: 'RegionalOperationsAndInfrastructurePlanningEnvironment', source: 'OIDC', lastActive: '2026-11-16', principalKind: 'user' }],
+        invitations: [{ id: 'invite', identity: 'synthetic-invitation@example.invalid', roleName: 'Operator', scope: 'RegionalOperationsAndInfrastructurePlanningEnvironment', status: 'pending' }],
         activeCount: 1, pendingCount: 1, deactivatedCount: 0, canInvite: true,
       } }));
     } else {

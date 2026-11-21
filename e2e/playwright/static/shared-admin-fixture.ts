@@ -11,7 +11,7 @@ export function respondToSharedAdminApi(request: IncomingMessage, response: Serv
   } else if (path.endsWith('/auth/csrf')) {
     body = { requestToken: 'fixture-only' };
   } else if (path.endsWith('/access/first/roles') && request.method === 'GET') {
-    body = { success: true, data: { workspaceId: 'first', workspaceName: 'Synthetic workspace',
+    body = { success: true, data: { environmentId: 'first', environmentName: 'Synthetic environment',
       permissions: [{ key: 'view', label: 'View' }], roles: [{ id: 'custom', name: 'Synthetic role', isCustom: true, grants: [] }],
       customRoleCount: 1, canManageRoles: true } };
   } else {

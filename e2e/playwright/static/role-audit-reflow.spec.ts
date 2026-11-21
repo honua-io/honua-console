@@ -33,7 +33,7 @@ for (const v4Enabled of [false, true]) {
     try {
       const address = fixture.server.address();
       if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
-      await page.goto(`http://127.0.0.1:${address.port}/console/operate/access?workspace=first`);
+      await page.goto(`http://127.0.0.1:${address.port}/console/operate/access?environment=first`);
       await page.locator('[data-rbac-audit]').click();
       const region = page.getByRole('region', { name: 'Role change audit', exact: true });
       await expect(region.locator('tbody')).toContainText('fixture-operator');
