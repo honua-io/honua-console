@@ -66,11 +66,12 @@ public sealed class HttpConsoleExportsClient : IConsoleExportsClient
 
     public Task<OperateSectionResult<ObjectStorageSetupResponse>> GetObjectStorageSetupAsync(
         string bucket, string prefix, CancellationToken cancellationToken = default) =>
-        ReadAsync(
+        WriteAsync(
             new ServerCall<ObjectStorageSetupResponse>(
                 ExportAdminRoutes.ObjectStorageSetupFor(bucket ?? string.Empty, prefix ?? string.Empty),
                 ExportAdminJsonContext.Default.ObjectStorageSetupEnvelope)
             {
+                Method = HttpMethod.Post,
                 NotFound = OperateSectionStatus.Unsupported
             },
             cancellationToken);
