@@ -61,11 +61,16 @@ test('sticky panes follow the measured top bar height', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, '/operate/connections', 'v4');
   const published = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--topbar-h').trim());
-  await expect.poll(published).toBe('48px');
+  const measured = () => page.evaluate(() => `${Math.ceil(document.querySelector('.console-topbar')!.getBoundingClientRect().height)}px`);
+  // The Operate approval count renders after an async read and can wrap the bar at 1440px, so
+  // wait for it and compare against the measured bar rather than assuming the one-row token.
+  await expect(page.locator('.console-approval-count')).toBeVisible();
+  const settled = await measured();
+  await expect.poll(published).toBe(settled);
   await page.evaluate(() => { document.querySelector<HTMLElement>('.console-topbar')!.style.paddingBlock = '20px'; });
-  const height = await page.evaluate(() => Math.ceil(document.querySelector('.console-topbar')!.getBoundingClientRect().height));
-  expect(height).toBeGreaterThan(48);
-  await expect.poll(published).toBe(`${height}px`);
+  const grown = await measured();
+  expect(parseInt(grown)).toBeGreaterThan(parseInt(settled));
+  await expect.poll(published).toBe(grown);
 });
 
 for (const shell of ['legacy', 'v4'] as const) {
