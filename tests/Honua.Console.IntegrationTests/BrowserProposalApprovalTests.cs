@@ -73,6 +73,45 @@ public sealed class BrowserProposalApprovalTests
         Assert.Equal("POST /api/v1/admin/proposals/prop-1/reject", reject.Line);
         Assert.Equal("issued-csrf", reject.Csrf);
         Assert.Null(reject.Authorization);
+        Assert.Null(reject.ApiKey);
+    }
+
+    [Fact]
+    public async Task DeploySubmitApprovesWithCapabilityAndCsrfOverSameOriginCookieSession()
+    {
+        var session = new ConsoleBrowserSession();
+        session.Set(Principal(), new ConsoleSessionCredentials(CsrfToken: "issued-csrf"));
+        var server = new ApprovalServer();
+        var http = new HttpClient(new BrowserApiHandler(new BrowserApiOrigins(Api, App), session, BrowserApiAccess.Manager)
+        {
+            InnerHandler = server
+        })
+        { BaseAddress = Api };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore(
+            [new ConsoleEnvironmentProfile { Id = "configured-api", ServerBaseUri = Api }], activeProfileId: "configured-api");
+        var client = new HttpConsoleDeployApprovalClient(
+            http, profiles, new InMemoryConsoleAccountSessionStore(),
+            adminApiKey: null, operatorBearerProvider: new BrowserOperatorBearerProvider(session, Api));
+
+        var result = await client.SubmitAsync("deploy-1", "Verified", new ConsoleDeployReviewedOperation(3, "plan-3", "v21"));
+
+        Assert.Equal(OperateSectionStatus.Allowed, result.Status);
+        Assert.Collection(
+            server.Requests,
+            review =>
+            {
+                Assert.Equal("GET /api/v1/admin/deploy/operations/deploy-1/approval-review/submit", review.Line);
+                Assert.Null(review.Authorization);
+                Assert.Null(review.ApiKey);
+            },
+            submit =>
+            {
+                Assert.Equal("POST /api/v1/admin/deploy/operations/deploy-1/submit", submit.Line);
+                Assert.Equal("capability-deploy-3", submit.Capability);
+                Assert.Equal("issued-csrf", submit.Csrf);
+                Assert.Null(submit.Authorization);
+                Assert.Null(submit.ApiKey);
+            });
     }
 
     [Fact]
@@ -128,6 +167,18 @@ public sealed class BrowserProposalApprovalTests
                 "expiresAt": "2026-06-28T10:15:00Z", "capability": "capability-3" } }
             """;
 
+        private const string DeployReview = """
+            { "operation": { "operationId": "deploy-1", "version": 3, "kind": "Deploy", "status": "AwaitingApproval",
+                "target": { "desiredRevision": "v21" } },
+              "action": "submit",
+              "review": { "tenantId": null, "proposalId": "deploy-1", "proposalVersion": 3, "planHash": "plan-3",
+                "expiresAt": "2026-06-28T10:15:00Z", "capability": "capability-deploy-3" } }
+            """;
+
+        private const string DeploySubmitted = """
+            { "operationId": "deploy-1", "version": 4, "kind": "Deploy", "status": "Submitted" }
+            """;
+
         public List<SeenRequest> Requests { get; } = [];
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -138,7 +189,12 @@ public sealed class BrowserProposalApprovalTests
                 Header(request, "X-API-Key"),
                 Header(request, "X-Honua-CSRF"),
                 Header(request, "X-Honua-Approval-Capability")));
-            var body = request.RequestUri.AbsolutePath.EndsWith("/approval-review", StringComparison.Ordinal) ? Review : Detail;
+            var path = request.RequestUri.AbsolutePath;
+            var body = path.EndsWith("/approval-review/submit", StringComparison.Ordinal)
+                ? DeployReview
+                : path.EndsWith("/deploy/operations/deploy-1/submit", StringComparison.Ordinal)
+                    ? DeploySubmitted
+                    : path.EndsWith("/approval-review", StringComparison.Ordinal) ? Review : Detail;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json")

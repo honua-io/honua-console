@@ -54,6 +54,24 @@ public sealed class HttpSupportTicketClient : IConsoleSupportTicketClient
         return await SendAsync(message, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<SupportTicketResult> RevokeSessionAsync(
+        string ticketId,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ticketId);
+
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        using var message = new HttpRequestMessage(HttpMethod.Post, BuildUri(SupportTicketRoutes.RevokeSession(ticketId.Trim())))
+        {
+            Content = JsonContent.Create(
+                new RevokeSupportSessionRequest { Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim() },
+                SupportTicketJsonContext.Default.RevokeSupportSessionRequest)
+        };
+        await AttachAuthorizationAsync(message, profile, cancellationToken).ConfigureAwait(false);
+        return await SendAsync(message, cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<SupportTicketResult> SendAsync(HttpRequestMessage message, CancellationToken cancellationToken)
     {
         try

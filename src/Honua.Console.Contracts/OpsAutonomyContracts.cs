@@ -60,6 +60,22 @@ public sealed record OpsAutonomyPolicyResponse
 
     [JsonPropertyName("trackRecord")]
     public OpsAutonomyTrackRecordResponse TrackRecord { get; init; } = new();
+
+    [JsonPropertyName("previousMode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PreviousMode { get; init; }
+
+    [JsonPropertyName("auditEntryId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AuditEntryId { get; init; }
+
+    [JsonPropertyName("auditEntryHash")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AuditEntryHash { get; init; }
+
+    [JsonPropertyName("auditChainVerified")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AuditChainVerified { get; init; }
 }
 
 public sealed record OpsAutonomySettingsResponse

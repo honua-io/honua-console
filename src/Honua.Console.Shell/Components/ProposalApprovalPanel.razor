@@ -1,21 +1,9 @@
+@using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IConsoleProposalsClient Proposals
+@inject IServiceProvider Services
 @implements IAsyncDisposable
-
-@* Human-in-the-loop approval panel for a single operation proposal (#193, honua-server
-   #1694). It renders the server-owned plan/diff/dry-run/risk/blockers/warnings — the same
-   artifacts the direct-execute path would have produced — and the governed actions:
-     Approve -> GET  /api/v1/admin/proposals/{id}/approval-review, then
-                POST /api/v1/admin/proposals/{id}/approve with that review's capability
-     Reject  -> POST /api/v1/admin/proposals/{id}/reject  (reason REQUIRED)
-   Approve/reject are gated server-side by the RBAC 'approve' grant, and approval also by a
-   live human browser session; a denied decision returns 403 and is
-   surfaced here, disabling the actions (the server is the only safety gate; never bypassed).
-   Each first-class kind gets its own card treatment: the Data import proposal (honua-server
-   #1630) leads with an import treatment, and each deliverable request (map / analysis /
-   dashboard / app) leads with a kind-appropriate deliverable treatment — then all render the
-   same plan/diff/preview/risk as every other kind. *@
 
 @if (_detail is null)
 {
@@ -25,6 +13,11 @@ else
 {
     var detail = _detail;
     var cardVariant = ConsoleProposalPresentation.CardVariantClass(detail.Kind);
+    var supportInitiated = ConsoleProposalPresentation.IsSupportAgentInitiated(detail);
+    var cveIds = ConsoleProposalPresentation.ExtractCveIdentifiers(detail);
+    var pinnedDigests = ConsoleProposalPresentation.ExtractPinnedImageDigests(detail);
+    var isUrgentCvePatch = cveIds.Count > 0 || pinnedDigests.Count > 0;
+
     <section class="console-panel proposal-approval-panel @cardVariant"
              data-proposal-id="@detail.ProposalId"
              data-proposal-source="@detail.Source"
@@ -44,6 +37,42 @@ else
 
         <p class="proposal-approval-summary">@detail.Summary</p>
 
+        @if (supportInitiated)
+        {
+            <div class="console-usage-callout proposal-approval-callout-support" role="note" data-proposal-support-initiation>
+                <strong>Break-glass support proposal (honua-support-agent).</strong>
+                <span>
+                    Proposed remotely via scoped <span class="console-mono">ops:read</span> + <span class="console-mono">ops:propose</span>
+                    access. Inspect the execution payload and plan hash below before authorizing.
+                </span>
+            </div>
+        }
+
+        @if (isUrgentCvePatch)
+        {
+            <div class="console-usage-callout proposal-approval-callout-cve" role="note" data-proposal-cve-patch>
+                <strong>Urgent security / pinned-digest image patch.</strong>
+                @if (cveIds.Count > 0)
+                {
+                    <p>Advisory: <span class="console-mono">@string.Join(", ", cveIds)</span></p>
+                }
+                @if (pinnedDigests.Count > 0)
+                {
+                    <p>Pinned digest: <span class="console-mono">@string.Join(", ", pinnedDigests)</span></p>
+                }
+            </div>
+        }
+
+        @if (detail.RequiresReproposal)
+        {
+            <div class="console-usage-callout proposal-approval-callout-block" role="alert" data-proposal-reproposal-required>
+                <strong>Fresh proposal required before approval.</strong>
+                <p>@(string.IsNullOrWhiteSpace(detail.ApprovalRemediation)
+                    ? "Create a fresh proposal with a new idempotency key and reopen it in Console for human approval."
+                    : detail.ApprovalRemediation)</p>
+            </div>
+        }
+
         <dl class="console-definition-list proposal-approval-facts">
             <dt>Ticket type</dt>
             <dd>@ApprovalTicketPresentation.Label(ApprovalTicketPresentation.Classify(detail.Kind))</dd>
@@ -57,6 +86,37 @@ else
                     @ConsoleProposalPresentation.RiskLabel(detail.RiskLevel)
                 </span>
             </dd>
+            @if (!string.IsNullOrWhiteSpace(detail.PlanHash))
+            {
+                <dt>Plan hash</dt>
+                <dd class="console-mono" data-proposal-plan-hash>
+                    @detail.PlanHash
+                    @if (detail.Version > 0)
+                    {
+                        <span class="console-muted"> (v@detail.Version)</span>
+                    }
+                </dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.OperationId))
+            {
+                <dt>Operation ID</dt>
+                <dd class="console-mono" data-proposal-operation-id>@detail.OperationId</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.ActionDiscriminator))
+            {
+                <dt>Action discriminator</dt>
+                <dd class="console-mono" data-proposal-action-discriminator>@detail.ActionDiscriminator</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.Initiation))
+            {
+                <dt>Initiation</dt>
+                <dd data-proposal-initiation>@detail.Initiation</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(detail.AutonomyRule))
+            {
+                <dt>Autonomy rule</dt>
+                <dd class="console-mono" data-proposal-autonomy-rule>@detail.AutonomyRule</dd>
+            }
             @if (!string.IsNullOrWhiteSpace(detail.RequestedBy))
             {
                 <dt>Requested by</dt>
@@ -138,10 +198,94 @@ else
             </div>
         }
 
-        @* GOVERNED ACTIONS — approve / reject (reason required). Offered only while
-           AwaitingApproval; approve is blocked while there are blocking findings. The RBAC
-           'approve' grant is the server's gate: once a 403 tells us the operator lacks it,
-           the actions are disabled and the reason is surfaced. *@
+        @if (!string.IsNullOrWhiteSpace(detail.ExecutionPayload))
+        {
+            <div class="proposal-approval-payload" data-proposal-execution-payload>
+                <h4>Execution payload</h4>
+                <p class="console-muted">
+                    Exact server-sealed parameters bound to this proposal; verify before authorizing.
+                </p>
+                <pre class="console-code-block"><code class="console-mono">@detail.ExecutionPayload</code></pre>
+            </div>
+        }
+
+        @if (ShowAutonomyPolicyControl(detail))
+        {
+            var isAutoApply = string.Equals(_rulePolicy?.Mode, "AutoApply", StringComparison.Ordinal);
+            <div class="console-usage-callout proposal-approval-autonomy" data-proposal-autonomy-policy>
+                <h4>Automation policy &mdash; <span class="console-mono">@detail.AutonomyRule</span></h4>
+                <p class="console-muted">
+                    Current server mode:
+                    <strong data-proposal-autonomy-mode>@(string.IsNullOrWhiteSpace(_rulePolicy?.Mode) ? "ProposeOnly" : _rulePolicy.Mode)</strong>
+                    @if (_rulePolicy is { MaxAutoActionsPerWindow: > 0, WindowSeconds: > 0 } bounded)
+                    {
+                        <span> &middot; max @bounded.MaxAutoActionsPerWindow actions / @(bounded.WindowSeconds)s &middot; max blast radius @bounded.MaxBlastRadius</span>
+                    }
+                </p>
+                @if (_killSwitchEnabled)
+                {
+                    <p class="console-state-warning" data-proposal-autonomy-killswitch>
+                        Global autonomy kill switch is enabled; rules stay propose-only until resumed.
+                    </p>
+                }
+                @if (detail.IsAwaitingApproval && !isAutoApply)
+                {
+                    <label class="proposal-auto-apply-option">
+                        <input type="checkbox"
+                               disabled="@(DecisionUnavailable || _policyBusy)"
+                               data-proposal-auto-apply-toggle
+                               @bind="_promoteRuleOnApprove" />
+                        <span>Automatically apply this rule in the future (promote <span class="console-mono">ProposeOnly</span> &rarr; <span class="console-mono">AutoApply</span> with bounded defaults)</span>
+                    </label>
+                }
+                <div class="proposal-approval-action-row">
+                    <button type="button"
+                            class="console-button console-button-secondary"
+                            disabled="@(_policyBusy || _busy || !RendererInfo.IsInteractive)"
+                            data-proposal-auto-apply-action
+                            @onclick="ToggleRulePolicyAsync">
+                        @(isAutoApply
+                            ? "Return rule to propose-only"
+                            : "Automatically apply this rule in the future")
+                    </button>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_policyMessage))
+                {
+                    <p class="@_policyMessageClass" role="status" data-proposal-policy-message>@_policyMessage</p>
+                }
+                @if (_policyAuditReceipt is { } receipt)
+                {
+                    <div class="proposal-policy-audit-receipt" data-policy-audit-receipt>
+                        <strong>Policy audit trail receipt</strong>
+                        <dl class="console-definition-list">
+                            <dt>Transition</dt>
+                            <dd class="console-mono" data-policy-audit-transition>@receipt.TransitionDisplay</dd>
+                            <dt>Actor</dt>
+                            <dd data-policy-audit-actor>@receipt.Actor</dd>
+                            <dt>Timestamp</dt>
+                            <dd data-policy-audit-timestamp>@receipt.OccurredAtDisplay</dd>
+                            <dt>Audit chain</dt>
+                            <dd data-policy-audit-chain="@receipt.ChainStatus">@receipt.ChainStatusLabel</dd>
+                            @if (!string.IsNullOrWhiteSpace(receipt.AuditEntryId))
+                            {
+                                <dt>Audit entry</dt>
+                                <dd class="console-mono" data-policy-audit-entry-id>@receipt.AuditEntryId</dd>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(receipt.AuditEntryHash))
+                            {
+                                <dt>Entry hash</dt>
+                                <dd class="console-mono" data-policy-audit-hash>@receipt.AuditEntryHash</dd>
+                            }
+                        </dl>
+                        @if (!string.IsNullOrWhiteSpace(receipt.Summary))
+                        {
+                            <p class="console-muted">@receipt.Summary</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
         @if (detail.IsAwaitingApproval)
         {
             <div class="proposal-approval-actions">
@@ -160,12 +304,14 @@ else
                 <div class="proposal-approval-action-row">
                     <button type="button"
                             class="console-button"
-                            disabled="@(DecisionUnavailable || detail.BlockingReasons.Count > 0)"
+                            disabled="@(DecisionUnavailable || detail.BlockingReasons.Count > 0 || detail.RequiresReproposal)"
                             title="@(_approveForbidden
                                 ? "You lack the approve permission for this server."
-                                : detail.BlockingReasons.Count > 0
-                                    ? "Resolve blocking findings before approving."
-                                    : "Approve and submit this proposal for execution.")"
+                                : detail.RequiresReproposal
+                                    ? "Create a fresh proposal before approving."
+                                    : detail.BlockingReasons.Count > 0
+                                        ? "Resolve blocking findings before approving."
+                                        : "Approve and submit this proposal for execution.")"
                             data-proposal-approve
                             @onclick="ApproveAsync">
                         Approve &amp; submit
@@ -214,22 +360,15 @@ else
 }
 
 @code {
-    /// <summary>The proposal id under review.</summary>
     [Parameter, EditorRequired]
     public required string ProposalId { get; set; }
 
-    /// <summary>
-    /// Bumped by the parent (e.g. on a live ProposalResolved event for this proposal) to force
-    /// a detail reload without changing the selected id.
-    /// </summary>
     [Parameter]
     public int ReloadToken { get; set; }
 
-    /// <summary>Raised after a successful approve/reject so the parent can refresh its queue.</summary>
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
 
-    /// <summary>Reports the server-owned detail state to the parent. </summary>
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
 
@@ -237,17 +376,15 @@ else
     public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
 
     private bool _disposed;
-    private Task ReportUnsavedAsync() => UnsavedChanged.InvokeAsync(new()
-    {
-        ChangedFieldCount = !_disposed && _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
-        PendingOperationCount = _busy ? 1 : 0
-    });
-
-    public async ValueTask DisposeAsync()
-    {
-        _disposed = true;
-        await ReportUnsavedAsync();
-    }
+    private IConsoleOpsAutonomyClient? _autonomyClient;
+    private OpsAutonomyPolicyResponse? _rulePolicy;
+    private bool _autonomySupported = true;
+    private bool _killSwitchEnabled;
+    private bool _promoteRuleOnApprove;
+    private bool _policyBusy;
+    private string? _policyMessage;
+    private string _policyMessageClass = string.Empty;
+    private PolicyAuditTrailReceipt? _policyAuditReceipt;
 
     private ConsoleProposalDetail? _detail;
     private OperateSectionStatus _status = OperateSectionStatus.Unavailable;
@@ -264,6 +401,23 @@ else
     private string? _loadedProposalId;
     private int _loadedReloadToken = -1;
 
+    protected override void OnInitialized()
+    {
+        _autonomyClient = Services.GetService<IConsoleOpsAutonomyClient>();
+    }
+
+    private Task ReportUnsavedAsync() => UnsavedChanged.InvokeAsync(new()
+    {
+        ChangedFieldCount = !_disposed && _detail?.IsAwaitingApproval == true && !string.IsNullOrEmpty(_reason) ? 1 : 0,
+        PendingOperationCount = _busy ? 1 : 0
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        await ReportUnsavedAsync();
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (!string.Equals(_loadedProposalId, ProposalId, StringComparison.Ordinal))
@@ -273,6 +427,11 @@ else
             _reason = null;
             _approveForbidden = false;
             _actionMessage = null;
+            _promoteRuleOnApprove = false;
+            _rulePolicy = null;
+            _policyMessage = null;
+            _policyAuditReceipt = null;
+            _autonomySupported = true;
             await LoadAsync();
         }
         else if (_loadedReloadToken != ReloadToken)
@@ -282,15 +441,48 @@ else
         }
     }
 
+    private bool ShowAutonomyPolicyControl(ConsoleProposalDetail detail) =>
+        _autonomyClient is not null
+        && _autonomySupported
+        && !string.IsNullOrWhiteSpace(detail.AutonomyRule);
+
     private async Task LoadAsync()
     {
         var result = await Proposals.GetAsync(ProposalId);
         if (_disposed) return;
         Apply(result);
+        await LoadAutonomyRulePolicyAsync();
+        if (_disposed) return;
         await ReportUnsavedAsync();
         if (result.IsAllowed && result.Value is { } detail)
         {
             await OnDetailLoaded.InvokeAsync(detail);
+        }
+    }
+
+    private async Task LoadAutonomyRulePolicyAsync()
+    {
+        if (_autonomyClient is null || string.IsNullOrWhiteSpace(_detail?.AutonomyRule))
+        {
+            return;
+        }
+
+        var snapshot = await _autonomyClient.LoadAsync();
+        if (_disposed) return;
+
+        if (snapshot.Status == OperateSectionStatus.Unsupported)
+        {
+            _autonomySupported = false;
+            _rulePolicy = null;
+            return;
+        }
+
+        if (snapshot.IsAllowed && snapshot.Value is { } value)
+        {
+            _autonomySupported = true;
+            _killSwitchEnabled = value.Settings.KillSwitchEnabled;
+            _rulePolicy = value.Policies.FirstOrDefault(p =>
+                string.Equals(p.Rule, _detail.AutonomyRule, StringComparison.Ordinal));
         }
     }
 
@@ -302,9 +494,22 @@ else
         _detail = result.IsAllowed ? result.Value : null;
     }
 
-    private Task ApproveAsync() => RunActionAsync(
-        () => Proposals.ApproveAsync(ProposalId, ConsoleProposalReviewedPlan.From(_detail)),
-        feedback: ConsoleProposalDecisionFeedback.ForApproval);
+    private async Task ApproveAsync()
+    {
+        var promoteAfterApproval = _promoteRuleOnApprove && ShowAutonomyPolicyControl(_detail!);
+        var rule = _detail?.AutonomyRule;
+        var enteredReason = _reason;
+        var approved = await RunActionAsync(
+            () => Proposals.ApproveAsync(ProposalId, ConsoleProposalReviewedPlan.From(_detail)),
+            feedback: ConsoleProposalDecisionFeedback.ForApproval);
+        if (approved && promoteAfterApproval && !string.IsNullOrWhiteSpace(rule))
+        {
+            var reason = string.IsNullOrWhiteSpace(enteredReason)
+                ? $"Promoted to AutoApply from approval inbox proposal {ProposalId}"
+                : enteredReason.Trim();
+            await ApplyPolicyModeAsync(rule, "AutoApply", reason);
+        }
+    }
 
     private Task RejectAsync()
     {
@@ -320,13 +525,89 @@ else
             feedback: _ => new("Rejected — recorded with your reason.", "console-state-success"));
     }
 
-    private async Task RunActionAsync(
+    private Task ToggleRulePolicyAsync()
+    {
+        if (_detail is null || string.IsNullOrWhiteSpace(_detail.AutonomyRule))
+        {
+            return Task.CompletedTask;
+        }
+
+        var nextMode = string.Equals(_rulePolicy?.Mode, "AutoApply", StringComparison.Ordinal)
+            ? "ProposeOnly"
+            : "AutoApply";
+        var reason = string.IsNullOrWhiteSpace(_reason)
+            ? $"Updated rule {_detail.AutonomyRule} to {nextMode} from approval inbox proposal {ProposalId}"
+            : _reason.Trim();
+        return ApplyPolicyModeAsync(_detail.AutonomyRule, nextMode, reason);
+    }
+
+    private async Task ApplyPolicyModeAsync(string rule, string targetMode, string reason)
+    {
+        if (_autonomyClient is null || _policyBusy)
+        {
+            return;
+        }
+
+        var previousMode = string.IsNullOrWhiteSpace(_rulePolicy?.Mode) ? "ProposeOnly" : _rulePolicy.Mode;
+        _policyBusy = true;
+        _policyMessage = null;
+        try
+        {
+            var result = await _autonomyClient.SetPolicyModeAsync(rule, targetMode, reason);
+            if (_disposed) return;
+
+            if (result.IsAllowed && result.Value is { } updated)
+            {
+                _rulePolicy = updated;
+                _promoteRuleOnApprove = false;
+                var matchingAudit = await TryFindMatchingPolicyAuditAsync(rule, updated.Mode);
+                _policyAuditReceipt = PolicyAuditTrailReceipt.FromAutonomyPolicy(updated, previousMode, matchingAudit);
+                _policyMessage = string.Equals(updated.Mode, "AutoApply", StringComparison.Ordinal)
+                    ? $"Policy updated: {rule} will automatically apply in the future."
+                    : $"Policy updated: {rule} returned to propose-only.";
+                _policyMessageClass = "console-state-success";
+            }
+            else
+            {
+                _policyMessage = string.IsNullOrWhiteSpace(result.Message)
+                    ? OperateSectionPresentation.FallbackMessage(result.Status)
+                    : result.Message;
+                _policyMessageClass = "console-state-danger";
+            }
+        }
+        finally
+        {
+            _policyBusy = false;
+        }
+    }
+
+    private async Task<OpsAutonomyAuditEntry?> TryFindMatchingPolicyAuditAsync(string rule, string mode)
+    {
+        if (_autonomyClient is null)
+        {
+            return null;
+        }
+
+        var snapshot = await _autonomyClient.LoadAsync();
+        if (!snapshot.IsAllowed || snapshot.Value is null)
+        {
+            return null;
+        }
+
+        return snapshot.Value.AuditEntries.FirstOrDefault(entry =>
+            entry.IsPolicyChange
+            && string.Equals(entry.Rule, rule, StringComparison.Ordinal)
+            && (string.IsNullOrWhiteSpace(entry.PolicyMode)
+                || string.Equals(entry.PolicyMode, mode, StringComparison.Ordinal)));
+    }
+
+    private async Task<bool> RunActionAsync(
         Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,
         Func<ConsoleProposalDetail, ConsoleProposalDecisionFeedback> feedback)
     {
         if (_busy || _approveForbidden)
         {
-            return;
+            return false;
         }
 
         _busy = true;
@@ -345,28 +626,26 @@ else
                 _actionMessage = outcome.Message;
                 _actionMessageClass = outcome.CssClass;
                 await OnActioned.InvokeAsync(result.Value);
+                return true;
             }
-            else
+
+            if (result.Status == OperateSectionStatus.Forbidden)
             {
-                // A Forbidden result means the approve grant or human-session gate
-                // denied the decision — disable the actions and surface the reason.
-                if (result.Status == OperateSectionStatus.Forbidden)
-                {
-                    _approveForbidden = true;
-                }
-
-                _actionMessage = string.IsNullOrWhiteSpace(result.Message)
-                    ? OperateSectionPresentation.FallbackMessage(result.Status)
-                    : result.Message;
-                _actionMessageClass = "console-state-danger";
-                _actionDetail = result.Detail;
-
-                // Reload so a conflict (already-resolved) reflects the server's current state.
-                if (result.Status == OperateSectionStatus.Unavailable || result.Status == OperateSectionStatus.Missing)
-                {
-                    await LoadAsync();
-                }
+                _approveForbidden = true;
             }
+
+            _actionMessage = string.IsNullOrWhiteSpace(result.Message)
+                ? OperateSectionPresentation.FallbackMessage(result.Status)
+                : result.Message;
+            _actionMessageClass = "console-state-danger";
+            _actionDetail = result.Detail;
+
+            if (result.Status == OperateSectionStatus.Unavailable || result.Status == OperateSectionStatus.Missing)
+            {
+                await LoadAsync();
+            }
+
+            return false;
         }
         finally
         {

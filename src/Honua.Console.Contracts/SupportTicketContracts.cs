@@ -8,6 +8,13 @@ public static class SupportTicketRoutes
     public const string Tickets = "api/v1/tickets";
 
     public static string Ticket(string id) => $"{Tickets}/{Uri.EscapeDataString(id)}";
+
+    public static string RevokeSession(string id) => $"{Ticket(id)}/revoke-session";
+}
+
+public sealed record RevokeSupportSessionRequest
+{
+    public string? Reason { get; init; }
 }
 
 public sealed record CreateSupportTicketRequest
@@ -156,8 +163,12 @@ public sealed record SupportTicketTrust
 
 public sealed record SupportTrustDelegatedSession
 {
-    // One of disabled, read-only, or operator-scoped.
+    // One of disabled, read-only, operator-scoped, or break-glass.
     public string Mode { get; init; } = string.Empty;
+
+    public string? SessionId { get; init; }
+
+    public IReadOnlyList<string>? Scopes { get; init; }
 
     public DateTimeOffset? EstablishedAt { get; init; }
 
@@ -166,6 +177,16 @@ public sealed record SupportTrustDelegatedSession
     public bool CustomerVisible { get; init; }
 
     public bool Active { get; init; }
+
+    public DateTimeOffset? RevokedAt { get; init; }
+
+    public string? RevokedBy { get; init; }
+
+    public string? AuditEntryId { get; init; }
+
+    public string? AuditEntryHash { get; init; }
+
+    public bool? AuditChainVerified { get; init; }
 }
 
 public sealed record SupportTrustScorecard
@@ -276,6 +297,7 @@ public sealed record SupportTicketResponse
     PropertyNameCaseInsensitive = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CreateSupportTicketRequest))]
+[JsonSerializable(typeof(RevokeSupportSessionRequest))]
 [JsonSerializable(typeof(SupportTicketResponse))]
 [JsonSerializable(typeof(SupportContextRequest))]
 [JsonSerializable(typeof(SupportContextUser))]

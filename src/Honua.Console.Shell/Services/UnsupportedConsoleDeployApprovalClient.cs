@@ -30,6 +30,12 @@ public sealed class UnsupportedConsoleDeployApprovalClient : IConsoleDeployAppro
         CancellationToken cancellationToken = default) =>
         Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(OperateSectionStatus.Unsupported, Message));
 
+    public Task<OperateSectionResult<DeployOperationProposal>> PromoteAsync(
+        string operationId,
+        string? reason,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateSectionResult<DeployOperationProposal>.Denied(OperateSectionStatus.Unsupported, Message));
+
     public Task<OperateSectionResult<DeployOperationProposal>> RollbackAsync(
         string operationId,
         string? reason,

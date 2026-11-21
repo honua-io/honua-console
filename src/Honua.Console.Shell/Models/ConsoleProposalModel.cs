@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Honua.Console.Shell.Models;
 
 public enum ConsoleProposalKind
@@ -127,6 +129,18 @@ public sealed record ConsoleProposalDetail(
     public long Version { get; init; }
 
     public string? PlanHash { get; init; }
+
+    public string? OperationId { get; init; }
+
+    public string? Initiation { get; init; }
+
+    public string? ApprovalChannel { get; init; }
+
+    public bool RequiresReproposal { get; init; }
+
+    public string? ApprovalRemediation { get; init; }
+
+    public string? ExecutionPayload { get; init; }
 
     public string? FindingId { get; init; }
 
@@ -326,6 +340,90 @@ public static class ConsoleProposalPresentation
         ConsoleProposalSource.DevOps => "DevOps",
         _ => "Server",
     };
+
+    private static readonly Regex CvePattern = new(
+        @"\bCVE-\d{4}-\d{4,7}\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex PinnedDigestPattern = new(
+        @"@sha256:[0-9a-fA-F]{64}\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    public static bool IsSupportAgentInitiated(ConsoleProposalDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return ContainsSupportAgentMarker(detail.RequestedByAgent)
+            || ContainsSupportAgentMarker(detail.RequestedBy)
+            || ContainsSupportAgentMarker(detail.Initiation);
+    }
+
+    public static bool IsUrgentCvePatch(ConsoleProposalDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return ExtractCveIdentifiers(detail).Count > 0 || ExtractPinnedImageDigests(detail).Count > 0;
+    }
+
+    public static IReadOnlyList<string> ExtractCveIdentifiers(ConsoleProposalDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return CollectMatches(detail, CvePattern, value => value.ToUpperInvariant());
+    }
+
+    public static IReadOnlyList<string> ExtractPinnedImageDigests(ConsoleProposalDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return CollectMatches(detail, PinnedDigestPattern, value => value.ToLowerInvariant());
+    }
+
+    private static bool ContainsSupportAgentMarker(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return value.Contains("honua-support-agent", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("support-agent", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("supportagent", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<string> CollectMatches(
+        ConsoleProposalDetail detail,
+        Regex pattern,
+        Func<string, string> normalize)
+    {
+        var results = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var text in EnumerateInspectableText(detail))
+        {
+            foreach (Match match in pattern.Matches(text))
+            {
+                var normalized = normalize(match.Value);
+                if (seen.Add(normalized))
+                {
+                    results.Add(normalized);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private static IEnumerable<string> EnumerateInspectableText(ConsoleProposalDetail detail)
+    {
+        if (!string.IsNullOrWhiteSpace(detail.Summary)) yield return detail.Summary;
+        if (!string.IsNullOrWhiteSpace(detail.ActionDiscriminator)) yield return detail.ActionDiscriminator;
+        if (!string.IsNullOrWhiteSpace(detail.ExecutionPayload)) yield return detail.ExecutionPayload;
+        foreach (var line in detail.Diff)
+        {
+            if (!string.IsNullOrWhiteSpace(line)) yield return line;
+        }
+
+        foreach (var warning in detail.Warnings)
+        {
+            if (!string.IsNullOrWhiteSpace(warning)) yield return warning;
+        }
+    }
 
     private static string Normalize(string? raw) => (raw ?? string.Empty)
         .Trim()

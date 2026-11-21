@@ -68,7 +68,7 @@
            back to the loose ticket fields; they self-suppress when the ticket is not
            escalated / no session is implied. *@
         <SupportEscalationRationaleCard Ticket="_ticket" />
-        <SupportRemoteSessionBanner Ticket="_ticket" />
+        <SupportRemoteSessionBanner Ticket="_ticket" OnSessionRevoked="OnSessionRevoked" />
 
         <article class="console-panel">
             <div class="console-panel-heading">
@@ -267,6 +267,8 @@
     // backoff; every other status will not, and a terminal ticket has nothing left to change.
     private bool ShouldPoll() =>
         _status == OperateSectionStatus.Unavailable || (_ticket is not null && !IsTerminal(_ticket.Phase));
+
+    private void OnSessionRevoked(SupportTicketResponse updated) => _ticket = updated;
 
     private static bool IsTerminal(string phase) =>
         phase is "resolved" or "cancelled" or "closed";

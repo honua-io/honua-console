@@ -1,31 +1,24 @@
 @inject NavigationManager ConsoleNavigation
 @inject IServiceProvider Services
 @using Honua.Console.Contracts
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
 @implements IDisposable
 
-@* trust-visibility (#166): live remote-session banner. Renders the access mode,
-   a TTL countdown to expiry, the customer-visible state, and a "view actions"
-   affordance into the audit/evidence trail.
-
-   DATA TRANSPORT NOTE (honua-support#23): when the ticket carries the
-   authoritative `trust.delegatedSession`, this banner uses its concrete
-   `expiresAt` for the countdown, its explicit `customerVisible` flag, and its
-   `active` state directly. When that sub-object is ABSENT it degrades to the
-   loose ticket fields: AllowedAccessMode + TtlMinutes counted down from
-   UpdatedAt (best-effort expiry), customer-visible inferred by policy, and the
-   access boundary. When access is read-only / no session is implied, it states
-   that plainly rather than inventing a session. *@
 @if (ShowBanner)
 {
-    <article class="console-panel support-session-banner @SeverityClass">
+    <article class="console-panel support-session-banner @SeverityClass" data-support-session-banner>
         <div class="console-panel-heading">
             <h2>Remote session</h2>
-            <span class="support-phase-badge">@AccessModeLabel</span>
+            <span class="support-phase-badge" data-support-session-mode>@AccessModeLabel</span>
         </div>
 
         @if (HasActiveWindow)
         {
-            <p class="support-session-countdown">
+            <p class="support-session-scopes" data-support-session-scopes>
+                Granted scope: <span class="console-mono">@ScopeDisplay</span>
+            </p>
+            <p class="support-session-countdown" data-support-session-countdown>
                 @if (_remaining > TimeSpan.Zero)
                 {
                     <span>Access window: <strong>@FormatRemaining(_remaining)</strong> remaining</span>
@@ -45,10 +38,54 @@
                     <span>TTL @TtlMinutes min · best-effort expiry @ExpiresAt?.ToString("u")</span>
                 }
             </p>
+            @if (_remaining > TimeSpan.Zero && _supportClient is not null)
+            {
+                <div class="support-session-revoke-row">
+                    <button type="button"
+                            class="console-button console-button-danger"
+                            disabled="@_revoking"
+                            data-revoke-support-session
+                            @onclick="RevokeSessionAsync">
+                        @(_revoking ? "Revoking support session…" : "Revoke Support Session")
+                    </button>
+                </div>
+            }
+        }
+        else if (IsRevoked)
+        {
+            <p data-support-session-revoked>
+                Break-glass support session revoked. No remote credentials remain active for this ticket.
+            </p>
         }
         else
         {
             <p>Read-only diagnostic access. No elevated remote session is open for this ticket.</p>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_revokeMessage))
+        {
+            <p class="@_revokeMessageClass" role="status" data-support-session-revoke-message>@_revokeMessage</p>
+        }
+
+        @if (_auditReceipt is { } receipt)
+        {
+            <div class="support-session-audit-receipt" data-support-session-audit-receipt>
+                <strong>Session audit trail receipt</strong>
+                <dl class="support-context-list">
+                    <ContextRow Label="Transition" Value="@receipt.TransitionDisplay" />
+                    <ContextRow Label="Actor" Value="@receipt.Actor" />
+                    <ContextRow Label="Timestamp" Value="@receipt.OccurredAtDisplay" />
+                    <ContextRow Label="Audit chain" Value="@receipt.ChainStatusLabel" />
+                    @if (!string.IsNullOrWhiteSpace(receipt.AuditEntryId))
+                    {
+                        <ContextRow Label="Audit entry" Value="@receipt.AuditEntryId" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(receipt.AuditEntryHash))
+                    {
+                        <ContextRow Label="Entry hash" Value="@receipt.AuditEntryHash" />
+                    }
+                </dl>
+            </div>
         }
 
         <p class="support-session-visibility">
@@ -83,34 +120,50 @@
     [Parameter]
     public SupportTicketResponse? Ticket { get; set; }
 
+    [Parameter]
+    public EventCallback<SupportTicketResponse> OnSessionRevoked { get; set; }
+
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
 
+    private IConsoleSupportTicketClient? _supportClient;
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
     private TimeSpan _remaining = TimeSpan.Zero;
     private string? _trackedTicketId;
+    private SupportTicketResponse? _revokedTicket;
+    private bool _revoking;
+    private string? _revokeMessage;
+    private string _revokeMessageClass = string.Empty;
+    private PolicyAuditTrailReceipt? _auditReceipt;
 
-    private bool ShowBanner => Ticket is not null;
+    private SupportTicketResponse? EffectiveTicket =>
+        _revokedTicket is not null && string.Equals(_revokedTicket.Id, Ticket?.Id, StringComparison.Ordinal)
+            ? _revokedTicket
+            : Ticket;
 
-    // trust-data relay (honua-support#23): the authoritative delegated-session
-    // sub-object. When present it FULLY governs the banner (mode, active, expiry,
-    // customer-visible) — including a `disabled` mode, which authoritatively means
-    // no session is open. Only when it is ABSENT do we fall back to the loose
-    // access-mode/TTL inference below.
-    private SupportTrustDelegatedSession? Session => Ticket?.Trust?.DelegatedSession;
+    private bool ShowBanner => EffectiveTicket is not null;
+
+    private SupportTrustDelegatedSession? Session => EffectiveTicket?.Trust?.DelegatedSession;
 
     private bool HasTrustSession => Session is not null;
 
-    // Whether the authoritative expiry / countdown caption applies (a present
-    // trust session always uses its concrete expiry, never the best-effort one).
     private bool HasAuthoritativeSession => HasTrustSession;
 
+    private bool IsRevoked =>
+        HasTrustSession && (Session!.RevokedAt is not null
+            || string.Equals(Session.Mode, "revoked", StringComparison.OrdinalIgnoreCase));
+
     private string AccessMode =>
-        HasTrustSession ? Session!.Mode : Ticket?.AllowedAccessMode ?? string.Empty;
+        HasTrustSession ? Session!.Mode : EffectiveTicket?.AllowedAccessMode ?? string.Empty;
 
-    private int TtlMinutes => Ticket?.TtlMinutes ?? 0;
+    private int TtlMinutes => EffectiveTicket?.TtlMinutes ?? 0;
 
-    private SupportAccessBoundary? Boundary => Ticket?.AccessBoundary;
+    private SupportAccessBoundary? Boundary => EffectiveTicket?.AccessBoundary;
+
+    private string ScopeDisplay =>
+        Session?.Scopes is { Count: > 0 } scopes
+            ? string.Join(" + ", scopes)
+            : "ops:read + ops:propose";
 
     private string AccessModeLabel
     {
@@ -121,33 +174,26 @@
         }
     }
 
-    // An elevated session window exists when the authoritative session is active
-    // and not read-only/disabled, or — best-effort, absent trust — when the
-    // access mode is more than read-only AND a positive TTL is present.
     private bool HasActiveWindow =>
-        HasTrustSession
+        !IsRevoked && (HasTrustSession
             ? Session!.Active &&
               !string.Equals(Session.Mode, "read-only", StringComparison.OrdinalIgnoreCase) &&
-              !string.Equals(Session.Mode, "disabled", StringComparison.OrdinalIgnoreCase)
+              !string.Equals(Session.Mode, "disabled", StringComparison.OrdinalIgnoreCase) &&
+              !string.Equals(Session.Mode, "revoked", StringComparison.OrdinalIgnoreCase)
             : TtlMinutes > 0 &&
               !string.Equals(AccessMode, "read-only", StringComparison.OrdinalIgnoreCase) &&
-              !string.IsNullOrWhiteSpace(AccessMode);
+              !string.IsNullOrWhiteSpace(AccessMode));
 
-    // Prefer the authoritative customer-visible flag. Absent it, no live flag is
-    // reachable, so treat operator-scoped break-glass as customer-visible by
-    // policy (the access boundary requires ticket-scoped approval).
     private bool CustomerVisible =>
         HasTrustSession
             ? Session!.CustomerVisible
-            : string.Equals(AccessMode, "operator-scoped", StringComparison.OrdinalIgnoreCase);
+            : string.Equals(AccessMode, "operator-scoped", StringComparison.OrdinalIgnoreCase)
+              || string.Equals(AccessMode, "break-glass", StringComparison.OrdinalIgnoreCase);
 
     private string SeverityClass => HasActiveWindow
         ? (_remaining > TimeSpan.Zero ? "support-session-active" : "support-session-expired")
         : "support-session-idle";
 
-    // Prefer the authoritative concrete expiry instant. Absent it, the ticket
-    // carries TtlMinutes but no absolute expiry instant, so anchor the countdown
-    // to the last server update (best-effort).
     private DateTimeOffset? ExpiresAt
     {
         get
@@ -157,20 +203,34 @@
                 return Session!.ExpiresAt;
             }
 
-            return Ticket is null || !HasActiveWindow ? null : Ticket.UpdatedAt.AddMinutes(TtlMinutes);
+            return EffectiveTicket is null || !HasActiveWindow ? null : EffectiveTicket.UpdatedAt.AddMinutes(TtlMinutes);
         }
     }
 
-    // Deep-link into the audit/evidence trail. Until the devops bridge exposes
-    // concrete evidence refs, this points at the ticket's audit anchor.
     private string AuditHref =>
-        Ticket is null ? "#" : $"/support/tickets/{Uri.EscapeDataString(Ticket.Id)}#audit";
+        EffectiveTicket is null ? "#" : $"/support/tickets/{Uri.EscapeDataString(EffectiveTicket.Id)}#audit";
+
+    protected override void OnInitialized()
+    {
+        _supportClient = Services.GetService<IConsoleSupportTicketClient>();
+    }
 
     protected override void OnParametersSet()
     {
+        if (!string.Equals(_trackedTicketId, Ticket?.Id, StringComparison.Ordinal))
+        {
+            _revokedTicket = null;
+            _revokeMessage = null;
+            _auditReceipt = null;
+        }
+
         if (string.Equals(_trackedTicketId, Ticket?.Id, StringComparison.Ordinal) && _timer is not null)
         {
             RecomputeRemaining();
+            if (!HasActiveWindow)
+            {
+                StopCountdown();
+            }
             return;
         }
 
@@ -184,9 +244,48 @@
         }
     }
 
+    private async Task RevokeSessionAsync()
+    {
+        if (_revoking || _supportClient is null || EffectiveTicket is null)
+        {
+            return;
+        }
+
+        var previousMode = string.IsNullOrWhiteSpace(AccessMode) ? "operator-scoped" : AccessMode;
+        _revoking = true;
+        _revokeMessage = null;
+        try
+        {
+            var result = await _supportClient.RevokeSessionAsync(
+                EffectiveTicket.Id,
+                "Revoked by operator from Console");
+            if (result.IsAllowed && result.Value is { } updated)
+            {
+                _revokedTicket = updated;
+                StopCountdown();
+                RecomputeRemaining();
+                _auditReceipt = PolicyAuditTrailReceipt.FromRevokedSupportSession(updated, previousMode);
+                _revokeMessage = "Support session revoked and recorded in the audit trail.";
+                _revokeMessageClass = "console-state-success";
+                await OnSessionRevoked.InvokeAsync(updated);
+            }
+            else
+            {
+                _revokeMessage = string.IsNullOrWhiteSpace(result.Message)
+                    ? OperateSectionPresentation.FallbackMessage(result.Status)
+                    : result.Message;
+                _revokeMessageClass = "console-state-danger";
+            }
+        }
+        finally
+        {
+            _revoking = false;
+        }
+    }
+
     private void RecomputeRemaining()
     {
-        _remaining = ExpiresAt is { } expiry
+        _remaining = HasActiveWindow && ExpiresAt is { } expiry
             ? expiry - DateTimeOffset.UtcNow
             : TimeSpan.Zero;
         if (_remaining < TimeSpan.Zero)

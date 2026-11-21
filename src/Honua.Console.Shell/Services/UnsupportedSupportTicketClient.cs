@@ -16,4 +16,10 @@ public sealed class UnsupportedSupportTicketClient : IConsoleSupportTicketClient
         string ticketId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(SupportTicketResult.Denied(OperateSectionStatus.Unsupported, Message));
+
+    public Task<SupportTicketResult> RevokeSessionAsync(
+        string ticketId,
+        string? reason = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(SupportTicketResult.Denied(OperateSectionStatus.Unsupported, Message));
 }

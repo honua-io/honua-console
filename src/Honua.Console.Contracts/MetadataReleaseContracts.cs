@@ -320,6 +320,9 @@ public sealed record DeployOperationResponse
     [JsonPropertyName("operationId")]
     public string OperationId { get; init; } = string.Empty;
 
+    [JsonPropertyName("version")]
+    public long Version { get; init; }
+
     [JsonPropertyName("kind")]
     public string Kind { get; init; } = string.Empty;
 

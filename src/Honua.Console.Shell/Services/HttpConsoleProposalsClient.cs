@@ -113,8 +113,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
         var id = proposalId.Trim();
         var review = await SendHumanApprovalAsync(
-            profile, HttpMethod.Get, ProposalAdminRoutes.ApprovalReview(id),
-            ProposalJsonContext.Default.ProposalHumanReviewWire, capability: null, cancellationToken).ConfigureAwait(false);
+            profile,
+            new HumanApprovalRequest(HttpMethod.Get, ProposalAdminRoutes.ApprovalReview(id), Content: null, Capability: null),
+            ProposalJsonContext.Default.ProposalHumanReviewWire,
+            cancellationToken).ConfigureAwait(false);
         if (review.Status == OperateSectionStatus.Missing)
         {
             if (_resourceBaseUri is not null)
@@ -142,8 +144,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         }
 
         var result = await SendHumanApprovalAsync(
-            profile, HttpMethod.Post, ProposalAdminRoutes.Approve(id),
-            ProposalJsonContext.Default.ProposalDetailWire, grant!.Capability, cancellationToken).ConfigureAwait(false);
+            profile,
+            new HumanApprovalRequest(HttpMethod.Post, ProposalAdminRoutes.Approve(id), Content: null, Capability: grant!.Capability),
+            ProposalJsonContext.Default.ProposalDetailWire,
+            cancellationToken).ConfigureAwait(false);
         return ToDetailResult(result);
     }
 
@@ -177,21 +181,27 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
         if (string.IsNullOrWhiteSpace(reason))
         {
-            // The server requires a reason (400); fail closed before sending.
             return OperateSectionResult<ConsoleProposalDetail>.Denied(
                 OperateSectionStatus.Unavailable,
                 "A rejection reason is required.");
+        }
+
+        var profile = await _profileStore.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (profile is null)
+        {
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
         var body = JsonSerializer.Serialize(
             new RejectProposalWire { Reason = reason.Trim() },
             ProposalJsonContext.Default.RejectProposalWire);
 
-        return await SendDetailAsync(
-            HttpMethod.Post,
-            ProposalAdminRoutes.Reject(proposalId.Trim()),
-            body,
+        var result = await SendHumanApprovalAsync(
+            profile,
+            new HumanApprovalRequest(HttpMethod.Post, ProposalAdminRoutes.Reject(proposalId.Trim()), body, Capability: null),
+            ProposalJsonContext.Default.ProposalDetailWire,
             cancellationToken).ConfigureAwait(false);
+        return ToDetailResult(result);
     }
 
     private async Task<OperateSectionResult<ConsoleProposalDetail>> SendDetailAsync(
@@ -271,19 +281,22 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             .ConfigureAwait(false);
     }
 
-    // The server refuses any explicit credential on human approval; only the ambient browser session may decide.
+    // The server refuses any explicit credential on human approval/rejection; only the ambient browser session may decide.
     private async Task<OperateSectionResult<T>> SendHumanApprovalAsync<T>(
         ConsoleEnvironmentProfile profile,
-        HttpMethod method,
-        string relativePath,
+        HumanApprovalRequest call,
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
-        string? capability,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, BuildUri(ResourceBase(profile), relativePath));
-        if (capability is not null)
+        using var request = new HttpRequestMessage(call.Method, BuildUri(ResourceBase(profile), call.RelativePath));
+        if (call.Capability is not null)
         {
-            request.Headers.TryAddWithoutValidation(ProposalAdminRoutes.ApprovalCapabilityHeader, capability);
+            request.Headers.TryAddWithoutValidation(ProposalAdminRoutes.ApprovalCapabilityHeader, call.Capability);
+        }
+
+        if (call.Content is not null)
+        {
+            request.Content = new StringContent(call.Content, Encoding.UTF8, "application/json");
         }
 
         return await ExchangeAsync(
@@ -291,9 +304,15 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             typeInfo,
             code => code is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
                 ? HumanApprovalRefusedMessage
-                : MapErrorMessage(code, method, relativePath),
+                : MapErrorMessage(code, call.Method, call.RelativePath),
             cancellationToken).ConfigureAwait(false);
     }
+
+    private sealed record HumanApprovalRequest(
+        HttpMethod Method,
+        string RelativePath,
+        string? Content,
+        string? Capability);
 
     private async Task<OperateSectionResult<T>> ExchangeAsync<T>(
         HttpRequestMessage request,
@@ -401,8 +420,65 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         AutonomyRule = wire.AutonomyRule,
         ActionDiscriminator = wire.ActionDiscriminator,
         Version = wire.Version,
-        PlanHash = wire.PlanHash,
+        PlanHash = !string.IsNullOrWhiteSpace(wire.PlanHash) ? wire.PlanHash : wire.SealedPlanHash,
+        OperationId = wire.OperationId,
+        Initiation = wire.Initiation,
+        ApprovalChannel = wire.ApprovalChannel,
+        RequiresReproposal = wire.RequiresReproposal,
+        ApprovalRemediation = wire.ApprovalRemediation,
+        ExecutionPayload = FormatExecutionPayload(wire.ExecutionPayload),
     };
+
+    internal static string? FormatExecutionPayload(JsonElement? payload)
+    {
+        if (payload is not { } element || element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            var raw = element.GetString();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            return TryPrettyPrintJson(raw) ?? raw;
+        }
+
+        return PrettyPrintElement(element);
+    }
+
+    private static string? TryPrettyPrintJson(string raw)
+    {
+        var trimmed = raw.Trim();
+        if (!(trimmed.StartsWith('{') || trimmed.StartsWith('[')))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            return PrettyPrintElement(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string PrettyPrintElement(JsonElement element)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+        {
+            element.WriteTo(writer);
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
 
     private static string MapErrorMessage(HttpStatusCode code, HttpMethod method, string relativePath) => code switch
     {
@@ -457,6 +533,13 @@ public sealed record ProposalDetailWire
     public string? ProposalId { get; init; }
     public long Version { get; init; }
     public string? PlanHash { get; init; }
+    public string? SealedPlanHash { get; init; }
+    public string? OperationId { get; init; }
+    public string? Initiation { get; init; }
+    public string? ApprovalChannel { get; init; }
+    public bool RequiresReproposal { get; init; }
+    public string? ApprovalRemediation { get; init; }
+    public JsonElement? ExecutionPayload { get; init; }
     public string? Kind { get; init; }
     public string? Status { get; init; }
     public string? RequestedBy { get; init; }
