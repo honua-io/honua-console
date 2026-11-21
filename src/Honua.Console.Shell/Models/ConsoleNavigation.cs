@@ -100,8 +100,14 @@ public static class ConsoleNavigation
         if (path == "/approvals") return new(path, "Approvals", ConsoleNavigationContextKind.Page);
         var destinations = groups.SelectMany(group => group.Destinations);
         var exact = destinations.FirstOrDefault(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
-        var label = exact?.Label ?? Uri.UnescapeDataString(segments[^1]);
+        var label = exact?.Label ?? (segments is [var area] ? AreaLabel(area) : Uri.UnescapeDataString(segments[^1]));
         return new(path, label, ConsoleNavigationContextKind.Page);
+    }
+
+    private static string AreaLabel(string segment)
+    {
+        var words = Uri.UnescapeDataString(segment).Replace('-', ' ').Trim();
+        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
 
     public static bool IsVisible(ConsoleNavigationDestination destination, IConsoleProductMode mode, IConsoleCapabilityManifest capabilities)

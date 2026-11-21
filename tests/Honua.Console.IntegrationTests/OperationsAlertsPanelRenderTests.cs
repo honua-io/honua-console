@@ -379,6 +379,32 @@ public sealed class OperationsAlertsPanelRenderTests
         Assert.Single(panel.FindAll("[data-resolve-alert]"));
     }
 
+    [Fact]
+    public void UnadvertisedAlertingSkipsTheAlertReadAndExplainsWhy()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.WaitForAssertion(() => Assert.Contains("Alerts are not enabled", panel.Markup, StringComparison.Ordinal));
+        Assert.Empty(client.Cursors);
+        Assert.Empty(panel.FindAll("[data-no-alerts]"));
+    }
+
+    [Fact]
+    public void AdvertisedAlertingReadsAlerts()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.RealtimeAlerting]));
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-alert-id]")));
+        Assert.Single(client.Cursors);
+    }
+
     private sealed class ChangingAuthentication : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>

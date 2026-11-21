@@ -86,6 +86,8 @@
     private string? _actionMessage;
     private IConsoleAlertInboxClient? Client => Services.GetService(typeof(IConsoleAlertInboxClient)) as IConsoleAlertInboxClient;
 
+    private IConsoleCapabilityManifest? Capabilities => Services.GetService(typeof(IConsoleCapabilityManifest)) as IConsoleCapabilityManifest;
+
     private TimeProvider Clock => Services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
 
     protected override Task OnInitializedAsync()
@@ -125,9 +127,7 @@
         {
             if (Client is { } client)
             {
-                var authority = cursor is null ? null : _result.Value?.Authority;
-                var result = await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor, authority), ConsoleReadBudget.Default,
-                    "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
+                var result = await ReadAlertsAsync(client, cursor);
                 if (generation != _generation) { return; }
                 _result = result;
                 if (_result.IsAllowed && _result.Value is { } refreshed)
@@ -142,6 +142,22 @@
             if (generation == _generation) { _loaded = true; }
         }
         finally { if (generation == _generation) { _busy = false; } }
+    }
+
+    private async Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ReadAlertsAsync(IConsoleAlertInboxClient client, string? cursor)
+    {
+        var authority = cursor is null ? null : _result.Value?.Authority;
+        if (Capabilities is { } capabilities)
+        {
+            await capabilities.RefreshAsync(_lifetime.Token);
+            if (!capabilities.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting))
+            {
+                return OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
+                    OperateSectionStatus.Unsupported, OptionalAlertAvailability.Message);
+            }
+        }
+        return await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor, authority), ConsoleReadBudget.Default,
+            "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
     }
 
     private Task AcknowledgeAsync(long eventId) => RunMutationAsync(eventId, new(async (client, snapshot) =>

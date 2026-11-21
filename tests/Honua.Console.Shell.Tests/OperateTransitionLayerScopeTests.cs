@@ -1,0 +1,59 @@
+using System.Collections.Concurrent;
+using System.Net;
+using Honua.Console.Contracts;
+using Honua.Console.Shell.Services;
+
+namespace Honua.Console.Shell.Tests;
+
+public sealed class OperateTransitionLayerScopeTests
+{
+    private static readonly Guid ConnectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    [Fact]
+    public async Task WorkspaceSkipsLayerReadsForServicesWithoutLayers()
+    {
+        var handler = new RecordingHandler(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$"""
+                {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
+                """,
+            [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = EmptyLayerPage,
+            [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
+                """,
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"geoprocessing","layerCount":0,"enabledProtocols":["GeoprocessingServer"]}],"page":1,"pageSize":100,"total":2}}
+                """,
+        });
+        var client = new HonuaAdminOperateHttpClient(
+            new HttpClient(handler) { BaseAddress = new Uri("https://server.example") },
+            new HonuaAdminOperateClientOptions(new Uri("https://server.example"), "test-api-key"));
+
+        var workspace = await new HonuaServerOperateTransitionDataSource(client).GetWorkspaceAsync();
+
+        Assert.Contains(workspace.ResourceEdits, resource => resource.Name == "Console Parcels");
+        Assert.Contains(handler.Requests, path => path.EndsWith("serviceName=planning", StringComparison.Ordinal));
+        Assert.DoesNotContain(handler.Requests, path => path.Contains("serviceName=geoprocessing", StringComparison.Ordinal));
+    }
+
+    private const string EmptyLayerPage = """
+        {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
+        """;
+
+    private sealed class RecordingHandler(IReadOnlyDictionary<string, string> responses) : HttpMessageHandler
+    {
+        public ConcurrentQueue<string> Requests { get; } = new();
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var key = request.RequestUri?.PathAndQuery ?? string.Empty;
+            Requests.Enqueue(key);
+            var found = responses.TryGetValue(key, out var json);
+            return Task.FromResult(new HttpResponseMessage(found ? HttpStatusCode.OK : HttpStatusCode.NotFound)
+            {
+                Content = new StringContent(found ? json! : """{"success":false,"message":"missing fixture"}""",
+                    System.Text.Encoding.UTF8, "application/json")
+            });
+        }
+    }
+}

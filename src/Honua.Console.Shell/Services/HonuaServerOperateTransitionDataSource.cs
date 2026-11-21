@@ -277,9 +277,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             return ([], states);
         }
 
+        var layerServices = services.Where(service => service.LayerCount > 0).ToArray();
         var serviceScopes = storageLayerId is null
-            ? CreateLayerServiceScopes(services)
-            : services.Select(service => string.Equals(service.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : service.ServiceName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            ? CreateLayerServiceScopes(layerServices)
+            : layerServices.Select(service => string.Equals(service.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : service.ServiceName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var layerScopes = connections
             .SelectMany(connection => serviceScopes.Select(serviceName => (Connection: connection, ServiceName: serviceName)))
             .ToArray();
