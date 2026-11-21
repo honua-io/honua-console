@@ -26,7 +26,7 @@ public sealed partial class OperateGeoprocessingPageTests
         };
         using var context = NavigationContext(mode, client);
         var page = context.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "earlier"));
-        page.FindAll("button").Single(button => button.TextContent == "Cancel job").Click();
+        await page.FindAll("button").Single(button => button.TextContent == "Cancel job").ClickAsync(new MouseEventArgs());
         page.Render(p => p.Add(x => x.SelectedJobRunId, (string?)null));
         if (destination is not null)
         {
@@ -40,7 +40,7 @@ public sealed partial class OperateGeoprocessingPageTests
         if (destination is not null)
         {
             Assert.Equal(destination, page.Find("#job-detail-heading").TextContent);
-            page.FindAll("button").Single(button => button.TextContent == "Cancel job").Click();
+            await page.FindAll("button").Single(button => button.TextContent == "Cancel job").ClickAsync(new MouseEventArgs());
             await page.Find("[data-console-confirm-accept]").ClickAsync(new MouseEventArgs());
             Assert.Equal(destination, Assert.Single(client.CancelCalls));
         }
