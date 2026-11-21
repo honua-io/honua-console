@@ -6,8 +6,9 @@ using Honua.Console.Shell.Services;
 namespace Honua.Console.Web.Auth;
 
 // honua-server accepts a proposal approval only from the operator's live server session (session
-// cookie, CSRF token, review capability, no bearer or API key). Serving-endpoint approvals therefore
-// go through the operator's server-session cookie jar; every other call keeps the bearer-bound client.
+// cookie, CSRF token, review capability, no bearer or API key). Serving approvals use the serving
+// session. A separate management endpoint keeps its own session; manager: approvals use that cookie.
+// Every other call keeps the bearer-bound client.
 internal sealed class ConsoleSessionApprovalProposalsClient(
     IConsoleProposalsClient inner,
     IServiceProvider services) : IConsoleProposalsClient
@@ -42,9 +43,15 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
         ConsoleProposalReviewedPlan? reviewed,
         CancellationToken cancellationToken = default)
     {
-        var target = proposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal)
-            ? null
-            : await ResolveSessionAsync(cancellationToken).ConfigureAwait(false);
+        if (proposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal))
+        {
+            // No manager session keeps the bearer client. The serving cookie cannot approve a manager proposal.
+            var managerResult = await ApproveManagerAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false);
+            return managerResult
+                ?? await inner.ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false);
+        }
+
+        var target = await ResolveSessionAsync(cancellationToken).ConfigureAwait(false);
         if (target is null)
         {
             return await inner.ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false);
@@ -71,6 +78,70 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
                 .ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false)
             : OperateSectionResult<ConsoleProposalDetail>.Denied(
                 OperateSectionStatus.Forbidden, "The server session changed identity. Sign in again before approving.");
+    }
+
+    // Null means there is no separate authenticated manager session, so the caller keeps the inner client.
+    private async Task<OperateSectionResult<ConsoleProposalDetail>?> ApproveManagerAsync(
+        string proposalId,
+        ConsoleProposalReviewedPlan? reviewed,
+        CancellationToken cancellationToken)
+    {
+        var operators = services.GetRequiredService<IConsoleOperatorContext>();
+        var profiles = services.GetRequiredService<IConsoleEnvironmentProfileStore>();
+        var profile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        var endpoint = services.GetService<IConsoleManagerEndpoint>();
+        if (profile is null || endpoint is null || !operators.HasOperator)
+        {
+            return null;
+        }
+
+        var manager = endpoint.Resolve(profile.ServerBaseUri);
+        if (manager is null || ConsoleServerSessionBffCoordinator.SameServer(manager, profile.ServerBaseUri))
+        {
+            return null;
+        }
+
+        var store = services.GetRequiredService<ConsoleServerSessionClientStore>();
+        if (!store.TryGet(operators.RequireOperatorKey(), profile.Id, manager, out var partition)
+            || partition is null
+            || string.IsNullOrWhiteSpace(partition.AuthenticatedProviderKey))
+        {
+            return null;
+        }
+
+        var id = proposalId[ManagerPrefix.Length..].Trim();
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Unavailable, "The proposal identifier is invalid.");
+        }
+
+        using var http = ConsoleServerSessionCookieClient.Create(partition, manager);
+        var reviewUri = ConsoleServerHttp.BuildUri(manager, ProposalAdminRoutes.ApprovalReview(id));
+        if (!await OffersApprovalReviewAsync(http, reviewUri, cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
+        var bound = await services.GetRequiredService<ConsoleServerSessionIdentityBinding>().EnsureAsync(
+            partition, profile, partition.Key.OperatorKey, partition.AuthenticatedProviderKey, cancellationToken)
+            .ConfigureAwait(false);
+        if (!bound)
+        {
+            return OperateSectionResult<ConsoleProposalDetail>.Denied(
+                OperateSectionStatus.Forbidden, "The management session changed identity. Sign in again before approving.");
+        }
+
+        var client = new HttpConsoleProposalsClient(
+            http,
+            profiles,
+            services.GetRequiredService<IConsoleAccountSessionStore>());
+        client.UseResourceBase(manager);
+        var approved = await client.ApproveAsync(id, reviewed, cancellationToken).ConfigureAwait(false);
+        return approved.Value is { } detail
+            ? approved with { Value = detail with { ProposalId = ManagerPrefix + detail.ProposalId } }
+            : approved;
     }
 
     private static async Task<bool> OffersApprovalReviewAsync(

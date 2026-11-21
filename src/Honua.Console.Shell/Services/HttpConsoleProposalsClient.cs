@@ -20,6 +20,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
     private readonly string? _adminApiKey;
     private readonly IConsoleOperatorBearerProvider _operatorBearerProvider;
     private readonly ConsoleServerCredentialMode _credentialMode;
+    private Uri? _resourceBaseUri;
 
     public HttpConsoleProposalsClient(
         HttpClient http,
@@ -40,6 +41,11 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
                 TimeProvider.System);
         _credentialMode = credentialMode;
     }
+
+    // A management approval reads and posts on the manager origin. Other calls stay on the profile.
+    internal void UseResourceBase(Uri resourceBaseUri) => _resourceBaseUri = resourceBaseUri;
+
+    private Uri ResourceBase(ConsoleEnvironmentProfile profile) => _resourceBaseUri ?? profile.ServerBaseUri;
 
     public async Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
         string? status = null,
@@ -111,6 +117,11 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             ProposalJsonContext.Default.ProposalHumanReviewWire, capability: null, cancellationToken).ConfigureAwait(false);
         if (review.Status == OperateSectionStatus.Missing)
         {
+            if (_resourceBaseUri is not null)
+            {
+                return OperateSectionResult<ConsoleProposalDetail>.Denied(review.Status, review.Message, review.Detail);
+            }
+
             // Servers without the approval-review route answer it with 404. They take the plain
             // approve and apply their own approve-grant and separation-of-duties rules; a server with the
             // route never 404s a live proposal, and rejects a capability-less approve.
@@ -224,7 +235,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
+        using var request = new HttpRequestMessage(method, BuildUri(ResourceBase(profile), relativePath));
         if (method == HttpMethod.Get)
         {
             await ConsoleServerHttp.AttachAuthenticationAsync(
@@ -269,7 +280,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         string? capability,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, BuildUri(profile.ServerBaseUri, relativePath));
+        using var request = new HttpRequestMessage(method, BuildUri(ResourceBase(profile), relativePath));
         if (capability is not null)
         {
             request.Headers.TryAddWithoutValidation(ProposalAdminRoutes.ApprovalCapabilityHeader, capability);

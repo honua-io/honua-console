@@ -300,6 +300,63 @@ public sealed class ImportCoordinateSystemRenderTests
         Assert.Empty(page.FindAll("a[href='/operate/publishing/quick']"));
     }
 
+    [Fact]
+    public void MultiLayerGeoPackageUsesTheChosenLayersCoordinateSystem()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.Layers =
+        [
+            new("routes", "LINESTRING", 4326),
+            new("stations", "POINT", 3857)
+        ];
+        var page = context.Render<OperateImportFilePage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("two", "two.gpkg"));
+        page.WaitForAssertion(() => Assert.Equal("routes", page.Find("[data-import-layer]").GetAttribute("value") ?? page.Find("[data-import-layer]").TextContent));
+        Assert.Contains("EPSG:4326", page.Find("[data-import-detected-system]").TextContent);
+        Assert.Contains("LINESTRING", page.Find("[data-import-layer]").TextContent);
+        Assert.Contains("stations", page.Find("[data-import-layer]").TextContent);
+
+        page.Find("[data-import-layer]").Change("stations");
+        page.WaitForAssertion(() => Assert.Contains("EPSG:3857", page.Find("[data-import-detected-system]").TextContent));
+        Assert.Equal("stations", import.RequestedLayer);
+        Assert.DoesNotContain("sourceLayer", page.Markup);
+
+        page.Find("button.console-button").Click();
+        page.WaitForAssertion(() => Assert.NotNull(import.Command));
+        Assert.Equal("stations", import.Command!.SourceLayer);
+        Assert.Equal(3857, import.Command.ExpectedSourceSrid);
+        Assert.Null(import.Command.SourceSrid);
+    }
+
+    [Fact]
+    public void MultiLayerChoiceDoesNotApplyAnotherLayersCoordinateSystem()
+    {
+        using var context = new BunitContext();
+        var import = Register(context);
+        import.Layers = [new("routes", null, null), new("stations", null, null)];
+        import.System = new()
+        {
+            DetectedSrid = 4326,
+            EffectiveSourceSrid = 4326,
+            StoredSrid = 4326,
+            DetectionMethod = "file-metadata",
+            SourceCrsDeclared = true,
+            DetectedCrs = new() { Code = 4326, Name = "WGS 84" }
+        };
+        var page = context.Render<OperateImportFilePage>();
+        page.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("two", "two.gpkg"));
+        page.WaitForAssertion(() => Assert.Contains("EPSG:4326", page.Find("[data-import-detected-system]").TextContent));
+        import.System = null;
+        page.Find("[data-import-layer]").Change("stations");
+        page.WaitForAssertion(() => Assert.Contains("was not reported", page.Find("[data-import-layer-system]").TextContent));
+        Assert.Empty(page.FindAll("[data-import-detected-system]"));
+        page.Find("button.console-button").Click();
+        page.WaitForAssertion(() => Assert.Equal("stations", import.Command!.SourceLayer));
+        Assert.Null(import.Command!.ExpectedSourceSrid);
+        Assert.Null(import.Command.SourceSrid);
+    }
+
     private sealed class UnreadableFile(long size) : IBrowserFile
     {
         public string Name => "projected.gpkg";
@@ -377,9 +434,12 @@ public sealed class ImportCoordinateSystemRenderTests
         public OperateSectionResult<HonuaAdminCoordinateSystemSearch> Results => OperateSectionResult<HonuaAdminCoordinateSystemSearch>.Allowed(new()
         { Items = [new() { Code = 2193, Name = "New Zealand Transverse Mercator 2000" }, new() { Code = 4326, Name = "WGS 84" }] });
         public Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<string>>([".gpkg"]);
-        public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string name, CancellationToken cancellationToken = default)
+        public string? RequestedLayer { get; private set; }
+        public IReadOnlyList<ConsoleFileImportLayer> Layers { get; set; } = [];
+        public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string name, CancellationToken cancellationToken = default, string? sourceLayer = null)
         {
             PreviewLength = bytes.LongLength;
+            RequestedLayer = sourceLayer;
             if (UncheckedWhenLargerThanPreview && bytes.LongLength > 10L * 1024 * 1024)
                 return Task.FromResult(new ConsoleFileImportPreview
                 {
@@ -389,9 +449,19 @@ public sealed class ImportCoordinateSystemRenderTests
                     AuthorityBinding = "operator-environment",
                     Warnings = [ConsoleFileImportPreview.PreviewTooLargeWarning]
                 });
-            return Task.FromResult(System is null
-                ? new ConsoleFileImportPreview { Succeeded = true, State = "Unchecked", AuthorityBinding = "operator-environment" }
-                : new ConsoleFileImportPreview { Succeeded = true, CoordinateSystem = System, AuthorityBinding = "operator-environment" });
+            var previewed = sourceLayer ?? (Layers.Count > 0 ? Layers[0].Name : null);
+            var system = System;
+            if (system is not null && Layers.FirstOrDefault(layer => string.Equals(layer.Name, previewed, StringComparison.Ordinal)) is { Srid: int srid })
+                system = system with
+                {
+                    DetectedSrid = srid,
+                    EffectiveSourceSrid = srid,
+                    StoredSrid = srid,
+                    DetectedCrs = new() { Code = srid, Name = $"EPSG:{srid}" }
+                };
+            return Task.FromResult(system is null
+                ? new ConsoleFileImportPreview { Succeeded = true, State = "Unchecked", AuthorityBinding = "operator-environment", Layers = Layers, PreviewedLayer = previewed }
+                : new ConsoleFileImportPreview { Succeeded = true, CoordinateSystem = system, AuthorityBinding = "operator-environment", Layers = Layers, PreviewedLayer = previewed });
         }
         public Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(string query, string binding, CancellationToken cancellationToken = default) =>
             Search ?? Task.FromResult(Results);

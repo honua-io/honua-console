@@ -32,17 +32,22 @@ internal sealed class ConsoleServerSessionPartition : IDisposable
 
     public ConsoleServerSessionPartition(
         ConsoleServerSessionPartitionKey key,
+        Uri resourceBaseUri,
         CookieContainer cookies,
         HttpClient client,
         DateTimeOffset createdAt)
     {
         Key = key;
+        ResourceBaseUri = resourceBaseUri;
         Cookies = cookies;
         Client = client;
         Touch(createdAt);
     }
 
     public ConsoleServerSessionPartitionKey Key { get; }
+
+    // The URI this jar signs in to. A management partition uses its own base, not the serving profile.
+    public Uri ResourceBaseUri { get; }
 
     public CookieContainer Cookies { get; }
 
@@ -122,14 +127,25 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         ConsoleEnvironmentProfile profile,
         out bool created)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        return GetOrCreate(operatorKey, profile.Id, profile.ServerBaseUri, out created);
+    }
+
+    // A separate management endpoint has its own origin and its own session cookie.
+    public ConsoleServerSessionPartition GetOrCreate(
+        string operatorKey,
+        string profileId,
+        Uri serverBaseUri,
+        out bool created)
+    {
         created = false;
         ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
-        ArgumentNullException.ThrowIfNull(profile);
-        ArgumentException.ThrowIfNullOrWhiteSpace(profile.Id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+        ArgumentNullException.ThrowIfNull(serverBaseUri);
 
         var now = _timeProvider.GetUtcNow();
-        var origin = NormalizeOrigin(profile.ServerBaseUri);
-        var key = new ConsoleServerSessionPartitionKey(operatorKey, profile.Id, origin.AbsoluteUri);
+        var origin = NormalizeOrigin(serverBaseUri);
+        var key = new ConsoleServerSessionPartitionKey(operatorKey, profileId, ConsoleServerSessionBffCoordinator.NormalizeBase(serverBaseUri));
         List<ConsoleServerSessionPartition>? discarded = null;
 
         lock (_gate)
@@ -167,7 +183,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
                 BaseAddress = origin,
                 Timeout = TimeSpan.FromSeconds(30)
             };
-            var partition = new ConsoleServerSessionPartition(key, cookies, client, now);
+            var partition = new ConsoleServerSessionPartition(key, serverBaseUri, cookies, client, now);
             _partitions.Add(key, partition);
             created = true;
             DisposeAll(discarded);
@@ -182,7 +198,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         var key = new ConsoleServerSessionPartitionKey(
             operatorKey,
             profile.Id,
-            NormalizeOrigin(profile.ServerBaseUri).AbsoluteUri);
+            ConsoleServerSessionBffCoordinator.NormalizeBase(profile.ServerBaseUri));
         ConsoleServerSessionPartition? removed = null;
         lock (_gate)
         {
@@ -256,12 +272,23 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         ConsoleEnvironmentProfile profile,
         out ConsoleServerSessionPartition? partition)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
         ArgumentNullException.ThrowIfNull(profile);
+        return TryGet(operatorKey, profile.Id, profile.ServerBaseUri, out partition);
+    }
+
+    public bool TryGet(
+        string operatorKey,
+        string profileId,
+        Uri serverBaseUri,
+        out ConsoleServerSessionPartition? partition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+        ArgumentNullException.ThrowIfNull(serverBaseUri);
         var key = new ConsoleServerSessionPartitionKey(
             operatorKey,
-            profile.Id,
-            NormalizeOrigin(profile.ServerBaseUri).AbsoluteUri);
+            profileId,
+            ConsoleServerSessionBffCoordinator.NormalizeBase(serverBaseUri));
         lock (_gate)
         {
             if (!_partitions.TryGetValue(key, out partition))
@@ -271,6 +298,18 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
 
             partition.Touch(_timeProvider.GetUtcNow());
             return true;
+        }
+    }
+
+    public IReadOnlyList<ConsoleServerSessionPartition> CopyForOperator(string operatorKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operatorKey);
+        lock (_gate)
+        {
+            return _partitions
+                .Where(item => string.Equals(item.Key.OperatorKey, operatorKey, StringComparison.Ordinal))
+                .Select(static item => item.Value)
+                .ToArray();
         }
     }
 
@@ -443,6 +482,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
     private readonly ConsoleServerSessionClientStore _serverSessions;
     private readonly TimeProvider _timeProvider;
     private readonly ConsoleServerSessionIdentityBinding? _identityBinding;
+    private readonly IConsoleManagerEndpoint? _managerEndpoint;
 
     public ConsoleServerSessionBffCoordinator(
         IConsoleOperatorContext operatorContext,
@@ -450,9 +490,11 @@ internal sealed class ConsoleServerSessionBffCoordinator
         IConsoleAccountSessionStore sessions,
         ConsoleServerSessionClientStore serverSessions,
         TimeProvider timeProvider,
-        ConsoleServerSessionIdentityBinding? identityBinding = null)
+        ConsoleServerSessionIdentityBinding? identityBinding = null,
+        IConsoleManagerEndpoint? managerEndpoint = null)
     {
         _identityBinding = identityBinding;
+        _managerEndpoint = managerEndpoint;
         _operatorContext = operatorContext ?? throw new ArgumentNullException(nameof(operatorContext));
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
@@ -473,14 +515,31 @@ internal sealed class ConsoleServerSessionBffCoordinator
             return Unavailable("The selected environment is not configured for an operator account.", returnTo);
         }
 
+        return await StartServerSignInAsync(
+            operatorKey,
+            profile.Id,
+            profile.ServerBaseUri,
+            providerKey,
+            returnTo,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ConsoleServerSignInResult> StartServerSignInAsync(
+        string operatorKey,
+        string profileId,
+        Uri serverBaseUri,
+        string? providerKey,
+        string? returnTo,
+        CancellationToken cancellationToken)
+    {
         var created = false;
         var retainPartition = false;
         ConsoleServerSessionPartition? partition = null;
         try
         {
-            partition = _serverSessions.GetOrCreate(operatorKey, profile, out created);
+            partition = _serverSessions.GetOrCreate(operatorKey, profileId, serverBaseUri, out created);
             using var configResponse = await partition.Client
-                .GetAsync(ConsoleServerHttp.BuildUri(profile.ServerBaseUri, "api/v1/admin/auth/config"), cancellationToken)
+                .GetAsync(ConsoleServerHttp.BuildUri(serverBaseUri, "api/v1/admin/auth/config"), cancellationToken)
                 .ConfigureAwait(false);
             if (!configResponse.IsSuccessStatusCode)
             {
@@ -531,7 +590,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
             using var authorizeResponse = await new ConsoleServerSessionPost
             {
                 Client = partition.Client,
-                ServerBaseUri = profile.ServerBaseUri,
+                ServerBaseUri = serverBaseUri,
                 RelativePath = $"api/v1/admin/auth/providers/{Uri.EscapeDataString(provider.Key)}/authorize-url",
                 Content = JsonContent.Create(
                     new ConsoleServerAuthAuthorizeRequestWire(),
@@ -567,9 +626,9 @@ internal sealed class ConsoleServerSessionBffCoordinator
             _serverSessions.RegisterPending(new ConsoleServerAuthPendingFlow(
                 state,
                 operatorKey,
-                profile.Id,
+                profileId,
                 provider.Key,
-                profile.ServerBaseUri,
+                serverBaseUri,
                 ConsoleReturnUrl.Sanitize(returnTo),
                 _timeProvider.GetUtcNow().Add(PendingLifetime)));
             retainPartition = true;
@@ -614,14 +673,22 @@ internal sealed class ConsoleServerSessionBffCoordinator
         }
 
         var profile = await _profiles.GetProfileAsync(pending.ProfileId, cancellationToken).ConfigureAwait(false);
-        if (profile is null || !SameServer(profile.ServerBaseUri, pending.ServerBaseUri))
+        var manager = profile is null ? null : _managerEndpoint?.Resolve(profile.ServerBaseUri);
+        var managerFlow = profile is not null
+            && manager is not null
+            && !SameServer(manager, profile.ServerBaseUri)
+            && SameServer(pending.ServerBaseUri, manager);
+        if (profile is null || (!managerFlow && !SameServer(profile.ServerBaseUri, pending.ServerBaseUri)))
         {
             return Denied("The environment profile changed while server sign-in was in progress.", pending.ReturnTo);
         }
 
+        var target = managerFlow ? manager! : profile.ServerBaseUri;
         try
         {
-            var partition = _serverSessions.GetOrCreate(operatorKey, profile);
+            var partition = managerFlow
+                ? _serverSessions.GetOrCreate(operatorKey, profile.Id, target, out _)
+                : _serverSessions.GetOrCreate(operatorKey, profile);
             using var authentication = await partition.EnterAuthenticationAsync(cancellationToken).ConfigureAwait(false);
             var snapshots = _sessions as IConsoleAccountSessionSnapshotStore;
             var snapshot = snapshots is null ? null
@@ -631,7 +698,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
             using var tokenResponse = await new ConsoleServerSessionPost
             {
                 Client = partition.Client,
-                ServerBaseUri = profile.ServerBaseUri,
+                ServerBaseUri = target,
                 RelativePath = $"api/v1/admin/auth/providers/{Uri.EscapeDataString(pending.ProviderKey)}/token",
                 Content = JsonContent.Create(
                     new ConsoleServerAuthTokenRequestWire { GrantType = "authorization_code", Code = code, State = state },
@@ -646,10 +713,24 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 && !await _identityBinding.EnsureAsync(
                     partition, profile, operatorKey, pending.ProviderKey, cancellationToken).ConfigureAwait(false))
             {
-                return Denied("The server session does not match the authenticated Console operator.", pending.ReturnTo);
+                return Denied(
+                    managerFlow
+                        ? "The management session does not match the authenticated Console operator."
+                        : "The server session does not match the authenticated Console operator.",
+                    pending.ReturnTo);
             }
 
             partition.AuthenticatedProviderKey = pending.ProviderKey;
+            if (managerFlow)
+            {
+                // The management cookie is the approval credential. Do not replace the serving bearer.
+                return new ConsoleServerSignInResult
+                {
+                    Status = ConsoleServerSignInStatus.Redirect,
+                    RedirectUri = pending.ReturnTo
+                };
+            }
+
             var exchange = await new HttpConsoleOperatorBearerExchange(partition.Client)
                 .ExchangeAsync(profile, cancellationToken).ConfigureAwait(false);
             if (exchange.Status != ConsoleOperatorBearerExchangeStatus.Issued
@@ -688,7 +769,9 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 await _sessions.SaveSessionAsync(updatedSession, cancellationToken).ConfigureAwait(false);
             }
 
-            return new ConsoleServerSignInResult
+            var chained = await TryChainManagerSignInAsync(
+                profile, operatorKey, pending.ReturnTo, cancellationToken).ConfigureAwait(false);
+            return chained ?? new ConsoleServerSignInResult
             {
                 Status = ConsoleServerSignInStatus.Redirect,
                 RedirectUri = pending.ReturnTo
@@ -702,6 +785,40 @@ internal sealed class ConsoleServerSessionBffCoordinator
         {
             return Unavailable("The server sign-in callback could not be completed.", pending.ReturnTo);
         }
+    }
+
+    // A separate manager refuses a bearer on proposal approval, so serving sign-in continues
+    // there when that endpoint has its own browser identity provider. A manager that cannot
+    // start sign-in leaves the serving session in place.
+    private async Task<ConsoleServerSignInResult?> TryChainManagerSignInAsync(
+        ConsoleEnvironmentProfile profile,
+        string operatorKey,
+        string returnTo,
+        CancellationToken cancellationToken)
+    {
+        if (_managerEndpoint is null)
+        {
+            return null;
+        }
+
+        var manager = _managerEndpoint.Resolve(profile.ServerBaseUri);
+        if (manager is null || SameServer(manager, profile.ServerBaseUri))
+        {
+            return null;
+        }
+
+        if (_serverSessions.TryGet(operatorKey, profile.Id, manager, out var existing)
+            && !string.IsNullOrWhiteSpace(existing?.AuthenticatedProviderKey))
+        {
+            return null;
+        }
+
+        var providerKey = _serverSessions.TryGet(operatorKey, profile, out var serving)
+            ? serving?.AuthenticatedProviderKey
+            : null;
+        var started = await StartServerSignInAsync(
+            operatorKey, profile.Id, manager, providerKey, returnTo, cancellationToken).ConfigureAwait(false);
+        return started.Status == ConsoleServerSignInStatus.Redirect ? started : null;
     }
 
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
@@ -738,6 +855,38 @@ internal sealed class ConsoleServerSessionBffCoordinator
             await _sessions.ClearSessionAsync(profile.Id, CancellationToken.None).ConfigureAwait(false);
         }
 
+        var loggedOut = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var profile in profiles)
+        {
+            loggedOut.Add(NormalizeBase(profile.ServerBaseUri));
+        }
+
+        foreach (var partition in _serverSessions.CopyForOperator(operatorKey))
+        {
+            if (!loggedOut.Add(NormalizeBase(partition.ResourceBaseUri)))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var response = await new ConsoleServerSessionPost
+                {
+                    Client = partition.Client,
+                    ServerBaseUri = partition.ResourceBaseUri,
+                    RelativePath = "api/v1/admin/auth/logout"
+                }.SendAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException)
+            {
+                // The local partition is still discarded below.
+            }
+            catch (OperationCanceledException)
+            {
+                // The local partition is still discarded below.
+            }
+        }
+
         _serverSessions.ClearOperator(operatorKey);
     }
 
@@ -761,14 +910,17 @@ internal sealed class ConsoleServerSessionBffCoordinator
         return false;
     }
 
-    private static bool SameServer(Uri left, Uri right) => string.Equals(
+    internal static bool SameServer(Uri left, Uri right) => string.Equals(
         NormalizeBase(left),
         NormalizeBase(right),
         StringComparison.OrdinalIgnoreCase);
 
-    private static string NormalizeBase(Uri value) => value.AbsoluteUri.EndsWith('/')
-        ? value.AbsoluteUri
-        : value.AbsoluteUri + "/";
+    internal static string NormalizeBase(Uri value)
+    {
+        var builder = new UriBuilder(value) { Query = string.Empty, Fragment = string.Empty };
+        var text = builder.Uri.AbsoluteUri;
+        return text.EndsWith('/') ? text : text + "/";
+    }
 
     private static ConsoleServerSignInResult Denied(string message, string? returnTo = null) => new()
     {
@@ -890,7 +1042,14 @@ internal static class ConsoleServerSessionBffExtensions
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<ConsoleServerSessionClientStore>();
         builder.Services.TryAddSingleton<ConsoleServerSessionIdentityBinding>();
-        builder.Services.TryAddSingleton<ConsoleServerSessionBffCoordinator>();
+        builder.Services.TryAddSingleton(static provider => new ConsoleServerSessionBffCoordinator(
+            provider.GetRequiredService<IConsoleOperatorContext>(),
+            provider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+            provider.GetRequiredService<IConsoleAccountSessionStore>(),
+            provider.GetRequiredService<ConsoleServerSessionClientStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetService<ConsoleServerSessionIdentityBinding>(),
+            provider.GetService<IConsoleManagerEndpoint>()));
         builder.Services.Replace(ServiceDescriptor.Singleton<IConsoleOperatorBearerExchange,
             PartitionedConsoleOperatorBearerExchange>());
         DecorateProposalsWithSessionApproval(builder.Services);

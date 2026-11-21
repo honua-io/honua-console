@@ -82,6 +82,45 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         Assert.Equal("opaque-bearer-1", (await harness.Sessions.GetSessionAsync("env"))!.AccessToken);
     }
 
+    [Fact]
+    public async Task Ensure_ManagementMismatch_KeepsTheServingAccountSession()
+    {
+        var context = new OperatorContext();
+        var sessions = new PausingSessionStore(new OperatorScopedAccountSessionStore(context));
+        await using var partitions = new ConsoleServerSessionClientStore(TimeProvider.System, (key, cookies) =>
+        {
+            var handler = new SimulatedServer(cookies);
+            if (key.ServerOrigin.Contains("manager.example", StringComparison.OrdinalIgnoreCase))
+            {
+                handler.SessionJson = InvalidSession("subject");
+            }
+
+            return handler;
+        });
+        var binding = new ConsoleServerSessionIdentityBinding(
+            Options.Create(new ConsoleEdgeAuthOptions { ServerSessionIssuer = Issuer }),
+            sessions,
+            partitions,
+            TimeProvider.System);
+        var profile = Profile("env");
+        partitions.GetOrCreate("operator-a", profile);
+        var manager = partitions.GetOrCreate("operator-a", "env", new Uri("https://manager.example/"), out _);
+        manager.Cookies.SetCookies(Server, "honua_admin_session=server-session; Path=/; HttpOnly");
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = "env",
+            AccountId = "operator-a",
+            AccessToken = "serving-bearer"
+        });
+
+        var bound = await binding.EnsureAsync(manager, profile, "operator-a", "oidc", CancellationToken.None);
+
+        Assert.False(bound);
+        Assert.Equal("serving-bearer", (await sessions.GetSessionAsync("env"))!.AccessToken);
+        Assert.True(partitions.TryGet("operator-a", profile, out _));
+        Assert.False(partitions.TryGet("operator-a", "env", new Uri("https://manager.example/"), out _));
+    }
+
     [Theory]
     [InlineData("subject")]
     [InlineData("issuer")]

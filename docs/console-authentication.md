@@ -122,7 +122,10 @@ accepts the browser session or permits an approval.
 fixture excluded from release publication. Its `EdgeForwarded`/`Dev` modes,
 `ConsoleOperatorCookie`, `/auth/server/login`, partitioned server-side cookie jars
 and `/map-proxy/*` endpoints describe that retained host. They do not configure
-the static SPA. Likewise, `HONUA_SERVER_BASE_URL`, `HONUA_ADMIN_API_KEY` and
+the static SPA. On that host, a separate manager keeps its own human session:
+serving sign-in continues against the manager when the manager has a browser
+identity provider, and a `manager:` proposal approval uses that session cookie
+with no bearer and no API key. `HONUA_SERVER_BASE_URL`, `HONUA_ADMIN_API_KEY` and
 server-side Console authentication environment variables do not configure the
 published browser bundle. Use `config.json` and the Honua Server authentication
 endpoints described above.

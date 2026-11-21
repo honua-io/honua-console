@@ -19,7 +19,11 @@ public sealed record ConsoleFileImportCommand
     public int? ExpectedSourceSrid { get; init; }
 
     public string? AuthorityBinding { get; init; }
+
+    public string? SourceLayer { get; init; }
 }
+
+public sealed record ConsoleFileImportLayer(string Name, string? GeometryType, int? Srid);
 
 public sealed record ConsoleFileImportResult : ConsoleOperationResult<ConsoleFileImportResult>
 {
@@ -56,6 +60,10 @@ public sealed record ConsoleFileImportPreview : ConsoleOperationResult<ConsoleFi
     public string? AuthorityBinding { get; init; }
 
     public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    public IReadOnlyList<ConsoleFileImportLayer> Layers { get; init; } = [];
+
+    public string? PreviewedLayer { get; init; }
 }
 
 public sealed record ConsoleFileImportCoordinates(int? SourceSrid, int? TargetSrid);

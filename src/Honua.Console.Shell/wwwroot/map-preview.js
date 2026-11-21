@@ -94,46 +94,138 @@ function expandBounds(b, coords) {
     }
 }
 
-// Once the map first goes idle, frame the camera on the layer's actual rendered features.
-// Uses real geometry queried from the live map (never a synthetic extent); if no features are
-// present (empty layer, or tiles unreachable) the initial world view is left untouched. Runs once.
-function fitToFeaturesOnce(map) {
-    let done = false;
-    const onIdle = () => {
-        if (done) {
-            return;
+// A usable camera frame is a finite WGS84 box. Projected metres and the whole-world box are
+// not a layer frame; an all-zero box is an unbound extent, not a point at the Gulf of Guinea.
+function geographicBounds(value) {
+    if (!Array.isArray(value) || value.length !== 4 || !value.every(n => Number.isFinite(n))) {
+        return null;
+    }
+    const [west, south, east, north] = value;
+    if (west < -180 || east > 180 || south < -90 || north > 90 || east < west || north < south) {
+        return null;
+    }
+    if (west === 0 && south === 0 && east === 0 && north === 0) {
+        return null;
+    }
+    if ((east - west) >= 350 && (north - south) >= 170) {
+        return null;
+    }
+    return [west, south, east, north];
+}
+
+// Padding must stay inside the canvas. A 390px preview is short enough that a fixed 40px
+// pad makes fitBounds throw, which used to abandon the frame.
+function paddingFor(map) {
+    const canvas = typeof map.getCanvas === 'function' ? map.getCanvas() : null;
+    // No canvas probe (unit doubles) means a normal preview. A reported 0 is an unlaid-out pane.
+    const width = canvas ? Number(canvas.clientWidth ?? canvas.width ?? 0) : 800;
+    const height = canvas ? Number(canvas.clientHeight ?? canvas.height ?? 0) : 600;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 16 || height < 16) {
+        return null;
+    }
+    return Math.max(0, Math.min(40, Math.floor(width / 2) - 8, Math.floor(height / 2) - 8));
+}
+
+function rememberFittedHome(map) {
+    map._homeCenter = map.getCenter().toArray();
+    map._homeZoom = map.getZoom();
+}
+
+function fitGeographic(map, bounds) {
+    const padding = paddingFor(map);
+    if (padding === null) {
+        return false;
+    }
+    map.fitBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding, maxZoom: 16, duration: 0 });
+    rememberFittedHome(map);
+    return true;
+}
+
+function renderedFeatureBounds(map) {
+    const layers = (map.getStyle().layers) || [];
+    const featureLayers = layers.filter(l => l.id !== 'osm-basemap' && l.type !== 'raster' && l.type !== 'background');
+    if (featureLayers.length === 0) {
+        return null;
+    }
+    const rendered = typeof map.queryRenderedFeatures === 'function'
+        ? map.queryRenderedFeatures({ layers: featureLayers.map(l => l.id) }) || []
+        : [];
+    const sourced = typeof map.querySourceFeatures === 'function'
+        ? featureLayers.flatMap(layer => {
+            if (!layer.source) return [];
+            try {
+                return map.querySourceFeatures(layer.source, { sourceLayer: layer['source-layer'] }) || [];
+            } catch {
+                return [];
+            }
+        })
+        : [];
+    const b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const feature of [...rendered, ...sourced]) {
+        if (feature.geometry && feature.geometry.coordinates) {
+            expandBounds(b, feature.geometry.coordinates);
         }
+    }
+    return geographicBounds(b);
+}
+
+function declaredSourceBounds(map) {
+    const sources = map.getStyle()?.sources || {};
+    const acc = [Infinity, Infinity, -Infinity, -Infinity];
+    let any = false;
+    for (const [id, declared] of Object.entries(sources)) {
+        if (!declared || declared.type === 'raster' || declared.type === 'image' || id === 'osm-basemap') {
+            continue;
+        }
+        const live = typeof map.getSource === 'function' ? map.getSource(id) : null;
+        let raw = null;
+        if (live?.bounds && typeof live.bounds.getWest === 'function') {
+            raw = [live.bounds.getWest(), live.bounds.getSouth(), live.bounds.getEast(), live.bounds.getNorth()];
+        } else if (Array.isArray(live?.bounds)) {
+            raw = live.bounds;
+        } else if (Array.isArray(declared.bounds)) {
+            raw = declared.bounds;
+        }
+        const geo = geographicBounds(raw);
+        if (!geo) continue;
+        any = true;
+        acc[0] = Math.min(acc[0], geo[0]);
+        acc[1] = Math.min(acc[1], geo[1]);
+        acc[2] = Math.max(acc[2], geo[2]);
+        acc[3] = Math.max(acc[3], geo[3]);
+    }
+    return any ? acc : null;
+}
+
+// The first idle often fires before vector tiles arrive, and polygon tiles are empty at the
+// starting world zoom. Keep framing until a real extent, loaded source bounds, or features
+// appear, or until the preview has had long enough to load. An empty layer stays at the
+// initial camera.
+function frameLayer(map, explicitBounds) {
+    const started = Date.now();
+    let done = false;
+    const finish = () => {
+        if (done) return;
         done = true;
-        map.off('idle', onIdle);
+        map.off('idle', onFrame);
+        map.off('sourcedata', onFrame);
+    };
+    const onFrame = () => {
+        if (done) return;
         try {
-            // Only the style's own feature layers — exclude the injected OSM raster basemap.
-            const featureLayerIds = ((map.getStyle().layers) || [])
-                .filter(l => l.id !== 'osm-basemap' && l.type !== 'raster' && l.type !== 'background')
-                .map(l => l.id);
-            if (featureLayerIds.length === 0) {
+            const chosen = geographicBounds(explicitBounds) || declaredSourceBounds(map) || renderedFeatureBounds(map);
+            if (chosen && fitGeographic(map, chosen)) {
+                finish();
                 return;
-            }
-            const features = map.queryRenderedFeatures({ layers: featureLayerIds });
-            if (!features || features.length === 0) {
-                return;
-            }
-            const b = [Infinity, Infinity, -Infinity, -Infinity];
-            for (const f of features) {
-                if (f.geometry && f.geometry.coordinates) {
-                    expandBounds(b, f.geometry.coordinates);
-                }
-            }
-            if (b[0] <= b[2] && b[1] <= b[3] && Number.isFinite(b[0])) {
-                map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 });
-                // Make this fitted view the home position for the Recenter control.
-                map._homeCenter = map.getCenter().toArray();
-                map._homeZoom = map.getZoom();
             }
         } catch {
-            /* auto-fit is best-effort; never break the render */
+            /* a short canvas or an unloaded style retries on the next idle */
         }
+        if (Date.now() - started > 12000) finish();
     };
-    map.on('idle', onIdle);
+    map.on('idle', onFrame);
+    map.on('sourcedata', onFrame);
+    onFrame();
 }
 
 export function mapRequestParameters(authorize, url) {
@@ -222,23 +314,9 @@ function configureMapPreview(maplibregl, map, options) {
         } catch {
             /* basemap is best-effort; never break the feature render */
         }
-        // Frame the camera on the layer's data. Preferred source is the server-provided extent
-        // ([minLng, minLat, maxLng, maxLat] in EPSG:4326, from the layer's cached metadata extent),
-        // which is reliable even at a whole-world start where the vector tiles are empty. When no
-        // extent is supplied, fall back to fitting the actual rendered features once the map idles.
-        // Both use real geometry only — never a synthetic extent.
-        const b = options.bounds;
-        if (Array.isArray(b) && b.length === 4 && b.every(n => Number.isFinite(n))) {
-            try {
-                map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 40, maxZoom: 16, duration: 0 });
-                map._homeCenter = map.getCenter().toArray();
-                map._homeZoom = map.getZoom();
-            } catch {
-                fitToFeaturesOnce(map);
-            }
-        } else {
-            fitToFeaturesOnce(map);
-        }
+        // Frame on the server extent when it is a real WGS84 box. Otherwise wait for TileJSON
+        // source bounds or for features that are not in the first world-zoom tile.
+        frameLayer(map, options.bounds);
     });
     // Remember the initial view so the custom Recenter control can restore it.
     map._homeCenter = options.center ?? [0, 0];

@@ -7,7 +7,7 @@ public interface IConsoleFileImportOperation
 {
     Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default);
 
-    Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default);
+    Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default, string? sourceLayer = null);
 
     Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(
         string query, string authorityBinding, CancellationToken cancellationToken = default);
