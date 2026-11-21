@@ -175,7 +175,10 @@ public sealed class ProposalApprovalPanelReceiptTests
 
         panel.WaitForAssertion(() =>
         {
-            Assert.Contains("sha256:plan-hash-99", panel.Find("[data-proposal-plan-hash]").TextContent, StringComparison.Ordinal);
+            var planHash = panel.Find("[data-proposal-plan-hash]").TextContent;
+            Assert.Contains("sha256:plan-hash-99", planHash, StringComparison.Ordinal);
+            Assert.Contains("(v3)", planHash, StringComparison.Ordinal);
+            Assert.DoesNotContain("@detail.Version", planHash, StringComparison.Ordinal);
             Assert.Equal("deploy.ecs.patch", panel.Find("[data-proposal-operation-id]").TextContent.Trim());
             Assert.Equal("deploy.image.cve_patch", panel.Find("[data-proposal-action-discriminator]").TextContent.Trim());
             Assert.Equal("SupportAgent", panel.Find("[data-proposal-initiation]").TextContent.Trim());

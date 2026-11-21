@@ -67,6 +67,25 @@ public sealed class ConsoleThemeTests
         Assert.Equal(key, LastKey(context));
     }
 
+    [Fact]
+    public void StatusClassesUseThemeTokensAndMetricGridDoesNotOverrideStatusColor()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var css = File.ReadAllText(Path.Combine(root, "src", "Honua.Console.Shell", "wwwroot", "honua-console.css"));
+
+        Assert.Contains("background: var(--c-ok-soft", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--c-ok-ink", css, StringComparison.Ordinal);
+        Assert.Contains("background: var(--c-info-soft", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--c-info-ink", css, StringComparison.Ordinal);
+        Assert.Contains("background: var(--c-warn-soft", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--c-warn-ink", css, StringComparison.Ordinal);
+        Assert.Contains("background: var(--c-danger-soft", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--c-danger-ink", css, StringComparison.Ordinal);
+        Assert.Contains("background: var(--c-neutral-soft", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--c-neutral-ink", css, StringComparison.Ordinal);
+        Assert.Contains(".operate-metric-grid small:not([class*=\"console-state-\"])", css, StringComparison.Ordinal);
+    }
+
     private static object? LastKey(BunitContext context) =>
         context.JSInterop.Invocations[Enable].Last().Arguments.Single();
 

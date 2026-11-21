@@ -23,12 +23,13 @@
     const parentRow = row => rows().find(item => key(item) === row.dataset.treeParent);
     const expander = row => row.querySelector(':scope > [data-tree-expand]');
     const toggle = () => document.querySelector('[data-tree-toggle]');
-    const modal = honuaModalSurface.create({
+    const fallbackModal = {activate() {}, deactivate() {}, release() {}, trapFocus: () => false};
+    const modal = globalThis.honuaModalSurface?.create({
         surface: () => sidebar,
         backgrounds: () => [...document.querySelectorAll('.console-shell > :not(.console-service-workspace), .console-service-workspace > .console-workspace, [data-agent-workspace], [data-tree-toggle]')],
         returnFocus: toggle,
         onDismiss: closeOverlay
-    });
+    }) ?? fallbackModal;
     const isOpen = () => sidebar?.hasAttribute(overlayAttribute);
 
     function focusRow(row) {
