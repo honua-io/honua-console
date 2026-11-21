@@ -4,7 +4,8 @@
     const toggle = () => document.querySelector('[data-conversation-toggle]');
     let lastPath;
     let lastAuthorityRevision;
-    const modal = honuaModalSurface.create({
+    const fallbackModal = {activate() {}, deactivate() {}, release() {}, trapFocus: () => false};
+    const modal = globalThis.honuaModalSurface?.create({
         surface: () => host,
         backgrounds: () => {
             const backgrounds = [];
@@ -17,7 +18,7 @@
         },
         returnFocus: toggle,
         onDismiss: close
-    });
+    }) ?? fallbackModal;
     function isStudio(path) {
         return /^\/studio(?:\/?|\/proof\/?|\/drafts\/?|\/apps\/[^/]+\/preview\/?)$/.test(path || '');
     }

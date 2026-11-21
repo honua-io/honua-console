@@ -247,3 +247,19 @@ test('leaving the operator shell suspends preference reads without changing foll
   await expectFollowOff(page);
   expect(await page.evaluate(()=>(window as any).preferenceTest.pending.length)).toBe(0);
 });
+
+test('publication-tree and conversation-drawer degrade without page errors when modal-surface.js is absent',async({page})=>{
+  const pageErrors:string[]=[];
+  page.on('pageerror',err=>pageErrors.push(String(err)));
+  let html=readFileSync(new URL('../fixtures/publication-tree.html',import.meta.url),'utf8');
+  html=html.replace('<header class="console-topbar">',`<span hidden data-console-location="/" data-console-authority-revision="0"></span><header class="console-topbar"><button data-conversation-toggle aria-controls="console-conversation-drawer" aria-expanded="false">Conversation</button>`);
+  html=html.replace('<script src="/js/modal-surface.js"></script>',readConversationMarkup());
+  html=html.replace('</body>','<script src="/js/conversation-drawer.js"></script></body>');
+  await page.route('**/drawer-no-modal-fixture',route=>route.fulfill({contentType:'text/html',body:html}));
+  await page.goto('/drawer-no-modal-fixture');
+  await toggle(page).click();
+  await expect(drawer(page)).toHaveAttribute('open','');
+  await page.getByRole('button',{name:'Close conversation',exact:true}).click();
+  await expect(drawer(page)).not.toHaveAttribute('open','');
+  expect(pageErrors).toEqual([]);
+});
