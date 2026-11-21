@@ -32,8 +32,66 @@ public sealed class OperateObjectStoragePageTests
         Assert.Equal(("imagery-2026", "ortho/"), Assert.Single(client.SetupCalls));
         Assert.Contains("ext-123", page.Find("[data-object-storage-setup-result]").TextContent, StringComparison.Ordinal);
         Assert.Equal("https://console.example/quick", page.Find("[data-object-storage-quick-create]").GetAttribute("href"));
+        Assert.Empty(page.FindAll("[data-object-storage-manual-role]"));
         Assert.False(page.Find("[data-object-storage-create]").HasAttribute("disabled"));
         V4PagePreview.Capture("operate-object-storage-new", page.Markup);
+    }
+
+    [Fact]
+    public void SetupWithoutQuickCreateLinkShowsManualRoleInstructions()
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse
+        {
+            ExternalId = "ext-manual-123",
+            QuickCreateUrl = null,
+            RoleNamePrefix = "honua-connection-"
+        });
+        var page = context.Render<OperateConnectionObjectStorageNewPage>();
+        Fill(page);
+
+        page.Find("[data-object-storage-setup]").Click();
+
+        Assert.Contains("ext-manual-123", page.Find("[data-object-storage-setup-result]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-object-storage-quick-create]"));
+        var manual = page.Find("[data-object-storage-manual-role]").TextContent;
+        Assert.Contains("Quick-create is not configured on this installation", manual, StringComparison.Ordinal);
+        Assert.Contains("honua-connection-", manual, StringComparison.Ordinal);
+        Assert.Contains("honua-connection-imagery-2026", manual, StringComparison.Ordinal);
+        Assert.Contains("sts:AssumeRole", manual, StringComparison.Ordinal);
+        Assert.Contains("sts:ExternalId", manual, StringComparison.Ordinal);
+        Assert.Contains("ext-manual-123", manual, StringComparison.Ordinal);
+        Assert.Contains("s3:GetObject", manual, StringComparison.Ordinal);
+        Assert.Contains("arn:aws:s3:::imagery-2026/ortho/*", manual, StringComparison.Ordinal);
+        Assert.Contains("s3:ListBucket", manual, StringComparison.Ordinal);
+        Assert.Contains("s3:GetBucketLocation", manual, StringComparison.Ordinal);
+        Assert.Contains("s3:GetBucketRequestPayment", manual, StringComparison.Ordinal);
+        Assert.Contains("arn:aws:s3:::imagery-2026", manual, StringComparison.Ordinal);
+        Assert.Contains("Connections__ObjectStorage__QuickCreateTemplateUrl", manual, StringComparison.Ordinal);
+        Assert.False(page.Find("[data-object-storage-create]").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void SetupWithoutPrefixScopesManualPermissionsToEntireBucket()
+    {
+        using var fixture = new ExportsPageFixture();
+        var (context, client) = (fixture.Context, fixture.Client);
+        client.Setup = OperateSectionResult<ObjectStorageSetupResponse>.Allowed(new ObjectStorageSetupResponse
+        {
+            ExternalId = "ext-root-456",
+            QuickCreateUrl = null,
+            RoleNamePrefix = "honua-connection-"
+        });
+        var page = context.Render<OperateConnectionObjectStorageNewPage>();
+        page.Find("[data-object-storage-field='bucket']").Input("county.imagery");
+
+        page.Find("[data-object-storage-setup]").Click();
+
+        var manual = page.Find("[data-object-storage-manual-role]").TextContent;
+        Assert.Contains("honua-connection-county-imagery", manual, StringComparison.Ordinal);
+        Assert.Contains("arn:aws:s3:::county.imagery/*", manual, StringComparison.Ordinal);
+        Assert.DoesNotContain("arn:aws:s3:::county.imagery//*", manual, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -145,6 +203,7 @@ public sealed class OperateObjectStoragePageTests
 
         Assert.Contains("ext-123", page.Find("[data-object-storage-setup-result]").TextContent, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-object-storage-quick-create]"));
+        Assert.NotEmpty(page.FindAll("[data-object-storage-manual-role]"));
     }
 
     [Fact]

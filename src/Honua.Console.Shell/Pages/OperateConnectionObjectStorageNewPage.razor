@@ -42,7 +42,7 @@
     </ConsolePanel>
 
     <ConsolePanel Title="Access role" HeadingId="object-storage-role-heading">
-        <p>Create a read-only role named <code>@(_setup?.Value?.RoleNamePrefix ?? "honua-connection-")…</code> on this bucket. The quick-create link opens a template with the bucket, prefix and this installation's external id filled in.</p>
+        <p>Create a read-only role named <code>@RoleNamePrefix…</code> on this bucket. Request a setup external id first; when this installation has a role template configured, Honua also provides a quick-create link.</p>
         <div class="console-action-row">
             <button type="button" class="console-button console-button-secondary" disabled="@(!HasBucket || _setupPending || IsLocked)" data-object-storage-setup @onclick="LoadSetupAsync">
                 @(_setupPending ? "Preparing…" : "Get the quick-create link")
@@ -59,6 +59,19 @@
                     <dd><a href="@quickCreate" target="_blank" rel="noopener noreferrer" data-object-storage-quick-create>Create the role in your account</a></dd>
                 }
             </dl>
+            @if (QuickCreateHref(setup) is null)
+            {
+                <div class="console-panel" data-object-storage-manual-role>
+                    <OperateSectionHeading Text="Quick-create is not configured on this installation" />
+                    <p>Create the read-only IAM role manually in your account, then paste its Role ARN below:</p>
+                    <ol>
+                        <li>Name the role with prefix <code>@RoleNamePrefix</code> (for example, <code>@SuggestedRoleName</code>).</li>
+                        <li>In the trust policy, allow this installation's AWS principal to call <code>sts:AssumeRole</code> with condition <code>sts:ExternalId</code> equal to <code>@setup.ExternalId</code>.</li>
+                        <li>Grant read-only permissions: <code>s3:GetObject</code> on <code>@ObjectResourceArn</code>, plus <code>s3:ListBucket</code>, <code>s3:GetBucketLocation</code>, and <code>s3:GetBucketRequestPayment</code> on <code>@BucketResourceArn</code>.</li>
+                    </ol>
+                    <p>To enable the quick-create link, an administrator can set <code>Connections__ObjectStorage__QuickCreateTemplateUrl</code> to an HTTPS CloudFormation template URL.</p>
+                </div>
+            }
         }
         else if (_setup is { } failed)
         {
@@ -231,4 +244,30 @@
         Uri.TryCreate(setup.QuickCreateUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
             ? uri.AbsoluteUri
             : null;
+
+    private string RoleNamePrefix =>
+        string.IsNullOrWhiteSpace(_setup?.Value?.RoleNamePrefix) ? "honua-connection-" : _setup.Value.RoleNamePrefix;
+
+    private string SuggestedRoleName
+    {
+        get
+        {
+            var slug = _bucket.Trim().Replace('.', '-');
+            var candidate = RoleNamePrefix + (slug.Length > 0 ? slug : "bucket");
+            return candidate.Length <= 64 ? candidate : candidate[..64];
+        }
+    }
+
+    private string BucketResourceArn => $"arn:aws:s3:::{_bucket.Trim()}";
+
+    private string ObjectResourceArn
+    {
+        get
+        {
+            var normalizedPrefix = _prefix.Trim().Trim('/');
+            return normalizedPrefix.Length == 0
+                ? $"{BucketResourceArn}/*"
+                : $"{BucketResourceArn}/{normalizedPrefix}/*";
+        }
+    }
 }
