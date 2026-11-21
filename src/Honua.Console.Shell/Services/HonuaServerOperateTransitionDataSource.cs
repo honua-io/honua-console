@@ -87,10 +87,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) =>
-        BuildServicesViewAsync(includeRuntimeSettings: true, cancellationToken);
+        ServicesOf(BuildDataViewAsync(SettingsRead.Include, cancellationToken));
 
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
-        BuildServicesViewAsync(includeRuntimeSettings: false, cancellationToken);
+        ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken));
 
     public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default)
     {
@@ -102,7 +102,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             return GetLayersViewAsync(cancellationToken);
         }
 
-        return BuildServicesViewAsync(false, cancellationToken, new LayerScope(connectionId, layerId));
+        return ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, new LayerScope(connectionId, layerId)));
     }
 
     public async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
@@ -111,21 +111,20 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         return new OperateSettingsView(settingsChanges, states);
     }
 
-    // The dataset page shows resources and services from one layer read (#1084).
+    // The dataset page shows resources and services from one layer read, so each list is fetched once.
     public Task<OperateDataView> GetDataViewAsync(CancellationToken cancellationToken = default) =>
-        BuildDataViewAsync(includeRuntimeSettings: true, cancellationToken);
+        BuildDataViewAsync(SettingsRead.Include, cancellationToken);
 
-    private async Task<OperateServicesView> BuildServicesViewAsync(
-        bool includeRuntimeSettings,
-        CancellationToken cancellationToken,
-        LayerScope? scope = null) =>
-        (await BuildDataViewAsync(includeRuntimeSettings, cancellationToken, scope).ConfigureAwait(false)).Services;
+    private enum SettingsRead { Skip, Include }
+
+    private static async Task<OperateServicesView> ServicesOf(Task<OperateDataView> read) =>
+        (await read.ConfigureAwait(false)).Services;
 
     // Services and layers share the same service/layer projection. The services surface needs the
     // per-service settings reads (runtime settings, protocol endpoints); the layers surface does not,
     // so it skips those calls.
     private async Task<OperateDataView> BuildDataViewAsync(
-        bool includeRuntimeSettings,
+        SettingsRead settingsRead,
         CancellationToken cancellationToken,
         LayerScope? scope = null)
     {
@@ -142,7 +141,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                 connection.Id, scope.ConnectionId.ToString("D"), StringComparison.OrdinalIgnoreCase)).ToArray();
         }
         var layerRowsTask = LoadLayerRowsAsync(new LayerRead(connections, summaries, scope?.StorageLayerId), cancellationToken);
-        var serviceSettingsTask = includeRuntimeSettings
+        var serviceSettingsTask = settingsRead == SettingsRead.Include
             ? LoadServiceSettingsAsync(summaries, cancellationToken)
             : null;
 
