@@ -153,11 +153,7 @@
                 {
                     <ConsoleDiagnostics Detail="No execution-job store is registered on the connected server, so geoprocessing queue depth cannot be reported." />
                 }
-                else if (_view.Geoprocessing.Buckets.Count == 0)
-                {
-                    <p class="console-muted">No active geoprocessing jobs.</p>
-                }
-                else
+                else if (_view.Geoprocessing.Buckets.Count > 0)
                 {
                     <ConsoleTableRegion Class="operate-table-scroll" Label="Geoprocessing queues">
                         <table class="operate-table">

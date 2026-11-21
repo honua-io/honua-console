@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
@@ -62,6 +63,22 @@ public sealed class OperateHealthPageTests
         // so they must NOT render a drilldown link (a healthy badge is not a dead end either).
         Assert.DoesNotContain("data-health-drilldown=\"geoprocessing\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-health-drilldown=\"alert-dispatch\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ConsolePresentationMode.Legacy)]
+    [InlineData(ConsolePresentationMode.V4)]
+    public async Task EmptyGeoprocessingQueueStatesItOnce(ConsolePresentationMode presentation)
+    {
+        var snapshot = BuildSnapshot();
+        snapshot.Geoprocessing = new OpsGpQueueResponse { TotalActive = 0, Available = true, Buckets = [] };
+        var html = await RenderAsync(new StubOpsHealthDataSource
+        {
+            Result = OperateSectionResult<OpsHealthView>.Allowed(OpsHealthDataSource.Map(snapshot))
+        }, presentation);
+
+        Assert.Single(Regex.Matches(html, "No active geoprocessing jobs"));
+        Assert.DoesNotContain("Geoprocessing queues", html, StringComparison.Ordinal);
     }
 
     [Fact]

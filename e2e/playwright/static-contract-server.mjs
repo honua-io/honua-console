@@ -120,14 +120,14 @@ async function signInWithPassword({ request, response, crossOrigin, pathname, or
   }
 }
 
-function readResource({ request, response, pathname, crossOrigin, authorized, json }) {
+function readResource({ request, response, pathname, crossOrigin, authorized, json, capabilities }) {
   if (request.method !== "GET") {
     response.writeHead(405).end();
     return;
   }
   // Capability discovery is public; operator resources below still require a session.
   if (pathname === "/api/v1/capabilities/manifest") {
-    json({ schemaVersion: "honua.capability_manifest.v1", capabilities: [], packages: { families: [] } });
+    json({ schemaVersion: "honua.capability_manifest.v1", capabilities, packages: { families: [] } });
     return;
   }
   if (pathname === "/api/v1/admin/auth/csrf" && !crossOrigin) {
@@ -195,10 +195,14 @@ function readAuthorizedResource({ response, pathname, json }) {
   }
 }
 
-export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = false }) {
+export const alertingCapability = {
+  id: "alerts.geofence", lifecycle: "Implemented", optInRequired: false, available: true, supported: true,
+};
+
+export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = false, capabilities = [] }) {
   const pending = new Map();
   return async (request, response) => {
-    const context = { request, response, allowedOrigin, crossOrigin, oidc, pending };
+    const context = { request, response, allowedOrigin, crossOrigin, oidc, pending, capabilities };
     if (!acceptOrigin(context)) return;
     context.origin = request.headers.origin;
     context.pathname = new URL(request.url, "http://localhost").pathname.replace(/\/$/, "");

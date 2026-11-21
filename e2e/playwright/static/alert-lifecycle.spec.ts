@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { startStaticBundleServer } from '../static-bundle-server.mjs';
-import { createContractApi } from '../static-contract-server.mjs';
+import { alertingCapability, createContractApi } from '../static-contract-server.mjs';
 import { signInWithFixturePassword } from './fixture-sign-in';
 
 const origin = 'http://127.0.0.1:5196';
@@ -10,7 +10,7 @@ const initial = { eventId: 42, ruleId: 42, ruleName: 'A map needs attention',
   serviceId: 'Public maps', severity: 'warning', lifecycleStatus: 'open', resourceRef: 'map/42' };
 
 async function startLifecycleFixture() {
-  const fallback = createContractApi({ allowedOrigin: origin });
+  const fallback = createContractApi({ allowedOrigin: origin, capabilities: [alertingCapability] });
   const attempts: { path: string; id: string; deadline?: string }[] = [];
   let alert = { ...initial, suppressedUntil: undefined as string | undefined,
     resolvedAt: undefined as string | undefined };

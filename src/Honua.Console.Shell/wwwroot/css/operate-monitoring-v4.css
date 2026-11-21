@@ -51,6 +51,11 @@
     overflow-wrap: anywhere;
 }
 
+.console-monitoring-v4 .operate-table :is(th, .console-status) {
+    overflow-wrap: normal;
+    white-space: nowrap;
+}
+
 .console-monitoring-v4 .console-panel h3 {
     font-size: var(--text-md);
     font-weight: var(--weight-semibold);

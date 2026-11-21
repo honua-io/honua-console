@@ -86,14 +86,26 @@
     private string? _actionMessage;
     private IConsoleAlertInboxClient? Client => Services.GetService(typeof(IConsoleAlertInboxClient)) as IConsoleAlertInboxClient;
 
+    private IConsoleCapabilityManifest? Capabilities => Services.GetService(typeof(IConsoleCapabilityManifest)) as IConsoleCapabilityManifest;
+
     private TimeProvider Clock => Services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
 
     protected override Task OnInitializedAsync()
     {
         _subscription = new(Services.GetService(typeof(IConsoleEnvironmentProfileStore)) as IConsoleEnvironmentProfileStore,
             Services.GetService(typeof(AuthenticationStateProvider)) as AuthenticationStateProvider, OnAuthorityChanged);
+        if (Capabilities is { } capabilities) { capabilities.Changed += OnCapabilitiesChanged; }
         return RefreshAsync();
     }
+
+    private void OnCapabilitiesChanged() => _ = InvokeAsync(async () =>
+    {
+        if (_lifetime.IsCancellationRequested || _result.Status != OperateSectionStatus.Unsupported || !IsAlertingAdvertised) { return; }
+        await RefreshAsync();
+        StateHasChanged();
+    });
+
+    private bool IsAlertingAdvertised => Capabilities?.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting) == true;
 
     private void OnAuthorityChanged()
     {
@@ -125,9 +137,7 @@
         {
             if (Client is { } client)
             {
-                var authority = cursor is null ? null : _result.Value?.Authority;
-                var result = await ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor, authority), ConsoleReadBudget.Default,
-                    "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
+                var result = await ReadAlertsAsync(client, cursor);
                 if (generation != _generation) { return; }
                 _result = result;
                 if (_result.IsAllowed && _result.Value is { } refreshed)
@@ -142,6 +152,18 @@
             if (generation == _generation) { _loaded = true; }
         }
         finally { if (generation == _generation) { _busy = false; } }
+    }
+
+    private Task<OperateSectionResult<ConsoleAlertInboxSnapshot>> ReadAlertsAsync(IConsoleAlertInboxClient client, string? cursor)
+    {
+        if (!IsAlertingAdvertised)
+        {
+            return Task.FromResult(OperateSectionResult<ConsoleAlertInboxSnapshot>.Denied(
+                OperateSectionStatus.Unsupported, OptionalAlertAvailability.Message));
+        }
+        var authority = cursor is null ? null : _result.Value?.Authority;
+        return ConsoleReadBudget.RunAsync(token => client.ListAlertsAsync(token, cursor, authority), ConsoleReadBudget.Default,
+            "Honua did not respond. Try refreshing alerts again.", _lifetime.Token);
     }
 
     private Task AcknowledgeAsync(long eventId) => RunMutationAsync(eventId, new(async (client, snapshot) =>
@@ -235,6 +257,7 @@
     public void Dispose()
     {
         ++_generation;
+        if (Capabilities is { } capabilities) { capabilities.Changed -= OnCapabilitiesChanged; }
         _subscription?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();

@@ -14,7 +14,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void AcknowledgementWaitsForConfirmationAndRetainsIdentityOnRetry()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -41,7 +41,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void RefreshConfirmationRetiresAnUncertainCommandBeforeAnotherLifecycle()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -62,7 +62,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void EmptyAndPartialAlertPagesDoNotAssertOverallHealthOrCompleteCounts()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient { Page = new() { NextCursor = "more" } };
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -76,7 +76,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void MissingConnectionDoesNotRenderAnEmptySuccessState()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var panel = context.Render<OperationsAlertsPanel>();
         panel.WaitForAssertion(() => Assert.Contains("unavailable", panel.Markup, StringComparison.OrdinalIgnoreCase));
         Assert.Empty(panel.FindAll("[data-no-alerts]"));
@@ -85,7 +85,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public async Task OperatorChangeDiscardsDelayedReadAndClearsPagination()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var authentication = new ChangingAuthentication();
         var client = new AlertClient();
         context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
@@ -109,7 +109,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public async Task OperatorChangeDiscardsDelayedAcknowledgement()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var authentication = new ChangingAuthentication();
         var client = new AlertClient();
         context.Services.AddSingleton<AuthenticationStateProvider>(authentication);
@@ -131,7 +131,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void SnoozeRetriesTheSameCommandAndResolveRequiresServerConfirmation()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -151,7 +151,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void ExpiredUncertainSnoozeStartsANewHourWithoutRefresh()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var clock = new AlertClock();
         var client = new AlertClient();
         context.Services.AddSingleton<TimeProvider>(clock);
@@ -182,7 +182,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [InlineData(true)]
     public void ConfirmedSnoozeRetiresAnUncertainResolveIdentity(bool loseSnoozeResponse)
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         var stored = client.Page.Items[0];
         var consumed = new HashSet<string>();
@@ -227,7 +227,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [InlineData(true)]
     public void ConfirmedSnoozeRetiresAnUncertainAcknowledgementIdentity(bool loseSnoozeResponse)
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -262,7 +262,7 @@ public sealed class OperationsAlertsPanelRenderTests
     public void ConfirmedAcknowledgementRetiresUncertainLifecycleIdentities(
         ConsoleAlertLifecycleAction action, bool loseAcknowledgementResponse)
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -290,7 +290,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [InlineData("snoozed", "acknowledge")]
     public void UnchangedRefreshRetainsUncertainIdentity(string initialState, string action)
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         client.Page = client.Page with
         {
@@ -319,7 +319,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [InlineData("snooze")]
     public void ExternalSnoozeRetiresUncertainIdentities(string action)
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -346,7 +346,7 @@ public sealed class OperationsAlertsPanelRenderTests
     [Fact]
     public void RefreshConfirmationRetiresAnUncertainSnoozeBeforeAnotherOccurrence()
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
@@ -370,13 +370,63 @@ public sealed class OperationsAlertsPanelRenderTests
     [InlineData("")]
     public void CriticalAndUnknownSeverityAlertsCannotBeSnoozed(string severity)
     {
-        using var context = new BunitContext();
+        using var context = AlertingContext();
         var client = new AlertClient();
         client.Page = client.Page with { Items = [client.Page.Items[0] with { Severity = severity }] };
         context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
         var panel = context.Render<OperationsAlertsPanel>();
         Assert.Empty(panel.FindAll("[data-snooze-alert]"));
         Assert.Single(panel.FindAll("[data-resolve-alert]"));
+    }
+
+    [Fact]
+    public void UnadvertisedAlertingSkipsTheAlertReadAndExplainsWhy()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(new ConsoleCapabilityManifest());
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.WaitForAssertion(() => Assert.Contains("Alerts are not enabled", panel.Markup, StringComparison.Ordinal));
+        Assert.Empty(client.Cursors);
+        Assert.Empty(panel.FindAll("[data-no-alerts]"));
+    }
+
+    [Fact]
+    public async Task AlertingAdvertisedAfterTheFirstRenderReadsAlerts()
+    {
+        using var context = new BunitContext();
+        var client = new AlertClient();
+        var capabilities = new LateCapabilities();
+        context.Services.AddSingleton<IConsoleAlertInboxClient>(client);
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(capabilities);
+        var panel = context.Render<OperationsAlertsPanel>();
+        panel.WaitForAssertion(() => Assert.Contains("Alerts are not enabled", panel.Markup, StringComparison.Ordinal));
+        await panel.InvokeAsync(capabilities.Advertise);
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-alert-id]")));
+        Assert.Single(client.Cursors);
+    }
+
+    private static BunitContext AlertingContext()
+    {
+        var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleCapabilityManifest>(
+            new ConsoleCapabilityManifest([ConsoleCapabilityKeys.RealtimeAlerting]));
+        return context;
+    }
+
+    private sealed class LateCapabilities : IConsoleCapabilityManifest
+    {
+        private bool _advertised;
+        public event Action? Changed;
+        public Task RefreshAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public bool IsAdvertised(string capabilityKey) => _advertised && capabilityKey == ConsoleCapabilityKeys.RealtimeAlerting;
+
+        public void Advertise()
+        {
+            _advertised = true;
+            Changed?.Invoke();
+        }
     }
 
     private sealed class ChangingAuthentication : AuthenticationStateProvider
