@@ -149,6 +149,7 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
             throw new InvalidOperationException("Password sign-in is unavailable for this identity provider.");
         }
         session.Clear();
+        var serverSessionStarted = false;
         try
         {
             if (api.UsesCookieSession)
@@ -156,6 +157,7 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
                 var csrf = await api.GetCsrfAsync(cancellationToken);
                 session.Set(new ClaimsPrincipal(new ClaimsIdentity()), new ConsoleSessionCredentials(CsrfToken: csrf));
                 await api.SignInCookieAsync(password, cancellationToken);
+                serverSessionStarted = true;
                 if (api.CapturesManagementBearer) await CaptureManagementBearerAsync(password, cancellationToken);
             }
             else
@@ -167,6 +169,7 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
         }
         catch
         {
+            if (serverSessionStarted) await EndServerSessionAsync();
             await ClearAuthenticationAsync();
             throw;
         }
@@ -188,6 +191,22 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
             || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
             session.RememberManagementUnavailable(null);
+        }
+    }
+
+    // A failed sign-in must not leave the server session signed in behind a signed-out Console.
+    // Best effort: the sign-in error is the one the operator sees.
+    private async Task EndServerSessionAsync()
+    {
+        try
+        {
+            await PrepareCookieRequestAsync(CancellationToken.None);
+            await api.SignOutCookieAsync(CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException
+            or OperationCanceledException or InvalidOperationException)
+        {
+            session.Clear();
         }
     }
 

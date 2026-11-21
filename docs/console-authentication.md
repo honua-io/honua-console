@@ -101,6 +101,13 @@ serving cookie session, but the operator must sign in again to restore the manag
 bearer. Same-origin OIDC does not supply that bearer and cannot use a separate
 manager in this build.
 
+The bearer request omits the serving cookie and CSRF token, so the serving API
+must enable its operator bearer and list the Console origin as an allowed origin.
+If the serving API issues no bearer, sign-in still completes for serving pages,
+and management calls report the HTTP status they got instead of asking for
+another sign-in. If sign-in fails after the server session starts, Console ends
+that session before showing the error.
+
 ## Credential and permission boundaries
 
 The browser transport strips caller-supplied API keys, cookies, authorization and
