@@ -304,49 +304,49 @@ p {
 
 .console-state-neutral {
     --console-state-edge: var(--c-neutral);
-    border-color: #cbd5df;
-    background: #f3f6f8;
-    color: #41505c;
+    border-color: color-mix(in srgb, var(--c-neutral, #67736e) 35%, transparent);
+    background: var(--c-neutral-soft, #f3f6f8);
+    color: var(--c-neutral-ink, #41505c);
 }
 
 .console-state-success {
     --console-state-edge: var(--c-ok);
-    border-color: #99d6b8;
-    background: #edf9f2;
-    color: #17603a;
+    border-color: color-mix(in srgb, var(--c-ok, #15803d) 35%, transparent);
+    background: var(--c-ok-soft, #edf9f2);
+    color: var(--c-ok-ink, #17603a);
 }
 
 .console-state-info {
     --console-state-edge: var(--c-info);
-    border-color: #a7c7ea;
-    background: #edf5ff;
-    color: #175487;
+    border-color: color-mix(in srgb, var(--c-info, #2563eb) 35%, transparent);
+    background: var(--c-info-soft, #edf5ff);
+    color: var(--c-info-ink, #175487);
 }
 
 .console-state-warning {
     --console-state-edge: var(--c-warn);
-    border-color: #ead08f;
-    background: #fff8e6;
-    color: #7a5300;
+    border-color: color-mix(in srgb, var(--c-warn, #b45f06) 35%, transparent);
+    background: var(--c-warn-soft, #fff8e6);
+    color: var(--c-warn-ink, #7a5300);
 }
 
 .console-state-danger {
     --console-state-edge: var(--c-danger);
-    border-color: #efb1ac;
-    background: #fff0ef;
-    color: #9e2b25;
+    border-color: color-mix(in srgb, var(--c-danger, #b3261e) 35%, transparent);
+    background: var(--c-danger-soft, #fff0ef);
+    color: var(--c-danger-ink, #9e2b25);
 }
 
 .console-status-warning {
-    border-color: #e0b84d;
-    background: #fff7dc;
-    color: #725312;
+    border-color: color-mix(in srgb, var(--c-warn, #b45f06) 40%, transparent);
+    background: var(--c-warn-soft, #fff7dc);
+    color: var(--c-warn-ink, #725312);
 }
 
 .console-status-danger {
-    border-color: #e08b82;
-    background: #fff0ed;
-    color: #8f2f24;
+    border-color: color-mix(in srgb, var(--c-danger, #b3261e) 40%, transparent);
+    background: var(--c-danger-soft, #fff0ed);
+    color: var(--c-danger-ink, #8f2f24);
 }
 
 .console-button,
@@ -2670,7 +2670,7 @@ p {
 }
 
 .operate-metric-grid span,
-.operate-metric-grid small {
+.operate-metric-grid small:not([class*="console-state-"]) {
     color: var(--honua-muted);
 }
 
