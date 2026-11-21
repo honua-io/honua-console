@@ -70,8 +70,9 @@ class FixtureApi {
 
   private bucket({ url, method, send }: Call) {
     if (url.pathname === '/api/v1/admin/connections/object-storage/setup' && method === 'POST') {
+      const bucket = url.searchParams.get('bucket');
       send({ success: true, data: { externalId: 'honua-ext-7f3a', roleNamePrefix: 'honua-connection-',
-        quickCreateUrl: `https://quick-create.example/?bucket=${url.searchParams.get('bucket')}` } });
+        quickCreateUrl: bucket === 'manual-only-bucket' ? null : `https://quick-create.example/?bucket=${bucket}` } });
     } else if (url.pathname === '/api/v1/admin/connections/test' && method === 'POST') {
       send({ success: true, data: { isHealthy: true, message: 'Listed one key under ortho/.' } });
     } else if (url.pathname === '/api/v1/admin/connections' && method === 'POST') {
@@ -149,6 +150,37 @@ test('Export as files, list, unpublish and connect a bucket', async ({ page }, t
       'POST /api/v1/admin/connections/test',
       'POST /api/v1/admin/connections',
     ]);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
+
+test('Add object storage shows manual role instructions when quick-create is not configured', async ({ page }, testInfo) => {
+  const api = new FixtureApi();
+  const server = await startStaticBundleServer(
+    fileURLToPath(new URL('../../../artifacts/static-publish/wwwroot/console', import.meta.url)), 0, {
+      configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: true },
+      handleApi: api.handle,
+    });
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
+    const origin = `http://127.0.0.1:${address.port}`;
+    await page.goto(`${origin}/console/operate/connections/new/object-storage`);
+    await page.locator('[data-object-storage-field="name"]').fill('manual-imagery');
+    await page.locator('[data-object-storage-field="bucket"]').fill('manual-only-bucket');
+    await page.locator('[data-object-storage-field="prefix"]').fill('orthophotos/');
+    await page.locator('[data-object-storage-field="region"]').fill('us-east-1');
+    await page.getByRole('button', { name: 'Get the quick-create link', exact: true }).click();
+    await expect(page.locator('[data-object-storage-setup-result]')).toContainText('honua-ext-7f3a');
+    await expect(page.locator('[data-object-storage-quick-create]')).toHaveCount(0);
+    const manual = page.locator('[data-object-storage-manual-role]');
+    await expect(manual).toContainText('Quick-create is not configured on this installation');
+    await expect(manual).toContainText('honua-connection-manual-only-bucket');
+    await expect(manual).toContainText('sts:ExternalId');
+    await expect(manual).toContainText('arn:aws:s3:::manual-only-bucket/orthophotos/*');
+    await expect(manual).toContainText('Connections__ObjectStorage__QuickCreateTemplateUrl');
+    await capture(page, testInfo, 'object-storage-manual-role');
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
