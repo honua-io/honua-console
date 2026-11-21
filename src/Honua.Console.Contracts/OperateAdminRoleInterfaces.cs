@@ -33,7 +33,8 @@ public interface IHonuaAdminConnectionsClient
 public interface IHonuaAdminImportClient
 {
     Task<HonuaAdminEndpointResult<HonuaAdminImportPreview>> PreviewImportFileAsync(
-        byte[] fileContent, string fileName, string authorityBinding, CancellationToken cancellationToken = default);
+        byte[] fileContent, string fileName, string authorityBinding, CancellationToken cancellationToken = default,
+        string? sourceLayer = null);
 
     Task<HonuaAdminEndpointResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(
         string query, string authorityBinding, CancellationToken cancellationToken = default);

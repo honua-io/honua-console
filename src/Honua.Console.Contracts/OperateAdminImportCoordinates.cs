@@ -30,24 +30,35 @@ public sealed record HonuaAdminImportCoordinateSystem
     public bool RequiresSourceOverride { get; init; }
 }
 
+public sealed record HonuaAdminImportPreviewLayer
+{
+    public string Name { get; init; } = string.Empty;
+    public string? GeometryType { get; init; }
+    public int? Srid { get; init; }
+}
+
 public sealed record HonuaAdminImportPreview
 {
     public HonuaAdminImportCoordinateSystem? CoordinateSystem { get; init; }
     public IReadOnlyList<string> Warnings { get; init; } = [];
+    public IReadOnlyList<string> AvailableLayers { get; init; } = [];
+    public IReadOnlyList<HonuaAdminImportPreviewLayer> Layers { get; init; } = [];
+    public string? PreviewedLayer { get; init; }
 }
 
 public sealed record HonuaAdminFileImportRequest(byte[] FileContent, string FileName, string TableName,
-    string? TargetSchema, int? SourceSrid, int? TargetSrid);
+    string? TargetSchema, int? SourceSrid, int? TargetSrid, string? SourceLayer = null);
 
 public sealed partial class HonuaAdminOperateHttpClient
 {
     public Task<HonuaAdminEndpointResult<HonuaAdminImportPreview>> PreviewImportFileAsync(
-        byte[] fileContent, string fileName, string authorityBinding, CancellationToken cancellationToken = default)
+        byte[] fileContent, string fileName, string authorityBinding, CancellationToken cancellationToken = default,
+        string? sourceLayer = null)
     {
         ArgumentNullException.ThrowIfNull(fileContent);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         return SendImportAsync(new ImportSend<HonuaAdminImportPreview>(
-            HttpMethod.Post, "/api/v1/admin/import/preview", () => ImportFileForm(fileContent, fileName)),
+            HttpMethod.Post, "/api/v1/admin/import/preview", () => ImportFileForm(fileContent, fileName, sourceLayer)),
             authorityBinding, cancellationToken);
     }
 
@@ -78,6 +89,7 @@ public sealed partial class HonuaAdminOperateHttpClient
             var form = ImportUploadForm(new(request.FileContent, request.FileName, request.TableName, request.TargetSchema));
             if (request.SourceSrid is { } source) form.Add(new StringContent(source.ToString(CultureInfo.InvariantCulture)), "SourceSrid");
             if (request.TargetSrid is { } target) form.Add(new StringContent(target.ToString(CultureInfo.InvariantCulture)), "TargetSrid");
+            AddSourceLayer(form, request.SourceLayer);
             return form;
         }, readOutcome), authorityBinding, cancellationToken);
     }
@@ -100,12 +112,19 @@ public sealed partial class HonuaAdminOperateHttpClient
                 (body, context) => body is null ? context.Unsupported<T>(MissingData) : HonuaAdminEndpointResult<T>.FromData(body)))), cancellationToken);
     }
 
-    private static MultipartFormDataContent ImportFileForm(byte[] bytes, string name)
+    private static MultipartFormDataContent ImportFileForm(byte[] bytes, string name, string? sourceLayer = null)
     {
         var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(bytes);
         file.Headers.TryAddWithoutValidation("Content-Type", "application/octet-stream");
         form.Add(file, "file", name);
+        AddSourceLayer(form, sourceLayer);
         return form;
+    }
+
+    private static void AddSourceLayer(MultipartFormDataContent form, string? sourceLayer)
+    {
+        if (string.IsNullOrWhiteSpace(sourceLayer)) return;
+        form.Add(new StringContent(sourceLayer.Trim()), "SourceLayer");
     }
 }

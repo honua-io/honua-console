@@ -14,12 +14,16 @@ public sealed class HonuaServerConsoleFileImportOperation(
         return result.Data?.SupportedExtensions ?? [];
     }
 
-    public async Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default)
+    public async Task<ConsoleFileImportPreview> PreviewAsync(
+        byte[] bytes, string fileName, CancellationToken cancellationToken = default, string? sourceLayer = null)
     {
         var binding = authority is null ? null : await authority.CaptureAsync(cancellationToken);
         if (binding is null) return new() { State = "Sign-in required", Detail = "Sign in to the selected environment before checking the file." };
-        var result = await client.PreviewImportFileAsync(bytes, fileName, binding, cancellationToken).ConfigureAwait(false);
+        if (!IsLayerName(sourceLayer)) return new() { State = "Invalid layer", Detail = "Choose a layer from this file." };
+        var result = await client.PreviewImportFileAsync(bytes, fileName, binding, cancellationToken, sourceLayer).ConfigureAwait(false);
         if (!await authority!.IsCurrentAsync(binding, cancellationToken)) return new() { State = "Target changed", Detail = ReviewFile };
+        var layers = MapLayers(result.Data);
+        var previewed = PreviewedLayer(result.Data, layers, sourceLayer);
         if (result.Data?.CoordinateSystem is { } coordinateSystem && IsUsable(coordinateSystem))
             return new()
             {
@@ -27,7 +31,9 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 State = "Checked",
                 CoordinateSystem = coordinateSystem,
                 AuthorityBinding = binding,
-                Warnings = result.Data.Warnings ?? []
+                Warnings = result.Data.Warnings ?? [],
+                Layers = layers,
+                PreviewedLayer = previewed
             };
         if (result.Issue is null)
             return new()
@@ -35,7 +41,9 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 Succeeded = true,
                 State = "Unchecked",
                 AuthorityBinding = binding,
-                Warnings = result.Data?.Warnings ?? []
+                Warnings = result.Data?.Warnings ?? [],
+                Layers = layers,
+                PreviewedLayer = previewed
             };
         if (IsPreviewTooLarge(result.Issue))
         {
@@ -51,7 +59,9 @@ public sealed class HonuaServerConsoleFileImportOperation(
                     State = "Source required",
                     CoordinateSystem = undeclared,
                     AuthorityBinding = binding,
-                    Warnings = [ConsoleFileImportPreview.PreviewTooLargeWarning]
+                    Warnings = [ConsoleFileImportPreview.PreviewTooLargeWarning],
+                    Layers = layers,
+                    PreviewedLayer = previewed
                 };
         }
         return new()
@@ -86,6 +96,8 @@ public sealed class HonuaServerConsoleFileImportOperation(
             return new() { State = "Target unverified", Detail = "Check the file’s coordinate system before importing." };
         if (!await bindingValidator.IsCurrentAsync(command.AuthorityBinding, cancellationToken))
             return new() { State = "Target changed", Detail = ReviewFile };
+        if (!IsLayerName(command.SourceLayer))
+            return new() { State = "Invalid layer", Detail = "Choose a layer from this file." };
         var reportsCoordinates = command.SourceSrid is not null || command.TargetSrid is not null || command.ExpectedSourceSrid is not null;
         if (reportsCoordinates && (command.SourceSrid is <= 0 || command.TargetSrid is <= 0))
             return new() { State = "Invalid coordinate system", Detail = "Choose a supported coordinate system before importing." };
@@ -96,7 +108,8 @@ public sealed class HonuaServerConsoleFileImportOperation(
         var expectedStored = command.TargetSrid ?? expectedSource.GetValueOrDefault();
         var result = await ConsoleBoundWrite.SendAsync(
             () => client.ImportFileBoundAsync(new(command.FileContent, command.FileName, command.TableName,
-                command.TargetSchema, command.SourceSrid, command.TargetSrid), command.AuthorityBinding, cancellationToken),
+                command.TargetSchema, command.SourceSrid, command.TargetSrid,
+                string.IsNullOrWhiteSpace(command.SourceLayer) ? null : command.SourceLayer.Trim()), command.AuthorityBinding, cancellationToken),
             () => bindingValidator.IsCurrentAsync(command.AuthorityBinding, CancellationToken.None)).ConfigureAwait(false);
         if (result.Issue is { State: ConsoleWriteOutcome.UnverifiedState } issue)
             return new() { State = issue.State, Detail = issue.Detail };
@@ -113,7 +126,7 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 State = mismatch ? ConsoleFileImportResult.CoordinateSystemMismatchState : data.Success ? "Imported" : "Rejected",
                 Detail = mismatch ? $"The server reported source EPSG:{data.SourceSrid}, stored EPSG:{data.StoredSrid} and reprojected={data.Reprojected}; expected source EPSG:{expectedSource} and stored EPSG:{expectedStored}. Read the original environment to check the imported table before making another change."
                     : data.Success ? $"Imported {data.FeatureCount} feature(s) into the new table. Publish it to make it a live layer."
-                    : data.ErrorMessage ?? "The Honua server could not import the file.",
+                    : ConsoleFileImportLayerChoice.DescribeFailure(data.ErrorMessage),
                 TableName = data.TableName,
                 PhysicalTableName = data.PhysicalTableName,
                 Schema = data.Schema,
@@ -125,7 +138,11 @@ public sealed class HonuaServerConsoleFileImportOperation(
                 Warnings = data.Warnings ?? []
             };
         }
-        return new() { State = result.Issue?.State ?? "Unavailable", Detail = result.Issue?.Detail ?? "The server did not accept the file-import request." };
+        return new()
+        {
+            State = result.Issue?.State ?? "Unavailable",
+            Detail = ConsoleFileImportLayerChoice.DescribeFailure(result.Issue?.Detail ?? "The server did not accept the file-import request.")
+        };
     }
 
     private static string DescribeValidationIssue(HonuaAdminImportValidationIssue issue)
@@ -146,6 +163,36 @@ public sealed class HonuaServerConsoleFileImportOperation(
         return detail.Contains("maximum allowed size", StringComparison.OrdinalIgnoreCase)
             || detail.Contains("maximum payload size", StringComparison.OrdinalIgnoreCase)
             || detail.Contains("payload exceeds", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsListedLayer(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= 129 && name.All(ch => !char.IsControl(ch));
+
+    private static bool IsLayerName(string? sourceLayer) => sourceLayer is null || IsListedLayer(sourceLayer);
+
+    private static IReadOnlyList<ConsoleFileImportLayer> MapLayers(HonuaAdminImportPreview? data)
+    {
+        if (data is null) return [];
+        IEnumerable<ConsoleFileImportLayer> layers = data.Layers.Count > 0
+            ? data.Layers.Where(layer => IsListedLayer(layer.Name)).Select(layer => new ConsoleFileImportLayer(
+                layer.Name.Trim(),
+                string.IsNullOrWhiteSpace(layer.GeometryType) ? null : layer.GeometryType.Trim(),
+                layer.Srid is > 0 ? layer.Srid : null))
+            : data.AvailableLayers.Where(IsListedLayer).Select(name => new ConsoleFileImportLayer(name!.Trim(), null, null));
+        return layers.DistinctBy(layer => layer.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static string? PreviewedLayer(HonuaAdminImportPreview? data, IReadOnlyList<ConsoleFileImportLayer> layers, string? requested)
+    {
+        if (layers.Count == 0) return null;
+        var named = data?.PreviewedLayer;
+        if (!string.IsNullOrWhiteSpace(named))
+            return layers.FirstOrDefault(layer => string.Equals(layer.Name, named, StringComparison.OrdinalIgnoreCase))?.Name;
+        var requestedKnown = string.IsNullOrWhiteSpace(requested)
+            || layers.Any(layer => string.Equals(layer.Name, requested, StringComparison.OrdinalIgnoreCase));
+        return requestedKnown && (string.IsNullOrWhiteSpace(requested) || string.Equals(requested, layers[0].Name, StringComparison.OrdinalIgnoreCase))
+            ? layers[0].Name
+            : null;
     }
 
     private static bool IsUsable(HonuaAdminImportCoordinateSystem system) =>

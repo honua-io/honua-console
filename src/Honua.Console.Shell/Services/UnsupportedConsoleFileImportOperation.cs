@@ -8,7 +8,7 @@ public sealed class UnsupportedConsoleFileImportOperation : IConsoleFileImportOp
     public Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<string>>([]);
 
-    public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default) =>
+    public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default, string? sourceLayer = null) =>
         Task.FromResult(ConsoleFileImportPreview.MissingBinding("Connect to a server before checking the file."));
 
     public Task<OperateSectionResult<HonuaAdminCoordinateSystemSearch>> SearchCoordinateSystemsAsync(

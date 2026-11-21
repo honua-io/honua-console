@@ -66,14 +66,31 @@
             </dl>
         }
 
-        @if (_preview is { Succeeded: true, CoordinateSystem: { } system, AuthorityBinding: { } binding })
+        @if (_preview?.Layers.Count > 1)
         {
-            <ImportCoordinateSystemStep @key="_fileRevision" CoordinateSystem="system" AuthorityBinding="@binding"
+            <label>
+                <span>Layer</span>
+                <select class="console-input" data-import-layer @bind="_selectedLayer" @bind:after="LayerChangedAsync" disabled="@_busy">
+                    @foreach (var layer in _preview.Layers)
+                    {
+                        <option value="@layer.Name">@ConsoleFileImportLayerChoice.OptionLabel(layer)</option>
+                    }
+                </select>
+            </label>
+        }
+
+        @if (ActiveSystem is { } system && _preview?.AuthorityBinding is { } binding)
+        {
+            <ImportCoordinateSystemStep @key="@($"{_fileRevision}:{_selectedLayer}")" CoordinateSystem="system" AuthorityBinding="@binding"
                                         Changed="CoordinatesChanged" Disabled="_busy" />
             @foreach (var warning in _preview.Warnings)
             {
                 <p role="note">@warning</p>
             }
+        }
+        else if (_preview is { Succeeded: true, Layers.Count: > 1 })
+        {
+            <p role="note" data-import-layer-system>The coordinate system of @_selectedLayer was not reported. The import uses the system stored with that layer.</p>
         }
         else if (_preview is { Succeeded: true, CoordinateSystem: null })
         {
@@ -117,7 +134,7 @@
             <div class="console-panel @(r.Succeeded ? "console-state-success" : "console-state-danger")" role="@(r.Succeeded ? "status" : "alert")">
                 <p class="console-kicker">@r.State</p>
                 <OperateSectionHeading Text="@(r.Succeeded ? "File imported" : r.State == ConsoleFileImportResult.CoordinateSystemMismatchState ? "Check the imported coordinate system" : "Import failed")" />
-                <p>@r.Detail</p>
+                <p>@ConsoleFileImportLayerChoice.DescribeFailure(r.Detail)</p>
                 @if (r.Succeeded || r.State == ConsoleFileImportResult.CoordinateSystemMismatchState)
                 {
                     <dl class="console-definition-list">
@@ -191,12 +208,19 @@
     private byte[]? _fileBytes;
     private ConsoleFileImportPreview? _preview;
     private ConsoleFileImportCoordinates? _coordinates;
+    private string? _selectedLayer;
     private int _fileRevision;
     private bool _reconcileOutcome;
 
+    private HonuaAdminImportCoordinateSystem? ActiveSystem =>
+        _preview is { Succeeded: true } preview ? ConsoleFileImportLayerChoice.ActiveSystem(preview, _selectedLayer) : null;
+
+    private bool LayerReady => _preview?.Layers.Count is not > 1
+        || _preview.Layers.Any(layer => string.Equals(layer.Name, _selectedLayer, StringComparison.OrdinalIgnoreCase));
+
     private bool CanImport => !_disposed && !_busy && !_reconcileOutcome && _fileBytes is not null && _formatError is null
-        && _preview is { Succeeded: true, AuthorityBinding: not null }
-        && (_preview.CoordinateSystem is null || _coordinates is not null);
+        && LayerReady && _preview is { Succeeded: true, AuthorityBinding: not null }
+        && (ActiveSystem is null || _coordinates is not null);
     private string _tableName = string.Empty;
     private string _targetSchema = string.Empty;
 
@@ -227,6 +251,7 @@
         _fileBytes = null;
         _preview = null;
         _coordinates = null;
+        _selectedLayer = null;
         _formatError = null;
         _selectedFile = args.File;
 
@@ -272,7 +297,38 @@
             var preview = await FileImport.PreviewAsync(_fileBytes, _selectedFile.Name, _lifetime.Token);
             if (_disposed) return;
             _preview = preview;
+            _selectedLayer = preview.Succeeded ? ConsoleFileImportLayerChoice.Initial(preview) : null;
             if (!_preview.Succeeded) _clientError = _preview.Detail;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            if (_disposed) return;
+            _clientError = "The server could not check the file. Choose it again and retry the preview.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task LayerChangedAsync()
+    {
+        if (_disposed || _busy || _reconcileOutcome || _fileBytes is null || _selectedFile is null || _preview is null) return;
+        if (ConsoleFileImportLayerChoice.Applies(_preview, _selectedLayer)) return;
+        _coordinates = null;
+        ClearResult();
+        _busy = true;
+        _phase = ImportPhase.Previewing;
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            if (_disposed) return;
+            var preview = await FileImport.PreviewAsync(_fileBytes, _selectedFile.Name, _lifetime.Token, _selectedLayer);
+            if (_disposed) return;
+            if (preview.Succeeded)
+            {
+                _preview = preview;
+                if (preview.Layers.Count > 0 && preview.Layers.All(layer => !string.Equals(layer.Name, _selectedLayer, StringComparison.OrdinalIgnoreCase)))
+                    _selectedLayer = ConsoleFileImportLayerChoice.Initial(preview);
+            }
+            else _clientError = preview.Detail;
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
         {
@@ -309,16 +365,18 @@
         _phase = ImportPhase.Importing;
         try
         {
+            var system = ActiveSystem;
             var result = await FileImport.ImportAsync(new ConsoleFileImportCommand
             {
                 FileContent = _fileBytes!,
                 FileName = _selectedFile.Name,
-                SourceSrid = _coordinates?.SourceSrid,
-                TargetSrid = _coordinates?.TargetSrid,
-                ExpectedSourceSrid = _preview.CoordinateSystem?.EffectiveSourceSrid,
+                SourceSrid = system is null ? null : _coordinates?.SourceSrid,
+                TargetSrid = system is null ? null : _coordinates?.TargetSrid,
+                ExpectedSourceSrid = system?.EffectiveSourceSrid,
                 AuthorityBinding = _preview.AuthorityBinding,
                 TableName = _tableName.Trim(),
                 TargetSchema = string.IsNullOrWhiteSpace(_targetSchema) ? null : _targetSchema.Trim(),
+                SourceLayer = _preview.Layers.Count > 1 ? _selectedLayer : null,
             });
             if (_disposed) return;
             _result = result;

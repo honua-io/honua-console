@@ -124,6 +124,48 @@ public sealed class FileImportCoordinateSystemTests
     }
 
     [Fact]
+    public async Task PreviewReadsLayerChoicesAndRequestsTheSelectedLayer()
+    {
+        using var handler = new ImportHandler
+        {
+            RawResponse = """
+                {"coordinateSystem":{"detectedSrid":3857,"sourceCrsDeclared":true,"detectionMethod":"file-metadata","detectedCrs":{"code":3857,"name":"WGS 84 / Pseudo-Mercator"},"effectiveSourceSrid":3857,"storedSrid":3857,"reprojected":false,"requiresSourceOverride":false},"availableLayers":["routes","stations"],"layers":[{"name":"routes","geometryType":"LINESTRING","srid":4326},{"name":"stations","geometryType":"POINT","srid":3857}],"previewedLayer":"stations"}
+                """
+        };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority())
+            .PreviewAsync([1], "two.gpkg", sourceLayer: "stations");
+        Assert.True(result.Succeeded, result.Detail);
+        Assert.Equal("stations", handler.Fields["SourceLayer"]);
+        Assert.Equal("stations", result.PreviewedLayer);
+        Assert.Equal(["routes", "stations"], result.Layers.Select(layer => layer.Name).ToArray());
+        Assert.Equal(3857, result.Layers[1].Srid);
+        Assert.Equal("POINT", result.Layers[1].GeometryType);
+        Assert.Equal(3857, ConsoleFileImportLayerChoice.ActiveSystem(result, "stations")!.DetectedSrid);
+        Assert.Equal(4326, ConsoleFileImportLayerChoice.ActiveSystem(result, "routes")!.DetectedSrid);
+        Assert.False(ConsoleFileImportLayerChoice.Applies(result, "routes"));
+    }
+
+    [Fact]
+    public async Task ImportNamesTheChosenLayerAndHidesTheApiField()
+    {
+        using var handler = new ImportHandler
+        {
+            RawResponse = """{"success":false,"errorMessage":"This GeoPackage has 2 feature layers (routes, stations); choose one with sourceLayer."}"""
+        };
+        using var http = new HttpClient(handler);
+        using var client = Client(http);
+        var command = Command(null, null);
+        command = command with { SourceLayer = "stations" };
+        var result = await new HonuaServerConsoleFileImportOperation(client, new Authority()).ImportAsync(command);
+        Assert.False(result.Succeeded);
+        Assert.Equal("stations", handler.Fields["SourceLayer"]);
+        Assert.Equal("Choose one layer in this file before importing.", result.Detail);
+        Assert.DoesNotContain("sourceLayer", result.Detail);
+    }
+
+    [Fact]
     public async Task ChangedAuthorityRefusesImportBeforeTransport()
     {
         using var handler = new ImportHandler();

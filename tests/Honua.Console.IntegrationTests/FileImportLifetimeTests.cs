@@ -75,7 +75,7 @@ public sealed class FileImportLifetimeTests
         public Task<IReadOnlyList<string>> GetSupportedExtensionsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<string>>([".gpkg"]);
 
-        public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default)
+        public Task<ConsoleFileImportPreview> PreviewAsync(byte[] bytes, string fileName, CancellationToken cancellationToken = default, string? sourceLayer = null)
         {
             PreviewCalls++;
             PreviewBytes = bytes;
