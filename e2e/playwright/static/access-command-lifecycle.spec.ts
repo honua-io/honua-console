@@ -7,7 +7,7 @@ for (const v4Enabled of [false, true]) {
     try {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
-      await page.goto(`http://127.0.0.1:${address.port}/console/operate/access?workspace=first`);
+      await page.goto(`http://127.0.0.1:${address.port}/console/operate/access?environment=first`);
       const toggle = page.locator('[data-rbac-custom-role]');
       await toggle.click();
       const name = page.locator('[data-rbac-new-role-name]');
