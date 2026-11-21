@@ -117,6 +117,11 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             ProposalJsonContext.Default.ProposalHumanReviewWire, capability: null, cancellationToken).ConfigureAwait(false);
         if (review.Status == OperateSectionStatus.Missing)
         {
+            if (_resourceBaseUri is not null)
+            {
+                return OperateSectionResult<ConsoleProposalDetail>.Denied(review.Status, review.Message, review.Detail);
+            }
+
             // Servers without the approval-review route answer it with 404. They take the plain
             // approve and apply their own approve-grant and separation-of-duties rules; a server with the
             // route never 404s a live proposal, and rejects a capability-less approve.

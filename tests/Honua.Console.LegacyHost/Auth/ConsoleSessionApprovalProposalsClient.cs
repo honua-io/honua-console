@@ -96,7 +96,7 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
         }
 
         var manager = endpoint.Resolve(profile.ServerBaseUri);
-        if (manager is null || SameBase(manager, profile.ServerBaseUri))
+        if (manager is null || ConsoleServerSessionBffCoordinator.SameServer(manager, profile.ServerBaseUri))
         {
             return null;
         }
@@ -143,11 +143,6 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
             ? approved with { Value = detail with { ProposalId = ManagerPrefix + detail.ProposalId } }
             : approved;
     }
-
-    private static bool SameBase(Uri left, Uri right) => string.Equals(
-        left.AbsoluteUri.TrimEnd('/') + "/",
-        right.AbsoluteUri.TrimEnd('/') + "/",
-        StringComparison.OrdinalIgnoreCase);
 
     private static async Task<bool> OffersApprovalReviewAsync(
         HttpClient http,

@@ -28,7 +28,7 @@ internal sealed class ConsoleServerSessionIdentityBinding(
             return true;
         }
 
-        var clearAccountSession = SameBase(partition.ResourceBaseUri, profile.ServerBaseUri);
+        var clearAccountSession = ConsoleServerSessionBffCoordinator.SameServer(partition.ResourceBaseUri, profile.ServerBaseUri);
 
         var snapshots = sessions as IConsoleAccountSessionSnapshotStore
             ?? throw new InvalidOperationException("Hosted server identity binding requires conditional session storage.");
@@ -70,15 +70,6 @@ internal sealed class ConsoleServerSessionIdentityBinding(
         }
 
         return matches;
-    }
-
-    private static bool SameBase(Uri left, Uri right)
-    {
-        static string Normalize(Uri value) => value.AbsoluteUri.EndsWith('/')
-            ? value.AbsoluteUri
-            : value.AbsoluteUri + "/";
-
-        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasUniqueClaim(

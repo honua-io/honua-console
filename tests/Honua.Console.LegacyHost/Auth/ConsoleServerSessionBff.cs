@@ -145,7 +145,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
 
         var now = _timeProvider.GetUtcNow();
         var origin = NormalizeOrigin(serverBaseUri);
-        var key = new ConsoleServerSessionPartitionKey(operatorKey, profileId, origin.AbsoluteUri);
+        var key = new ConsoleServerSessionPartitionKey(operatorKey, profileId, ConsoleServerSessionBffCoordinator.NormalizeBase(serverBaseUri));
         List<ConsoleServerSessionPartition>? discarded = null;
 
         lock (_gate)
@@ -198,7 +198,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         var key = new ConsoleServerSessionPartitionKey(
             operatorKey,
             profile.Id,
-            NormalizeOrigin(profile.ServerBaseUri).AbsoluteUri);
+            ConsoleServerSessionBffCoordinator.NormalizeBase(profile.ServerBaseUri));
         ConsoleServerSessionPartition? removed = null;
         lock (_gate)
         {
@@ -288,7 +288,7 @@ internal sealed class ConsoleServerSessionClientStore : IAsyncDisposable
         var key = new ConsoleServerSessionPartitionKey(
             operatorKey,
             profileId,
-            NormalizeOrigin(serverBaseUri).AbsoluteUri);
+            ConsoleServerSessionBffCoordinator.NormalizeBase(serverBaseUri));
         lock (_gate)
         {
             if (!_partitions.TryGetValue(key, out partition))
@@ -863,7 +863,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
 
         foreach (var partition in _serverSessions.CopyForOperator(operatorKey))
         {
-            if (!loggedOut.Add(partition.Key.ServerOrigin))
+            if (!loggedOut.Add(NormalizeBase(partition.ResourceBaseUri)))
             {
                 continue;
             }
@@ -873,7 +873,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
                 using var response = await new ConsoleServerSessionPost
                 {
                     Client = partition.Client,
-                    ServerBaseUri = new Uri(partition.Key.ServerOrigin),
+                    ServerBaseUri = partition.ResourceBaseUri,
                     RelativePath = "api/v1/admin/auth/logout"
                 }.SendAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -881,7 +881,7 @@ internal sealed class ConsoleServerSessionBffCoordinator
             {
                 // The local partition is still discarded below.
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
                 // The local partition is still discarded below.
             }
@@ -910,14 +910,17 @@ internal sealed class ConsoleServerSessionBffCoordinator
         return false;
     }
 
-    private static bool SameServer(Uri left, Uri right) => string.Equals(
+    internal static bool SameServer(Uri left, Uri right) => string.Equals(
         NormalizeBase(left),
         NormalizeBase(right),
         StringComparison.OrdinalIgnoreCase);
 
-    private static string NormalizeBase(Uri value) => value.AbsoluteUri.EndsWith('/')
-        ? value.AbsoluteUri
-        : value.AbsoluteUri + "/";
+    internal static string NormalizeBase(Uri value)
+    {
+        var builder = new UriBuilder(value) { Query = string.Empty, Fragment = string.Empty };
+        var text = builder.Uri.AbsoluteUri;
+        return text.EndsWith('/') ? text : text + "/";
+    }
 
     private static ConsoleServerSignInResult Denied(string message, string? returnTo = null) => new()
     {
