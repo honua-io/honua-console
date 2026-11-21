@@ -69,10 +69,10 @@ class FixtureApi {
   }
 
   private bucket({ url, method, send }: Call) {
-    if (url.pathname === '/api/v1/admin/connections/object-storage/setup') {
+    if (url.pathname === '/api/v1/admin/connections/object-storage/setup' && method === 'POST') {
       send({ success: true, data: { externalId: 'honua-ext-7f3a', roleNamePrefix: 'honua-connection-',
         quickCreateUrl: `https://quick-create.example/?bucket=${url.searchParams.get('bucket')}` } });
-    } else if (url.pathname === '/api/v1/admin/connections/test') {
+    } else if (url.pathname === '/api/v1/admin/connections/test' && method === 'POST') {
       send({ success: true, data: { isHealthy: true, message: 'Listed one key under ortho/.' } });
     } else if (url.pathname === '/api/v1/admin/connections' && method === 'POST') {
       send({ success: true, data: { id: connectionId, name: 'county-imagery' } }, 201);
@@ -145,6 +145,7 @@ test('Export as files, list, unpublish and connect a bucket', async ({ page }, t
     expect(api.mutations).toEqual([
       'POST /api/v1/admin/exports',
       'DELETE /api/v1/admin/exports/parcels-2026',
+      'POST /api/v1/admin/connections/object-storage/setup',
       'POST /api/v1/admin/connections/test',
       'POST /api/v1/admin/connections',
     ]);

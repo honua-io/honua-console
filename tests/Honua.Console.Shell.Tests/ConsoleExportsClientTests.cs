@@ -127,7 +127,7 @@ public sealed class ConsoleExportsClientTests
     public async Task UnpublishDeletesTheExport()
     {
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, """{"success":true,"data":{"id":"parcels","status":"unpublished"}}"""));
-        var client = CreateClient(handler, sessions: BearerSessions());
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: BearerSessions());
 
         var result = await client.UnpublishAsync("parcels");
 
@@ -162,7 +162,7 @@ public sealed class ConsoleExportsClientTests
             _ => Json(HttpStatusCode.OK,
                 """{"success":true,"data":{"bucket":"imagery","prefix":"ortho/","folders":["ortho/2026/"],"objects":[{"key":"ortho/a.tif","kind":"cog","bytes":2048}]}}""")
         });
-        var client = CreateClient(handler, sessions: BearerSessions());
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key", sessions: BearerSessions());
 
         var setup = await client.GetObjectStorageSetupAsync("imagery", "ortho/");
         var created = await client.CreateObjectStorageAsync(new ObjectStorageConnectionRequest
@@ -179,11 +179,39 @@ public sealed class ConsoleExportsClientTests
         Assert.Equal("ext-123", setup.Value!.ExternalId);
         Assert.Equal(connectionId, created.Value!.Id);
         Assert.Equal("cog", Assert.Single(listing.Value!.Objects).Kind);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal(new AuthenticationHeaderValue("Bearer", "operator-test-bearer"), handler.Requests[0].Headers.Authorization);
+        Assert.False(handler.Requests[0].Headers.Contains("X-API-Key"));
         Assert.Equal("?bucket=imagery&prefix=ortho%2F", handler.Requests[0].RequestUri!.Query);
         Assert.Contains("\"kind\":\"object-storage\"", handler.Bodies.Single(), StringComparison.Ordinal);
         Assert.Contains("\"externalId\":\"ext-123\"", handler.Bodies.Single(), StringComparison.Ordinal);
         Assert.Equal($"/api/v1/admin/connections/{connectionId:D}/objects", handler.Requests[2].RequestUri!.AbsolutePath);
         Assert.Equal("?prefix=ortho%2F", handler.Requests[2].RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task ObjectStorageSetupWithoutOperatorSessionFailsClosedWithoutSending()
+    {
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Request must not be sent."));
+        var client = CreateClient(handler, adminApiKey: "shared-admin-key");
+
+        var result = await client.GetObjectStorageSetupAsync("imagery", "ortho/");
+
+        Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.NotImplemented)]
+    public async Task ObjectStorageSetupOnServerWithoutEndpointIsUnsupported(HttpStatusCode status)
+    {
+        var client = CreateClient(new RecordingHandler(_ => new HttpResponseMessage(status)), sessions: BearerSessions());
+
+        var result = await client.GetObjectStorageSetupAsync("imagery", "ortho/");
+
+        Assert.Equal(OperateSectionStatus.Unsupported, result.Status);
+        Assert.Contains("does not offer Exports", result.Message, StringComparison.Ordinal);
     }
 
     [Fact]
