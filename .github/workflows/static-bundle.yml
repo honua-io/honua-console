@@ -156,6 +156,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source
+          persist-credentials: false
           sparse-checkout: |
             src
             scripts
@@ -185,22 +186,9 @@ jobs:
             --output "${RUNNER_TEMP}/bundle.cdx.json"
       - name: Refuse an SBOM without the NuGet graph and bundled assets
         run: |
-          python3 - "${RUNNER_TEMP}/bundle.cdx.json" <<'PY'
-          import json, sys
-          bom = json.load(open(sys.argv[1], encoding="utf-8"))
-          components = bom.get("components") or []
-          purls = [str(c.get("purl", "")) for c in components]
-          nuget = [p for p in purls if p.startswith("pkg:nuget/")]
-          if bom.get("bomFormat") != "CycloneDX" or not nuget:
-              raise SystemExit(f"{sys.argv[1]} is not a CycloneDX SBOM listing the NuGet graph")
-          for label, prefix in (
-              ("Studio", "pkg:github/honua-io/honua-studio@"),
-              ("Cesium", "pkg:npm/cesium@"),
-              (".NET WASM runtime", "pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@"),
-          ):
-              if not any(p.startswith(prefix) for p in purls):
-                  raise SystemExit(f"{sys.argv[1]} is missing bundled component {label} ({prefix})")
-          PY
+          python3 source/scripts/enrich-bundle-sbom.py \
+            --validate-only \
+            --sbom "${RUNNER_TEMP}/bundle.cdx.json"
       - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
         with:
           subject-path: ${{ steps.bundle.outputs.path }}

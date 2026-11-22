@@ -12,19 +12,10 @@ import re
 from pathlib import Path
 from zipfile import ZipFile
 
-
-@dataclass(frozen=True)
-class BundleLocks:
-    studio: dict
-    cesium: dict
-    vendored: dict
-    licenses_sources: dict
-
 BUILD_ONLY_NUGET_EXACT = frozenset(
     {
         "microsoft.net.illink.tasks",
         "microsoft.aspnetcore.components.webassembly.devserver",
-        "microsoft.aspnetcore.app.internal.assets",
         "microsoft.net.sdk.webassembly.pack",
     }
 )
@@ -39,6 +30,16 @@ SRI_ALGORITHMS = {
     "sha384": "SHA-384",
     "sha512": "SHA-512",
 }
+
+WASM_SOURCE_RE = re.compile(r"^nuget:Microsoft\.NETCore\.App\.Runtime\.Mono\.browser-wasm/([^/]+)/")
+
+
+@dataclass(frozen=True)
+class BundleLocks:
+    studio: dict
+    cesium: dict
+    vendored: dict
+    licenses_sources: dict
 
 
 def is_nuget_component(component: dict) -> bool:
@@ -88,6 +89,7 @@ def build_studio_component(studio_lock: dict, zip_names: set[str]) -> dict:
         "version": version,
         "purl": purl,
         "hashes": [{"alg": "SHA-256", "content": sha256}],
+        "licenses": [{"license": {"id": "Apache-2.0"}}],
         "properties": [
             {"name": "honua:bundle:path", "value": STUDIO_PREFIX},
             {"name": "honua:studio:asset", "value": asset},
@@ -141,7 +143,7 @@ def build_vendored_components(vendored_lock: dict, zip_names: set[str]) -> list[
             raise ValueError(f"vendored-assets.lock.json entry {name!r} is missing version or integrity")
         expected_prefix = f"{VENDOR_PREFIX}{name}/"
         if not any(zname.startswith(expected_prefix) for zname in zip_names):
-            continue
+            raise ValueError(f"bundle zip is missing locked vendored asset under {expected_prefix}")
         purl = f"pkg:npm/{name}@{version}"
         component: dict = {
             "bom-ref": purl,
@@ -150,9 +152,7 @@ def build_vendored_components(vendored_lock: dict, zip_names: set[str]) -> list[
             "version": version,
             "purl": purl,
             "hashes": [parse_sri_hash(integrity)],
-            "properties": [
-                {"name": "honua:bundle:path", "value": expected_prefix},
-            ],
+            "properties": [{"name": "honua:bundle:path", "value": expected_prefix}],
         }
         if spdx:
             component["licenses"] = [{"license": {"id": spdx}}]
@@ -165,12 +165,10 @@ def resolve_wasm_runtime_version(licenses_sources: dict) -> str:
     if not isinstance(files, list):
         raise ValueError("release/licenses/sources.json must contain a files list")
     for entry in files:
-        source = str(entry.get("source", ""))
-        if source.startswith("nuget:Microsoft.NETCore.App.Runtime.Mono.browser-wasm/"):
-            version = str(entry.get("version", "")).strip()
-            if version:
-                return version
-    raise ValueError("release/licenses/sources.json is missing Microsoft.NETCore.App.Runtime.Mono.browser-wasm version")
+        match = WASM_SOURCE_RE.match(str(entry.get("source", "")))
+        if match:
+            return match.group(1)
+    raise ValueError("release/licenses/sources.json is missing Microsoft.NETCore.App.Runtime.Mono.browser-wasm source")
 
 
 def build_wasm_runtime_component(bundle_zip: ZipFile, licenses_sources: dict) -> dict:
@@ -198,6 +196,7 @@ def build_wasm_runtime_component(bundle_zip: ZipFile, licenses_sources: dict) ->
         {"name": "honua:bundle:path", "value": FRAMEWORK_PREFIX},
         {"name": "honua:framework:fileCount", "value": str(len(framework_entries))},
         {"name": "honua:framework:wasmFileCount", "value": str(len(wasm_entries))},
+        {"name": "honua:framework:manifestSha256", "value": manifest_hasher.hexdigest()},
     ]
     if native_wasm_hash:
         properties.append({"name": "honua:framework:nativeWasmSha256", "value": native_wasm_hash})
@@ -208,10 +207,24 @@ def build_wasm_runtime_component(bundle_zip: ZipFile, licenses_sources: dict) ->
         "name": "Microsoft.NETCore.App.Runtime.Mono.browser-wasm",
         "version": runtime_version,
         "purl": purl,
-        "hashes": [{"alg": "SHA-256", "content": manifest_hasher.hexdigest()}],
         "licenses": [{"license": {"id": "MIT"}}],
         "properties": properties,
     }
+
+
+def _filter_build_only_nuget(components: list[dict]) -> tuple[list[dict], set[str]]:
+    removed_refs: set[str] = set()
+    kept: list[dict] = []
+    for component in components:
+        if is_build_only_nuget(component):
+            ref = component.get("bom-ref")
+            if isinstance(ref, str):
+                removed_refs.add(ref)
+            continue
+        kept.append(component)
+    if not any(is_nuget_component(c) for c in kept):
+        raise ValueError("filtered SBOM has no shipped NuGet components remaining")
+    return kept, removed_refs
 
 
 def _update_dependencies(enriched: dict, removed_refs: set[str], added_refs: list[str]) -> None:
@@ -243,23 +256,10 @@ def enrich_sbom(bom: dict, bundle_path: Path, locks: BundleLocks) -> dict:
     if bom.get("bomFormat") != "CycloneDX":
         raise ValueError("input SBOM must have bomFormat == 'CycloneDX'")
     components = bom.get("components")
-    if not isinstance(components, list):
-        raise ValueError("input SBOM must contain a components list")
-    if not any(is_nuget_component(c) for c in components):
+    if not isinstance(components, list) or not any(is_nuget_component(c) for c in components):
         raise ValueError("input SBOM does not list the NuGet graph")
 
-    removed_refs: set[str] = set()
-    kept_components: list[dict] = []
-    for component in components:
-        if is_build_only_nuget(component):
-            ref = component.get("bom-ref")
-            if isinstance(ref, str):
-                removed_refs.add(ref)
-            continue
-        kept_components.append(component)
-
-    if not any(is_nuget_component(c) for c in kept_components):
-        raise ValueError("filtered SBOM has no shipped NuGet components remaining")
+    kept_components, removed_refs = _filter_build_only_nuget(components)
 
     with ZipFile(bundle_path, "r") as bundle_zip:
         zip_names = set(bundle_zip.namelist())
@@ -301,12 +301,10 @@ def validate_enriched_sbom(bom: dict) -> None:
     if build_only:
         raise ValueError(f"SBOM still contains build-only NuGet packages: {build_only}")
 
-    required_prefixes = (
+    for label, prefix in (
         ("Studio", "pkg:github/honua-io/honua-studio@"),
         ("Cesium", "pkg:npm/cesium@"),
-        (".NET WASM runtime", "pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@"),
-    )
-    for label, prefix in required_prefixes:
+    ):
         matches = [c for c in components if str(c.get("purl", "")).startswith(prefix)]
         if not matches:
             raise ValueError(f"SBOM is missing required bundled component: {label} ({prefix})")
@@ -314,26 +312,39 @@ def validate_enriched_sbom(bom: dict) -> None:
         if not any(h.get("alg") == "SHA-256" and re.fullmatch(r"[0-9a-f]{64}", str(h.get("content", ""))) for h in hashes):
             raise ValueError(f"SBOM component {label} is missing a SHA-256 hash")
 
+    runtime_prefix = "pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@"
+    runtime = [c for c in components if str(c.get("purl", "")).startswith(runtime_prefix)]
+    if not runtime:
+        raise ValueError(f"SBOM is missing required bundled component: .NET WASM runtime ({runtime_prefix})")
+    props = {p.get("name"): p.get("value") for p in runtime[0].get("properties") or []}
+    require_hex_sha256(props.get("honua:framework:manifestSha256"), ".NET WASM runtime manifestSha256")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sbom", type=Path, required=True, help="Input CycloneDX JSON SBOM from syft")
-    parser.add_argument("--bundle", type=Path, required=True, help="Packaged Console static bundle ZIP")
+    parser.add_argument("--sbom", type=Path, required=True, help="Input CycloneDX JSON SBOM")
+    parser.add_argument("--validate-only", action="store_true", help="Validate an already-enriched SBOM and exit")
+    parser.add_argument("--bundle", type=Path, help="Packaged Console static bundle ZIP")
     parser.add_argument("--studio-lock", type=Path, default=Path("scripts/studio-release.lock.json"))
     parser.add_argument("--cesium-lock", type=Path, default=Path("scripts/cesium-extracted-tree.lock.json"))
     parser.add_argument("--vendored-lock", type=Path, default=Path("scripts/vendored-assets.lock.json"))
     parser.add_argument("--licenses-sources", type=Path, default=Path("release/licenses/sources.json"))
-    parser.add_argument("--output", type=Path, required=True, help="Output enriched CycloneDX JSON SBOM")
+    parser.add_argument("--output", type=Path, help="Output enriched CycloneDX JSON SBOM")
     args = parser.parse_args()
 
     bom = json.loads(args.sbom.read_text(encoding="utf-8"))
+    if args.validate_only:
+        validate_enriched_sbom(bom)
+        return
+    if not args.bundle or not args.output:
+        parser.error("--bundle and --output are required unless --validate-only is set")
+
     locks = BundleLocks(
         studio=json.loads(args.studio_lock.read_text(encoding="utf-8")),
         cesium=json.loads(args.cesium_lock.read_text(encoding="utf-8")),
         vendored=json.loads(args.vendored_lock.read_text(encoding="utf-8")),
         licenses_sources=json.loads(args.licenses_sources.read_text(encoding="utf-8")),
     )
-
     enriched = enrich_sbom(bom, args.bundle, locks)
     validate_enriched_sbom(enriched)
     args.output.parent.mkdir(parents=True, exist_ok=True)
