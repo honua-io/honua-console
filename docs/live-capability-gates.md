@@ -25,11 +25,15 @@ including Preview opt-ins.
 `persistent-catalog` gates Catalog, Share, open-data and the catalog map viewer: until the server keeps
 that content across restarts, those routes point to Data & Layers and stay out of the navigation.
 
-`Honua:Console:Capabilities` / `HONUA_CONSOLE_CAPABILITIES` can restrict this set.
-An omitted server policy imposes no additional restriction. A configured list
-of server keys permits only those keys that the server also permits.
+The deployed static Console always uses the full set above; the server decides
+what is available. For tests, `HonuaConsoleShellOptions.AdvertisedCapabilities`
+(read by `tests/Honua.Console.LegacyHost` from `Honua:Console:Capabilities` /
+`HONUA_CONSOLE_CAPABILITIES`) restricts the set to a comma-separated list of
+Console keys from the left column, such as `temporal`. A key opens only when
+the server also reports it available; leaving the list empty adds no restriction.
 
-Availability belongs to a Blazor circuit, not to the application singleton.
+Availability belongs to the scoped service of one browser tab, not to an
+application-wide singleton.
 Pages refresh before loading gated feature data; activating an environment
 profile refreshes the same service and updates the existing navigation. The SDK
 HTTP binding retargets each request and forwards the active operator's bearer.

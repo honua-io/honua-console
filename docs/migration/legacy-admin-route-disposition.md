@@ -1,6 +1,6 @@
 # Legacy Admin Route Disposition
 
-Status: filed 2026-05-23.
+Status: filed 2026-05-23. Historical plan: Console shipped native Operate pages instead, and the `/operate/legacy/*` embed, redirect components and link-out mode below were never built. The current embed promise is the [embedding contract](../operate/embed-contract.md).
 
 Owners: Honua Console (this doc) and `honua-server-admin` (canonical inventory).
 
@@ -8,7 +8,7 @@ Decision source: [ADR-0001: Unified Honua Console Runtime](../adr/0001-unified-h
 
 Implementing ticket: [honua-console#6](https://github.com/honua-io/honua-console/issues/6).
 
-Related: [Operate Embed Contract](../operate/embed-contract.md).
+Related: [Embedding contract](../operate/embed-contract.md).
 
 ## Purpose
 
@@ -37,10 +37,10 @@ This table is implementable end-to-end only when all four preconditions hold:
 
 1. `honua-console#2` lands the Blazor Web shell and shared Razor route table for `/operate/*` and `/studio/*`.
 2. `honua-console#3` lands the IA, navigation, and `canSeeOperate` RBAC predicate.
-3. `honua-server-admin#96` rehosts the legacy Blazor bundle so it serves under `/operate/legacy/` with the matching base href and a frame-ancestors policy that allows same-origin embedding, AND rewrites root-absolute in-app navigation (`NavMenu.razor`, `NavigateTo("/...")` call sites, in-page `<a href="/...">`) to base-relative form so in-frame clicks stay under `/operate/legacy/` (see [Legacy Link Resolution](../operate/embed-contract.md#legacy-link-resolution)).
+3. `honua-server-admin#96` rehosts the legacy Blazor bundle so it serves under `/operate/legacy/` with the matching base href and a frame-ancestors policy that allows same-origin embedding, AND rewrites root-absolute in-app navigation (`NavMenu.razor`, `NavigateTo("/...")` call sites, in-page `<a href="/...">`) to base-relative form so in-frame clicks stay under `/operate/legacy/`.
 4. `honua-devops#55` builds a single deployable artifact that serves Console and the legacy bundle from one origin.
 
-Until all four hold, the EMBED rows operate in a degraded mode documented in [`embed-contract.md`](../operate/embed-contract.md) (`mode: link-out`).
+Until all four hold, the EMBED rows were to operate in a degraded link-out mode (never built).
 
 ## Route Disposition Table
 
@@ -111,7 +111,7 @@ Until Studio ports complete (honua-console#5), `REDIRECT-TO-STUDIO` rows resolve
 - Links to the Studio target if available.
 - Provides a single explicit "Open the legacy reference" affordance that opens the legacy route at the row's "Legacy reference target (embed)" path via `OperateLegacyEmbed` (gated by `canSeeOperate`).
 
-**Legacy reference targets.** The "Legacy reference target (embed)" column extends the embed allowlist for these four duplicate-builder paths. `OperateLegacyEmbed` MUST accept these paths in addition to the `EMBED` rows above; the embed-mode `NotFound` rule in [`embed-contract.md`](../operate/embed-contract.md) applies to any path matching neither set. Reference targets are reachable only via `MovedToStudioLanding`; they do not appear in Operate navigation and there is no Console-side redirect from `/operate/legacy/operator/<duplicate>` back to Studio (the redirect rule lives at the bare legacy path, not the reference target).
+**Legacy reference targets.** The "Legacy reference target (embed)" column extends the embed allowlist for these four duplicate-builder paths. `OperateLegacyEmbed` MUST accept these paths in addition to the `EMBED` rows above; an embed-mode `NotFound` rule was to apply to any path matching neither set. Reference targets are reachable only via `MovedToStudioLanding`; they do not appear in Operate navigation and there is no Console-side redirect from `/operate/legacy/operator/<duplicate>` back to Studio (the redirect rule lives at the bare legacy path, not the reference target).
 
 ### Routes flagged for retirement
 
@@ -126,7 +126,7 @@ Until Studio ports complete (honua-console#5), `REDIRECT-TO-STUDIO` rows resolve
 The shapes below are the contract that scaffold and IA tickets implement. They live in this repo once `honua-console#2` lands; this ticket commits to the surface names so downstream code can plug in without rediscovery.
 
 - `src/Honua.Console.Shell/Pages/OperatePage.razor` - native Console landing for `/operate`. Renders the Operate sub-section index.
-- `src/Honua.Console.Shell/Components/OperateLegacyEmbed.razor` - single iframe host for `/operate/legacy/*`. Implements the [embed contract](../operate/embed-contract.md).
+- `src/Honua.Console.Shell/Components/OperateLegacyEmbed.razor` - single iframe host for `/operate/legacy/*` (planned, not built).
 - `src/Honua.Console.Shell/Components/OperateRedirect.razor` - single component used by `REDIRECT-TO-STUDIO` rows. Reads target from disposition data, falls back to the `moved-to-studio` landing.
 - `src/Honua.Console.Shell/Pages/MovedToStudioLanding.razor` - fallback target for redirects before Studio ports land.
 - `src/Honua.Console.Shell/Models/LegacyAdminRouteDisposition.cs` - typed projection of this document used by router wiring. The source of truth for the table is this Markdown; the C# projection is a generated/maintained mirror, not a divergent copy.
