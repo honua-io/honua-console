@@ -146,7 +146,7 @@ public sealed partial class PublishWizardWorkspaceRenderTests
         row.Click();
         var rail = cut.Find(".publish-wizard-rail");
         Assert.Contains("You're publishing into", rail.TextContent, StringComparison.Ordinal);
-        Assert.Contains("<dt>Layers</dt><dd>4</dd>", rail.Markup, StringComparison.Ordinal);
+        Assert.Contains("<dt>Layers</dt><dd>4</dd>", rail.InnerHtml, StringComparison.Ordinal);
     }
 
     [Fact]
