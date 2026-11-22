@@ -93,7 +93,7 @@ public partial class OperateServiceDetailPage
         var generation = _serviceGeneration;
         var load = ++_loadGeneration;
         _loading = true;
-        var view = await OperateData.GetServicesViewAsync();
+        var view = await OperateData.GetServiceViewAsync(serviceName);
         if (generation != _serviceGeneration || load != _loadGeneration)
         {
             return;

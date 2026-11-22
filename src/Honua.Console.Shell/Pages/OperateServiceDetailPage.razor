@@ -11,7 +11,11 @@
 <ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-service-name="@ServiceName" data-service-loaded="@(_service is not null)">
-    @if (_service is null)
+    @if (_service is null && _loading)
+    {
+        <ConsoleStateView Kind="loading" HeadingLevel="2" Kicker="Operate / Services" Title="Loading service" Message="Reading service details from honua-server." />
+    }
+    else if (_service is null)
     {
         <MissingItemView Kind="service" AreaLabel="Operate / Services" />
     }

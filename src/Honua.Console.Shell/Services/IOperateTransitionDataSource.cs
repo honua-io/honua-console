@@ -45,6 +45,9 @@ public interface IOperateTransitionDataSource
     Task<OperateServicesView> GetServiceDirectoryViewAsync(CancellationToken cancellationToken = default) =>
         GetServicesViewAsync(cancellationToken);
 
+    Task<OperateServicesView> GetServiceViewAsync(string serviceName, CancellationToken cancellationToken = default) =>
+        GetServicesViewAsync(cancellationToken);
+
     async Task<OperateDataView> GetDataViewAsync(CancellationToken cancellationToken = default)
     {
         var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
