@@ -89,6 +89,27 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Include, cancellationToken));
 
+    // Directory surfaces (Services list, Publish wizard) only need service summaries, their
+    // reported layer counts, and protocol endpoints — skipping per-connection layer enumeration
+    // and per-service settings reads avoids O(connections * services) admin API fan-out.
+    public async Task<OperateServicesView> GetServiceDirectoryViewAsync(CancellationToken cancellationToken = default)
+    {
+        using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
+        var (summaries, summaryStates) = await LoadServiceSummariesAsync(cancellationToken).ConfigureAwait(false);
+        if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new([], [ConsoleEnvironmentRead.Unavailable]);
+        }
+
+        var services = new ServiceProjection(
+            EmptyServiceSettings,
+            [],
+            new OperateServiceEndpointResolver(environment.ServerBaseUri),
+            useSummaryLayerCount: true).Map(summaries);
+
+        return new OperateServicesView(services, summaryStates);
+    }
+
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken));
 

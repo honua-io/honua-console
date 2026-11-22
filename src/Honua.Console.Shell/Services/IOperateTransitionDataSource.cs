@@ -40,6 +40,11 @@ public interface IOperateTransitionDataSource
         return new OperateServicesView(workspace.Services, workspace.CapabilityStates);
     }
 
+    // Summary-only service list for surfaces that show service names, protocols, layer counts,
+    // and endpoints without per-service settings or per-connection layer reads.
+    Task<OperateServicesView> GetServiceDirectoryViewAsync(CancellationToken cancellationToken = default) =>
+        GetServicesViewAsync(cancellationToken);
+
     async Task<OperateDataView> GetDataViewAsync(CancellationToken cancellationToken = default)
     {
         var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);

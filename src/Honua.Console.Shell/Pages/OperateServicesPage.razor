@@ -94,7 +94,7 @@
                                     @service.ServiceType
                                 }
                             </td>
-                            <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.Layers.Count }</td>
+                            <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.LayerCount }</td>
                             <td>@service.RuntimeStatus</td>
                         </tr>
                     }
@@ -123,7 +123,7 @@
         _states = [];
         try
         {
-            var view = await OperateData.GetServicesViewAsync();
+            var view = await OperateData.GetServiceDirectoryViewAsync();
             _services = view.Services;
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers", "Connections");
         }
