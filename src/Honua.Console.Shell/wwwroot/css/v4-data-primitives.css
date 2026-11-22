@@ -330,3 +330,40 @@
     flex-wrap: wrap;
     gap: 8px;
 }
+
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] :is(.console-tree-folder, .console-tree-service, .console-tree-layer) {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] .console-tree-folder {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] .console-tree-service {
+        grid-template-columns: auto auto auto minmax(0, 1fr);
+    }
+
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] .console-tree-name {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] :is(.console-muted, .console-inline-check) {
+        grid-column: -2 / -1;
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] .console-inline-check {
+        align-items: start;
+    }
+
+    .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] .console-inline-check > span {
+        min-width: 0;
+    }
+}
