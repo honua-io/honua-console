@@ -10,7 +10,7 @@
 * [Deploy the static Console bundle](deployment/STATIC_SPA.md)
 * [Live AWS browser smoke](ops/live-aws-smoke.md)
 * [Manage Folders](runbook/folder-management.md)
-* [Use the built-in Studio assistant](studio-assistant.md)
+* [Studio assistant](studio-assistant.md)
 
 ## Concepts
 

@@ -2,9 +2,9 @@
 
 Status: implemented for `honua-console#36`, retrofitted for real server bindings in `honua-console#60`.
 
-This slice adds native Blazor Operate pages for the Admin transition while the shared `honua-sdk-dotnet` admin projections are still pending. Normal runtime registration no longer uses the seeded in-memory data source. When `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL` is set to an absolute `http` or `https` URL, `IOperateTransitionDataSource` binds through the `Honua.Console.Contracts` Operate admin HTTP shim to live honua-server admin endpoints. When no valid server binding is configured, the routes render an explicit missing-binding state rather than sample data. The seeded in-memory data source remains available only through tests or the explicit `AddHonuaConsoleDemoOperateTransitionData()` opt-in.
+This slice adds native Blazor Operate pages for the Admin transition while the shared `honua-sdk-dotnet` admin projections are still pending. Normal runtime registration no longer uses the seeded in-memory data source. When the server base URL (see [Server Binding And Admin Shim](#server-binding-and-admin-shim)) is an absolute `http` or `https` URL, `IOperateTransitionDataSource` binds through the `Honua.Console.Contracts` Operate admin HTTP shim to live honua-server admin endpoints. When no valid server binding is configured, the routes render an explicit missing-binding state rather than sample data. The seeded in-memory data source remains available only through tests or the explicit `AddHonuaConsoleDemoOperateTransitionData()` opt-in.
 
-The native routes are the preferred Console navigation for connections, data resources, services, layers, and operator settings. Legacy Admin routes remain available under `/operate/legacy/*` according to the [legacy route disposition](../migration/legacy-admin-route-disposition.md) until parity smoke and SDK-backed data prove each legacy row can be retired.
+The native routes are the Console navigation for connections, data resources, services, layers, and operator settings. Console does not embed the retired `honua-server-admin` application; the `/operate/legacy/*` embed planned in the [legacy route disposition](../migration/legacy-admin-route-disposition.md) was never built.
 
 ## Routes
 
@@ -24,14 +24,19 @@ The native routes are the preferred Console navigation for connections, data res
 
 ## Server Binding And Admin Shim
 
-The browser host passes `Honua:Server:BaseUrl` or `HONUA_SERVER_BASE_URL`
-into `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)`. Only absolute
-`http` or `https` base URLs activate the server-backed binding; missing,
-relative, or non-HTTP values use the missing-binding capability state. The
-optional admin API key can come from `Honua:Server:AdminApiKey` or
-`HONUA_ADMIN_API_KEY` and is sent as `X-API-Key`. Standard ASP.NET
-environment variable mapping also supports `Honua__Server__BaseUrl` and
-`Honua__Server__AdminApiKey`.
+The shipped static Console reads its server from `config.json`
+(`apiBaseUrl`, resolved against the Console origin) and passes it to
+`AddHonuaConsoleShell(new HonuaConsoleShellOptions { ServerBaseUrl = ... })`.
+Only absolute `http` or `https` base URLs activate the server-backed binding;
+missing, relative, or non-HTTP values use the missing-binding capability
+state. Requests carry the signed-in operator's session (cookie on the same
+origin, bearer otherwise); the bundle holds no admin API key. See
+[How Console authenticates operators](../console-authentication.md).
+
+The test host in `tests/Honua.Console.LegacyHost` also reads
+`Honua:Server:BaseUrl` / `HONUA_SERVER_BASE_URL` and
+`Honua:Server:AdminApiKey` / `HONUA_ADMIN_API_KEY` (sent as `X-API-Key`).
+Those settings exist for tests and have no effect on a deployed Console.
 
 Until `honua-sdk-dotnet#166` provides admin projections, the temporary
 `HonuaAdminOperateHttpClient` reads the honua-server admin envelope
@@ -151,6 +156,6 @@ when the honua-server project path cannot be found.
 
 ## SDK Swap Point
 
-`AddHonuaConsoleShell()` now registers `UnsupportedOperateTransitionDataSource` unless a server base URL is provided. `AddHonuaConsoleShell(serverBaseUrl, adminApiKey)` registers `HonuaServerOperateTransitionDataSource`, which maps the temporary `Honua.Console.Contracts` HTTP shim records into Console view models. The matching `Honua.Sdk.Admin.HonuaAdminClient` exists in `honua-sdk-dotnet` source, but no consumable stable Admin package is published yet (only a prerelease build is restorable) and Console wires no SDK feed, so the shim stays until that package ships; see [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md#active-shims). Replace `HonuaAdminOperateHttpClient` with the `honua-sdk-dotnet` admin clients once that package is consumable, without moving server protocol DTOs into Shell pages or services.
+`AddHonuaConsoleShell()` registers `UnsupportedOperateTransitionDataSource` because it has no server base URL. `AddHonuaConsoleShell(HonuaConsoleShellOptions)` with an absolute `ServerBaseUrl` registers `HonuaServerOperateTransitionDataSource`, which maps the temporary `Honua.Console.Contracts` HTTP shim records into Console view models. The matching `Honua.Sdk.Admin.HonuaAdminClient` exists in `honua-sdk-dotnet` source, but no consumable stable Admin package is published yet (only a prerelease build is restorable) and Console wires no SDK feed, so the shim stays until that package ships; see [SDK Shim Policy](../migration/SDK_SHIM_POLICY.md#active-shims). Replace `HonuaAdminOperateHttpClient` with the `honua-sdk-dotnet` admin clients once that package is consumable, without moving server protocol DTOs into Shell pages or services.
 
 The SDK-backed replacement must preserve the redaction boundary in `IOperateTransitionDataSource` before values reach Razor rendering. Tests in `OperateTransitionDataSourceTests` cover runtime DI, server-response mapping, missing-contract states, diagnostic redaction, blast radius, service metadata ownership, settings restart requirements, and route-scoped endpoint fan-out (the connections, settings, and layers views each read only the admin endpoints their route renders). `OperateTransitionLiveServerTests` is an opt-in xUnit/Testcontainers integration test (`HONUA_CONSOLE_RUN_LIVE_SERVER_TESTS=true`) that starts PostgreSQL, boots a real honua-server checkout, creates a connection/layer fixture, and renders Razor pages from live data; it skips cleanly when not opted in or when Docker/server checkout prerequisites are unavailable.
