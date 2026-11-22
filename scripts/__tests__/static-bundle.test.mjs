@@ -107,6 +107,32 @@ test("release ZIP contains browser files and license texts only and its receipt 
   }
 });
 
+test("release ZIP leaves out precompressed copies of the operator-edited config.json", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "console-static-config-"));
+  const source = join(directory, "console");
+  const output = join(directory, "release");
+  try {
+    await mkdir(join(source, "_framework"), { recursive: true });
+    await writeFile(join(source, "index.html"), '<base href="/console/">');
+    for (const name of ["config.json", "config.json.gz", "config.json.br", "_framework/blazor.webassembly.js",
+      "_framework/blazor.webassembly.js.gz", "index.html.gz"]) {
+      await writeFile(join(source, name), name);
+    }
+    const result = spawnSync("python3", [join(root, "scripts/package-console-static.py"), source,
+      "--output", output, "--version", "0.1.0-rc.2"], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    const inspect = spawnSync("python3", ["-c", "import json,sys,zipfile; print(json.dumps(zipfile.ZipFile(sys.argv[1]).namelist()))",
+      join(output, JSON.parse(result.stdout).asset)], { encoding: "utf8" });
+    const names = JSON.parse(inspect.stdout);
+    assert.ok(names.includes("config.json"));
+    assert.ok(!names.includes("config.json.gz") && !names.includes("config.json.br"),
+      "a stale precompressed config.json would shadow the operator's edit on gzip_static/brotli_static hosts");
+    assert.ok(names.includes("_framework/blazor.webassembly.js.gz") && names.includes("index.html.gz"));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("attest job enriches the CycloneDX SBOM with Studio, Cesium and WASM runtime and keeps the NuGet guard", async () => {
   const workflow = await readFile(join(root, ".github/workflows/static-bundle.yml"), "utf8");
   const attest = workflow.slice(workflow.indexOf("  attest:\n"));

@@ -9,6 +9,9 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 REPOSITORY = Path(__file__).resolve().parent.parent
+# Operators edit config.json after extraction; a shipped precompressed copy would be served
+# instead of the edit by hosts that serve .gz/.br siblings (nginx gzip_static, brotli_static).
+OPERATOR_EDITED_PRECOMPRESSED = frozenset({"config.json.gz", "config.json.br"})
 
 
 def legal_files() -> dict[str, Path]:
@@ -33,7 +36,8 @@ def package(source: Path, output: Path, version: str) -> dict:
         raise ValueError("static release must not contain symbolic links")
     if output.resolve().is_relative_to(source.resolve()):
         raise ValueError("output must be outside the static source directory")
-    entries = {path.relative_to(source).as_posix(): path for path in files}
+    entries = {name: path for path in files
+               if (name := path.relative_to(source).as_posix()) not in OPERATOR_EDITED_PRECOMPRESSED}
     legal = legal_files()
     if clash := sorted(set(entries) & set(legal)):
         raise ValueError(f"published files collide with release licence files: {clash}")
