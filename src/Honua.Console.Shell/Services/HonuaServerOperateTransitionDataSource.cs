@@ -112,8 +112,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     // The dataset page shows resources and services from one layer read, so each list is fetched once.
+    // Its endpoints need only the protocols the service summary already carries, so it skips the
+    // per-service settings reads as the layers surface does.
     public Task<OperateDataView> GetDataViewAsync(CancellationToken cancellationToken = default) =>
-        BuildDataViewAsync(SettingsRead.Include, cancellationToken);
+        BuildDataViewAsync(SettingsRead.Skip, cancellationToken);
 
     private enum SettingsRead { Skip, Include }
 

@@ -15,7 +15,7 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":[{"connectionId":"{{{connections[0]}}}","name":"First","host":"db","databaseName":"honua","provider":"PostgreSQL/PostGIS"},{"connectionId":"{{{connections[1]}}}","name":"Second","host":"other","databaseName":"other","provider":"PostgreSQL/PostGIS"}]}
                 """,
             ["/api/v1/admin/services/?page=1&pageSize=100"] = """
-                {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1},{"serviceName":"public","layerCount":1}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
+                {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"public","layerCount":1}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
                 """,
         };
         var layerPaths = connections
@@ -33,6 +33,8 @@ public sealed partial class OperateTransitionDataSourceTests
         var html = await RenderPageAsync<OperateDataPage>(CreateServerDataSource(handler), ParameterView.Empty);
 
         Assert.Contains("Target parcels", html);
+        Assert.Contains("FeatureServer", html);
         Assert.All(layerPaths, path => Assert.Single(handler.RequestedPaths, requested => requested == path));
+        Assert.DoesNotContain(handler.RequestedPaths, path => path.Contains("/settings", StringComparison.Ordinal));
     }
 }
