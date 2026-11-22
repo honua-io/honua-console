@@ -9188,6 +9188,15 @@ button.console-chip:focus-visible {
     gap: 0.5rem;
 }
 
+.approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-queue {
+    min-width: 0;
+}
+
+.approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-row-summary,
+.approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-row-sub {
+    overflow-wrap: anywhere;
+}
+
 .approval-inbox-select {
     display: flex;
     flex-direction: column;
