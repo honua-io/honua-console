@@ -40,6 +40,12 @@ public interface IOperateTransitionDataSource
         return new OperateServicesView(workspace.Services, workspace.CapabilityStates);
     }
 
+    async Task<OperateDataView> GetDataViewAsync(CancellationToken cancellationToken = default)
+    {
+        var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
+        return new OperateDataView(workspace.ResourceEdits, new OperateServicesView(workspace.Services, workspace.CapabilityStates));
+    }
+
     async Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default)
     {
         var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);

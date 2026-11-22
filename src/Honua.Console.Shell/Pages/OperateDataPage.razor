@@ -163,8 +163,8 @@
         _appliedFocus = null;
         try
         {
-        var resourcesView = await OperateData.GetResourcesViewAsync();
-        var servicesView = await OperateData.GetServicesViewAsync();
+        var dataView = await OperateData.GetDataViewAsync();
+        var servicesView = dataView.Services;
         if (generation != _loadGeneration) return;
         _servicesView = servicesView;
         var environmentId = await ConsoleProxyRoutes.ResolveActiveEnvironmentIdAsync(
@@ -172,10 +172,10 @@
         if (generation != _loadGeneration) return;
         _environmentId = environmentId;
 
-        _nodes = ResourcePublicationsTreeBuilder.Build(resourcesView.ResourceEdits, servicesView.Services);
+        _nodes = ResourcePublicationsTreeBuilder.Build(dataView.ResourceEdits, servicesView.Services);
         if (V4Enabled) _catalogRows = CatalogRows(_nodes, servicesView);
         _states = OperateCapabilityStateFilters.ForSurface(
-            resourcesView.CapabilityStates.Concat(servicesView.CapabilityStates).ToArray(),
+            servicesView.CapabilityStates,
             "Resources", "Layers", "Services");
 
         ApplyFocus();
