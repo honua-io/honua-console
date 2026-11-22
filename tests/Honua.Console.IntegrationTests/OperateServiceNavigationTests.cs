@@ -236,6 +236,48 @@ public sealed class OperateServiceNavigationTests
         Assert.Equal("newer-role", page.Find("[data-allowed-roles]").GetAttribute("value"));
     }
 
+    [Fact]
+    public Task ServiceDetailShowsLoadingStateUntilServiceReadCompletesInLegacyShell() =>
+        AssertServiceDetailLoadingStateAsync(Context(enabled: false));
+
+    [Fact]
+    public Task ServiceDetailShowsLoadingStateUntilServiceReadCompletesInV4Shell() =>
+        AssertServiceDetailLoadingStateAsync(Context(enabled: true));
+
+    private static async Task AssertServiceDetailLoadingStateAsync(BunitContext context)
+    {
+        using (context)
+        {
+            var pending = new TaskCompletionSource<OperateServicesView>(TaskCreationOptions.RunContinuationsAsynchronously);
+            context.Services.AddSingleton<IOperateTransitionDataSource>(new PendingServiceDataSource(pending.Task));
+            context.Services.AddSingleton<IServiceConfigurationOperation>(new DelayedSettingsOperation { DelayFirstSettings = false });
+
+            var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "missing"));
+
+            Assert.Contains("Loading service", page.Markup);
+            Assert.DoesNotContain("Service Not Found", page.Markup);
+
+            await page.InvokeAsync(() => pending.SetResult(new OperateServicesView([], [])));
+
+            page.WaitForAssertion(() => Assert.Contains("Service Not Found", page.Markup));
+            Assert.DoesNotContain("Loading service", page.Markup);
+        }
+    }
+
+    private sealed class PendingServiceDataSource(Task<OperateServicesView> pending) : IOperateTransitionDataSource
+    {
+        public Task<OperateTransitionWorkspace> GetWorkspaceAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OperateTransitionWorkspace([], [], [], [], []));
+        public Task<OperateConnectionSummary?> FindConnectionAsync(string connectionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateConnectionSummary?>(null);
+        public Task<OperateResourceEditPreview?> FindResourceEditAsync(string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateResourceEditPreview?>(null);
+        public Task<OperateServiceDetail?> FindServiceAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OperateServiceDetail?>(null);
+        public Task<OperateServicesView> GetServiceViewAsync(string serviceName, CancellationToken cancellationToken = default) =>
+            pending;
+    }
+
     private static BunitContext Context(bool enabled)
     {
         var context = new BunitContext();
