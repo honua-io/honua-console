@@ -236,25 +236,32 @@ public sealed class OperateServiceNavigationTests
         Assert.Equal("newer-role", page.Find("[data-allowed-roles]").GetAttribute("value"));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ServiceDetailShowsLoadingStateUntilServiceReadCompletes(bool enabled)
+    [Fact]
+    public Task ServiceDetailShowsLoadingStateUntilServiceReadCompletesInLegacyShell() =>
+        AssertServiceDetailLoadingStateAsync(Context(enabled: false));
+
+    [Fact]
+    public Task ServiceDetailShowsLoadingStateUntilServiceReadCompletesInV4Shell() =>
+        AssertServiceDetailLoadingStateAsync(Context(enabled: true));
+
+    private static async Task AssertServiceDetailLoadingStateAsync(BunitContext context)
     {
-        using var context = Context(enabled);
-        var pending = new TaskCompletionSource<OperateServicesView>(TaskCreationOptions.RunContinuationsAsynchronously);
-        context.Services.AddSingleton<IOperateTransitionDataSource>(new PendingServiceDataSource(pending.Task));
-        context.Services.AddSingleton<IServiceConfigurationOperation>(new DelayedSettingsOperation { DelayFirstSettings = false });
+        using (context)
+        {
+            var pending = new TaskCompletionSource<OperateServicesView>(TaskCreationOptions.RunContinuationsAsynchronously);
+            context.Services.AddSingleton<IOperateTransitionDataSource>(new PendingServiceDataSource(pending.Task));
+            context.Services.AddSingleton<IServiceConfigurationOperation>(new DelayedSettingsOperation { DelayFirstSettings = false });
 
-        var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "missing"));
+            var page = context.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, "missing"));
 
-        Assert.Contains("Loading service", page.Markup);
-        Assert.DoesNotContain("Service Not Found", page.Markup);
+            Assert.Contains("Loading service", page.Markup);
+            Assert.DoesNotContain("Service Not Found", page.Markup);
 
-        await page.InvokeAsync(() => pending.SetResult(new OperateServicesView([], [])));
+            await page.InvokeAsync(() => pending.SetResult(new OperateServicesView([], [])));
 
-        page.WaitForAssertion(() => Assert.Contains("Service Not Found", page.Markup));
-        Assert.DoesNotContain("Loading service", page.Markup);
+            page.WaitForAssertion(() => Assert.Contains("Service Not Found", page.Markup));
+            Assert.DoesNotContain("Loading service", page.Markup);
+        }
     }
 
     private sealed class PendingServiceDataSource(Task<OperateServicesView> pending) : IOperateTransitionDataSource

@@ -153,7 +153,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                 service.ServiceName, scopedServiceName, StringComparison.OrdinalIgnoreCase)).ToArray();
         }
         var layerRowsTask = LoadLayerRowsAsync(
-            new LayerRead(connections, summaries, scope?.StorageLayerId, scope?.ServiceName),
+            new LayerRead(connections, summaries, scope),
             cancellationToken);
         var serviceSettingsTask = settingsRead == SettingsRead.Include
             ? LoadServiceSettingsAsync(summaries, cancellationToken)
@@ -282,8 +282,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     private sealed record LayerRead(
         IReadOnlyList<OperateConnectionSummary> Connections,
         IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> Services,
-        int? StorageLayerId = null,
-        string? ServiceName = null);
+        DataViewScope? Scope = null);
 
     private Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
@@ -294,7 +293,9 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         LayerRead read, CancellationToken cancellationToken)
     {
-        var (connections, services, storageLayerId, scopedServiceName) = read;
+        var (connections, services, scope) = read;
+        var storageLayerId = scope?.StorageLayerId;
+        var scopedServiceName = scope?.ServiceName;
         var states = new List<OperateCapabilityState>();
         if (connections.Count == 0)
         {
@@ -379,14 +380,14 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         LayerRead read,
         IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> layerServices)
     {
-        if (read.StorageLayerId is null && read.ServiceName is null)
+        if (read.Scope?.StorageLayerId is null && read.Scope?.ServiceName is null)
         {
             return CreateLayerServiceScopes(layerServices);
         }
 
-        if (read.ServiceName is not null && read.Services.Count == 0)
+        if (read.Scope?.ServiceName is { } serviceName && read.Services.Count == 0)
         {
-            return [string.Equals(read.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : read.ServiceName];
+            return [string.Equals(serviceName, "default", StringComparison.OrdinalIgnoreCase) ? null : serviceName];
         }
 
         return layerServices
