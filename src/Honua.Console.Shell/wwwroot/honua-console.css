@@ -9188,6 +9188,10 @@ button.console-chip:focus-visible {
     gap: 0.5rem;
 }
 
+.approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-layout {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}
+
 .approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-queue {
     min-width: 0;
 }
@@ -9195,6 +9199,15 @@ button.console-chip:focus-visible {
 .approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-row-summary,
 .approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-row-sub {
     overflow-wrap: anywhere;
+}
+
+.approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-detail {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-detail .console-panel-heading {
+    flex-wrap: wrap;
 }
 
 .approval-inbox-select {
