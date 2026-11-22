@@ -60,12 +60,20 @@ test('a long identity is truncated and wrapped header controls stay right-aligne
 test('sticky panes follow the measured top bar height', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, '/operate/connections', 'v4');
-  const published = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--topbar-h').trim());
-  await expect.poll(published).toBe('48px');
+  const bar = () => page.evaluate(() => ({
+    published: getComputedStyle(document.documentElement).getPropertyValue('--topbar-h').trim(),
+    measured: `${Math.ceil(document.querySelector('.console-topbar')!.getBoundingClientRect().height)}px`,
+  }));
+  // The Operate approval count renders (and re-renders) after async reads and can wrap the bar at
+  // 1440px, so compare the published value with the bar measured in the same poll, not a fixed 48px.
+  await expect(page.locator('.console-approval-count')).toBeVisible();
+  await expect.poll(async () => { const { published, measured } = await bar(); return published === measured; }).toBe(true);
+  const before = parseInt((await bar()).measured);
   await page.evaluate(() => { document.querySelector<HTMLElement>('.console-topbar')!.style.paddingBlock = '20px'; });
-  const height = await page.evaluate(() => Math.ceil(document.querySelector('.console-topbar')!.getBoundingClientRect().height));
-  expect(height).toBeGreaterThan(48);
-  await expect.poll(published).toBe(`${height}px`);
+  await expect.poll(async () => {
+    const { published, measured } = await bar();
+    return published === measured && parseInt(measured) > before;
+  }).toBe(true);
 });
 
 for (const shell of ['legacy', 'v4'] as const) {
