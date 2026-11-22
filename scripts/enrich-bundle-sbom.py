@@ -227,13 +227,14 @@ def _filter_build_only_nuget(components: list[dict]) -> tuple[list[dict], set[st
     return kept, removed_refs
 
 
-def _update_dependencies(enriched: dict, removed_refs: set[str], added_refs: list[str]) -> None:
-    if not isinstance(enriched.get("dependencies"), list):
-        return
+def _build_dependencies(bom: dict, removed_refs: set[str], added_refs: list[str]) -> list[dict] | None:
+    raw_deps = bom.get("dependencies")
+    if not isinstance(raw_deps, list):
+        return None
     cleaned_deps: list[dict] = []
-    root_ref = (enriched.get("metadata") or {}).get("component", {}).get("bom-ref")
+    root_ref = (bom.get("metadata") or {}).get("component", {}).get("bom-ref")
     root_entry: dict | None = None
-    for dep in enriched["dependencies"]:
+    for dep in raw_deps:
         ref = dep.get("ref")
         if ref in removed_refs:
             continue
@@ -249,7 +250,7 @@ def _update_dependencies(enriched: dict, removed_refs: set[str], added_refs: lis
             if ref not in depends_on:
                 depends_on.append(ref)
         root_entry["dependsOn"] = depends_on
-    enriched["dependencies"] = cleaned_deps
+    return cleaned_deps
 
 
 def enrich_sbom(bom: dict, bundle_path: Path, locks: BundleLocks) -> dict:
@@ -283,7 +284,9 @@ def enrich_sbom(bom: dict, bundle_path: Path, locks: BundleLocks) -> dict:
 
     enriched = dict(bom)
     enriched["components"] = kept_components
-    _update_dependencies(enriched, removed_refs, added_refs)
+    updated_deps = _build_dependencies(bom, removed_refs, added_refs)
+    if updated_deps is not None:
+        enriched["dependencies"] = updated_deps
     return enriched
 
 

@@ -189,6 +189,49 @@ function sampleNugetBom() {
   };
 }
 
+function assertEnrichedComponents(byPurl, studioLock, cesiumLock, vendoredLock, wasmVersion) {
+  assert.ok(byPurl.has("pkg:nuget/Honua.Sdk.Admin@2.2.0"));
+  assert.ok(byPurl.has("pkg:nuget/Microsoft.AspNetCore.App.Internal.Assets@11.0.0"));
+  for (const dropped of [
+    "pkg:nuget/Microsoft.AspNetCore.Components.Analyzers@11.0.0",
+    "pkg:nuget/Microsoft.NET.ILLink.Tasks@11.0.0",
+    "pkg:nuget/Microsoft.AspNetCore.Components.WebAssembly.DevServer@11.0.0",
+    "pkg:nuget/Microsoft.NET.Sdk.WebAssembly.Pack@11.0.0",
+  ]) {
+    assert.equal(byPurl.has(dropped), false, `expected ${dropped} stripped`);
+  }
+
+  const studio = byPurl.get(`pkg:github/${studioLock.repository}@${studioLock.tag}`);
+  assert.equal(studio.version, studioLock.tag.replace(/^v/, ""));
+  assert.deepEqual(studio.hashes, [{ alg: "SHA-256", content: studioLock.sha256 }]);
+  assert.deepEqual(studio.licenses, [{ license: { id: "Apache-2.0" } }]);
+
+  const cesium = byPurl.get(`pkg:npm/${cesiumLock.package}@${cesiumLock.version}`);
+  assert.deepEqual(cesium.hashes, [{ alg: "SHA-256", content: cesiumLock.archiveSha256 }]);
+  assert.ok(cesium.properties.some((p) => p.name === "honua:cesium:treeSha256" && p.value === cesiumLock.treeSha256));
+
+  assert.ok(byPurl.has(`pkg:npm/maplibre-gl@${vendoredLock.packages["maplibre-gl"].version}`));
+
+  const runtime = byPurl.get(`pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@${wasmVersion}`);
+  assert.equal(runtime.type, "framework");
+  assert.equal(runtime.hashes, undefined);
+  assert.ok(runtime.properties.some((p) => p.name === "honua:framework:manifestSha256" && /^[0-9a-f]{64}$/.test(p.value)));
+  const expectedNativeHash = createHash("sha256").update(Buffer.from([0x00, 0x61, 0x73, 0x6d])).digest("hex");
+  assert.ok(runtime.properties.some((p) => p.name === "honua:framework:nativeWasmSha256" && p.value === expectedNativeHash));
+}
+
+async function assertMissingAssetRejected(nugetSbomPath, outPath, opts, pattern) {
+  const subDir = await mkdtemp(join(tmpdir(), "console-sbom-miss-"));
+  try {
+    const badBundle = await createSbomFixtureBundle(subDir, opts);
+    const res = runEnrichSbom(nugetSbomPath, badBundle, outPath);
+    assert.notEqual(res.status, 0);
+    assert.match(res.stderr, pattern);
+  } finally {
+    await rm(subDir, { recursive: true, force: true });
+  }
+}
+
 test("enrich-bundle-sbom adds Studio, Cesium, vendored JS and WASM runtime and strips build-only NuGet", async () => {
   const directory = await mkdtemp(join(tmpdir(), "console-sbom-"));
   const nugetSbomPath = join(directory, "nuget.cdx.json");
@@ -205,35 +248,7 @@ test("enrich-bundle-sbom adds Studio, Cesium, vendored JS and WASM runtime and s
     assert.equal(ok.status, 0, ok.stderr);
     const enriched = JSON.parse(await readFile(outputSbomPath, "utf8"));
     const byPurl = new Map(enriched.components.map((c) => [c.purl, c]));
-
-    assert.ok(byPurl.has("pkg:nuget/Honua.Sdk.Admin@2.2.0"));
-    assert.ok(byPurl.has("pkg:nuget/Microsoft.AspNetCore.App.Internal.Assets@11.0.0"));
-    for (const dropped of [
-      "pkg:nuget/Microsoft.AspNetCore.Components.Analyzers@11.0.0",
-      "pkg:nuget/Microsoft.NET.ILLink.Tasks@11.0.0",
-      "pkg:nuget/Microsoft.AspNetCore.Components.WebAssembly.DevServer@11.0.0",
-      "pkg:nuget/Microsoft.NET.Sdk.WebAssembly.Pack@11.0.0",
-    ]) {
-      assert.equal(byPurl.has(dropped), false, `expected ${dropped} stripped`);
-    }
-
-    const studio = byPurl.get(`pkg:github/${studioLock.repository}@${studioLock.tag}`);
-    assert.equal(studio.version, studioLock.tag.replace(/^v/, ""));
-    assert.deepEqual(studio.hashes, [{ alg: "SHA-256", content: studioLock.sha256 }]);
-    assert.deepEqual(studio.licenses, [{ license: { id: "Apache-2.0" } }]);
-
-    const cesium = byPurl.get(`pkg:npm/${cesiumLock.package}@${cesiumLock.version}`);
-    assert.deepEqual(cesium.hashes, [{ alg: "SHA-256", content: cesiumLock.archiveSha256 }]);
-    assert.ok(cesium.properties.some((p) => p.name === "honua:cesium:treeSha256" && p.value === cesiumLock.treeSha256));
-
-    assert.ok(byPurl.has(`pkg:npm/maplibre-gl@${vendoredLock.packages["maplibre-gl"].version}`));
-
-    const runtime = byPurl.get(`pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@${wasmVersion}`);
-    assert.equal(runtime.type, "framework");
-    assert.equal(runtime.hashes, undefined);
-    assert.ok(runtime.properties.some((p) => p.name === "honua:framework:manifestSha256" && /^[0-9a-f]{64}$/.test(p.value)));
-    const expectedNativeHash = createHash("sha256").update(Buffer.from([0x00, 0x61, 0x73, 0x6d])).digest("hex");
-    assert.ok(runtime.properties.some((p) => p.name === "honua:framework:nativeWasmSha256" && p.value === expectedNativeHash));
+    assertEnrichedComponents(byPurl, studioLock, cesiumLock, vendoredLock, wasmVersion);
 
     const validateOk = spawnSync("python3", [join(root, "scripts/enrich-bundle-sbom.py"), "--validate-only", "--sbom", outputSbomPath], { encoding: "utf8" });
     assert.equal(validateOk.status, 0, validateOk.stderr);
@@ -277,15 +292,7 @@ test("enrich-bundle-sbom is idempotent and fails closed on missing NuGet graph o
       [{ includeCesium: false }, /missing shipped Cesium assets/],
       [{ includeWasm: false }, /no \.wasm runtime\/framework files/],
     ]) {
-      const subDir = await mkdtemp(join(tmpdir(), "console-sbom-miss-"));
-      try {
-        const badBundle = await createSbomFixtureBundle(subDir, opts);
-        const res = runEnrichSbom(nugetSbomPath, badBundle, out2);
-        assert.notEqual(res.status, 0);
-        assert.match(res.stderr, pattern);
-      } finally {
-        await rm(subDir, { recursive: true, force: true });
-      }
+      await assertMissingAssetRejected(nugetSbomPath, out2, opts, pattern);
     }
   } finally {
     await rm(directory, { recursive: true, force: true });
