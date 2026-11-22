@@ -17,7 +17,10 @@ The zip contains the contents of `wwwroot/console` plus `LICENSE`, `NOTICE` and 
 extract beneath `/console/`. Keep the license files with every copy you host or redistribute. The companion
 JSON records the release SHA-256, file count, source size and compressed bundle size. Keep the
 precompressed `.br` and `.gz` files; serve them with the matching `Content-Encoding` when the
-request accepts it, and `Vary: Accept-Encoding`.
+request accepts it, and `Vary: Accept-Encoding`. The release zip has no precompressed `config.json`,
+because you edit it after extraction. Do not add one: a host that serves `.gz` or `.br` files would send the
+stale copy instead of your edit. The raw `dotnet publish` output still has both copies; delete them before you
+serve an edited `config.json` from it.
 
 `config.json` contains public deployment settings only:
 

@@ -20,6 +20,7 @@ node scripts/fetch-cesium.mjs --force
 node scripts/fetch-studio-release.mjs
 dotnet publish src/Honua.Console.Web/Honua.Console.Web.csproj -c Release --no-restore -o artifacts/static-publish
 node scripts/verify-published-cesium.mjs artifacts/static-publish
+node scripts/console-csp.mjs --check artifacts/static-publish/wwwroot/console/index.html
 node scripts/fetch-studio-release.mjs --verify artifacts/static-publish/wwwroot/console/_studio
 python3 scripts/package-console-static.py artifacts/static-publish/wwwroot/console --version 0.1.0
 ```
@@ -49,7 +50,8 @@ without an extra directory prefix, plus the Console `LICENSE` and `NOTICE` and, 
 `release/licenses/` and checked against the locked package versions). Extract beneath
 `/console/`. The package step rejects missing entrypoints, published files that would
 replace a license file, a different base path, symbolic links and output inside
-the source tree. The receipt records `asset`, `version`, `files`,
+the publish directory it packages. It leaves out `config.json.gz` and `config.json.br`, so a
+host that serves precompressed files always serves the `config.json` you edit. The receipt records `asset`, `version`, `files`,
 `uncompressedBytes`, `zipBytes` and `sha256` for artifact inspection.
 
 `config.json` is public deployment configuration. Credentials and secrets must
