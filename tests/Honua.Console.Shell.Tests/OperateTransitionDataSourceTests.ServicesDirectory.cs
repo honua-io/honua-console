@@ -58,6 +58,36 @@ public sealed partial class OperateTransitionDataSourceTests
     }
 
     [Fact]
+    public async Task GetServiceDirectoryViewAsync_WhenServicesEndpointReturnsNoRows_DerivesServicesFromPublishedLayers()
+    {
+        const string connectionId = "11111111-1111-1111-1111-111111111111";
+        var responses = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0,"layerTotal":0}}
+                """,
+            ["/api/v1/admin/connections/"] = $$$"""
+                {"success":true,"data":[{"connectionId":"{{{connectionId}}}","name":"Primary","host":"db","databaseName":"honua","provider":"PostgreSQL/PostGIS"}]}
+                """,
+            [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"storageLayerId":9,"layerName":"Unprojected parcels","schema":"public","table":"parcels","geometryType":"Polygon","serviceName":"legacy-svc","enabled":true}],"page":1,"pageSize":100,"total":1}}
+                """
+        };
+        var handler = new RecordingJsonFixtureHandler(responses);
+        var dataSource = CreateServerDataSource(handler);
+
+        var view = await dataSource.GetServiceDirectoryViewAsync();
+
+        var service = Assert.Single(view.Services);
+        Assert.Equal("legacy-svc", service.Name);
+        Assert.Equal(1, service.LayerCount);
+        Assert.Single(service.Layers);
+        Assert.Equal("Configured", service.RuntimeStatus);
+        Assert.Empty(view.CapabilityStates);
+        Assert.DoesNotContain(handler.RequestedPaths, path => path.Contains("/settings", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GetServiceDirectoryViewAsync_EnvironmentSwitchMidRead_ReturnsUnavailable()
     {
         var envA = new Uri("https://env-a.example.test/");
