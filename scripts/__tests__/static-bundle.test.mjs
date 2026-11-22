@@ -189,7 +189,7 @@ function sampleNugetBom() {
   };
 }
 
-function assertEnrichedComponents(byPurl, studioLock, cesiumLock, vendoredLock, wasmVersion) {
+function assertEnrichedComponents(byPurl, locks) {
   assert.ok(byPurl.has("pkg:nuget/Honua.Sdk.Admin@2.2.0"));
   assert.ok(byPurl.has("pkg:nuget/Microsoft.AspNetCore.App.Internal.Assets@11.0.0"));
   for (const dropped of [
@@ -201,18 +201,18 @@ function assertEnrichedComponents(byPurl, studioLock, cesiumLock, vendoredLock, 
     assert.equal(byPurl.has(dropped), false, `expected ${dropped} stripped`);
   }
 
-  const studio = byPurl.get(`pkg:github/${studioLock.repository}@${studioLock.tag}`);
-  assert.equal(studio.version, studioLock.tag.replace(/^v/, ""));
-  assert.deepEqual(studio.hashes, [{ alg: "SHA-256", content: studioLock.sha256 }]);
+  const studio = byPurl.get(`pkg:github/${locks.studio.repository}@${locks.studio.tag}`);
+  assert.equal(studio.version, locks.studio.tag.replace(/^v/, ""));
+  assert.deepEqual(studio.hashes, [{ alg: "SHA-256", content: locks.studio.sha256 }]);
   assert.deepEqual(studio.licenses, [{ license: { id: "Apache-2.0" } }]);
 
-  const cesium = byPurl.get(`pkg:npm/${cesiumLock.package}@${cesiumLock.version}`);
-  assert.deepEqual(cesium.hashes, [{ alg: "SHA-256", content: cesiumLock.archiveSha256 }]);
-  assert.ok(cesium.properties.some((p) => p.name === "honua:cesium:treeSha256" && p.value === cesiumLock.treeSha256));
+  const cesium = byPurl.get(`pkg:npm/${locks.cesium.package}@${locks.cesium.version}`);
+  assert.deepEqual(cesium.hashes, [{ alg: "SHA-256", content: locks.cesium.archiveSha256 }]);
+  assert.ok(cesium.properties.some((p) => p.name === "honua:cesium:treeSha256" && p.value === locks.cesium.treeSha256));
 
-  assert.ok(byPurl.has(`pkg:npm/maplibre-gl@${vendoredLock.packages["maplibre-gl"].version}`));
+  assert.ok(byPurl.has(`pkg:npm/maplibre-gl@${locks.vendored.packages["maplibre-gl"].version}`));
 
-  const runtime = byPurl.get(`pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@${wasmVersion}`);
+  const runtime = byPurl.get(`pkg:nuget/Microsoft.NETCore.App.Runtime.Mono.browser-wasm@${locks.wasmVersion}`);
   assert.equal(runtime.type, "framework");
   assert.equal(runtime.hashes, undefined);
   assert.ok(runtime.properties.some((p) => p.name === "honua:framework:manifestSha256" && /^[0-9a-f]{64}$/.test(p.value)));
@@ -220,11 +220,11 @@ function assertEnrichedComponents(byPurl, studioLock, cesiumLock, vendoredLock, 
   assert.ok(runtime.properties.some((p) => p.name === "honua:framework:nativeWasmSha256" && p.value === expectedNativeHash));
 }
 
-async function assertMissingAssetRejected(nugetSbomPath, outPath, opts, pattern) {
+async function assertMissingAssetRejected(paths, opts, pattern) {
   const subDir = await mkdtemp(join(tmpdir(), "console-sbom-miss-"));
   try {
     const badBundle = await createSbomFixtureBundle(subDir, opts);
-    const res = runEnrichSbom(nugetSbomPath, badBundle, outPath);
+    const res = runEnrichSbom(paths.nuget, badBundle, paths.out);
     assert.notEqual(res.status, 0);
     assert.match(res.stderr, pattern);
   } finally {
@@ -232,23 +232,41 @@ async function assertMissingAssetRejected(nugetSbomPath, outPath, opts, pattern)
   }
 }
 
+async function assertBadNugetRejected(directory, bundlePath, outPath) {
+  const emptyNugetPath = join(directory, "empty.cdx.json");
+  await writeFile(emptyNugetPath, JSON.stringify({ bomFormat: "CycloneDX", components: [] }));
+  const emptyRes = runEnrichSbom(emptyNugetPath, bundlePath, outPath);
+  assert.notEqual(emptyRes.status, 0);
+  assert.match(emptyRes.stderr, /NuGet graph/);
+
+  const buildOnlyPath = join(directory, "build-only.cdx.json");
+  await writeFile(buildOnlyPath, JSON.stringify({
+    bomFormat: "CycloneDX",
+    components: [{ "bom-ref": "pkg:nuget/Microsoft.NET.ILLink.Tasks@11.0.0", type: "library", name: "Microsoft.NET.ILLink.Tasks", version: "11.0.0", purl: "pkg:nuget/Microsoft.NET.ILLink.Tasks@11.0.0" }],
+  }));
+  const buildOnlyRes = runEnrichSbom(buildOnlyPath, bundlePath, outPath);
+  assert.notEqual(buildOnlyRes.status, 0);
+  assert.match(buildOnlyRes.stderr, /no shipped NuGet components remaining/);
+}
+
 test("enrich-bundle-sbom adds Studio, Cesium, vendored JS and WASM runtime and strips build-only NuGet", async () => {
   const directory = await mkdtemp(join(tmpdir(), "console-sbom-"));
   const nugetSbomPath = join(directory, "nuget.cdx.json");
   const outputSbomPath = join(directory, "bundle.cdx.json");
-  const studioLock = JSON.parse(await readFile(join(root, "scripts/studio-release.lock.json"), "utf8"));
-  const cesiumLock = JSON.parse(await readFile(join(root, "scripts/cesium-extracted-tree.lock.json"), "utf8"));
-  const vendoredLock = JSON.parse(await readFile(join(root, "scripts/vendored-assets.lock.json"), "utf8"));
   const sources = JSON.parse(await readFile(join(root, "release/licenses/sources.json"), "utf8"));
-  const wasmVersion = sources.files.find((f) => f.source.includes("Mono.browser-wasm/")).source.split("/")[1];
+  const locks = {
+    studio: JSON.parse(await readFile(join(root, "scripts/studio-release.lock.json"), "utf8")),
+    cesium: JSON.parse(await readFile(join(root, "scripts/cesium-extracted-tree.lock.json"), "utf8")),
+    vendored: JSON.parse(await readFile(join(root, "scripts/vendored-assets.lock.json"), "utf8")),
+    wasmVersion: sources.files.find((f) => f.source.includes("Mono.browser-wasm/")).source.split("/")[1],
+  };
   try {
     const bundlePath = await createSbomFixtureBundle(directory);
     await writeFile(nugetSbomPath, JSON.stringify(sampleNugetBom(), null, 2));
     const ok = runEnrichSbom(nugetSbomPath, bundlePath, outputSbomPath);
     assert.equal(ok.status, 0, ok.stderr);
     const enriched = JSON.parse(await readFile(outputSbomPath, "utf8"));
-    const byPurl = new Map(enriched.components.map((c) => [c.purl, c]));
-    assertEnrichedComponents(byPurl, studioLock, cesiumLock, vendoredLock, wasmVersion);
+    assertEnrichedComponents(new Map(enriched.components.map((c) => [c.purl, c])), locks);
 
     const validateOk = spawnSync("python3", [join(root, "scripts/enrich-bundle-sbom.py"), "--validate-only", "--sbom", outputSbomPath], { encoding: "utf8" });
     assert.equal(validateOk.status, 0, validateOk.stderr);
@@ -271,28 +289,15 @@ test("enrich-bundle-sbom is idempotent and fails closed on missing NuGet graph o
       JSON.parse(await readFile(out2, "utf8")).components.length,
       JSON.parse(await readFile(out1, "utf8")).components.length,
     );
+    await assertBadNugetRejected(directory, bundlePath, out2);
 
-    const emptyNugetPath = join(directory, "empty.cdx.json");
-    await writeFile(emptyNugetPath, JSON.stringify({ bomFormat: "CycloneDX", components: [] }));
-    const emptyRes = runEnrichSbom(emptyNugetPath, bundlePath, out2);
-    assert.notEqual(emptyRes.status, 0);
-    assert.match(emptyRes.stderr, /NuGet graph/);
-
-    const buildOnlyPath = join(directory, "build-only.cdx.json");
-    await writeFile(buildOnlyPath, JSON.stringify({
-      bomFormat: "CycloneDX",
-      components: [{ "bom-ref": "pkg:nuget/Microsoft.NET.ILLink.Tasks@11.0.0", type: "library", name: "Microsoft.NET.ILLink.Tasks", version: "11.0.0", purl: "pkg:nuget/Microsoft.NET.ILLink.Tasks@11.0.0" }],
-    }));
-    const buildOnlyRes = runEnrichSbom(buildOnlyPath, bundlePath, out2);
-    assert.notEqual(buildOnlyRes.status, 0);
-    assert.match(buildOnlyRes.stderr, /no shipped NuGet components remaining/);
-
+    const paths = { nuget: nugetSbomPath, out: out2 };
     for (const [opts, pattern] of [
       [{ includeStudio: false }, /missing shipped Studio assets/],
       [{ includeCesium: false }, /missing shipped Cesium assets/],
       [{ includeWasm: false }, /no \.wasm runtime\/framework files/],
     ]) {
-      await assertMissingAssetRejected(nugetSbomPath, out2, opts, pattern);
+      await assertMissingAssetRejected(paths, opts, pattern);
     }
   } finally {
     await rm(directory, { recursive: true, force: true });
