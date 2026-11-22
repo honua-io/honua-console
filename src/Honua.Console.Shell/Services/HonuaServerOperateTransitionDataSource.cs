@@ -89,6 +89,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Include, cancellationToken));
 
+    public Task<OperateServicesView> GetServiceViewAsync(string serviceName, CancellationToken cancellationToken = default) =>
+        string.IsNullOrWhiteSpace(serviceName)
+            ? GetServicesViewAsync(cancellationToken)
+            : ServicesOf(BuildDataViewAsync(SettingsRead.Include, cancellationToken, new DataViewScope(ServiceName: serviceName.Trim())));
+
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken));
 
@@ -102,7 +107,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             return GetLayersViewAsync(cancellationToken);
         }
 
-        return ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, new LayerScope(connectionId, layerId)));
+        return ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, new DataViewScope(connectionId, layerId)));
     }
 
     public async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
@@ -128,7 +133,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     private async Task<OperateDataView> BuildDataViewAsync(
         SettingsRead settingsRead,
         CancellationToken cancellationToken,
-        LayerScope? scope = null)
+        DataViewScope? scope = null)
     {
         using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
@@ -137,12 +142,19 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
         var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
 
-        if (scope is not null)
+        if (scope?.ConnectionId is { } scopedConnectionId)
         {
             connections = connections.Where(connection => string.Equals(
-                connection.Id, scope.ConnectionId.ToString("D"), StringComparison.OrdinalIgnoreCase)).ToArray();
+                connection.Id, scopedConnectionId.ToString("D"), StringComparison.OrdinalIgnoreCase)).ToArray();
         }
-        var layerRowsTask = LoadLayerRowsAsync(new LayerRead(connections, summaries, scope?.StorageLayerId), cancellationToken);
+        if (scope?.ServiceName is { } scopedServiceName)
+        {
+            summaries = summaries.Where(service => string.Equals(
+                service.ServiceName, scopedServiceName, StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+        var layerRowsTask = LoadLayerRowsAsync(
+            new LayerRead(connections, summaries, scope?.StorageLayerId, scope?.ServiceName),
+            cancellationToken);
         var serviceSettingsTask = settingsRead == SettingsRead.Include
             ? LoadServiceSettingsAsync(summaries, cancellationToken)
             : null;
@@ -196,7 +208,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         string serviceName,
         CancellationToken cancellationToken = default)
     {
-        var view = await GetServicesViewAsync(cancellationToken).ConfigureAwait(false);
+        var view = await GetServiceViewAsync(serviceName, cancellationToken).ConfigureAwait(false);
         return view.Services.FirstOrDefault(
             service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase));
     }
@@ -215,7 +227,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     private async Task<(Honua.Sdk.Admin.Models.ServiceSummary[] Summaries, List<OperateCapabilityState> States)>
-        LoadServiceSummariesAsync(CancellationToken cancellationToken, LayerScope? scope = null)
+        LoadServiceSummariesAsync(CancellationToken cancellationToken, DataViewScope? scope = null)
     {
         var states = new List<OperateCapabilityState>();
         var serviceResult = await HonuaAdminCatalogReader.ReadAllAsync(
@@ -265,12 +277,13 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         }
     }
 
-    private sealed record LayerScope(Guid ConnectionId, int StorageLayerId);
+    private sealed record DataViewScope(Guid? ConnectionId = null, int? StorageLayerId = null, string? ServiceName = null);
 
     private sealed record LayerRead(
         IReadOnlyList<OperateConnectionSummary> Connections,
         IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> Services,
-        int? StorageLayerId = null);
+        int? StorageLayerId = null,
+        string? ServiceName = null);
 
     private Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         IReadOnlyList<OperateConnectionSummary> connections,
@@ -281,7 +294,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     private async Task<(LayerRow[] Rows, List<OperateCapabilityState> States)> LoadLayerRowsAsync(
         LayerRead read, CancellationToken cancellationToken)
     {
-        var (connections, services, storageLayerId) = read;
+        var (connections, services, storageLayerId, scopedServiceName) = read;
         var states = new List<OperateCapabilityState>();
         if (connections.Count == 0)
         {
@@ -289,9 +302,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         }
 
         var layerServices = services.Where(service => service.LayerCount > 0).ToArray();
-        var serviceScopes = storageLayerId is null
-            ? CreateLayerServiceScopes(layerServices)
-            : layerServices.Select(service => string.Equals(service.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : service.ServiceName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var serviceScopes = ResolveLayerServiceScopes(read, layerServices);
         var layerScopes = connections
             .SelectMany(connection => serviceScopes.Select(serviceName => (Connection: connection, ServiceName: serviceName)))
             .ToArray();
@@ -326,6 +337,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                     continue;
                 }
                 var effectiveServiceName = Coalesce(layer.ServiceName, serviceName, "default");
+                if (scopedServiceName is not null
+                    && !string.Equals(effectiveServiceName, scopedServiceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
                 var rowKey = string.Join(
                     '\u001f',
                     connection.Id,
@@ -357,6 +373,26 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         }
 
         return (rows.ToArray(), states);
+    }
+
+    private static IReadOnlyList<string?> ResolveLayerServiceScopes(
+        LayerRead read,
+        IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> layerServices)
+    {
+        if (read.StorageLayerId is null && read.ServiceName is null)
+        {
+            return CreateLayerServiceScopes(layerServices);
+        }
+
+        if (read.ServiceName is not null && read.Services.Count == 0)
+        {
+            return [string.Equals(read.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : read.ServiceName];
+        }
+
+        return layerServices
+            .Select(service => string.Equals(service.ServiceName, "default", StringComparison.OrdinalIgnoreCase) ? null : service.ServiceName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static IReadOnlyList<string?> CreateLayerServiceScopes(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> services)
