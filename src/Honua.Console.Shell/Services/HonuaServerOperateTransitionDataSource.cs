@@ -100,7 +100,6 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var (summaries, summaryStates) = await LoadServiceSummariesAsync(cancellationToken).ConfigureAwait(false);
 
         IReadOnlyList<LayerRow> layerRows = [];
-        var useSummaryLayerCount = true;
         var states = new List<OperateCapabilityState>();
         MergeStates(states, summaryStates);
 
@@ -111,7 +110,6 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             MergeStates(states, connectionStates);
             MergeStates(states, layerStates);
             layerRows = fallbackLayers;
-            useSummaryLayerCount = false;
         }
 
         if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false))
@@ -122,8 +120,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         var services = new ServiceProjection(
             EmptyServiceSettings,
             layerRows,
-            new OperateServiceEndpointResolver(environment.ServerBaseUri),
-            useSummaryLayerCount: useSummaryLayerCount).Map(summaries);
+            new OperateServiceEndpointResolver(environment.ServerBaseUri)).MapDirectory(summaries);
 
         return new OperateServicesView(services, states);
     }

@@ -120,6 +120,36 @@ public sealed partial class PublishWizardWorkspaceRenderTests
     }
 
     [Fact]
+    public void ServiceRail_UsesReportedLayerCountForSummaryOnlyServices()
+    {
+        var data = StubOperateData.WithFixtures();
+        var summaryOnly = new OperateServiceDetail(
+            "planning-fs",
+            "Planning",
+            "FeatureServer",
+            "Configured",
+            "Canonical metadata",
+            [],
+            [],
+            [])
+        {
+            ReportedLayerCount = 4
+        };
+        data.OnServicesReadAsync = () => Task.FromResult(new OperateServicesView([summaryOnly], []));
+
+        using var ctx = NewContext(data);
+        var cut = ctx.Render<PublishWizardWorkspace>();
+
+        var row = Assert.Single(cut.FindAll("[data-publish-tree-row]"));
+        Assert.Contains("4 layers", row.TextContent, StringComparison.Ordinal);
+
+        row.Click();
+        var rail = cut.Find(".publish-wizard-rail");
+        Assert.Contains("You're publishing into", rail.TextContent, StringComparison.Ordinal);
+        Assert.Contains("<dt>Layers</dt><dd>4</dd>", rail.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task LayerStep_ListsTablesForTheChosenConnection()
     {
         var publish = new RecordingPublishOperation();

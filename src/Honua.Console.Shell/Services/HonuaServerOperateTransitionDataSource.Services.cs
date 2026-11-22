@@ -9,14 +9,20 @@ public sealed partial class HonuaServerOperateTransitionDataSource
     private sealed class ServiceProjection(
         IReadOnlyDictionary<string, HonuaAdminServiceSettingsResponse> serviceSettings,
         IReadOnlyList<LayerRow> layerRows,
-        OperateServiceEndpointResolver publications,
-        bool useSummaryLayerCount = false)
+        OperateServiceEndpointResolver publications)
     {
         public IReadOnlyList<OperateServiceDetail> Map(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries)
         {
             // Registry responses may omit services that still own published layers.
             return CombineServiceSummaries(summaries)
-                .Select(service => MapService(service))
+                .Select(MapService)
+                .ToArray();
+        }
+
+        public IReadOnlyList<OperateServiceDetail> MapDirectory(IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> summaries)
+        {
+            return CombineServiceSummaries(summaries)
+                .Select(MapDirectoryService)
                 .ToArray();
         }
 
@@ -76,10 +82,17 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 FolderId = service.FolderId,
                 FolderName = service.FolderName,
                 PublicName = service.PublicName,
-                FolderMutationIssues = service.FolderMutationIssues,
-                ReportedLayerCount = useSummaryLayerCount ? service.LayerCount : null
+                FolderMutationIssues = service.FolderMutationIssues
             };
             return detail with { Endpoints = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
+        }
+
+        private OperateServiceDetail MapDirectoryService(Honua.Sdk.Admin.Models.ServiceSummary service)
+        {
+            var detail = MapService(service);
+            return detail.Layers.Count == 0
+                ? detail with { ReportedLayerCount = service.LayerCount }
+                : detail;
         }
 
         private IReadOnlyList<OperateRuntimeSetting> MapRuntimeSettings(
