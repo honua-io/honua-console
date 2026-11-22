@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
@@ -133,6 +134,7 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
     private void SessionChanged(ConsoleBrowserSessionSnapshot snapshot)
     {
         if (snapshot.Authenticated) return;
+        _ = sessions.ClearSessionAsync("configured-api", CancellationToken.None);
         _state = Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
         NotifyAuthenticationStateChanged(_state);
     }
@@ -268,7 +270,11 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
                 AccountId = principal.AccountId() ?? string.Empty,
                 DisplayName = principal.Identity?.Name ?? string.Empty,
                 RoleIds = principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray(),
-                ServerBaseUri = api.BaseUri
+                ServerBaseUri = api.BaseUri,
+                AccessToken = !string.IsNullOrWhiteSpace(session.AccessToken)
+                    ? session.AccessToken
+                    : $"{ConsoleAuthConstants.SessionSentinelPrefix}configured-api",
+                AccessTokenExpiresAt = expiresAt
             });
         }
         return new AuthenticationState(principal);

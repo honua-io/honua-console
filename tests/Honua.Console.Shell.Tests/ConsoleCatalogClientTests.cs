@@ -226,6 +226,44 @@ public sealed class ConsoleCatalogClientTests
     }
 
     [Fact]
+    public async Task CookieSessionSentinelResolvesAuthenticatedContext()
+    {
+        var profiles = InMemoryConsoleEnvironmentProfileStore.CreateSeeded();
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = ConsoleEnvironmentProfileDefaults.DevelopmentProfileId,
+            AccountId = "operator.dev",
+            AccessToken = $"{Honua.Console.Shell.Security.ConsoleAuthConstants.SessionSentinelPrefix}configured-api",
+            AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10)
+        });
+        var resolver = new ConsoleCatalogReadContextResolver(profiles, sessions);
+
+        var context = await resolver.ResolveAsync(publicLinkToken: null);
+
+        Assert.False(context.Anonymous);
+    }
+
+    [Fact]
+    public async Task ExpiredSessionResolvesAnonymousContext()
+    {
+        var profiles = InMemoryConsoleEnvironmentProfileStore.CreateSeeded();
+        var sessions = new InMemoryConsoleAccountSessionStore();
+        await sessions.SaveSessionAsync(new ConsoleAccountSession
+        {
+            ProfileId = ConsoleEnvironmentProfileDefaults.DevelopmentProfileId,
+            AccountId = "operator.dev",
+            AccessToken = $"{Honua.Console.Shell.Security.ConsoleAuthConstants.SessionSentinelPrefix}configured-api",
+            AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-5)
+        });
+        var resolver = new ConsoleCatalogReadContextResolver(profiles, sessions);
+
+        var context = await resolver.ResolveAsync(publicLinkToken: null);
+
+        Assert.True(context.Anonymous);
+    }
+
+    [Fact]
     public async Task ActiveSessionTokenizedCatalogAndMapReadsUseAuthenticatedContext()
     {
         var profiles = InMemoryConsoleEnvironmentProfileStore.CreateSeeded();

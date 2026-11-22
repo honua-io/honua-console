@@ -48,6 +48,11 @@ public sealed class ConsoleCatalogReadContextResolver : IConsoleCatalogReadConte
         }
 
         var session = await _sessions.GetSessionAsync(activeProfile.Id, cancellationToken).ConfigureAwait(false);
-        return !string.IsNullOrWhiteSpace(session?.AccessToken);
+        if (session is null || string.IsNullOrWhiteSpace(session.AccessToken))
+        {
+            return false;
+        }
+
+        return session.AccessTokenExpiresAt is null || session.AccessTokenExpiresAt > DateTimeOffset.UtcNow;
     }
 }
