@@ -89,6 +89,42 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Include, cancellationToken));
 
+    // Directory surfaces (Services list, Publish wizard) only need service summaries, their
+    // reported layer counts, and protocol endpoints — skipping per-connection layer enumeration
+    // and per-service settings reads avoids O(connections * services) admin API fan-out.
+    // When the services registry returns no rows (without an error), fall back to a single
+    // unscoped layer read per connection so published layers without a service summary still show.
+    public async Task<OperateServicesView> GetServiceDirectoryViewAsync(CancellationToken cancellationToken = default)
+    {
+        using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
+        var (summaries, summaryStates) = await LoadServiceSummariesAsync(cancellationToken).ConfigureAwait(false);
+
+        IReadOnlyList<LayerRow> layerRows = [];
+        var states = new List<OperateCapabilityState>();
+        MergeStates(states, summaryStates);
+
+        if (summaries.Length == 0 && summaryStates.Count == 0)
+        {
+            var (connections, connectionStates) = await LoadConnectionsAsync(cancellationToken).ConfigureAwait(false);
+            var (fallbackLayers, layerStates) = await LoadLayerRowsAsync(new LayerRead(connections, []), cancellationToken).ConfigureAwait(false);
+            MergeStates(states, connectionStates);
+            MergeStates(states, layerStates);
+            layerRows = fallbackLayers;
+        }
+
+        if (!await environment.IsCurrentAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new([], [ConsoleEnvironmentRead.Unavailable]);
+        }
+
+        var services = new ServiceProjection(
+            EmptyServiceSettings,
+            layerRows,
+            new OperateServiceEndpointResolver(environment.ServerBaseUri)).MapDirectory(summaries);
+
+        return new OperateServicesView(services, states);
+    }
+
     public Task<OperateServicesView> GetServiceViewAsync(string serviceName, CancellationToken cancellationToken = default) =>
         string.IsNullOrWhiteSpace(serviceName)
             ? GetServicesViewAsync(cancellationToken)

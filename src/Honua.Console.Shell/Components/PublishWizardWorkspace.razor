@@ -18,7 +18,7 @@
     Every value this wizard shows is read from a server contract or derived from the operator's own
     selection:
 
-      - services            IOperateTransitionDataSource.GetServicesViewAsync()
+      - services            IOperateTransitionDataSource.GetServiceDirectoryViewAsync()
       - connections         IOperateTransitionDataSource.GetConnectionsViewAsync()
       - tables + geometry   IServiceLayerPublishOperation.ListTablesAsync(connectionId)
       - the publish itself  IServiceLayerPublishOperation.PublishAsync(command)
@@ -120,7 +120,7 @@ else
         ResetTables();
         try
         {
-            var services = await OperateData.GetServicesViewAsync();
+            var services = await OperateData.GetServiceDirectoryViewAsync();
             var connections = await OperateData.GetConnectionsViewAsync();
             _loadFailure = null;
             _loadStates = services.CapabilityStates.Concat(connections.CapabilityStates).ToArray();
@@ -247,7 +247,7 @@ else
             Services.GetService<ConsoleFolderChanges>()?.Notify();
             var currentServices = binding is not null && authority is not null && await authority.IsCurrentAsync(binding)
                 ? await ConsoleReadBudget.RunAsync(async token =>
-                OperateSectionResult<OperateServicesView>.Allowed(await OperateData.GetServicesViewAsync(token)),
+                OperateSectionResult<OperateServicesView>.Allowed(await OperateData.GetServiceDirectoryViewAsync(token)),
                 ConsoleReadBudget.Default, "Service endpoints could not be refreshed.")
                 : null;
             if (binding is not null && authority is not null && await authority.IsCurrentAsync(binding))
@@ -344,7 +344,7 @@ else
                             <dt>Kind</dt><dd>@Unknown(svc.ServiceType)</dd>
                             <dt>Runtime status</dt><dd>@Unknown(svc.RuntimeStatus)</dd>
                             <dt>Metadata owner</dt><dd>@Unknown(svc.MetadataOwnership)</dd>
-                            <dt>Layers</dt><dd>@svc.Layers.Count</dd>
+                            <dt>Layers</dt><dd>@svc.LayerCount</dd>
                         </dl>
                     </article>
                     <p class="publish-callout publish-callout-info">Reusing a service means accepting its settings as-is; they are shared by every layer in it.</p>
@@ -393,7 +393,7 @@ else
                         {
                             <span class="console-muted publish-tree-display-name">Identity: @service.Name</span>
                         }
-                        <span class="console-muted">@Unknown(service.ServiceType) · @service.Layers.Count layers · @Unknown(service.RuntimeStatus)</span>
+                        <span class="console-muted">@Unknown(service.ServiceType) · @service.LayerCount layers · @Unknown(service.RuntimeStatus)</span>
                     </button>
                 }
                 }

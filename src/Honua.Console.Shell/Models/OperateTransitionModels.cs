@@ -156,6 +156,8 @@ public sealed record OperateServiceDetail(
     public string? FolderName { get; init; }
     public string? PublicName { get; init; }
     public IReadOnlyList<string> FolderMutationIssues { get; init; } = [];
+    public int? ReportedLayerCount { get; init; }
+    public int LayerCount => ReportedLayerCount ?? Layers.Count;
     public string? PublicServiceName => FolderId is not null && string.IsNullOrWhiteSpace(FolderName) ? null : PublicName ?? Name;
     // ServiceType lists the enabled protocols, comma separated.
     public IReadOnlyList<string> Protocols =>
