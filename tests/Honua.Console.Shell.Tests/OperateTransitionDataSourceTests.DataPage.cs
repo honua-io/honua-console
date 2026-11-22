@@ -33,7 +33,8 @@ public sealed partial class OperateTransitionDataSourceTests
         var html = await RenderPageAsync<OperateDataPage>(CreateServerDataSource(handler), ParameterView.Empty);
 
         Assert.Contains("Target parcels", html);
-        Assert.Contains("FeatureServer", html);
+        // A resource is shown as running only when its service resolves a protocol; here that comes from the summary.
+        Assert.Contains("resource-tree__node--running", html);
         Assert.All(layerPaths, path => Assert.Single(handler.RequestedPaths, requested => requested == path));
         Assert.DoesNotContain(handler.RequestedPaths, path => path.Contains("/settings", StringComparison.Ordinal));
     }
