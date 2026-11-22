@@ -297,6 +297,39 @@ public sealed class BrowserApiTransportTests
         Assert.Null(await store.GetSessionAsync("configured-api"));
     }
 
+    [Fact]
+    public async Task CookieSessionSignInResolvesAuthenticatedCatalogContextAndClearsOnInvalidation()
+    {
+        var session = new ConsoleBrowserSession();
+        var handler = new SignInHandler(crossOrigin: false);
+        var origins = new BrowserApiOrigins(Api, App);
+        using var http = new HttpClient(new BrowserApiHandler(origins, session, BrowserApiAccess.Public) { InnerHandler = handler }) { BaseAddress = Api };
+        var profile = new Honua.Console.Shell.Models.ConsoleEnvironmentProfile
+        {
+            Id = "configured-api",
+            DisplayName = Api.Host,
+            ServerBaseUri = Api
+        };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([profile]);
+        var store = new InMemoryConsoleAccountSessionStore();
+        var provider = new BrowserAuthenticationStateProvider(new ConsoleApiClient(http) { UsesCookieSession = true }, session, store);
+        var resolver = new ConsoleCatalogReadContextResolver(profiles, store);
+
+        await provider.SignInAsync("fixture-password");
+
+        var stored = await store.GetSessionAsync("configured-api");
+        Assert.NotNull(stored);
+        Assert.True(Honua.Console.Shell.Security.ConsoleAuthConstants.IsSessionSentinel(stored.AccessToken));
+        Assert.True(stored.AccessTokenExpiresAt > DateTimeOffset.UtcNow);
+        Assert.Null(session.AccessToken);
+        Assert.False((await resolver.ResolveAsync(publicLinkToken: null)).Anonymous);
+
+        session.Clear();
+
+        Assert.Null(await store.GetSessionAsync("configured-api"));
+        Assert.True((await resolver.ResolveAsync(publicLinkToken: null)).Anonymous);
+    }
+
     private sealed class DeniedSignInHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
