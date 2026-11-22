@@ -325,3 +325,8 @@
     font: inherit;
     cursor: pointer;
 }
+
+.operate-connections-page .console-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+}
