@@ -66,8 +66,8 @@ async function startFixture(kind, v4) {
 async function walkJourney(page, { origin, requests, kind, name }) {
   // Signed out, a protected route goes straight to sign-in: no menu, tree or inventory, and no API
   // request beyond the auth endpoints and the public capability manifest.
-  await page.goto(`${origin}/console/operate/connections`);
-  await page.waitForURL(`${origin}/console/auth/signin?returnTo=%2Foperate%2Fconnections`);
+  await page.goto(`${origin}/console/operate/settings`);
+  await page.waitForURL(`${origin}/console/auth/signin?returnTo=%2Foperate%2Fsettings`);
   await page.locator('input[type=password]').waitFor();
   await page.locator('[data-console-signed-out]').waitFor();
   for (const selector of ['.console-topnav', '[data-publication-navigation]', '.console-contextbar', '[data-console-signin]']) {
@@ -89,7 +89,8 @@ async function walkJourney(page, { origin, requests, kind, name }) {
   await provider.waitFor();
   await page.screenshot({ path: `${output}/${name}-signin.png`, fullPage: true });
   await provider.click();
-  await page.waitForURL(`${origin}/console/operate/connections`);
+  // The server returns only to Home; the Console then opens the saved page.
+  await page.waitForURL(`${origin}/console/operate/settings`);
   await page.getByText('Fixture Operator').first().waitFor();
   await page.locator('.console-topnav').waitFor();
   assert.equal(await page.locator('[data-console-signed-out]').count(), 0);
