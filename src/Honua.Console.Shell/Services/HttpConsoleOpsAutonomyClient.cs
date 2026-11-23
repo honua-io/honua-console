@@ -52,6 +52,13 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
                 NoProfileMessage);
         }
 
+        return await LoadForEnvironmentAsync(profile, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadForEnvironmentAsync(
+        ConsoleEnvironmentProfile profile,
+        CancellationToken cancellationToken = default)
+    {
         // Policies are the capability probe. Stop on an older server so the existing
         // propose-only findings flow remains untouched and we do not fan out dead reads.
         var policies = await GetAsync(
@@ -102,11 +109,27 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             message: auditMessage);
     }
 
-    public async Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
+    public Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
         string rule,
         string mode,
         string reason,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        SetPolicyModeAsync(rule, mode, reason, null, cancellationToken);
+
+    public Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeForEnvironmentAsync(
+        ConsoleEnvironmentProfile profile,
+        string rule,
+        string mode,
+        string reason,
+        CancellationToken cancellationToken = default) =>
+        SetPolicyModeAsync(rule, mode, reason, profile, cancellationToken);
+
+    private Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
+        string rule,
+        string mode,
+        string reason,
+        ConsoleEnvironmentProfile? profile,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rule);
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
@@ -121,13 +144,13 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             Mode = mode,
             Reason = reason?.Trim() ?? string.Empty
         };
-        return await PutAsync(
-                OpsAutonomyRoutes.Policy(rule),
-                request,
-                OpsAutonomyJsonContext.Default.OpsAutonomyPolicyUpdateRequest,
-                OpsAutonomyJsonContext.Default.OpsAutonomyPolicyResponse,
-                cancellationToken)
-            .ConfigureAwait(false);
+        return PutAsync(
+            OpsAutonomyRoutes.Policy(rule),
+            request,
+            OpsAutonomyJsonContext.Default.OpsAutonomyPolicyUpdateRequest,
+            OpsAutonomyJsonContext.Default.OpsAutonomyPolicyResponse,
+            cancellationToken,
+            profile);
     }
 
     public async Task<OperateSectionResult<OpsAutonomySettingsResponse>> SetKillSwitchAsync(
@@ -192,9 +215,10 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
         TRequest body,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TResponse> responseTypeInfo,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ConsoleEnvironmentProfile? profile = null)
     {
-        var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        profile ??= await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
         {
             return OperateSectionResult<TResponse>.Denied(

@@ -26,6 +26,14 @@ public interface IConsoleProposalsClient
         CancellationToken cancellationToken = default) =>
         ApproveAsync(proposalId, cancellationToken);
 
+    Task<OperateSectionResult<ConsoleProposalDetail>> ApproveForEnvironmentAsync(
+        ConsoleEnvironmentProfile profile,
+        string proposalId,
+        ConsoleProposalReviewedPlan? reviewed,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(
+            OperateSectionStatus.Unavailable, "This proposal client cannot bind to the selected environment."));
+
     Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
         string proposalId,
         string reason,

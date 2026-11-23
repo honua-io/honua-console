@@ -554,20 +554,37 @@
         var proposalId = ProposalId;
         var reviewedPlan = ConsoleProposalReviewedPlan.From(_detail);
         var enteredReason = _reason;
-        Func<Task>? promote = _promoteRuleOnApprove && _detail?.AutonomyRule is { Length: > 0 } rule
-            ? () => PromoteAfterApprovalAsync(rule, proposalId, enteredReason)
-            : null;
+        var rule = _promoteRuleOnApprove ? _detail?.AutonomyRule : null;
+        ConsoleEnvironmentProfile? profile = null;
         await RunActionAsync(
-            () => Proposals.ApproveAsync(proposalId, reviewedPlan),
+            async () =>
+            {
+                if (rule is { Length: > 0 } && Services.GetService<IConsoleEnvironmentProfileStore>() is { } profiles)
+                {
+                    profile = await profiles.GetActiveProfileAsync();
+                    if (profile is null)
+                    {
+                        return OperateSectionResult<ConsoleProposalDetail>.Denied(
+                            OperateSectionStatus.Unavailable, "Connect an environment before approving this proposal.");
+                    }
+                }
+
+                return profile is null
+                    ? await Proposals.ApproveAsync(proposalId, reviewedPlan)
+                    : await Proposals.ApproveForEnvironmentAsync(profile, proposalId, reviewedPlan);
+            },
             feedback: ConsoleProposalDecisionFeedback.ForApproval,
-            afterDecision: promote);
+            afterDecision: rule is { Length: > 0 }
+                ? () => PromoteAfterApprovalAsync(rule, proposalId, enteredReason, profile)
+                : null);
     }
 
-    private async Task PromoteAfterApprovalAsync(string rule, string proposalId, string? enteredReason)
+    private async Task PromoteAfterApprovalAsync(
+        string rule, string proposalId, string? enteredReason, ConsoleEnvironmentProfile? profile)
     {
         if (_autonomyClient is null) return;
 
-        var snapshot = await _autonomyClient.LoadAsync();
+        var snapshot = await LoadPolicySnapshotAsync(_autonomyClient, profile);
         if (!snapshot.IsAllowed || snapshot.Value is not { } policy)
         {
             _policyWriteVersion++;
@@ -591,7 +608,7 @@
         var reason = string.IsNullOrWhiteSpace(enteredReason)
             ? $"Promoted to AutoApply from approval inbox proposal {proposalId}"
             : enteredReason.Trim();
-        await ApplyPolicyModeAsync(rule, "AutoApply", reason);
+        await ApplyPolicyModeAsync(rule, "AutoApply", reason, profile);
     }
 
     private Task RejectAsync()
@@ -627,7 +644,8 @@
         return ApplyPolicyModeAsync(rule, nextMode, reason);
     }
 
-    private async Task ApplyPolicyModeAsync(string rule, string targetMode, string reason)
+    private async Task ApplyPolicyModeAsync(
+        string rule, string targetMode, string reason, ConsoleEnvironmentProfile? profile = null)
     {
         if (_autonomyClient is null || _policyBusy)
         {
@@ -639,7 +657,9 @@
         _policyMessage = null;
         try
         {
-            var result = await _autonomyClient.SetPolicyModeAsync(rule, targetMode, reason);
+            var result = profile is null
+                ? await _autonomyClient.SetPolicyModeAsync(rule, targetMode, reason)
+                : await _autonomyClient.SetPolicyModeForEnvironmentAsync(profile, rule, targetMode, reason);
             if (_disposed) return;
 
             if (result.IsAllowed && result.Value is { } updated)
@@ -648,7 +668,7 @@
                 _loadedPolicyRule = rule;
                 _rulePolicy = updated;
                 _promoteRuleOnApprove = false;
-                var matchingAudit = await TryFindMatchingPolicyAuditAsync(rule, updated.Mode);
+                var matchingAudit = await TryFindMatchingPolicyAuditAsync(rule, updated.Mode, profile);
                 _policyAuditReceipt = PolicyAuditTrailReceipt.FromAutonomyPolicy(updated, previousMode, matchingAudit);
                 _policyMessage = string.Equals(updated.Mode, "AutoApply", StringComparison.Ordinal)
                     ? $"Policy updated: {rule} will automatically apply in the future."
@@ -669,14 +689,15 @@
         }
     }
 
-    private async Task<OpsAutonomyAuditEntry?> TryFindMatchingPolicyAuditAsync(string rule, string mode)
+    private async Task<OpsAutonomyAuditEntry?> TryFindMatchingPolicyAuditAsync(
+        string rule, string mode, ConsoleEnvironmentProfile? profile)
     {
         if (_autonomyClient is null)
         {
             return null;
         }
 
-        var snapshot = await _autonomyClient.LoadAsync();
+        var snapshot = await LoadPolicySnapshotAsync(_autonomyClient, profile);
         if (!snapshot.IsAllowed || snapshot.Value is null)
         {
             return null;
@@ -688,6 +709,10 @@
             && (string.IsNullOrWhiteSpace(entry.PolicyMode)
                 || string.Equals(entry.PolicyMode, mode, StringComparison.Ordinal)));
     }
+
+    private static Task<OperateSectionResult<OpsAutonomySnapshot>> LoadPolicySnapshotAsync(
+        IConsoleOpsAutonomyClient client, ConsoleEnvironmentProfile? profile) =>
+        profile is null ? client.LoadAsync() : client.LoadForEnvironmentAsync(profile);
 
     private async Task<bool> RunActionAsync(
         Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,

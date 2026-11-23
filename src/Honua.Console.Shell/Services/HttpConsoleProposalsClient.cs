@@ -111,6 +111,16 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             return OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
+        return await ApproveForEnvironmentAsync(profile, proposalId, reviewed, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveForEnvironmentAsync(
+        ConsoleEnvironmentProfile profile,
+        string proposalId,
+        ConsoleProposalReviewedPlan? reviewed,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
         var id = proposalId.Trim();
         var review = await SendHumanApprovalAsync(
             profile,
@@ -127,8 +137,9 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             // Servers without the approval-review route answer it with 404. They take the plain
             // approve and apply their own approve-grant and separation-of-duties rules; a server with the
             // route never 404s a live proposal, and rejects a capability-less approve.
-            return await SendDetailAsync(HttpMethod.Post, ProposalAdminRoutes.Approve(id), content: null, cancellationToken)
-                .ConfigureAwait(false);
+            var legacy = await SendAsync(profile, HttpMethod.Post, ProposalAdminRoutes.Approve(id), content: null,
+                ProposalJsonContext.Default.ProposalDetailWire, cancellationToken).ConfigureAwait(false);
+            return ToDetailResult(legacy);
         }
 
         if (!review.IsAllowed)

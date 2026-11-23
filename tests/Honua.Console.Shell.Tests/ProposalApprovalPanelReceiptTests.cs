@@ -314,23 +314,31 @@ public sealed class ProposalApprovalPanelReceiptTests
     }
 
     [Fact]
-    public async Task LeavingReviewDuringApprovalStillAppliesTheRequestedPolicy()
+    public async Task SwitchingEnvironmentDuringApprovalKeepsTheRequestedPolicyOnTheOriginalEnvironment()
     {
         using var context = new BunitContext();
+        var original = new ConsoleEnvironmentProfile { Id = "original", ServerBaseUri = new("https://original.example") };
+        var alternate = new ConsoleEnvironmentProfile { Id = "alternate", ServerBaseUri = new("https://alternate.example") };
+        var profiles = new InMemoryConsoleEnvironmentProfileStore([original, alternate], activeProfileId: original.Id);
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(profiles);
         var (panel, autonomy, policyRead, approval) = RenderRuleBackedProposal(context);
+        var proposals = Assert.IsType<SingleDetailProposalClient>(context.Services.GetRequiredService<IConsoleProposalsClient>());
         await panel.InvokeAsync(() => policyRead.SetResult());
         panel.WaitForAssertion(() => panel.Find("[data-proposal-auto-apply-toggle]"));
         panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
         panel.Find("[data-proposal-reason]").Input("Approved for future runs");
 
         var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
-        panel.WaitForAssertion(() => Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
+        panel.WaitForAssertion(() => Assert.Equal(original, proposals.ApprovalProfile));
+        await panel.InvokeAsync(() => profiles.ActivateProfileAsync(alternate.Id));
         await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
         await panel.InvokeAsync(() => approval.SetResult());
         await approve;
 
         Assert.Equal(("alert-dispatch-backlog", "AutoApply", "Approved for future runs"),
             Assert.Single(autonomy.PolicyUpdates));
+        Assert.Equal(original, Assert.Single(autonomy.PolicyReadProfiles));
+        Assert.Equal(original, Assert.Single(autonomy.PolicyWriteProfiles));
     }
 
     [Theory]
@@ -421,6 +429,8 @@ public sealed class ProposalApprovalPanelReceiptTests
     {
         private ConsoleProposalDetail _current = detail;
 
+        public ConsoleEnvironmentProfile? ApprovalProfile { get; private set; }
+
         public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
             string? status = null, string? kind = null, string? requestedBy = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Allowed([_current.ToSummary()]));
@@ -437,6 +447,14 @@ public sealed class ProposalApprovalPanelReceiptTests
             return OperateSectionResult<ConsoleProposalDetail>.Allowed(_current);
         }
 
+        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveForEnvironmentAsync(
+            ConsoleEnvironmentProfile profile, string proposalId, ConsoleProposalReviewedPlan? reviewed,
+            CancellationToken cancellationToken = default)
+        {
+            ApprovalProfile = profile;
+            return ApproveAsync(proposalId, cancellationToken);
+        }
+
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
             string proposalId, string reason, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, "n/a"));
@@ -451,6 +469,16 @@ public sealed class ProposalApprovalPanelReceiptTests
         public Task PolicyRead { get; set; } = policyRead;
 
         public List<(string Rule, string Mode, string Reason)> PolicyUpdates { get; } = [];
+
+        public List<ConsoleEnvironmentProfile> PolicyReadProfiles { get; } = [];
+        public List<ConsoleEnvironmentProfile> PolicyWriteProfiles { get; } = [];
+
+        public Task<OperateSectionResult<OpsAutonomySnapshot>> LoadForEnvironmentAsync(
+            ConsoleEnvironmentProfile profile, CancellationToken cancellationToken = default)
+        {
+            PolicyReadProfiles.Add(profile);
+            return LoadAsync(cancellationToken);
+        }
 
         public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(CancellationToken cancellationToken = default)
         {
@@ -493,6 +521,14 @@ public sealed class ProposalApprovalPanelReceiptTests
                     AuditEntryHash = "hmac-sha256:deadbeef",
                     AuditChainVerified = true
                 }));
+        }
+
+        public Task<OperateSectionResult<Honua.Console.Contracts.OpsAutonomyPolicyResponse>> SetPolicyModeForEnvironmentAsync(
+            ConsoleEnvironmentProfile profile, string targetRule, string mode, string reason,
+            CancellationToken cancellationToken = default)
+        {
+            PolicyWriteProfiles.Add(profile);
+            return SetPolicyModeAsync(targetRule, mode, reason, cancellationToken);
         }
 
         public Task<OperateSectionResult<Honua.Console.Contracts.OpsAutonomySettingsResponse>> SetKillSwitchAsync(
