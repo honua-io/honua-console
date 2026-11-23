@@ -75,8 +75,7 @@ public sealed class ConsoleApiClient(HttpClient http)
             using var document = JsonDocument.Parse(body);
             return document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("logoutUrl", out var value)
-                && value.ValueKind == JsonValueKind.String
-                && TryProviderAddress(value.GetString(), out var url) ? url : null;
+                && value.ValueKind == JsonValueKind.String ? ProviderAddress(value.GetString()) : null;
         }
         catch (JsonException)
         {
@@ -85,9 +84,9 @@ public sealed class ConsoleApiClient(HttpClient http)
     }
 
     // Absolute, without user info, and HTTPS (or HTTP on loopback for a local identity provider).
-    private static bool TryProviderAddress(string? value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Uri? uri) =>
-        Uri.TryCreate(value, UriKind.Absolute, out uri) && uri.UserInfo.Length == 0
-        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback));
+    private static Uri? ProviderAddress(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.UserInfo.Length == 0
+        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)) ? uri : null;
 
     public async Task<ConsoleSessionCredentials> GetPasswordTokenAsync(string password, CancellationToken cancellationToken = default)
     {
@@ -129,11 +128,7 @@ public sealed class ConsoleApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var value = document?.RootElement.GetProperty("authorizeUrl").GetString();
-        if (!TryProviderAddress(value, out var uri))
-        {
-            throw new JsonException("Invalid identity provider authorization address.");
-        }
-        return uri;
+        return ProviderAddress(value) ?? throw new JsonException("Invalid identity provider authorization address.");
     }
 }
 
