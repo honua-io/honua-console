@@ -285,7 +285,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     {
         var states = new List<OperateCapabilityState>();
         var serviceResult = await HonuaAdminCatalogReader.ReadAllAsync(
-            (query, token) => _client.ListServicesAsync(query with { ConnectionId = scope?.ConnectionId, StorageLayerId = scope?.StorageLayerId }, token),
+            (query, token) => _client.ListServicesAsync(query with { ConnectionId = scope?.ConnectionId }, token),
             page => page.Items,
             page => page.Total,
             cancellationToken).ConfigureAwait(false);
@@ -442,7 +442,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         LayerRead read,
         IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> layerServices)
     {
-        if (read.Scope?.StorageLayerId is null && read.Scope?.ServiceName is null)
+        if (read.Scope?.ServiceName is null)
         {
             return CreateLayerServiceScopes(layerServices);
         }
@@ -450,14 +450,6 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         if (read.Scope?.ServiceName is { } serviceName && read.Services.Count == 0)
         {
             return [string.Equals(serviceName, "default", StringComparison.OrdinalIgnoreCase) ? null : serviceName];
-        }
-
-        // Default publications may be absent from the service registry projection.
-        // Preserve them alongside named services on the already-filtered connection;
-        // the storage-layer filter still limits the returned rows to this resource.
-        if (read.Scope?.StorageLayerId is not null && read.Scope?.ServiceName is null)
-        {
-            return CreateLayerServiceScopes(layerServices);
         }
 
         return layerServices

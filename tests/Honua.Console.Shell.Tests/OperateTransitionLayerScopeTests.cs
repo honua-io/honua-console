@@ -22,10 +22,10 @@ public sealed class OperateTransitionLayerScopeTests
     }
 
     [Fact]
-    public async Task SingleLayerViewSkipsLayerReadsForServicesWithoutLayers()
+    public async Task SingleLayerViewRetainsLegacyPublicationWithoutStorageBinding()
     {
         var handler = new RecordingHandler(Fixtures(
-            $"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7"));
+            $"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}"));
 
         var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
             .GetLayerViewAsync($"{ConnectionId:D}-layer-7");
@@ -37,7 +37,7 @@ public sealed class OperateTransitionLayerScopeTests
     [Fact]
     public async Task SingleResourceViewReadsOnlyItsOwnConnectionLayers()
     {
-        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7");
+        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}");
         fixtures["/api/v1/admin/connections/"] = $$"""
             {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
             """;
@@ -50,6 +50,7 @@ public sealed class OperateTransitionLayerScopeTests
         Assert.Equal($"{ConnectionId:D}-layer-7", resource.ResourceId);
         Assert.DoesNotContain(handler.Requests, path => path.Contains($"{OtherConnectionId:D}/layers", StringComparison.Ordinal));
         AssertOnlyLayerServicesRead(handler);
+        Assert.DoesNotContain(handler.Requests, path => path.Contains("storageLayerId=", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -57,13 +58,13 @@ public sealed class OperateTransitionLayerScopeTests
     [InlineData(true)]
     public async Task ScopedDetailRetainsPublishedLayerWithoutServiceSummary(bool dataset)
     {
-        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7");
-        fixtures[$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7"] = EmptyLayerPage;
+        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}");
+        fixtures[$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}"] = EmptyLayerPage;
         fixtures["/api/v1/admin/connections/"] = $$"""
             {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
             """;
         fixtures[$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = """
-            {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":2}}
+            {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"default"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"default"}],"page":1,"pageSize":100,"total":2}}
             """;
         var handler = new RecordingHandler(fixtures);
         var source = new HonuaServerOperateTransitionDataSource(CreateClient(handler));
@@ -72,13 +73,17 @@ public sealed class OperateTransitionLayerScopeTests
         if (dataset)
         {
             var view = await source.GetResourceViewAsync(resourceId);
-            Assert.Equal(resourceId, Assert.Single(view.ResourceEdits).ResourceId);
+            var resource = Assert.Single(view.ResourceEdits);
+            Assert.Equal(resourceId, resource.ResourceId);
+            Assert.Equal(new[] { "default" }, resource.BlastRadius.Services);
             Assert.Empty(view.CapabilityStates);
         }
         else
         {
             var view = await source.GetLayerViewAsync(resourceId);
-            Assert.Equal(resourceId, Assert.Single(Assert.Single(view.Services).Layers).CanonicalResourceId);
+            var service = Assert.Single(view.Services);
+            Assert.Equal("default", service.Name);
+            Assert.Equal(resourceId, Assert.Single(service.Layers).CanonicalResourceId);
             Assert.Empty(view.CapabilityStates);
         }
 
@@ -91,7 +96,7 @@ public sealed class OperateTransitionLayerScopeTests
     [InlineData(true)]
     public async Task ScopedDetailRetainsDefaultAndNamedPublications(bool dataset)
     {
-        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7");
+        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}");
         fixtures[$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = """
             {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"default"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"default"}],"page":1,"pageSize":100,"total":2}}
             """;
