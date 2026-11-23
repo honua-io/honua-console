@@ -120,7 +120,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
         string resourceId,
         CancellationToken cancellationToken)
     {
-        var view = await _operate.GetLayersViewAsync(cancellationToken).ConfigureAwait(false);
+        var view = await _operate.GetLayerViewAsync(resourceId, cancellationToken).ConfigureAwait(false);
         var exposures = view.FindExposures(resourceId);
         if (exposures.Count > 0)
         {
