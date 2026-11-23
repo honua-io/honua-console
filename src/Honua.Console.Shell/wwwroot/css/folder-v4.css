@@ -104,3 +104,24 @@
     margin: 0;
     color: var(--c-text-2);
 }
+
+/* v4 layers list (mockup 08): type filter beside the search, preview links in one cell. */
+[data-console-v4="true"] .console-layer-preview-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+[data-console-v4="true"] .console-layer-preview-filters .console-input[type="search"] {
+    flex: 0 1 18rem;
+    min-width: 0;
+}
+
+[data-console-v4="true"] .console-layer-preview-links {
+    white-space: nowrap;
+}
+
+[data-console-v4="true"] .console-layer-preview-links a + a {
+    margin-inline-start: var(--space-3);
+}
