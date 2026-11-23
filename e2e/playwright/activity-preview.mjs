@@ -26,6 +26,14 @@ const assertWholeWords = async (page, width) => {
   await page.setViewportSize({ width, height: 844 });
 };
 
+const assertHeadingSizes = async (page, width) => {
+  assert.equal(await page.locator("h1").evaluate(element => getComputedStyle(element).fontSize), width === 390 ? "22px" : "28px");
+  for (const heading of await page.locator("h2").all()) {
+    const expected = await heading.evaluate(element => element.parentElement.classList.contains("console-panel-heading") ? "16px" : "22px");
+    assert.equal(await heading.evaluate(element => getComputedStyle(element).fontSize), expected);
+  }
+};
+
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
   widths: [1440, 1280, 390],
@@ -44,11 +52,7 @@ await runV4PagePresentation({
         feed.getBoundingClientRect().top < document.querySelector("#events").getBoundingClientRect().top));
     }
     const width = page.viewportSize().width;
-    assert.equal(await page.locator("h1").evaluate(element => getComputedStyle(element).fontSize), width === 390 ? "22px" : "28px");
-    for (const heading of await page.locator("h2").all()) {
-      const expected = await heading.evaluate(element => element.parentElement.classList.contains("console-panel-heading") ? "16px" : "22px");
-      assert.equal(await heading.evaluate(element => getComputedStyle(element).fontSize), expected);
-    }
+    await assertHeadingSizes(page, width);
     if (name === "activity-selected") {
       const clipped = await page.locator(".operate-timeline").evaluate(region => {
         const bounds = region.getBoundingClientRect();

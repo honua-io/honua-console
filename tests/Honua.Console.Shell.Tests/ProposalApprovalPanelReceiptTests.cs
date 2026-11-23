@@ -313,6 +313,26 @@ public sealed class ProposalApprovalPanelReceiptTests
         AssertPromotionReceipt(panel, autonomy);
     }
 
+    [Fact]
+    public async Task LeavingReviewDuringApprovalStillAppliesTheRequestedPolicy()
+    {
+        using var context = new BunitContext();
+        var (panel, autonomy, policyRead, approval) = RenderRuleBackedProposal(context);
+        await panel.InvokeAsync(() => policyRead.SetResult());
+        panel.WaitForAssertion(() => panel.Find("[data-proposal-auto-apply-toggle]"));
+        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
+        panel.Find("[data-proposal-reason]").Input("Approved for future runs");
+
+        var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        panel.WaitForAssertion(() => Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
+        await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
+        await panel.InvokeAsync(() => approval.SetResult());
+        await approve;
+
+        Assert.Equal(("alert-dispatch-backlog", "AutoApply", "Approved for future runs"),
+            Assert.Single(autonomy.PolicyUpdates));
+    }
+
     [Theory]
     [InlineData(ConsoleProposalStatus.Submitted)]
     [InlineData(ConsoleProposalStatus.AwaitingApproval)]

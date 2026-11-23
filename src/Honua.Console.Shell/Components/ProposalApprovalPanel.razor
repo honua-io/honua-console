@@ -565,10 +565,9 @@
 
     private async Task PromoteAfterApprovalAsync(string rule, string proposalId, string? enteredReason)
     {
-        if (_autonomyClient is null || !IsCurrentReview(proposalId)) return;
+        if (_autonomyClient is null) return;
 
         var snapshot = await _autonomyClient.LoadAsync();
-        if (!IsCurrentReview(proposalId)) return;
         if (!snapshot.IsAllowed || snapshot.Value is not { } policy)
         {
             _policyWriteVersion++;
@@ -594,8 +593,6 @@
             : enteredReason.Trim();
         await ApplyPolicyModeAsync(rule, "AutoApply", reason);
     }
-
-    private bool IsCurrentReview(string proposalId) => !_disposed && ProposalId == proposalId;
 
     private Task RejectAsync()
     {
