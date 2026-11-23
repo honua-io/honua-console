@@ -41,6 +41,27 @@ public sealed class ConsolePendingReturnTests
         await ConsolePendingReturn.SaveAsync(context.JSInterop.JSRuntime, "/operate/settings", Now);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TakeWithBlockedStorageReturnsNothing(bool removalBlocked)
+    {
+        using var context = new BunitContext();
+        var read = context.JSInterop.Setup<string?>("sessionStorage.getItem", StorageKey);
+        if (removalBlocked)
+        {
+            read.SetResult(Saved(0, "/operate/settings"));
+            context.JSInterop.SetupVoid("sessionStorage.removeItem", StorageKey)
+                .SetException(new Microsoft.JSInterop.JSException("Storage is unavailable."));
+        }
+        else
+        {
+            read.SetException(new Microsoft.JSInterop.JSException("Storage is unavailable."));
+        }
+
+        Assert.Null(await ConsolePendingReturn.TakeAsync(context.JSInterop.JSRuntime, Now));
+    }
+
     [Fact]
     public async Task TakeWithNothingSavedReturnsNothing()
     {

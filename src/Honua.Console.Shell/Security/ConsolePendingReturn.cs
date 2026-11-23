@@ -26,13 +26,22 @@ public static class ConsolePendingReturn
     // Reads and removes the saved page; returns it only while it is fresh and still a safe local route.
     public static async Task<string?> TakeAsync(IJSRuntime js, DateTimeOffset now)
     {
-        var saved = await js.InvokeAsync<string?>("sessionStorage.getItem", StorageKey);
-        if (saved is null)
+        string? saved;
+        try
+        {
+            saved = await js.InvokeAsync<string?>("sessionStorage.getItem", StorageKey);
+            if (saved is null)
+            {
+                return null;
+            }
+
+            await js.InvokeVoidAsync("sessionStorage.removeItem", StorageKey);
+        }
+        catch (JSException)
         {
             return null;
         }
 
-        await js.InvokeVoidAsync("sessionStorage.removeItem", StorageKey);
         var separator = saved.IndexOf('|', StringComparison.Ordinal);
         if (separator <= 0
             || !long.TryParse(saved.AsSpan(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out var savedAt)
