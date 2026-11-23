@@ -123,7 +123,7 @@ public sealed class ConsoleSignInGateTests
     {
         public bool SupportsPasswordSignIn => true;
 
-        public Task SignOutAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<Uri?> SignOutAsync(CancellationToken cancellationToken = default) => Task.FromResult<Uri?>(null);
 
         public Task SignInAsync(string password, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
