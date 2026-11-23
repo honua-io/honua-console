@@ -10,14 +10,61 @@
 }
 
 .console-shell[data-console-v4="true"] .share-opendata-v4 .share-opendata-intro {
-    max-width: 75ch;
+    max-width: 72ch;
     margin-block: var(--space-5) var(--space-6);
     font-size: 14px;
     line-height: 1.65;
 }
 
-.console-shell[data-console-v4="true"] .share-opendata-v4 > [data-share-opendata-routes] {
-    margin-top: var(--space-5);
+.share-opendata-v4 h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.public-item-meta,
+.public-item-routes li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.public-item-meta {
+    flex-wrap: wrap;
+}
+
+.public-item-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--space-5);
+    margin-block: var(--space-5);
+}
+
+.public-item-grid [data-share-opendata-routes],
+.public-item-grid aside > .console-panel + .console-panel {
+    margin-top: var(--space-4);
+}
+
+.public-item-routes,
+.public-item-tags {
+    list-style: none;
+    padding: 0;
+}
+
+.public-item-routes li + li {
+    margin-top: var(--space-3);
+}
+
+.public-item-routes code {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+    .public-item-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .console-shell[data-console-v4="true"] .share-opendata-download-list li {
