@@ -178,10 +178,29 @@ public sealed class ConsolePublicationNavigationSourceTests
         Assert.Contains("partial", read.Message);
     }
 
-    [Theory]
-    [InlineData(1, false)]
-    [InlineData(40, true)]
-    public async Task LayerSearchSendsTheQueryPerConnectionAndMarksAFullPagePartial(int total, bool truncated)
+    [Fact]
+    public async Task LayerSearchSendsTheQueryToEachConnectionAndKeepsConnectionScopedIdentity()
+    {
+        var (read, path, connection) = await SearchFirstLayerPageAsync(total: 1);
+        Assert.True(read.IsAllowed, read.Message);
+        var match = Assert.Single(read.Value!);
+        Assert.Equal(OperateResourceIdentity.ForPublishedLayer(connection, 9), match.Layer.ResourceId);
+        Assert.Equal("signals", match.ServiceName);
+        Assert.False(read.PartialResult);
+        Assert.EndsWith($"/connections/{connection}/layers/?page=1&pageSize=25&q=signal", path);
+    }
+
+    [Fact]
+    public async Task LayerSearchMarksAConnectionWithMoreMatchesThanOnePagePartial()
+    {
+        var (read, _, _) = await SearchFirstLayerPageAsync(total: 40);
+        Assert.True(read.IsAllowed, read.Message);
+        Assert.True(read.PartialResult);
+        Assert.StartsWith("Showing the first 25", read.Message, StringComparison.Ordinal);
+    }
+
+    private static async Task<(OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>> Read, string Path, string Connection)>
+        SearchFirstLayerPageAsync(int total)
     {
         var connection = Guid.NewGuid().ToString("D");
         using var handler = new NavigationHandler(_ => SuccessfulEnvelope(new
@@ -194,13 +213,7 @@ public sealed class ConsolePublicationNavigationSourceTests
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
         var read = await new ServerConsolePublicationNavigationSource(client).SearchLayersAsync("signal", [connection], CancellationToken.None);
-        Assert.True(read.IsAllowed, read.Message);
-        var match = Assert.Single(read.Value!);
-        Assert.Equal(OperateResourceIdentity.ForPublishedLayer(connection, 9), match.Layer.ResourceId);
-        Assert.Equal("signals", match.ServiceName);
-        Assert.Equal(truncated, read.PartialResult);
-        Assert.Equal(truncated, read.Message.StartsWith("Showing the first 25", StringComparison.Ordinal));
-        Assert.EndsWith($"/connections/{connection}/layers/?page=1&pageSize=25&q=signal", Assert.Single(handler.Paths));
+        return (read, Assert.Single(handler.Paths), connection);
     }
 
     [Fact]
