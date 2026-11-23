@@ -94,6 +94,7 @@ public sealed class ConsolePublicationTree
                 Key = "folder:" + Uri.EscapeDataString(folder.Metadata.Id),
                 Label = ConsoleFolderCatalog.Label(folder),
                 ShortLabel = string.IsNullOrWhiteSpace(folder.Metadata.Title) ? null : folder.Metadata.Title,
+                PublicName = folder.Metadata.Name,
                 Href = FolderHref(folder.Metadata.Id),
                 Kind = ConsolePublicationNodeKind.Folder,
                 ChildrenLoaded = true
@@ -255,6 +256,13 @@ public sealed class ConsolePublicationTree
             if (path is not null) return path.Prepend(node);
         }
         return null;
+    }
+
+    // Reveals the location only when it is a match, so revealing never clears a typed search.
+    public void RevealMatchingPath(string path)
+    {
+        var target = Descendants(Root).FirstOrDefault(node => node.Href == path);
+        if (target is null || IsMatch(target)) RevealPath(path);
     }
 
     public void RevealPath(string path)

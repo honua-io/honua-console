@@ -3,6 +3,7 @@ using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 using static Honua.Console.IntegrationTests.ConsolePublicationRenderFixture;
@@ -158,6 +159,43 @@ public sealed class ConsolePublicationScaleV4Tests
         tree.WaitForAssertion(() => Assert.Equal("Layers (1)", tree.Find("#console-search-layers").TextContent.Trim()));
         Assert.Equal(["signal"], source.LayerQueries);
     }
+
+    [Fact]
+    public void V4LateLayerResultsForAnOlderSearchAreDropped()
+    {
+        var source = new PublicationNavigationSource { ServiceSummaries = FolderedServices(), HoldLayerSearches = true };
+        using var context = V4Context(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(41, tree.FindAll("[role='treeitem']").Count));
+        tree.Find("[data-tree-filter]").Input("sig");
+        tree.WaitForAssertion(() => Assert.Single(source.HeldLayerSearches));
+        tree.Find("[data-tree-filter]").Input("signal");
+        tree.WaitForAssertion(() => Assert.Equal(2, source.HeldLayerSearches.Count));
+        source.HeldLayerSearches[1].SetResult(LayerMatches("signal-controllers"));
+        tree.WaitForAssertion(() => Assert.Equal("Layers (1)", tree.Find("#console-search-layers").TextContent.Trim()));
+        source.HeldLayerSearches[0].SetResult(LayerMatches("sig-alpha", "sig-beta"));
+        tree.Render();
+        Assert.Equal("Layers (1)", tree.Find("#console-search-layers").TextContent.Trim());
+        Assert.DoesNotContain("sig-alpha", tree.Markup);
+    }
+
+    [Fact]
+    public void LegacyFilterKeepsTheOpenServiceVisible()
+    {
+        var source = new PublicationNavigationSource();
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = false });
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/services/service-080/settings");
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.NotEmpty(tree.FindAll("[role='treeitem']")));
+        tree.Find("input").Input("service");
+        tree.WaitForAssertion(() => Assert.Equal("service:service-080",
+            tree.Find("[aria-selected='true']").GetAttribute("data-publication-key")));
+    }
+
+    private static OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>> LayerMatches(params string[] names) =>
+        OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>.Allowed(
+            names.Select((name, index) => new ConsolePublicationLayerMatch(new($"connection-one-layer-{index}", name, "Point"), "signals-00")).ToArray());
 
     internal static BunitContext V4Context(PublicationNavigationSource source)
     {

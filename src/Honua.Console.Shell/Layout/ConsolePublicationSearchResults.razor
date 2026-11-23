@@ -18,7 +18,7 @@
                 {
                     var folder = folders[index];
                     <ConsoleSearchResultRow @key="folder.Key" Key="@folder.Key" Href="@(folder.Href!)" Icon="folder" Label="@View.Label(folder)"
-                                            Path="Folder" Position="index + 1" SetSize="folders.Count" />
+                                            Path="@FolderPath(folder)" Position="index + 1" SetSize="folders.Count" />
                 }
             </ul>
             @if (FolderMatchCount > folders.Count)
@@ -105,6 +105,9 @@
         .OrderBy(node => node.Label, StringComparer.OrdinalIgnoreCase)
         .Take(View.Tree.SearchLimit).ToArray();
 
+
+    private string FolderPath(ConsolePublicationNode folder) =>
+        folder.PublicName is { } name && name != View.Label(folder) ? $"Folder · {name}" : "Folder";
 
     private string ServicePath(ConsolePublicationNode service)
     {

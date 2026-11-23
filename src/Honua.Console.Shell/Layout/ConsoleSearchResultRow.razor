@@ -7,7 +7,7 @@
         <ConsoleTreeIcon Name="@Icon" />
         <a href="@Navigation.ToConsoleHref(Href)" tabindex="-1" data-tree-link @onclick="OpenAsync">
             <ConsoleSearchHighlight Text="@Label" Query="@View.Tree.Filter" />
-            <span class="console-search-path">@Path</span>
+            <span class="console-search-path"><ConsoleSearchHighlight Text="@Path" Query="@View.Tree.Filter" /></span>
         </a>
     </div>
 </li>

@@ -11,33 +11,39 @@
         }
         <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
         <section id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
-            @if (V4Enabled)
-            {
-                <div class="console-tree-toolbar console-tree-search">
+            <div class="@(V4Enabled ? "console-tree-toolbar console-tree-search" : "console-tree-toolbar")">
+                @if (V4Enabled)
+                {
                     <ConsoleTreeIcon Name="search" />
                     <label class="console-visually-hidden" for="console-tree-filter">Search @_environmentLabel</label>
-                    <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter" autocomplete="off"
-                           aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : "console-tree-scope")"
-                           placeholder="Search in @(_environmentLabel)…" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
-                    <p id="console-tree-scope" class="console-tree-scope">Scope: @_environmentLabel</p>
-                    <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                </div>
-            }
-            else
-            {
-                <div class="console-tree-toolbar">
+                }
+                else
+                {
                     <label for="console-tree-filter">Filter services</label>
-                    <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                           aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : null)"
-                           @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
-                    @if (Source is not UnsupportedConsolePublicationNavigationSource)
+                }
+                <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter" autocomplete="@(V4Enabled ? "off" : null)"
+                       aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : V4Enabled ? "console-tree-scope" : null)"
+                       placeholder="@(V4Enabled ? $"Search in {_environmentLabel}…" : null)" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
+                @if (V4Enabled)
+                {
+                    <p id="console-tree-scope" class="console-tree-scope">Scope: @_environmentLabel</p>
+                }
+                else if (Source is not UnsupportedConsolePublicationNavigationSource)
+                {
+                    <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
+                    <a href="@Navigation.ToConsoleHref("/operate/services#folders")">Manage Folders</a>
+                }
+                <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation" title="@(V4Enabled ? "Close" : null)">
+                    @if (V4Enabled)
                     {
-                        <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
-                        <a href="@Navigation.ToConsoleHref("/operate/services#folders")">Manage Folders</a>
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
                     }
-                    <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
-                </div>
-            }
+                    else
+                    {
+                        <text>Close</text>
+                    }
+                </button>
+            </div>
             <div class="console-tree-catalog">
                 @if (FilterTooLong)
                 {
@@ -262,11 +268,11 @@
         {
             if (!string.IsNullOrWhiteSpace(attempt.Query.NameQuery))
                 _tree.SetFilter(attempt.Query.NameQuery);
-            RevealCurrentLocationUnlessSearching();
+            RevealCurrentLocationIfMatching();
         }
         _loading = false;
         await InvokeAsync(StateHasChanged);
-        if (outcome == CatalogOutcome.Applied && attempt.Apply == CatalogApply.Replace)
+        if (outcome == CatalogOutcome.Applied && (attempt.Apply == CatalogApply.Replace || attempt.Query.NameQuery is null))
             await CompleteV4CatalogAsync(attempt.Query.NameQuery, attempt.FilterRevision);
     }
 
@@ -383,7 +389,7 @@
         if (outcome == CatalogOutcome.Applied)
         {
             _tree.SetFilter(filter);
-            RevealCurrentLocationUnlessSearching();
+            RevealCurrentLocationIfMatching();
         }
         await InvokeAsync(StateHasChanged);
         if (outcome == CatalogOutcome.Applied) await CompleteV4CatalogAsync(nameQuery, filterRevision);

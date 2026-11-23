@@ -7,32 +7,27 @@
     <AuthorizeView>
         <Authorized Context="account">
             @{ var identity = account.User.Identity?.Name ?? account.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Signed in"; }
-            @if (V4Enabled)
-            {
-                <details class="console-account-menu" open="@(_error is not null)">
-                    <summary class="console-account-avatar" aria-label="Account: @identity" title="@identity">@Initials(identity)</summary>
-                    <div class="console-account-items" role="group" aria-label="Account">
-                        <span class="console-account-identity" title="@identity">@identity</span>
-                        <button type="button" class="console-button console-button-secondary" data-console-signout disabled="@_signingOut"
-                                @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
-                        @if (_error is not null)
-                        {
-                            <span role="alert">@_error</span>
-                        }
-                    </div>
-                </details>
-            }
-            else
-            {
-                <div class="console-account-control">
+            @{
+                RenderFragment actions = @<text>
                     <span class="console-account-identity" title="@identity">@identity</span>
-                    <button type="button" class="console-button" data-console-signout disabled="@_signingOut"
+                    <button type="button" class="@(V4Enabled ? "console-button console-button-secondary" : "console-button")" data-console-signout disabled="@_signingOut"
                             @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
                     @if (_error is not null)
                     {
                         <span role="alert">@_error</span>
                     }
-                </div>
+                </text>;
+            }
+            @if (V4Enabled)
+            {
+                <details class="console-account-menu" data-navigation-menu="Account" open="@(_error is not null)">
+                    <summary class="console-account-avatar" aria-label="Account: @identity" title="@identity">@Initials(identity)</summary>
+                    <div class="console-account-items" role="group" aria-label="Account">@actions</div>
+                </details>
+            }
+            else
+            {
+                <div class="console-account-control">@actions</div>
             }
         </Authorized>
         <NotAuthorized>
