@@ -147,16 +147,12 @@ internal static class StudioReadBff
             else
             {
                 if (property.Name == "serviceId" && IsIdentifier(property.Value)) { continue; }
-                if (property.Name == "layerId" && property.Value.ValueKind == JsonValueKind.Number
-                    && property.Value.TryGetInt32(out var layerId) && layerId >= 0) { continue; }
                 if (property.Name == "serviceLayerIndex" && property.Value.ValueKind == JsonValueKind.Number
-                    && property.Value.TryGetInt32(out var index) && index >= 0
-                    && args.TryGetProperty("layerId", out var layer) && layer.ValueKind == JsonValueKind.Number
-                    && layer.TryGetInt32(out var expectedIndex) && index == expectedIndex) { continue; }
+                    && property.Value.TryGetInt32(out var index) && index >= 0) { continue; }
                 return false;
             }
         }
-        return tool != "honua_describe_layer" || (args.TryGetProperty("serviceId", out _) && args.TryGetProperty("layerId", out _));
+        return tool != "honua_describe_layer" || (args.TryGetProperty("serviceId", out _) && args.TryGetProperty("serviceLayerIndex", out _));
     }
 
     private static bool IsIdentifier(JsonElement value) => value.ValueKind == JsonValueKind.String

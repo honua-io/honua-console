@@ -36,7 +36,7 @@ public sealed class StudioReadBffTests
     [InlineData("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}")]
     [InlineData("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"honua_list_layers\",\"arguments\":{\"offset\":0,\"limit\":100}}}")]
     [InlineData("{\"method\":\"tools/call\",\"params\":{\"name\":\"honua_get_style\",\"arguments\":{\"styleId\":\"style\",\"includeStylesheet\":true,\"encoding\":\"mapbox-style\"}}}")]
-    [InlineData("{\"method\":\"tools/call\",\"params\":{\"name\":\"honua_describe_layer\",\"arguments\":{\"serviceId\":\"folder/service\",\"layerId\":0}}}")]
+    [InlineData("{\"method\":\"tools/call\",\"params\":{\"name\":\"honua_describe_layer\",\"arguments\":{\"serviceId\":\"folder/service\",\"serviceLayerIndex\":0}}}")]
     public void CatalogTransport_OnlyAcceptsBoundedReadHandshake(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -60,16 +60,17 @@ public sealed class StudioReadBffTests
     }
 
     [Theory]
-    [InlineData("0", "0", true)]
-    [InlineData("12", "12", true)]
-    [InlineData("0", "1", false)]
-    [InlineData("1", "-1", false)]
-    [InlineData("0", "\"0\"", false)]
-    [InlineData("0", "null", false)]
-    [InlineData("0", "2147483648", false)]
-    public void CatalogDescriptorAcceptsOnlyTheMatchingServiceLocalIndex(string layerId, string index, bool accepted)
+    [InlineData("\"serviceLayerIndex\":0", true)]
+    [InlineData("\"serviceLayerIndex\":12", true)]
+    [InlineData("\"serviceLayerIndex\":-1", false)]
+    [InlineData("\"serviceLayerIndex\":\"0\"", false)]
+    [InlineData("\"serviceLayerIndex\":null", false)]
+    [InlineData("\"serviceLayerIndex\":2147483648", false)]
+    [InlineData("\"layerId\":0", false)]
+    [InlineData("\"layerId\":0,\"serviceLayerIndex\":0", false)]
+    public void CatalogDescriptorAcceptsOnlyTheServerSchema(string locator, bool accepted)
     {
-        using var json = JsonDocument.Parse("{\"method\":\"tools/call\",\"params\":{\"name\":\"honua_describe_layer\",\"arguments\":{\"serviceId\":\"published\",\"layerId\":" + layerId + ",\"serviceLayerIndex\":" + index + "}}}");
+        using var json = JsonDocument.Parse("{\"method\":\"tools/call\",\"params\":{\"name\":\"honua_describe_layer\",\"arguments\":{\"serviceId\":\"published\"," + locator + "}}}");
         Assert.Equal(accepted, StudioReadBff.IsCatalogRead(json.RootElement));
     }
 
