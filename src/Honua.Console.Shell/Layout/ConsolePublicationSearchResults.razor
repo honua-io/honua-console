@@ -80,9 +80,10 @@
             <p class="console-search-empty" role="status">@View.LayerSearch.Message</p>
         }
     </section>
-    <p class="console-search-summary" role="status">
-        @(folders.Count + services.Count + layers.Count) matches in @View.Tree.Root.Label · ↑↓ move · Enter open · Esc back to tree
-    </p>
+    @if (!View.SearchPending)
+    {
+        <p class="console-search-summary" role="status">@(folders.Count + services.Count + layers.Count) matches in @View.Tree.Root.Label · ↑↓ move · Enter open · Esc back to tree</p>
+    }
 </div>
 
 @code {

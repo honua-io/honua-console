@@ -149,8 +149,10 @@ public sealed class ConsolePublicationScaleV4Tests
         Enumerable.Range(0, 39).Select(index => $"folder-{index:D2}").Append("signals")
             .SelectMany(folder => Enumerable.Range(0, 13).Select(index => new Honua.Sdk.Admin.Models.ServiceSummary
             {
-                FolderId = folder, FolderName = folder == "signals" ? "Signals" : folder,
-                ServiceName = $"{folder}-{index:D2}", LayerCount = 4
+                FolderId = folder,
+                FolderName = folder == "signals" ? "Signals" : folder,
+                ServiceName = $"{folder}-{index:D2}",
+                LayerCount = 4
             })).ToArray();
 
     private static void Capture((string Tree, string Header) markup, ConsolePresentationMode presentation, string state)
