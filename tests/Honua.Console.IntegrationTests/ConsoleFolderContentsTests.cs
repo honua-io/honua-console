@@ -85,6 +85,23 @@ public sealed class ConsoleFolderContentsTests
     }
 
     [Fact]
+    public void IgnoredFolderFilterFoundOnALaterPageWithdrawsTheFolderCounts()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { TransportServices = 30, OtherServicesAfterTransport = 5, IgnoreFolder = true });
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        Assert.Single(page.FindAll("[data-folder-count]"));
+        page.Find("[aria-label='Next page']").Click();
+        page.WaitForAssertion(() => Assert.Contains("does not filter services by Folder", page.Find("[role='note']").TextContent));
+        Assert.Empty(page.FindAll("[data-folder-count]"));
+        page.Find("[aria-label='Previous page']").Click();
+        page.WaitForAssertion(() => Assert.Equal(25, page.FindAll("tbody tr").Count));
+        Assert.Empty(page.FindAll("[data-folder-count]"));
+        Assert.Single(page.FindAll("[role='note']"));
+    }
+
+    [Fact]
     public void PartialOrMismatchedPageIsMarkedIncomplete()
     {
         using var context = new BunitContext();
@@ -235,10 +252,12 @@ public sealed class ConsoleFolderContentsTests
         public bool IgnoreFolder { get; init; }
         public bool MismatchedSecondPage { get; init; }
         public int? TransportServices { get; init; }
+        public int OtherServicesAfterTransport { get; init; }
         public TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>> HeldRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private ServiceSummary[] Catalog => TransportServices is { } count
-            ? Enumerable.Range(0, count).Select(index => new ServiceSummary { ServiceName = $"route-{index:D2}", FolderId = "transport", LayerCount = 1 }).ToArray()
+            ? Enumerable.Range(0, count).Select(index => new ServiceSummary { ServiceName = $"route-{index:D2}", FolderId = "transport", LayerCount = 1 })
+                .Concat(Enumerable.Range(0, OtherServicesAfterTransport).Select(index => new ServiceSummary { ServiceName = $"zone-{index:D2}", FolderId = "other", LayerCount = 1 })).ToArray()
             : [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3, EnabledProtocols = ["wms", "wfs"] },
                new() { ServiceName = "other-service", FolderId = "other", LayerCount = 90 },
                new() { ServiceName = "bridges", FolderId = "transport", LayerCount = 4 }];

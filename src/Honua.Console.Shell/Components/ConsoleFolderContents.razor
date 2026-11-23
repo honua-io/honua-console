@@ -115,6 +115,7 @@ else
         _loading = true;
         _rows = [];
         _totals = null;
+        _serverIgnoresFolder = false;
         _query = HonuaAdminCatalogQuery.First with { PageSize = FolderPageSize, FolderId = FolderId };
         var client = Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
         _folders = await ConsoleReadBudget.RunAsync(client.ReadAsync, LoadBudget, "The Folder catalog did not respond in time.", _lifetime.Token);
@@ -151,7 +152,11 @@ else
     {
         var items = page.Items ?? [];
         _rows = items.Where(service => service.FolderId == FolderId).ToArray();
-        _serverIgnoresFolder = _rows.Count < items.Length;
+        if (_rows.Count < items.Length)
+        {
+            _serverIgnoresFolder = true;
+            _totals = null;
+        }
         _partialPage = partial || page.Page != _query.Page;
         if (_query.NameQuery is null && !_serverIgnoresFolder) _totals = new(page.Total, page.LayerTotal);
     }

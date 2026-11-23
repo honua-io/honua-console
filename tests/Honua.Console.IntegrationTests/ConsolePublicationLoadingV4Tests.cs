@@ -85,6 +85,28 @@ public sealed class ConsolePublicationLoadingV4Tests
         Assert.Equal(6, source.ServiceReads);
     }
 
+    [Fact]
+    public async Task ANewKeystrokeDoesNotCancelTheSharedConnectionLookup()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = FolderedServices(),
+            LayerMatches = [new(new("connection-one-layer-9", "signal-controllers", "Point"), "signals-00")],
+            HeldConnections = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        using var context = V4Context(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(41, tree.FindAll("[role='treeitem']").Count));
+        tree.Find("[data-tree-filter]").Input("sig");
+        tree.WaitForAssertion(() => Assert.Equal(1, source.ConnectionReads));
+        tree.Find("[data-tree-filter]").Input("signal");
+        await tree.InvokeAsync(() => source.HeldConnections!.SetResult(
+            OperateSectionResult<IReadOnlyList<string>>.Allowed(source.ConnectionKeys)));
+        tree.WaitForAssertion(() => Assert.Equal("Layers (1)", tree.Find("#console-search-layers").TextContent.Trim()));
+        Assert.Equal(1, source.ConnectionReads);
+        Assert.Equal(["signal"], source.LayerQueries);
+    }
+
     [Theory]
     [InlineData(ConsolePresentationMode.V4, 1)]
     [InlineData(ConsolePresentationMode.Legacy, 0)]

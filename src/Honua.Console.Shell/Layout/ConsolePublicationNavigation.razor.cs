@@ -44,7 +44,7 @@ public partial class ConsolePublicationNavigation
         var revision = _authorityRevision;
         var token = _searchLifetime.Token;
         bool Stale() => _disposed || revision != _authorityRevision || searchRevision != _searchRevision;
-        var connections = await ConnectionsAsync(token);
+        var connections = await ConnectionsAsync(_authorityLifetime.Token);
         if (Stale()) return;
         if (!connections.IsAllowed) _connectionsRead = null;
         var search = connections.IsAllowed
