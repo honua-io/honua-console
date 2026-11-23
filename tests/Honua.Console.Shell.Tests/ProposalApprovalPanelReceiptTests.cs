@@ -151,13 +151,15 @@ public sealed class ProposalApprovalPanelReceiptTests
         context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
         context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var page = context.Render<ApprovalInboxPage>(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/inbox?proposalId=proposal-1");
+        var page = context.Render<ApprovalInboxPage>();
         var approval = page.Find("[data-proposal-approve]").ClickAsync(new());
         page.WaitForAssertion(() => Assert.True(client.Started));
         page.FindAll("button").Single(button => button.TextContent == "Close review").Click();
-        page.Render(parameters => parameters.Add(p => p.ProposalId, (string?)null));
-        page.Render(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
-        page.Find("[data-proposal-approve]");
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox"));
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=proposal-1"));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-proposal-approve]")));
 
         var completed = await new ReceiptProposalClient(ConsoleProposalStatus.Succeeded).GetAsync("proposal-1");
         client.NextRead = Task.FromResult(completed);
