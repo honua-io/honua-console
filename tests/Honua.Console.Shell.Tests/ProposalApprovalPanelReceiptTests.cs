@@ -326,18 +326,19 @@ public sealed class ProposalApprovalPanelReceiptTests
             Assert.NotNull(panel.Find("[data-proposal-auto-apply-toggle]"));
         });
 
+        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
         var policyRefresh = new TaskCompletionSource();
         autonomy.PolicyRead = policyRefresh.Task;
         panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
         panel.WaitForAssertion(() =>
         {
             Assert.True(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled"));
-            Assert.Empty(panel.FindAll("[data-proposal-auto-apply-toggle]"));
+            Assert.True(panel.Find("[data-proposal-auto-apply-toggle]").HasAttribute("checked"));
+            Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
         });
         await panel.InvokeAsync(() => policyRefresh.SetResult());
-        panel.WaitForAssertion(() => Assert.False(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled")));
+        panel.WaitForAssertion(() => Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
 
-        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
         panel.Find("[data-proposal-approve]").Click();
 
         panel.WaitForAssertion(() =>
