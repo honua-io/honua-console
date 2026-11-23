@@ -18,10 +18,11 @@ also accepts immutable `console_image` and `server_image` GHCR references. Both 
 required when replaying a published Console. The runtime receipt checks the actual
 container image IDs, observed repository digests and source labels, plus `/version.json`.
 Setting `HONUA_CONSOLE_E2E_CONSOLE_IMAGE` disables the Playwright source web server.
-Every CI run requires a `ghcr.io/honua-io/honua-server@sha256:...` input or an immutable
-digest in `HONUA_CONSOLE_PR_SERVER_IMAGE` or `HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE`.
-Without an override, the workflow uses the reviewed `nightly-a5e593b` server digest pinned in
-the workflow. Floating tags fail before the testbed starts. Local source-image diagnostics
+Pull requests and the nightly run against the honua-server digest pinned for the release in
+honua-release `platform-manifest.yaml` (`scripts/resolve-live-server-image.mjs`). Only a manual
+`server_image` input (an immutable `ghcr.io/honua-io/honua-server@sha256:...`) replaces it; no
+repository variable does, so CI cannot drift away from the release server. Floating tags fail
+before the testbed starts. Local source-image diagnostics
 must set `HONUA_CONSOLE_E2E_SERVER_IMAGE` explicitly and are not release qualification.
 
 The testbed uses the unlicensed 2026.1 server posture (`Licensing:Mode=Disabled`),

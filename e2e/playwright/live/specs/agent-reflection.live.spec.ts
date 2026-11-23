@@ -27,6 +27,28 @@ function required(name: string): string {
   return value;
 }
 
+// The managed services are the serving server and its database, so the recovery scenario stops the
+// database on purpose. From that stop until recovery is confirmed, server errors, the browser's
+// failed-load messages and network churn from the restart are the expected outage; every other failure counts.
+function recordFailures(page: Page, origins: Set<string>, journal: { errors: string[]; outage: boolean }) {
+  const { errors } = journal;
+  page.on('pageerror', error => errors.push(`pageerror: ${error.name}`));
+  page.on('console', message => {
+    if (message.type() === 'error' && !journal.outage) errors.push(`console error at ${message.location().url.split('?')[0]}`);
+  });
+  page.on('response', response => {
+    const url = new URL(response.url());
+    if (origins.has(url.origin) && response.status() >= 400 && !(journal.outage && response.status() >= 500))
+      errors.push(`${response.status()} ${response.request().method()} ${url.origin}${url.pathname}`);
+  });
+  page.on('requestfailed', request => {
+    const reason = request.failure()?.errorText;
+    if (reason === 'net::ERR_ABORTED' || (journal.outage && reason === 'net::ERR_NETWORK_CHANGED')) return;
+    const url = new URL(request.url());
+    if (origins.has(url.origin)) errors.push(`request failed ${url.origin}${url.pathname}: ${reason}`);
+  });
+}
+
 test('Console reflects agent changes in the customer quickstart', async ({ page }, info) => {
   const consoleUrl = required('HONUA_REFLECTION_CONSOLE_URL');
   const managerUrl = required('HONUA_REFLECTION_MANAGER_URL');
@@ -47,20 +69,10 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
   const failures: string[] = [];
   const failureDetails: Array<{ stage: string; message: string }> = [];
   const origins = new Set([consoleUrl, managerUrl, serverUrl].map(value => new URL(value).origin));
-  page.on('pageerror', error => errors.push(`pageerror: ${error.name}`));
-  page.on('console', message => {
-    if (message.type() === 'error') errors.push(`console error at ${message.location().url.split('?')[0]}`);
-  });
-  page.on('response', response => {
-    const url = new URL(response.url());
-    if (origins.has(url.origin) && response.status() >= 400)
-      errors.push(`${response.status()} ${response.request().method()} ${url.origin}${url.pathname}`);
-  });
-  page.on('requestfailed', request => {
-    if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
-    const url = new URL(request.url());
-    if (origins.has(url.origin)) errors.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
-  });
+  // The recovery scenario stops the serving server's database on purpose (see recordFailures).
+  const recoveryService = 'postgres';
+  const journal = { errors, outage: false };
+  recordFailures(page, origins, journal);
   const check = async (stage: string, action: () => Promise<void>) => {
     try { await action(); completed.push(stage); }
     catch (error) {
@@ -81,8 +93,10 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     let proposalId = '';
     await exerciseAgentRecovery({
       managerUrl, proposerKey: managerProposer, approverKey: managerApprover, approve,
-      stopRedis: async () => {
-        const args = ['docker', 'compose', '--project-directory', composeDir, 'stop', 'redis'];
+      service: recoveryService,
+      stopService: async () => {
+        journal.outage = true;
+        const args = ['docker', 'compose', '--project-directory', composeDir, 'stop', recoveryService];
         if (sshHost) execFileSync('ssh', [sshHost, ...args], { stdio: 'ignore', timeout: 60_000 });
         else execFileSync(args[0], args.slice(1), { stdio: 'ignore', timeout: 60_000 });
       },
@@ -97,9 +111,9 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         });
         if (stage === 'finding') await check('agent-degradation-finding', async () => {
           await go('/operate/health');
-          const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
-          await expect(redis).toContainText(/unhealthy/i, { timeout: 45_000 });
-          await scrollForMilestone(redis);
+          const managed = page.locator(`[data-managed-target="compose-local"] [data-managed-service="${recoveryService}"]`);
+          await expect(managed).toContainText(/unhealthy/i, { timeout: 45_000 });
+          await scrollForMilestone(managed);
           await captureMilestone(page, info, '02-health-degraded');
           await go('/operate/copilot');
           await expect(page.locator('body')).toContainText('managed-compose-service-unhealthy', { timeout: 45_000 });
@@ -132,14 +146,16 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
           await scrollForMilestone(panel.locator('[data-proposal-status]'));
           await captureMilestone(page, info, '05-restart-completed');
           await go('/operate/health');
-          const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
-          await expect(redis).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
-          await expect(redis).not.toContainText(/unhealthy/i);
-          await scrollForMilestone(redis);
+          const managed = page.locator(`[data-managed-target="compose-local"] [data-managed-service="${recoveryService}"]`);
+          await expect(managed).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
+          await expect(managed).not.toContainText(/unhealthy/i);
+          journal.outage = false;
+          await scrollForMilestone(managed);
           await captureMilestone(page, info, '06-health-recovered');
         });
       },
     });
+    journal.outage = false;
     const suffix = randomBytes(5).toString('hex');
     const fixture = new URL('../fixtures/', import.meta.url);
     const fields = { name: 'esriFieldTypeString', population: 'esriFieldTypeBigInteger', rating: 'esriFieldTypeDouble' };

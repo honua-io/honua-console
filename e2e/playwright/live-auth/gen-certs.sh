@@ -14,6 +14,6 @@ cd "$(dirname "$0")/certs"
 MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -sha256 -days 30 -nodes \
   -keyout kc.key -out kc.crt \
   -subj "/CN=host.docker.internal" \
-  -addext "subjectAltName=DNS:host.docker.internal,DNS:localhost,DNS:honua,IP:127.0.0.1"
+  -addext "subjectAltName=DNS:host.docker.internal,DNS:localhost,DNS:honua,DNS:compose-manager,IP:127.0.0.1"
 
 openssl x509 -in kc.crt -noout -subject -ext subjectAltName

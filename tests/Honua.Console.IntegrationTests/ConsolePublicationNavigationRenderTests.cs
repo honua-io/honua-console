@@ -186,8 +186,11 @@ public sealed class ConsolePublicationNavigationRenderTests
         navigation.NavigateTo("/operate/services/roads/settings");
         var layout = RenderLayerLayout(context);
         layout.WaitForAssertion(() => Assert.Equal("Public", layout.Find("nav[aria-label='Breadcrumb'] a[href='/operate/folders/public']").TextContent));
-        Assert.Equal(["Home", "Public", "Roads"], layout.FindAll("nav[aria-label='Breadcrumb'] ol > li")
+        Assert.Equal(["Services", "Public", "Roads"], layout.FindAll("nav[aria-label='Breadcrumb'] ol > li")
             .Select(item => item.QuerySelector("summary")?.TextContent ?? item.TextContent.Trim()));
+        Assert.Equal(["globe", "folder", "service"], layout.FindAll("nav[aria-label='Breadcrumb'] .console-tree-icon")
+            .Select(icon => icon.GetAttribute("data-icon")));
+        Assert.Equal("/", layout.Find("[data-crumb-environment]").GetAttribute("href"));
         navigation.NavigateTo("/operate/folders/public");
         layout.WaitForAssertion(() => Assert.Equal("Public", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent));
         Assert.Equal(2, layout.FindAll("nav[aria-label='Breadcrumb'] ol > li").Count);

@@ -53,7 +53,8 @@ export async function approveRecordedProposal(request) {
 }
 
 /** Call the manager's actual MCP tools and let the customer-facing test observe each state. */
-export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverKey, stopRedis, observe, approve }) {
+export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverKey, service, stopService, observe, approve }) {
+  if (!service) throw new Error('A managed Compose service to stop is required');
   if (!proposerKey || !approverKey || proposerKey === approverKey) throw new Error('Separate proposer and approver credentials are required');
   if (typeof approve !== 'function') throw new Error('A Console approval is required');
   const mcp = new AgentMcpClient(managerUrl, proposerKey);
@@ -67,13 +68,13 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   if (readback?.observedImageId !== target.observedImageId || readback?.serverVersion !== target.serverVersion ||
       readback?.observationStatus !== 'observed') throw new Error('MCP release status differs from manager API readback');
   await observe('revision', target);
-  await stopRedis();
+  await stopService();
   const findingResult = await poll(() => mcp.call('honua_ops_findings', { rule: 'managed-compose-service-unhealthy' }),
-    result => result.findings?.some(item => item.subject?.workloadId === 'redis'));
-  const finding = findingResult.findings.find(item => item.subject?.workloadId === 'redis');
+    result => result.findings?.some(item => item.subject?.workloadId === service));
+  const finding = findingResult.findings.find(item => item.subject?.workloadId === service);
   const unhealthy = await poll(() => api(managerUrl, approverKey, '/api/v1/admin/observability/ops-health'), value =>
-    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(service =>
-      service.name === 'redis' && service.status?.toLowerCase() === 'unhealthy')));
+    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(entry =>
+      entry.name === service && entry.status?.toLowerCase() === 'unhealthy')));
   await observe('finding', { finding, health: unhealthy });
   const proposed = await mcp.call('honua_propose_finding', { findingId: finding.id, candidateId: 'compose-local' });
   if (!proposed.proposalId) throw new Error('MCP did not create a restart proposal');
@@ -85,12 +86,19 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
     value => ['completed', 'succeeded', 'failed', 'rejected', 'cancelled'].includes(value.status?.toLowerCase()));
   if (!['completed', 'succeeded'].includes(completed.status.toLowerCase())) throw new Error('The approved restart failed');
   const remaining = await poll(() => mcp.call('honua_ops_findings', { rule: 'managed-compose-service-unhealthy' }),
-    value => !value.findings?.some(item => item.subject?.workloadId === 'redis'));
+    value => !value.findings?.some(item => item.subject?.workloadId === service));
   const healthy = await poll(() => api(managerUrl, approverKey, '/api/v1/admin/observability/ops-health'), value =>
-    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(service =>
-      service.name === 'redis' && service.status?.toLowerCase() === 'healthy')));
+    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(entry =>
+      entry.name === service && entry.status?.toLowerCase() === 'healthy')));
   await observe('recovered', { proposal: completed, findings: remaining, health: healthy });
   return { target, finding, proposalId: proposed.proposalId, completed };
+}
+
+/** Why an import is not publishable, without echoing dataset content. */
+export function importSummary(imported) {
+  const missing = ['connectionId', 'table', 'geometryColumn', 'primaryKey'].filter(name => !imported?.[name]);
+  return JSON.stringify({ success: imported?.success ?? null, errorCode: imported?.errorCode ?? null,
+    errorMessage: imported?.errorMessage ?? null, missing, warnings: imported?.warnings ?? [] });
 }
 
 /** Ingest and publish through MCP, then validate the resulting server metadata. */
@@ -103,7 +111,7 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
   for (const dataset of datasets) {
     const imported = await mcp.call('honua_ingest_dataset', { format: dataset.format, data: dataset.data, datasetName: dataset.name });
     if (!imported.success || !imported.connectionId || !imported.table || !imported.geometryColumn || !imported.primaryKey)
-      throw new Error(`MCP ${dataset.format} import did not return a publishable table`);
+      throw new Error(`MCP ${dataset.format} import did not return a publishable table: ${importSummary(imported)}`);
     const result = await mcp.call('honua_publish_service', {
       connectionId: imported.connectionId, schema: imported.schema, table: imported.table,
       layerName: dataset.name, serviceName: dataset.name, geometryColumn: imported.geometryColumn,

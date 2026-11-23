@@ -13,7 +13,7 @@ public sealed class ConsolePublicationTreeContext
 
     public string? Link(ConsolePublicationNode node) => node.Kind == ConsolePublicationNodeKind.Folder && !V4Enabled ? null : node.Href;
 
-    public string Label(ConsolePublicationNode node) => V4Enabled ? node.ShortLabel ?? node.Label : node.Label;
+    public string Label(ConsolePublicationNode node) => V4Enabled ? node.ShortestLabel : node.Label;
 
     public int? Count(ConsolePublicationNode node) =>
         V4Enabled && node.Kind == ConsolePublicationNodeKind.Environment ? Tree.ServiceCount : node.ChildCount;

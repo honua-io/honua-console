@@ -1,23 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { approveRecordedProposal, exerciseAgentPublication, exerciseAgentRecovery, refuseApiKeyApproval } from '../agent-customer-journey.mjs';
+import { approveRecordedProposal, exerciseAgentPublication, exerciseAgentRecovery, importSummary, refuseApiKeyApproval } from '../agent-customer-journey.mjs';
 
-test('recovery refuses a missing or shared approver before stopping Redis', async () => {
+test('recovery refuses a missing or shared approver before stopping the managed service', async () => {
   let stopped = false;
-  const stopRedis = async () => { stopped = true; };
+  const stopService = async () => { stopped = true; };
   for (const approverKey of ['', 'same']) {
     await assert.rejects(exerciseAgentRecovery({ managerUrl: 'http://127.0.0.1:1', proposerKey: 'same', approverKey,
-      stopRedis, observe: async () => {} }), /Separate proposer and approver/);
+      service: 'postgres', stopService, observe: async () => {} }), /Separate proposer and approver/);
   }
   assert.equal(stopped, false);
 });
 
-test('recovery does not stop Redis when the Console approval is missing', async () => {
+test('recovery does not stop the managed service when the Console approval is missing', async () => {
   let stopped = false;
   await assert.rejects(exerciseAgentRecovery({
-    managerUrl: 'http://127.0.0.1:1', proposerKey: 'proposer', approverKey: 'approver',
-    stopRedis: async () => { stopped = true; }, observe: async () => {},
+    managerUrl: 'http://127.0.0.1:1', proposerKey: 'proposer', approverKey: 'approver', service: 'postgres',
+    stopService: async () => { stopped = true; }, observe: async () => {},
   }), /Console approval is required/);
+  assert.equal(stopped, false);
+});
+
+test('recovery needs a named managed service before stopping anything', async () => {
+  let stopped = false;
+  await assert.rejects(exerciseAgentRecovery({
+    managerUrl: 'http://127.0.0.1:1', proposerKey: 'proposer', approverKey: 'approver', approve: async () => {},
+    stopService: async () => { stopped = true; }, observe: async () => {},
+  }), /managed Compose service/);
   assert.equal(stopped, false);
 });
 
@@ -120,4 +129,13 @@ test('an API-key refusal that changes the proposal fails the control', async () 
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test('an unpublishable import names the missing fields and the server warning', () => {
+  const summary = JSON.parse(importSummary({ success: true, table: 't', geometryColumn: 'geometry', primaryKey: 'id',
+    warnings: ['No unique registered secure connection could be resolved'], data: 'secret,row' }));
+  assert.deepEqual(summary.missing, ['connectionId']);
+  assert.equal(summary.success, true);
+  assert.match(summary.warnings[0], /No unique registered/);
+  assert.equal(JSON.stringify(summary).includes('secret,row'), false);
 });

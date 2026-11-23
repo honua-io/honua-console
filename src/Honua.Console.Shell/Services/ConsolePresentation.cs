@@ -24,7 +24,7 @@ public sealed record ConsolePresentation
         }
 
         string[] routes = ["/catalog/", "/inbox/", "/support/", "/environments/",
-            "/operate/connections", "/operate/exports", "/operate/services", "/operate/layers", "/operate/data",
+            "/operate/connections", "/operate/exports", "/operate/folders", "/operate/services", "/operate/layers", "/operate/data",
             "/operate/geoprocessing", "/operate/publishing", "/operate/deploy", "/operate/health",
             "/operate/observability", "/operate/events", "/operate/metrics"];
         return routes.Any(route => route.EndsWith('/')

@@ -32,8 +32,13 @@ public sealed class ConsoleManagerEndpoint(IConfiguration? configuration) : ICon
     private static Uri DirectoryUri(Uri value) => new(value.AbsoluteUri.TrimEnd('/') + "/");
 }
 
-// This handler belongs only on the authenticated management client.
-public sealed class ConsoleManagerRoutingHandler(IConsoleEnvironmentProfileStore profiles, IConsoleManagerEndpoint endpoint)
+// This handler belongs only on the authenticated management client. An operator bearer is bound to the
+// session store of the server that issued it, so a separate management server refuses the serving bearer;
+// safe reads go through the management sign-in's cookie session when one exists.
+public sealed class ConsoleManagerRoutingHandler(
+    IConsoleEnvironmentProfileStore profiles,
+    IConsoleManagerEndpoint endpoint,
+    Func<string, Uri, HttpClient?>? managementSession = null)
     : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -45,6 +50,26 @@ public sealed class ConsoleManagerRoutingHandler(IConsoleEnvironmentProfileStore
             || !source.IsBaseOf(target))
             return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { RequestMessage = request };
         request.RequestUri = new Uri(destination, source.MakeRelativeUri(target));
+        if (IsSafe(request.Method) && destination != source && managementSession?.Invoke(profile!.Id, destination) is { } session)
+        {
+            using (session)
+            using (var read = WithoutBearer(request))
+            {
+                return await session.SendAsync(read, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool IsSafe(HttpMethod method) => method == HttpMethod.Get || method == HttpMethod.Head;
+
+    // The outer client has already sent the original message, so the session receives a copy.
+    private static HttpRequestMessage WithoutBearer(HttpRequestMessage request)
+    {
+        var copy = new HttpRequestMessage(request.Method, request.RequestUri) { Version = request.Version };
+        foreach (var header in request.Headers.Where(header => header.Key != "Authorization"))
+            copy.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        return copy;
     }
 }

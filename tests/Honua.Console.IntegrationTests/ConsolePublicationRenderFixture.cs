@@ -173,10 +173,11 @@ internal sealed class PublicationNavigationSource : IConsolePublicationNavigatio
 
     public void ReleaseNext(OperateSectionResult<HonuaAdminServicePage>? result = null) =>
         _holds.Dequeue().SetResult(result);
+    public TaskCompletionSource<OperateSectionResult<IReadOnlyList<string>>>? HeldConnections { get; set; }
     public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken)
     {
         ConnectionReads++;
-        return Task.FromResult(OperateSectionResult<IReadOnlyList<string>>.Allowed(ConnectionKeys));
+        return HeldConnections?.Task ?? Task.FromResult(OperateSectionResult<IReadOnlyList<string>>.Allowed(ConnectionKeys));
     }
     public IReadOnlyList<ConsolePublicationLayerMatch> LayerMatches { get; init; } = [];
     public OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>? LayerSearchResult { get; init; }
