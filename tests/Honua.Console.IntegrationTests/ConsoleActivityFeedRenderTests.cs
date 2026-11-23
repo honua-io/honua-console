@@ -91,13 +91,11 @@ public sealed class ConsoleActivityFeedRenderTests
         Assert.Equal("next-1", client.Queries[^1].Cursor);
         Assert.True(feed.Find("[data-feed-older]").HasAttribute("disabled"));
         Assert.Equal("3 changes on page 2, newest first", feed.Find("[data-feed-range]").TextContent);
-
         fail = true;
         feed.Find("[data-feed-newer]").Click();
         Assert.Contains("Temporary audit failure.", feed.Markup, StringComparison.Ordinal);
         Assert.Equal("3 changes on page 2, newest first", feed.Find("[data-feed-range]").TextContent);
         Assert.False(feed.Find("[data-feed-newer]").HasAttribute("disabled"));
-
         fail = false;
         feed.Find("[data-feed-newer]").Click();
         Assert.Null(client.Queries[^1].Cursor);

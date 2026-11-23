@@ -571,6 +571,8 @@
         if (!IsCurrentReview(proposalId)) return;
         if (!snapshot.IsAllowed || snapshot.Value is not { } policy)
         {
+            _policyWriteVersion++;
+            _loadedPolicyRule = null;
             _policyMessage = "Proposal approved. Auto-apply policy could not be read.";
             _policyMessageClass = "console-state-danger";
             return;
