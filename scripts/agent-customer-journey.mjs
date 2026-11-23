@@ -94,6 +94,13 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   return { target, finding, proposalId: proposed.proposalId, completed };
 }
 
+/** Why an import is not publishable, without echoing dataset content. */
+export function importSummary(imported) {
+  const missing = ['connectionId', 'table', 'geometryColumn', 'primaryKey'].filter(name => !imported?.[name]);
+  return JSON.stringify({ success: imported?.success ?? null, errorCode: imported?.errorCode ?? null,
+    errorMessage: imported?.errorMessage ?? null, missing, warnings: imported?.warnings ?? [] });
+}
+
 /** Ingest and publish through MCP, then validate the resulting server metadata. */
 export async function exerciseAgentPublication({ serverUrl, proposerKey, verifierKey, expectedActor, datasets, observe, approve }) {
   if (!expectedActor) throw new Error('The server MCP actor identity is required');
@@ -104,7 +111,7 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
   for (const dataset of datasets) {
     const imported = await mcp.call('honua_ingest_dataset', { format: dataset.format, data: dataset.data, datasetName: dataset.name });
     if (!imported.success || !imported.connectionId || !imported.table || !imported.geometryColumn || !imported.primaryKey)
-      throw new Error(`MCP ${dataset.format} import did not return a publishable table`);
+      throw new Error(`MCP ${dataset.format} import did not return a publishable table: ${importSummary(imported)}`);
     const result = await mcp.call('honua_publish_service', {
       connectionId: imported.connectionId, schema: imported.schema, table: imported.table,
       layerName: dataset.name, serviceName: dataset.name, geometryColumn: imported.geometryColumn,

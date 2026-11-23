@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { approveRecordedProposal, exerciseAgentPublication, exerciseAgentRecovery, refuseApiKeyApproval } from '../agent-customer-journey.mjs';
+import { approveRecordedProposal, exerciseAgentPublication, exerciseAgentRecovery, importSummary, refuseApiKeyApproval } from '../agent-customer-journey.mjs';
 
 test('recovery refuses a missing or shared approver before stopping the managed service', async () => {
   let stopped = false;
@@ -129,4 +129,13 @@ test('an API-key refusal that changes the proposal fails the control', async () 
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test('an unpublishable import names the missing fields and the server warning', () => {
+  const summary = JSON.parse(importSummary({ success: true, table: 't', geometryColumn: 'geometry', primaryKey: 'id',
+    warnings: ['No unique registered secure connection could be resolved'], data: 'secret,row' }));
+  assert.deepEqual(summary.missing, ['connectionId']);
+  assert.equal(summary.success, true);
+  assert.match(summary.warnings[0], /No unique registered/);
+  assert.equal(JSON.stringify(summary).includes('secret,row'), false);
 });

@@ -63,6 +63,8 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
   });
   page.on('requestfailed', request => {
     if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
+    // Restarting a Compose service changes the host's container network; Chromium then drops requests in flight.
+    if (outage && request.failure()?.errorText === 'net::ERR_NETWORK_CHANGED') return;
     const url = new URL(request.url());
     if (origins.has(url.origin)) errors.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
   });
