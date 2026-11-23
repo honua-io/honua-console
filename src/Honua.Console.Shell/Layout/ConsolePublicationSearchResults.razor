@@ -61,7 +61,7 @@
         }
         else if (!View.LayerSearch.IsAllowed)
         {
-            <p class="console-search-empty" role="status">@View.LayerSearch.Message</p>
+            <OperateSectionStatusPanel Heading="Layers" Status="View.LayerSearch.Status" Message="@View.LayerSearch.Message" />
         }
         else if (layers.Count == 0)
         {
