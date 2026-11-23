@@ -211,6 +211,12 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    // Revealing a location that does not match clears the search, so a typed search keeps priority.
+    private void RevealCurrentLocationUnlessSearching()
+    {
+        if (string.IsNullOrWhiteSpace(_tree.Filter)) _tree.RevealPath(CurrentPath);
+    }
+
     private void CollapseAll()
     {
         foreach (var node in ConsolePublicationTree.Descendants(_tree.Root)) node.Expanded = false;
@@ -279,7 +285,7 @@
         {
             if (!string.IsNullOrWhiteSpace(attempt.Query.NameQuery))
                 _tree.SetFilter(attempt.Query.NameQuery);
-            _tree.RevealPath(CurrentPath);
+            RevealCurrentLocationUnlessSearching();
         }
         _loading = false;
         await InvokeAsync(StateHasChanged);
@@ -430,7 +436,7 @@
         if (outcome == CatalogOutcome.Applied)
         {
             _tree.SetFilter(filter);
-            _tree.RevealPath(CurrentPath);
+            RevealCurrentLocationUnlessSearching();
         }
         await InvokeAsync(StateHasChanged);
         if (outcome != CatalogOutcome.Applied || !V4Enabled) return;
