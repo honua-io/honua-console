@@ -62,27 +62,23 @@
 }
 
 /* Dataset preview follows the approved metadata form rhythm without implying a live editor. */
-.console-viewer-v4 .metadata-panel {
+.console-viewer-v4 .metadata-dataset .metadata-panel {
     padding: var(--space-4);
 }
 
-.console-viewer-v4 .metadata-local-fields {
-    gap: var(--space-3);
-}
-
-.console-viewer-v4 .metadata-field {
+.console-viewer-v4 .metadata-dataset .metadata-field {
     grid-template-columns: 180px minmax(0, 1fr);
     gap: var(--space-3);
     padding: 0;
     border: 0;
 }
 
-.console-viewer-v4 .metadata-field > label {
+.console-viewer-v4 .metadata-dataset .metadata-field-label > label {
     font-weight: var(--weight-medium);
 }
 
 @media (max-width: 600px) {
-    .console-viewer-v4 .metadata-field {
+    .console-viewer-v4 .metadata-dataset .metadata-field {
         grid-template-columns: minmax(0, 1fr);
     }
 }

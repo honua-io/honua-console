@@ -236,6 +236,7 @@ async function inspectV4Presentation(page, { previews, name, width, theme, theme
     document.documentElement.dataset.consoleThemeEnabled = "true";
     document.documentElement.dataset.theme = theme;
   }, theme);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), theme, `Expected ${theme} theme`);
   await page.evaluate(() => document.fonts.ready);
   assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), typeof heading === "function" ? heading(name) : heading);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
