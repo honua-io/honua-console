@@ -3,7 +3,7 @@ import path from "node:path";
 
 const fidelityPages = new Set([
   "home-v4-true", "navigation-v4-true", "home-inventory-v4", "folder-v4", "data-service-detail", "data-layer-detail",
-  "studio-styles-list-v4", "data-layers",
+  "studio-styles-list-v4", "studio-styles-v4", "studio-styles-conflict-v4", "data-layers",
   "scale-v4-initial", "scale-v4-expanded", "scale-v4-search", "scale-v4-empty",
 ]);
 

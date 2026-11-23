@@ -25,6 +25,7 @@ public sealed class StyleCatalogListV4Tests
         Assert.Equal("honua://styles/style-01", rows[0].QuerySelector("code")!.TextContent);
         Assert.Equal("Not set", rows[0].QuerySelector("td")!.TextContent);
 
+        CatalogAdminPreview.CaptureV4("studio-styles-list-v4", list.Markup);
         list.Find("[aria-label='Next page']").Click();
         Assert.Equal(5, list.FindAll("[data-style-row]").Count);
     }

@@ -11,6 +11,9 @@ test("fidelity widths retain behavioral breakpoints and legacy coverage", () => 
   assert.deepEqual(presentationWidths("folder-v4"), [1440, 1280, 390]);
   assert.deepEqual(presentationWidths("scale-v4-expanded", [1280, 1050, 390]), [1440, 1280, 1050, 390]);
   assert.deepEqual(presentationWidths("folder-legacy"), [1280, 390]);
+  for (const name of ["studio-styles-list-v4", "studio-styles-v4", "studio-styles-conflict-v4", "data-layers"]) {
+    assert.deepEqual(presentationWidths(name), [1440, 1280, 390]);
+  }
 });
 
 async function withFixture(inspect) {
@@ -36,9 +39,9 @@ async function withFixture(inspect) {
 test("both themes render different images and original theme attributes are restored", async () => {
   await withFixture(async (page, previews) => {
     await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
-    await captureFidelityThemes(page, { previews, name: "folder-v4", width: 390 });
+    await captureFidelityThemes(page, { previews, name: "studio-styles-v4", width: 390 });
     const files = (await fs.readdir(previews)).sort();
-    assert.deepEqual(files, ["folder-v4-fidelity-390-dark.png", "folder-v4-fidelity-390-light.png"]);
+    assert.deepEqual(files, ["studio-styles-v4-fidelity-390-dark.png", "studio-styles-v4-fidelity-390-light.png"]);
     const images = await Promise.all(files.map(file => fs.readFile(path.join(previews, file))));
     assert.notDeepEqual(images[0], images[1]);
     assert.equal(await page.locator("html").getAttribute("data-theme"), "light");

@@ -344,6 +344,11 @@ jobs:
           path: artifacts/catalog-preview/quiet-sections-*.png
           if-no-files-found: error
 
+      - name: Verify rendered Styles catalog presentation
+        run: node e2e/playwright/studio-styles-list-preview.mjs
+        env:
+          HONUA_CATALOG_PREVIEW_DIR: ${{ github.workspace }}/artifacts/catalog-preview
+
       - name: Verify rendered shared style editor presentation
         run: node e2e/playwright/studio-styles-preview.mjs
         env:
@@ -357,6 +362,7 @@ jobs:
           path: |
             artifacts/catalog-preview/studio-styles-v4-*.png
             artifacts/catalog-preview/studio-styles-conflict-v4-*.png
+            artifacts/catalog-preview/studio-styles-list-v4-*.png
           if-no-files-found: error
 
       - name: Verify rendered map viewer, metadata and conversation presentation
