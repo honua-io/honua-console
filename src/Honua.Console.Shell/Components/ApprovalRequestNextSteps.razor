@@ -3,7 +3,10 @@
     <ol>
         <li>Your decision is recorded in Activity, with you as the approver.</li>
         <li>The waiting tool call in your AI client reads the decision on its next try and reports it.</li>
-        <li>If you do nothing, the proposal stays waiting in Approvals.</li>
+        @if (Waiting)
+        {
+            <li>If you do nothing, the proposal stays waiting in Approvals.</li>
+        }
     </ol>
     <button type="button" class="console-button console-button-secondary" data-show-all-approvals @onclick="OnShowAll">
         Show all approvals
@@ -11,6 +14,9 @@
 </section>
 
 @code {
+    [Parameter]
+    public bool Waiting { get; set; }
+
     [Parameter, EditorRequired]
     public EventCallback OnShowAll { get; set; }
 }

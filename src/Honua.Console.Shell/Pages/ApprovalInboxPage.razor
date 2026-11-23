@@ -150,7 +150,7 @@
 
         @if (LinkedRequest is { } linked)
         {
-            <ApprovalRequestIntro Requester="@ApprovalInboxPresentation.Requester(linked.Proposal)" />
+            <ApprovalRequestIntro Proposal="@linked.Proposal" />
         }
 
         <div class="approval-inbox-layout @(LinkedRequest is null ? null : "is-linked-request")">
@@ -287,7 +287,7 @@
                         OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
                     @if (LinkedRequest is not null)
                     {
-                        <ApprovalRequestNextSteps OnShowAll="ShowAllApprovals" />
+                        <ApprovalRequestNextSteps Waiting="@LinkedRequest.IsAwaitingApproval" OnShowAll="ShowAllApprovals" />
                     }
                 }
                 else
@@ -428,6 +428,7 @@
         var proposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
         if (string.Equals(proposalId, _routeProposalId, StringComparison.Ordinal)) return;
         _routeProposalId = proposalId;
+        _linkedRequestId = string.Equals(proposalId, _selectedProposalId, StringComparison.Ordinal) ? null : proposalId;
         SetSelectedProposal(proposalId);
         _terminalProposalId = null;
         _detailReloadToken++;

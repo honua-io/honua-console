@@ -83,4 +83,35 @@ public sealed partial class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Empty(page.FindAll(LinkedIntro)));
         Assert.Empty(page.FindAll(LinkedNext));
     }
+
+    [Fact]
+    public async Task LinkedRequest_StartsAgainWhenALinkOpensOnTheSamePage()
+    {
+        using var ctx = NewLinkedRequestContext(ConsolePresentationMode.V4);
+        var page = ctx.Render<ApprovalInboxPage>();
+        page.WaitForAssertion(() => page.Find(LinkedIntro));
+        page.Find("[data-proposal-id='import-1']").Click();
+        page.WaitForAssertion(() => Assert.Empty(page.FindAll(LinkedIntro)));
+
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=deploy-1"));
+
+        page.WaitForAssertion(() => Assert.Equal("true", page.Find(LinkedIntro).GetAttribute("data-request-waiting")));
+    }
+
+    [Fact]
+    public void LinkedRequest_SaysWhenTheRequestIsNoLongerWaiting()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("done-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Completed)],
+            details: [FakeProposalFactory.Detail("done-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Completed)]);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/inbox?proposalId=done-1");
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal("This request is no longer waiting for approval", page.Find($"{LinkedIntro} h2").TextContent));
+        Assert.DoesNotContain("stays waiting", page.Find(LinkedNext).TextContent, StringComparison.Ordinal);
+    }
 }
