@@ -127,3 +127,27 @@ for (const screen of screens) {
     });
   }
 }
+
+test('public catalog explains when the result set is incomplete', async ({ page }) => {
+  const requestedCursors: (string | null)[] = [];
+  await page.route(`${origin}/api/v1/open-data/datasets?**`, async route => {
+    const cursor = new URL(route.request().url()).searchParams.get('cursor');
+    requestedCursors.push(cursor);
+    const pageNumber = Number(cursor ?? '1');
+    await route.fulfill({
+      json: {
+        success: true,
+        data: {
+          items: [{ itemType: 'service', page: { ...item, itemId: `publication-${pageNumber}` } }],
+          nextCursor: String(pageNumber + 1),
+        },
+      },
+    });
+  });
+
+  await page.goto(origin + publicCatalog);
+
+  await expect(page.getByText('Search and filters cover only the items shown here. The server has more public items.'))
+    .toBeVisible();
+  expect(requestedCursors).toEqual([null, '2', '3', '4']);
+});
