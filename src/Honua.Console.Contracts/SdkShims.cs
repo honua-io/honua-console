@@ -340,6 +340,8 @@ public sealed record ConsoleContentDetail
 
     public string Description { get; init; } = string.Empty;
 
+    public string? License { get; init; }
+
     public string[] Capabilities { get; init; } = [];
 
     public ConsoleContentVersion[] Versions { get; init; } = [];

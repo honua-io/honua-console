@@ -87,7 +87,7 @@
                     </div>
                     <aside aria-label="Item information">
                         <ConsolePanel Title="Usage" HeadingId="public-usage-heading">
-                            <p class="console-muted">Notice of usage terms is unavailable for this item.</p>
+                            <p class="console-muted">@(string.IsNullOrWhiteSpace(item.License) ? "Notice of usage terms is unavailable for this item." : item.License)</p>
                         </ConsolePanel>
                         <ConsolePanel Title="Details" HeadingId="public-details-heading">
                             @if (summary.Tags.Length > 0)
