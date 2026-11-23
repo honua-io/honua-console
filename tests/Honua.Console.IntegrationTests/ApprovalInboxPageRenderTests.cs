@@ -33,11 +33,11 @@ public sealed partial class ApprovalInboxPageRenderTests
 
         page.WaitForAssertion(() => page.Find("[data-proposal-id='unknown']"));
         var cells = page.Find("[data-proposal-id='unknown']").Closest("tr")!.QuerySelectorAll("td");
-        Assert.Contains("Agent: Not reported", cells[1].TextContent, StringComparison.Ordinal);
-        Assert.Contains("Requester: Not reported", cells[1].TextContent, StringComparison.Ordinal);
-        Assert.Contains("unknown", cells[3].TextContent, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("Not reported", cells[4].TextContent.Trim());
-        Assert.Null(cells[4].QuerySelector("time"));
+        Assert.Equal("Not reported", cells[1].QuerySelector("[data-requester]")!.TextContent);
+        Assert.Equal("Requester not reported", cells[1].QuerySelector("[data-requester-channel]")!.TextContent);
+        Assert.Contains("unknown", cells[2].TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Not reported", cells[3].TextContent.Trim());
+        Assert.Null(cells[3].QuerySelector("time"));
     }
 
     [Theory]
@@ -56,11 +56,14 @@ public sealed partial class ApprovalInboxPageRenderTests
 
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("[data-proposal-id]").Count));
         var time = page.Find("[data-proposal-id='awaiting']").Closest("tr")!.QuerySelector("time")!;
-        Assert.Equal("2026-11-09 20:30 UTC", time.TextContent);
+        Assert.Equal("2026-11-09 20:30 UTC", time.GetAttribute("title"));
+        Assert.EndsWith(" d", time.TextContent, StringComparison.Ordinal);
         Assert.Equal(requestedAt.ToString("O"), time.GetAttribute("datetime"));
         Assert.Null(page.Find("[data-proposal-id='completed']").Closest("tr")!.QuerySelector("time"));
         Assert.Equal("1", page.Find("[data-awaiting-count] strong").TextContent);
         Assert.Equal("2", page.Find("[data-total-count] strong").TextContent);
+        Assert.StartsWith("1 proposal waiting.", page.Find("[data-approval-intro]").TextContent, StringComparison.Ordinal);
+        Assert.Equal("Results 1 to 2 (out of 2)", page.Find("[data-approval-results]").TextContent);
     }
 
     [Theory]

@@ -88,8 +88,43 @@ public sealed record ApprovalInboxSnapshot(IReadOnlyList<ApprovalInboxItem> Item
         Items.Select(item => item.Source).Distinct().OrderBy(source => (int)source).ToArray();
 }
 
+public sealed record ApprovalRequester(string Name, string Channel);
+
 public static class ApprovalInboxPresentation
 {
+    private const string NotReported = "Not reported";
+
     public static string PartialMessage(string? message) => string.IsNullOrWhiteSpace(message)
         ? "Some proposal sources could not be read. This queue is incomplete." : message;
+
+    public static bool IsReportedTime(DateTimeOffset at) => at != DateTimeOffset.UnixEpoch && at != DateTimeOffset.MinValue;
+
+    public static string WaitingFor(DateTimeOffset since, DateTimeOffset now)
+    {
+        var waited = now - since;
+        if (waited < TimeSpan.FromMinutes(1)) return "under 1 min";
+        if (waited < TimeSpan.FromHours(1)) return $"{(int)waited.TotalMinutes} min";
+        return waited < TimeSpan.FromDays(1) ? $"{(int)waited.TotalHours} h" : $"{(int)waited.TotalDays} d";
+    }
+
+    public static string WaitingSentence(int awaiting) => awaiting switch
+    {
+        0 => "No proposals waiting.",
+        1 => "1 proposal waiting.",
+        _ => $"{awaiting} proposals waiting.",
+    };
+
+    public static string Results(int shown, int total) =>
+        shown == 0 ? "No results" : $"Results 1 to {shown} (out of {total})";
+
+    public static ApprovalRequester Requester(ConsoleProposalSummary proposal)
+    {
+        var person = Reported(proposal.RequestedBy);
+        var agent = Reported(proposal.RequestedByAgent);
+        if (agent is null) return new(person ?? NotReported, person is null ? "Requester not reported" : "Person");
+        if (person is null) return new(agent, "Agent · person not reported");
+        return new(agent, string.Equals(agent, person, StringComparison.Ordinal) ? "Agent" : $"Agent · on behalf of {person}");
+    }
+
+    private static string? Reported(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

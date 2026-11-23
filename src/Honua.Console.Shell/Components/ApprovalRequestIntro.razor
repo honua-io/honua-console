@@ -1,0 +1,18 @@
+@using Honua.Console.Shell.Models
+
+<section class="console-panel approval-request-intro" aria-labelledby="approval-request-intro-title" data-approval-request-intro>
+    <h2 id="approval-request-intro-title">@Title</h2>
+    <p class="console-muted">
+        You opened this from a link. Accepting the request in your AI client only opened this page and never counts
+        as approval. Nothing has changed yet: the change runs only after a person with approval permission approves it here.
+    </p>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ApprovalRequester Requester { get; set; } = default!;
+
+    private string Title => Requester.Channel.StartsWith("Agent", StringComparison.Ordinal)
+        ? $"{Requester.Name} is asking you to approve a change"
+        : "A change is waiting for your approval";
+}
