@@ -136,6 +136,7 @@
 
 [data-console-v4="true"] .console-layer-preview-links a + a {
     margin-inline-start: var(--space-3);
+}
 
 /* Home on a server without Folders (mockup 09): a quiet notice, not a warning. */
 [data-console-v4="true"] .console-home-no-folders {
