@@ -1,10 +1,11 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Routing
 
-@* Fail-closed routing: every page requires a signed-in operator through Pages/_Imports.razor unless it
-   declares [AllowAnonymous]. AuthorizeRouteView refuses anonymous access before a page is created, and
-   the layout shows no menu or inventory without a session. A server host's fallback policy, where one
-   exists, is a second gate in front of this one. *@
+@* Fail-closed routing (honua-console#233): every Console route now requires an authenticated
+   operator. AuthorizeRouteView refuses anonymous access; the host's cookie/edge authentication
+   (UseAuthentication + RequireAuthenticatedUser fallback policy) is the primary gate and redirects
+   unauthenticated browser requests to the sign-in endpoint before a circuit is even established.
+   This component is the defense-in-depth layer for the interactive render path. *@
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(ConsoleRoutes).Assembly" NotFoundPage="@typeof(NotFoundPage)">
         <Found Context="routeData">

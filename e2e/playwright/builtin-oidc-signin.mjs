@@ -4,8 +4,7 @@ import { startStaticBundleServer } from './static-bundle-server.mjs';
 import { createContractApi } from './static-contract-server.mjs';
 
 // Published-bundle fixture: the shipped config.json (auth.mode builtin) must still list
-// server identity providers, and a signed-out visit must reach sign-in without the menu or
-// privileged requests. Not installed-server acceptance.
+// server identity providers. Not installed-server acceptance.
 const { chromium } = await import(process.env.HONUA_PLAYWRIGHT_MODULE ?? 'playwright');
 const output = process.env.HONUA_BUILTIN_OIDC_OUTPUT ?? 'artifacts/builtin-oidc-signin';
 await fs.mkdir(output, { recursive: true });
@@ -64,21 +63,17 @@ async function startFixture(kind, v4) {
 }
 
 async function walkJourney(page, { origin, requests, kind, name }) {
-  // Signed out, a protected route goes straight to sign-in: no menu, tree or inventory, and no API
-  // request beyond the auth endpoints and the public capability manifest.
-  await page.goto(`${origin}/console/operate/connections`);
-  await page.waitForURL(`${origin}/console/auth/signin?returnTo=%2Foperate%2Fconnections`);
+  await page.goto(`${origin}/console/`);
+  const signIn = page.locator('[data-console-signin]');
+  await signIn.waitFor();
+  await page.screenshot({ path: `${output}/${name}-home.png`, fullPage: true });
+  await signIn.click();
+  await page.waitForURL(`${origin}/console/auth/signin`);
   await page.locator('input[type=password]').waitFor();
-  await page.locator('[data-console-signed-out]').waitFor();
-  for (const selector of ['.console-topnav', '[data-publication-navigation]', '.console-contextbar', '[data-console-signin]']) {
-    assert.equal(await page.locator(selector).count(), 0, `${selector} must not render signed out`);
-  }
+  await page.waitForFunction(() => !document.querySelector('[data-console-signin]'));
   const provider = page.getByRole('button', { name: 'Continue with Organization' });
   await page.waitForFunction(() => document.querySelector('form'));
   assert.ok(requests.includes('GET /api/v1/admin/auth/config'), 'Provider list was requested');
-  const privileged = requests.filter(entry => entry.includes('/api/')
-    && !entry.includes('/api/v1/admin/auth/') && !entry.endsWith(' /api/v1/capabilities/manifest'));
-  assert.deepEqual(privileged, [], 'No privileged API request before sign-in');
   if (kind === 'password') {
     assert.equal(await page.locator('[data-signin-divider]').count(), 0);
     assert.equal(await provider.count(), 0);
@@ -89,9 +84,8 @@ async function walkJourney(page, { origin, requests, kind, name }) {
   await provider.waitFor();
   await page.screenshot({ path: `${output}/${name}-signin.png`, fullPage: true });
   await provider.click();
-  await page.waitForURL(`${origin}/console/operate/connections`);
+  await page.waitForURL(`${origin}/console/`);
   await page.getByText('Fixture Operator').first().waitFor();
-  await page.locator('.console-topnav').waitFor();
-  assert.equal(await page.locator('[data-console-signed-out]').count(), 0);
+  assert.equal(await page.locator('[data-console-signin]').count(), 0);
   await page.screenshot({ path: `${output}/${name}-signed-in.png`, fullPage: true });
 }

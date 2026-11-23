@@ -1,7 +1,5 @@
 @inject IServiceProvider Services
 @page "/catalog/{IdOrSlug}"
-@* Anonymous-capable public-link item (route map 2.5): ShareAccess authorizes every read. *@
-@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts
 @inject NavigationManager Navigation

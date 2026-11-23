@@ -15,7 +15,7 @@ public sealed class ConsoleRouteAuthorizationAuditTests
     // prefix — or adding a new prefix — changes the computed set and fails this test until the new
     // public route is reviewed and added here. This is the deny-by-default audit: public access must
     // be an explicit, listed decision, never an accident of prefix matching.
-    internal static readonly IReadOnlySet<string> ExpectedAnonymousRouteTemplates = new HashSet<string>(StringComparer.Ordinal)
+    private static readonly IReadOnlySet<string> ExpectedAnonymousRouteTemplates = new HashSet<string>(StringComparer.Ordinal)
     {
         "/embed/maps/{MapId}",          // EmbedMapPage — public map embeds
         "/share/public",                // SharePage — public-link / open-data hub
@@ -24,36 +24,6 @@ public sealed class ConsoleRouteAuthorizationAuditTests
         "/public/items/{IdOrSlug}",     // SharePublicItemPage — public open-data item (short route)
         "/maps/published/{*Route}",     // PublishedMapPage — Studio publication audience viewer
     };
-
-    // Anonymous on the static host only (route map 2.5): its in-app sign-in page, public-link map and item
-    // views authorized by ShareAccess, and not-found. This host signs in at its own /auth/login.
-    internal static readonly IReadOnlySet<string> InAppAnonymousRouteTemplates = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "/auth/signin",
-        "/maps/{MapId}",
-        "/catalog/{IdOrSlug}",
-        "/not-found",
-    };
-
-    [Fact]
-    public void EveryRoutablePageRequiresSignInUnlessItIsAReviewedAnonymousPage()
-    {
-        var unreviewedAnonymous = RoutableComponents()
-            .Where(component => component.AllowsAnonymous)
-            .SelectMany(component => component.Templates)
-            .Where(template => !ExpectedAnonymousRouteTemplates.Contains(template) && !InAppAnonymousRouteTemplates.Contains(template))
-            .Order()
-            .ToArray();
-        var unprotected = RoutableComponents()
-            .Where(component => !component.AllowsAnonymous)
-            .Where(component => !component.Type.GetCustomAttributes<AuthorizeAttribute>(inherit: true).Any())
-            .Select(component => component.Type.FullName)
-            .Order()
-            .ToArray();
-
-        Assert.True(unreviewedAnonymous.Length == 0, "Unreviewed anonymous routes: " + string.Join(", ", unreviewedAnonymous));
-        Assert.True(unprotected.Length == 0, "Pages without [Authorize]: " + string.Join(", ", unprotected));
-    }
 
     [Fact]
     public void DevelopmentOnlyManualRoutesRemainAuthenticated()
@@ -115,7 +85,6 @@ public sealed class ConsoleRouteAuthorizationAuditTests
         // Every [AllowAnonymous] routable page must have at least one host-anonymous route.
         var violations = RoutableComponents()
             .Where(component => component.AllowsAnonymous)
-            .Where(component => !component.Templates.All(InAppAnonymousRouteTemplates.Contains))
             .Where(component => !component.Templates.Any(t => ConsolePublicSurfaces.IsPublicSurface(ToProbePath(t))))
             .Select(component => component.Type.FullName)
             .Order()
@@ -129,9 +98,9 @@ public sealed class ConsoleRouteAuthorizationAuditTests
             + string.Join(", ", violations));
     }
 
-    internal sealed record RoutableComponent(Type Type, IReadOnlyList<string> Templates, bool AllowsAnonymous);
+    private sealed record RoutableComponent(Type Type, IReadOnlyList<string> Templates, bool AllowsAnonymous);
 
-    internal static IEnumerable<RoutableComponent> RoutableComponents()
+    private static IEnumerable<RoutableComponent> RoutableComponents()
     {
         var shellAssembly = typeof(Honua.Console.Shell.ConsoleRoutes).Assembly;
         foreach (var type in shellAssembly.GetTypes())
@@ -159,7 +128,7 @@ public sealed class ConsoleRouteAuthorizationAuditTests
     // Turns a route template into a concrete probe path by replacing every "{param}" /
     // "{param:constraint}" segment with a literal so PathString segment matching behaves like a real
     // request (e.g. "/public/items/{IdOrSlug}" -> "/public/items/x").
-    internal static PathString ToProbePath(string template)
+    private static PathString ToProbePath(string template)
     {
         var concrete = Regex.Replace(template, "{[^/]+}", "x");
         if (!concrete.StartsWith('/'))

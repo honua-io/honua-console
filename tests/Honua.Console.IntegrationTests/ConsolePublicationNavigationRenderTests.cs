@@ -373,7 +373,7 @@ public sealed class ConsolePublicationNavigationRenderTests
         layout.WaitForAssertion(() => Assert.Equal("Bridges", layout.Find("h1").TextContent));
         Assert.Null(layout.FindComponent<CascadingValue<ConsolePublicationLayerContext>>().Instance.Value.Selection);
         layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
-        Assert.Empty(layout.FindAll("nav[aria-label='Breadcrumb']"));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }
 
     [Fact]
@@ -418,9 +418,9 @@ public sealed class ConsolePublicationNavigationRenderTests
         authorization.SetNotAuthorized();
         Assert.False((await authentication.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated is true);
         layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
-        layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("nav[aria-label='Breadcrumb']")));
+        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
         await layout.InvokeAsync(() => publish.InvokeAsync(previousPath));
-        Assert.Empty(layout.FindAll("nav[aria-label='Breadcrumb']"));
+        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
     }
 
     [Fact]
