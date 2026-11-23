@@ -1,0 +1,25 @@
+@inject NavigationManager Navigation
+
+<li role="none" @key="Key">
+    <div class="console-tree-row console-search-row" role="treeitem" aria-level="1" aria-posinset="@Position" aria-setsize="@SetSize" tabindex="-1"
+         aria-selected="@(Href == View.SelectedPath ? "true" : "false")"
+         data-publication-key="@Key" data-tree-parent="environment" data-tree-label="@Label">
+        <ConsoleTreeIcon Name="@Icon" />
+        <a href="@Navigation.ToConsoleHref(Href)" tabindex="-1" data-tree-link @onclick="() => View.OpenSearchResult.InvokeAsync(new(Href, ServiceToExpand))">
+            <ConsoleSearchHighlight Text="@Label" Query="@View.Tree.Filter" />
+            <span class="console-search-path">@Path</span>
+        </a>
+    </div>
+</li>
+
+@code {
+    [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
+    [Parameter, EditorRequired] public string Key { get; set; } = "";
+    [Parameter, EditorRequired] public string Href { get; set; } = "";
+    [Parameter, EditorRequired] public string Icon { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Path { get; set; } = "";
+    [Parameter] public string? ServiceToExpand { get; set; }
+    [Parameter] public int Position { get; set; } = 1;
+    [Parameter] public int SetSize { get; set; } = 1;
+}

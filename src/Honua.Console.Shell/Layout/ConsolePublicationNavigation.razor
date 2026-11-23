@@ -4,22 +4,40 @@
 
 <CascadingValue Value="TreeContext">
     <div class="console-publication-navigation" data-publication-navigation data-tree-revision="@_locationRevision">
-        <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
-                aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
+        @if (!V4Enabled)
+        {
+            <button type="button" class="console-publication-toggle console-button console-button-secondary" data-tree-toggle
+                    aria-expanded="false" aria-controls="console-publication-sidebar">Browse services</button>
+        }
         <button type="button" class="console-tree-backdrop" data-tree-backdrop hidden tabindex="-1" aria-label="Close service navigation"></button>
         <section id="console-publication-sidebar" class="console-publication-sidebar" aria-label="Service navigation">
-            <div class="console-tree-toolbar">
-                <label for="console-tree-filter">@(V4Enabled ? "Search services" : "Filter services")</label>
-                <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
-                       aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : null)"
-                       placeholder="@(V4Enabled ? "Search service names…" : null)" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
-                @if (Source is not UnsupportedConsolePublicationNavigationSource)
-                {
-                    <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
-                    <a href="@Navigation.ToConsoleHref("/operate/services#folders")">Manage Folders</a>
-                }
-                <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
-            </div>
+            @if (V4Enabled)
+            {
+                <div class="console-tree-toolbar console-tree-search">
+                    <ConsoleTreeIcon Name="search" />
+                    <label class="console-visually-hidden" for="console-tree-filter">Search @_environmentLabel</label>
+                    <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter" autocomplete="off"
+                           aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : "console-tree-scope")"
+                           placeholder="Search in @(_environmentLabel)…" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
+                    <p id="console-tree-scope" class="console-tree-scope">Scope: @_environmentLabel</p>
+                    <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
+                </div>
+            }
+            else
+            {
+                <div class="console-tree-toolbar">
+                    <label for="console-tree-filter">Filter services</label>
+                    <input id="console-tree-filter" class="console-input" type="search" value="@_tree.Filter"
+                           aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : null)"
+                           @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
+                    @if (Source is not UnsupportedConsolePublicationNavigationSource)
+                    {
+                        <button type="button" class="console-button console-button-secondary" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
+                        <a href="@Navigation.ToConsoleHref("/operate/services#folders")">Manage Folders</a>
+                    }
+                    <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
+                </div>
+            }
             <div class="console-tree-catalog">
                 @if (FilterTooLong)
                 {
@@ -30,6 +48,18 @@
                     <ConsolePublicationNavigationContent ReadState="ReadState" />
                 }
             </div>
+            @if (V4Enabled)
+            {
+                <div class="console-tree-foot">
+                    <span class="console-tree-live" data-live="@(_servicesRead is { IsAllowed: true } ? "true" : "false")">@(_loading ? "Loading" : _servicesRead is { IsAllowed: true } ? "Live" : "Unavailable")</span>
+                    <span>@ConsolePublicationTreeContext.FormatCount(_tree.ServiceCount, "service")</span>
+                    @if (Source is not UnsupportedConsolePublicationNavigationSource)
+                    {
+                        <button type="button" class="console-tree-foot-action" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync">Refresh services</button>
+                    }
+                    <button type="button" class="console-tree-foot-action" data-tree-collapse-all @onclick="TreeContext.CollapseAll">Collapse all</button>
+                </div>
+            }
         </section>
     </div>
 </CascadingValue>
@@ -44,12 +74,16 @@
     private const int MaxNameQueryLength = 200;
     private bool FilterTooLong => _tree.Filter.Trim().Length > MaxNameQueryLength;
     private readonly SemaphoreSlim _serviceExpansionSlots = new(ConcurrentServiceExpansions);
-    private readonly ConsolePublicationTree _tree = new();
+    private const int V4ChildPageSize = 200;
+    private const int EagerServicePages = 50;
+    private ConsolePublicationTree? _treeInstance;
+    private ConsolePublicationTree _tree => _treeInstance ??= new() { ChildPageSize = V4Enabled ? V4ChildPageSize : ConsolePublicationTree.PageSize };
     private CancellationTokenSource _authorityLifetime = new();
     private OperateSectionResult<HonuaAdminServicePage>? _servicesRead;
     private OperateSectionResult<ConsoleFolderCatalog>? _foldersRead;
     private ConsoleFolderChanges? _folderChanges;
     private Task<OperateSectionResult<IReadOnlyList<string>>>? _connectionsRead;
+    private OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>? _layerSearch;
     private ConsoleEnvironmentAuthority? _authority;
     private string _environmentLabel = "Services";
     private int _authorityRevision;
@@ -84,7 +118,10 @@
         Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
         ShowFirstPage = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowFirstPage),
         ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore),
-        ShowMoreSearch = EventCallback.Factory.Create(this, ShowMoreSearchAsync)
+        ShowMoreSearch = EventCallback.Factory.Create(this, ShowMoreSearchAsync),
+        LayerSearch = _layerSearch,
+        OpenSearchResult = EventCallback.Factory.Create<ConsoleSearchTarget>(this, OpenSearchResultAsync),
+        CollapseAll = EventCallback.Factory.Create(this, CollapseAll)
     };
     private ConsolePublicationNavigationReadState ReadState => new()
     {
@@ -160,6 +197,24 @@
         _loading = false;
         await InvokeAsync(StateHasChanged);
         await ResolveSelectedLayerAsync();
+        if (outcome == CatalogOutcome.Applied && V4Enabled) await LoadRemainingServicesAsync();
+    }
+
+    private async Task LoadRemainingServicesAsync()
+    {
+        for (var page = 1; page < EagerServicePages && _tree.HasUnloadedServices; page++)
+        {
+            if (!string.IsNullOrWhiteSpace(_tree.Filter) || !await NextServicePageReadyAsync()) return;
+        }
+        if (_disposed || !string.IsNullOrWhiteSpace(_tree.Filter)) return;
+        _tree.RevealPath(CurrentPath);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CollapseAll()
+    {
+        foreach (var node in ConsolePublicationTree.Descendants(_tree.Root)) node.Expanded = false;
+        _tree.Root.Expanded = true;
     }
 
     private CatalogAttempt BeginCatalog(HonuaAdminCatalogQuery query, CatalogApply apply)
@@ -251,6 +306,7 @@
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
         _connectionsRead = null;
+        _layerSearch = null;
         _pathAttempt = null;
         _resolvedPath = [];
         _tree.Load(new HonuaAdminServicePage(), _environmentLabel);
@@ -289,9 +345,7 @@
         node.ReadStatus = null;
         node.ReadMessage = null;
         await InvokeAsync(StateHasChanged);
-        _connectionsRead ??= ConsoleReadBudget.RunAsync(Source.ReadConnectionsAsync, ConsoleReadBudget.Default,
-            "Connections could not be read.", token);
-        var connections = await _connectionsRead;
+        var connections = await ConnectionsAsync(token);
         if (_disposed || revision != _authorityRevision) return;
         var result = connections.IsAllowed
             ? await ConsoleReadBudget.RunAsync(readToken => ReadServiceLayersAsync(serviceName, connections.Value ?? [], readToken),
@@ -300,6 +354,37 @@
         if (_disposed || revision != _authorityRevision) return;
         if (!result.IsAllowed || result.PartialResult) _connectionsRead = null;
         CompleteChildren(node, result);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task<OperateSectionResult<IReadOnlyList<string>>> ConnectionsAsync(CancellationToken token) =>
+        _connectionsRead ??= ConsoleReadBudget.RunAsync(Source.ReadConnectionsAsync, ConsoleReadBudget.Default,
+            "Connections could not be read.", token);
+
+    private async Task SearchLayersAsync(string nameQuery, int filterRevision)
+    {
+        var revision = _authorityRevision;
+        var token = _authorityLifetime.Token;
+        bool Stale() => _disposed || revision != _authorityRevision || filterRevision != _filterRevision;
+        var connections = await ConnectionsAsync(token);
+        if (Stale()) return;
+        if (!connections.IsAllowed) _connectionsRead = null;
+        _layerSearch = connections.IsAllowed
+            ? await ConsoleReadBudget.RunAsync(readToken => Source.SearchLayersAsync(nameQuery, connections.Value ?? [], readToken),
+                ConsoleReadBudget.Default, "Layers could not be searched.", token)
+            : OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>.Denied(connections.Status, connections.Message);
+        if (Stale()) return;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OpenSearchResultAsync(ConsoleSearchTarget target)
+    {
+        await FilterChanged(new ChangeEventArgs { Value = "" });
+        if (_disposed) return;
+        var service = target.ServiceName is null ? null : ConsolePublicationTree.Descendants(_tree.Root).FirstOrDefault(node =>
+            node.Kind == ConsolePublicationNodeKind.Service && string.Equals(node.ServiceName, target.ServiceName, StringComparison.OrdinalIgnoreCase));
+        if (service is not null) await ExpandAsync(service);
+        _tree.RevealPath(_tree.PathTo(target.Href).Count > 0 || service?.Href is null ? target.Href : service.Href);
         await InvokeAsync(StateHasChanged);
     }
 
@@ -327,6 +412,7 @@
         var filter = args.Value?.ToString() ?? "";
         var revision = _authorityRevision;
         var filterRevision = ++_filterRevision;
+        _layerSearch = null;
         _tree.SetFilter(filter);
         var nameQuery = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
         if (nameQuery is { Length: > MaxNameQueryLength })
@@ -346,6 +432,9 @@
             _tree.RevealPath(CurrentPath);
         }
         await InvokeAsync(StateHasChanged);
+        if (outcome != CatalogOutcome.Applied || !V4Enabled) return;
+        if (nameQuery is null) await LoadRemainingServicesAsync();
+        else await SearchLayersAsync(nameQuery, filterRevision);
     }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
     private async Task ShowMore(ConsolePublicationNode node)

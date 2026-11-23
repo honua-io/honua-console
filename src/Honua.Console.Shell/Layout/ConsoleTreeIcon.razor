@@ -1,0 +1,58 @@
+@switch (Name)
+{
+    case "globe":
+        <svg class="console-tree-icon" data-icon="globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>
+        break;
+    case "folder-open":
+        <svg class="console-tree-icon" data-icon="folder-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H7.5a2 2 0 0 0-1.9 1.4L3 18V7Z" /><path d="M3 18h15.4a2 2 0 0 0 1.9-1.4L22 11H7.5a2 2 0 0 0-1.9 1.4L3 18Z" /></svg>
+        break;
+    case "folder":
+        <svg class="console-tree-icon" data-icon="folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg>
+        break;
+    case "service":
+        <svg class="console-tree-icon" data-icon="service" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1.5" /><rect x="4" y="14" width="16" height="6" rx="1.5" /><path d="M8 7h.01M8 17h.01" /></svg>
+        break;
+    case "point":
+        <svg class="console-tree-icon" data-icon="point" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="12" cy="12" r="4" /></svg>
+        break;
+    case "line":
+        <svg class="console-tree-icon" data-icon="line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 9 7l5 8 6-9" /></svg>
+        break;
+    case "polygon":
+        <svg class="console-tree-icon" data-icon="polygon" viewBox="0 0 24 24" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7-5 7 5-2 10H7L5 9Z" /></svg>
+        break;
+    case "raster":
+        <svg class="console-tree-icon" data-icon="raster" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.5" /><path d="M4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16" /></svg>
+        break;
+    case "search":
+        <svg class="console-tree-icon" data-icon="search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        break;
+    case "chevron":
+        <svg class="console-tree-icon" data-icon="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        break;
+    default:
+        <svg class="console-tree-icon" data-icon="layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-9 5 9 5 9-5-9-5Z" /><path d="m3 13 9 5 9-5" /></svg>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    public static string ForNode(ConsolePublicationNode node) => node.Kind switch
+    {
+        ConsolePublicationNodeKind.Environment => "globe",
+        ConsolePublicationNodeKind.Folder => node.Expanded ? "folder-open" : "folder",
+        ConsolePublicationNodeKind.Service => "service",
+        _ => ForGeometry(node.GeometryType)
+    };
+
+    public static string ForGeometry(string? geometryType)
+    {
+        var geometry = geometryType?.ToLowerInvariant() ?? "";
+        if (geometry.Contains("point", StringComparison.Ordinal)) return "point";
+        if (geometry.Contains("line", StringComparison.Ordinal) || geometry.Contains("curve", StringComparison.Ordinal)) return "line";
+        if (geometry.Contains("polygon", StringComparison.Ordinal) || geometry.Contains("surface", StringComparison.Ordinal)) return "polygon";
+        if (geometry.Contains("raster", StringComparison.Ordinal) || geometry.Contains("grid", StringComparison.Ordinal)) return "raster";
+        return "layers";
+    }
+}

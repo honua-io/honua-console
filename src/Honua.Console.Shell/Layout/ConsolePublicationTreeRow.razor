@@ -10,26 +10,33 @@
         var node = Node;
         Func<Task> expansionCommand = Node.Expanded ? () => View.Collapse.InvokeAsync(node) : () => View.Expand.InvokeAsync(node);
         <button type="button" tabindex="-1" data-tree-expand aria-label="@($"{(Node.Expanded ? "Collapse" : "Expand")} {Node.Label}")"
-                @onclick="expansionCommand"><span class="console-tree-chevron" aria-hidden="true"></span></button>
+                @onclick="expansionCommand">@if (View.V4Enabled) { <ConsoleTreeIcon Name="chevron" /> } else { <span class="console-tree-chevron" aria-hidden="true"></span> }</button>
     }
     else
     {
         <span class="console-tree-spacer" aria-hidden="true"></span>
     }
-    <span class="console-tree-kind" data-kind="@Node.Kind" aria-hidden="true"></span>
-    @if (View.Link(Node) is { } href)
+    @if (View.V4Enabled)
     {
-        <a href="@Navigation.ToConsoleHref(href)" tabindex="-1" data-tree-link>@Node.Label</a>
+        <ConsoleTreeIcon Name="@ConsoleTreeIcon.ForNode(Node)" />
     }
     else
     {
-        <span class="console-tree-label">@Node.Label</span>
+        <span class="console-tree-kind" data-kind="@Node.Kind" aria-hidden="true"></span>
     }
-    @if (Node.ChildCount is { } count)
+    @if (View.Link(Node) is { } href)
+    {
+        <a href="@Navigation.ToConsoleHref(href)" tabindex="-1" title="@(View.V4Enabled ? Node.Label : null)" data-tree-link>@View.Label(Node)</a>
+    }
+    else
+    {
+        <span class="console-tree-label">@View.Label(Node)</span>
+    }
+    @if (View.Count(Node) is { } count)
     {
         @(" ")<span class="console-tree-count" aria-hidden="true">@count</span>
     }
-    @if (Node.GeometryType is { } geometry)
+    @if (Node.GeometryType is { } geometry && !View.V4Enabled)
     {
         @(" ")<span class="console-tree-geometry">@geometry</span>
     }
@@ -39,7 +46,7 @@
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
     [Parameter, EditorRequired] public ConsolePublicationNode Node { get; set; } = default!;
     [Parameter, EditorRequired] public ConsolePublicationTreePlacement Placement { get; set; } = default!;
-    private string AccessibleLabel => Node.ChildCount is { } count
-        ? $"{Node.Label} {ConsolePublicationTreeContext.FormatCount(count, Node.Kind == ConsolePublicationNodeKind.Folder ? "service" : "layer")}"
+    private string AccessibleLabel => View.Count(Node) is { } count
+        ? $"{Node.Label} {ConsolePublicationTreeContext.FormatCount(count, Node.Kind is ConsolePublicationNodeKind.Service ? "layer" : "service")}"
         : Node.GeometryType is { } geometry ? $"{Node.Label} {geometry}" : Node.Label;
 }

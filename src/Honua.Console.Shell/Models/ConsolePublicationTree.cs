@@ -10,6 +10,7 @@ public sealed class ConsolePublicationNode
 {
     public required string Key { get; init; }
     public required string Label { get; init; }
+    public string? ShortLabel { get; init; }
     public required ConsolePublicationNodeKind Kind { get; init; }
     public string? Href { get; init; }
     public string? ServiceName { get; init; }
@@ -23,7 +24,7 @@ public sealed class ConsolePublicationNode
     public string? ReadMessage { get; set; }
     public OperateSectionStatus? ReadStatus { get; set; }
     public int VisibleOffset { get; set; }
-    public int VisibleLimit { get; set; } = ConsolePublicationTree.PageSize;
+    public int VisibleLimit { get; set; }
     public bool ChildrenComplete { get; set; } = true;
     public int? ChildCount => Kind switch
     {
@@ -39,6 +40,7 @@ public sealed class ConsolePublicationNode
 public sealed class ConsolePublicationTree
 {
     public const int PageSize = 25;
+    public int ChildPageSize { get; init; } = PageSize;
     private Dictionary<string, bool>? _unfilteredExpansion;
     public ConsolePublicationNode Root { get; private set; } = new()
     {
@@ -62,7 +64,9 @@ public sealed class ConsolePublicationTree
     public int SearchMatchCount => HasUnloadedServices ? ServiceCount : MatchingServices.Count();
 
     public bool HasHiddenLoadedChildren(ConsolePublicationNode parent) =>
-        MatchingChildren(parent).Count > parent.VisibleOffset + parent.VisibleLimit;
+        MatchingChildren(parent).Count > parent.VisibleOffset + Limit(parent);
+
+    private int Limit(ConsolePublicationNode parent) => parent.VisibleLimit > 0 ? parent.VisibleLimit : ChildPageSize;
 
     public void Load(HonuaAdminServicePage page, string environmentLabel, IReadOnlyList<Folder>? catalogFolders = null)
     {
@@ -89,6 +93,7 @@ public sealed class ConsolePublicationTree
             {
                 Key = "folder:" + Uri.EscapeDataString(folder.Metadata.Id),
                 Label = ConsoleFolderCatalog.Label(folder),
+                ShortLabel = string.IsNullOrWhiteSpace(folder.Metadata.Title) ? null : folder.Metadata.Title,
                 Href = FolderHref(folder.Metadata.Id),
                 Kind = ConsolePublicationNodeKind.Folder,
                 ChildrenLoaded = true
@@ -176,11 +181,11 @@ public sealed class ConsolePublicationTree
         parent.Children.Where(IsMatch).ToArray();
 
     public IReadOnlyList<ConsolePublicationNode> VisibleChildren(ConsolePublicationNode parent) =>
-        MatchingChildren(parent).Skip(parent.VisibleOffset).Take(parent.VisibleLimit).ToArray();
+        MatchingChildren(parent).Skip(parent.VisibleOffset).Take(Limit(parent)).ToArray();
 
     public void ShowMoreSearch() => SearchLimit += PageSize;
 
-    public void ShowMore(ConsolePublicationNode parent) => parent.VisibleLimit += PageSize;
+    public void ShowMore(ConsolePublicationNode parent) => parent.VisibleLimit = Limit(parent) + ChildPageSize;
 
     public void SetFilter(string filter)
     {
@@ -209,7 +214,7 @@ public sealed class ConsolePublicationTree
     public void ShowFirstPage(ConsolePublicationNode parent)
     {
         parent.VisibleOffset = 0;
-        parent.VisibleLimit = PageSize;
+        parent.VisibleLimit = 0;
     }
 
     public IEnumerable<ConsolePublicationNode> VisibleNodes() => VisibleNodes(Root);
@@ -263,8 +268,8 @@ public sealed class ConsolePublicationTree
         var index = MatchingChildren(parent).ToList().FindIndex(child => RevealPath(child, path));
         if (index < 0) return false;
         parent.Expanded = true;
-        parent.VisibleOffset = index / PageSize * PageSize;
-        parent.VisibleLimit = PageSize;
+        parent.VisibleOffset = index / ChildPageSize * ChildPageSize;
+        parent.VisibleLimit = 0;
         return true;
     }
 

@@ -1,4 +1,5 @@
 using Honua.Console.Shell.Models;
+using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.Shell.Layout;
@@ -11,12 +12,20 @@ public sealed class ConsolePublicationTreeContext
     public bool SearchPending { get; init; }
 
     public string? Link(ConsolePublicationNode node) => node.Kind == ConsolePublicationNodeKind.Folder && !V4Enabled ? null : node.Href;
+
+    public string Label(ConsolePublicationNode node) => V4Enabled ? node.ShortLabel ?? node.Label : node.Label;
+
+    public int? Count(ConsolePublicationNode node) =>
+        V4Enabled && node.Kind == ConsolePublicationNodeKind.Environment ? Tree.ServiceCount : node.ChildCount;
     public EventCallback<ConsolePublicationNode> Expand { get; init; }
     public EventCallback<ConsolePublicationNode> Collapse { get; init; }
     public EventCallback<ConsolePublicationNode> Retry { get; init; }
     public EventCallback<ConsolePublicationNode> ShowFirstPage { get; init; }
     public EventCallback<ConsolePublicationNode> ShowMore { get; init; }
     public EventCallback ShowMoreSearch { get; init; }
+    public OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>? LayerSearch { get; init; }
+    public EventCallback<ConsoleSearchTarget> OpenSearchResult { get; init; }
+    public EventCallback CollapseAll { get; init; }
 
     public IEnumerable<ConsolePublicationNode> PagedParents => Tree.VisibleNodes()
         .Where(node => node.Expanded && (node.VisibleOffset > 0 || Tree.HasHiddenLoadedChildren(node) || OffersMoreServices(node)));
@@ -46,6 +55,8 @@ public sealed class ConsolePublicationTreeContext
     public static string GroupId(ConsolePublicationNode node) => "console-tree-group-" + node.Key;
     public static string StatusId(ConsolePublicationNode node) => "console-tree-status-" + node.Key;
 }
+
+public sealed record ConsoleSearchTarget(string Href, string? ServiceName);
 
 public sealed class ConsolePublicationTreePlacement
 {
