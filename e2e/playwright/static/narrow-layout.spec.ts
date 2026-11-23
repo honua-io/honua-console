@@ -24,7 +24,7 @@ async function signIn(page: Page, returnTo: string, shell: Shell) {
   await page.waitForURL(url => url.pathname === `/console${returnTo}`);
 }
 
-test('a long identity is truncated and wrapped header controls stay right-aligned', async ({ page }, testInfo) => {
+test('a long identity stays in the account menu and wrapped header controls stay right-aligned', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, '/operate/connections', 'v4');
   const identity = page.locator('.console-account-identity');
@@ -34,24 +34,24 @@ test('a long identity is truncated and wrapped header controls stay right-aligne
     const header = await page.evaluate(() => {
       const bar = document.querySelector<HTMLElement>('.console-topbar')!.getBoundingClientRect();
       const identityBox = document.querySelector('.console-account-identity')!.getBoundingClientRect();
-      const help = document.querySelector('.console-help-link')!.getBoundingClientRect();
+      const help = document.querySelector('.console-account-avatar')!.getBoundingClientRect();
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       return { overflow, barRight: bar.right, identityWidth: identityBox.width, helpRight: help.right, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize) };
     });
     expect(header.identityWidth, `identity width at ${width}`).toBeLessThanOrEqual(12 * header.rootFont + 1);
     expect(header.overflow, `no sideways scroll at ${width}`).toBeLessThanOrEqual(0);
-    expect(header.barRight - header.helpRight, `help stays at the trailing edge at ${width}`).toBeLessThan(40);
+    expect(header.barRight - header.helpRight, `the account avatar stays at the trailing edge at ${width}`).toBeLessThan(40);
   }
   // When the bar still wraps (wide navigation), the wrapped controls hold the trailing edge.
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => { document.querySelector<HTMLElement>('.console-topnav')!.style.minWidth = '1100px'; });
   const wrapped = await page.evaluate(() => {
     const bar = document.querySelector<HTMLElement>('.console-topbar')!.getBoundingClientRect();
-    const help = document.querySelector('.console-help-link')!.getBoundingClientRect();
+    const help = document.querySelector('.console-account-avatar')!.getBoundingClientRect();
     return { height: bar.height, barRight: bar.right, helpRight: help.right };
   });
   expect(wrapped.height, 'forced second row').toBeGreaterThan(49);
-  expect(wrapped.barRight - wrapped.helpRight, 'help on a wrapped row').toBeLessThan(40);
+  expect(wrapped.barRight - wrapped.helpRight, 'account avatar on a wrapped row').toBeLessThan(40);
   await testInfo.attach('header-long-identity', { body: await page.screenshot(), contentType: 'image/png' });
   // The truncated name stays available on hover.
   await expect(identity).toHaveAttribute('title', longIdentity);
