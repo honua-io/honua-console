@@ -2,6 +2,7 @@
 """Run the agent-reflection browser journey on the server's customer Compose package."""
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ import urllib.request
 
 import yaml
 
-from quickstart_diagnostics import (CommandFailed, DetailedError, Redactor, describe_failure, publish_report,
+from quickstart_diagnostics import (REDACTED, CommandFailed, DetailedError, Redactor, describe_failure, publish_report,
                                    read_error_body, scrub_tree, stream_redacted)
 from quickstart_secrets import read_install_secrets
 
@@ -113,6 +114,23 @@ def install_idp_certs(source, target):
         label='sudo install kc.key')
 
 
+def console_services(server_tls):
+    """Server, management server and Console wiring. Both servers take the Console's CSRF and OIDC token
+    exchange only over HTTPS, so each listens on :8445 with the test certificate (SANs honua, compose-manager)."""
+    certs = ['./auth/certs:/certs:ro']
+    return {
+        'honua': {'environment': server_tls, 'volumes': certs},
+        'compose-manager': {'environment': server_tls, 'volumes': certs},
+        'console': {'image': CONSOLE_IMAGE, 'ports': ['127.0.0.1:15274:8080'],
+                    'environment': {'ASPNETCORE_ENVIRONMENT': 'Development', 'ASPNETCORE_HTTP_PORTS': '8080',
+                                    'HONUA_SERVER_BASE_URL': 'https://honua:8445',
+                                    'HONUA_MANAGER_BASE_URL': 'https://compose-manager:8445',
+                                    'SSL_CERT_FILE': '/certs/kc.crt',
+                                    'Honua__Console__Auth__Mode': 'Dev'},
+                    'volumes': certs},
+    }
+
+
 def setup():
     if INSTALL.exists():
         raise RuntimeError('The isolated quickstart directory already exists')
@@ -147,18 +165,7 @@ def setup():
     # server also listens on :8445 with the test certificate (its SAN includes `honua`).
     server_tls = {**server_auth, **yaml.safe_load((ROOT / 'e2e/docker-compose.server-tls.yml').read_text())
                   ['services']['honua-server']['environment']}
-    override = {'services': {
-        'keycloak': keycloak,
-        'honua': {'environment': server_tls, 'volumes': ['./auth/certs:/certs:ro']},
-        'compose-manager': {'environment': server_auth, 'volumes': ['./auth/certs:/certs:ro']},
-        'console': {'image': CONSOLE_IMAGE, 'ports': ['127.0.0.1:15274:8080'],
-                    'environment': {'ASPNETCORE_ENVIRONMENT': 'Development', 'ASPNETCORE_HTTP_PORTS': '8080',
-                                    'HONUA_SERVER_BASE_URL': 'https://honua:8445',
-                                    'HONUA_MANAGER_BASE_URL': 'http://compose-manager:8080',
-                                    'SSL_CERT_FILE': '/certs/kc.crt',
-                                    'Honua__Console__Auth__Mode': 'Dev'},
-                    'volumes': ['./auth/certs:/certs:ro']},
-    }}
+    override = {'services': {'keycloak': keycloak, **console_services(server_tls)}}
     (INSTALL / COMPOSE_FILES[-1]).write_text(json.dumps(override))
     os.chmod(INSTALL / COMPOSE_FILES[-1], 0o600)
     compose('up', '-d', '--wait', '--wait-timeout', '300')
@@ -224,6 +231,23 @@ def run_playwright(env, *, playwright_dir=ROOT / 'e2e/playwright', raw_report=IN
             scrub_tree(Path(playwright_dir) / 'test-results', REDACTOR)
 
 
+LOGGED_SERVICES = ('honua', 'compose-manager', 'console', 'keycloak')
+# Tokens issued at run time are unknown to the redactor; logs leave the runner in a public artifact.
+RUNTIME_TOKEN = re.compile(r'(?i)(bearer\s+)\S+|eyJ[\w-]+\.[\w-]+\.[\w-]*')
+CONTAINER_LOG = ROOT / 'artifacts/studio-customer/agent-reflection-containers.log'
+
+
+def publish_container_logs(target=CONTAINER_LOG):
+    """After a failed journey, keep the redacted server, Console and IdP logs; a log failure never hides the cause."""
+    try:
+        text = compose('logs', '--no-color', '--timestamps', *LOGGED_SERVICES)
+    except (CommandFailed, OSError, subprocess.TimeoutExpired) as error:
+        text = f'container logs unavailable: {type(error).__name__}'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    redacted = RUNTIME_TOKEN.sub(lambda match: (match.group(1) or '') + REDACTED, REDACTOR.redact(text))
+    target.write_text(redacted + '\n')
+
+
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ('run', 'clean'):
         raise RuntimeError('Specify run or clean')
@@ -235,6 +259,7 @@ def main():
     REDACTOR.add_install_secrets(INSTALL)
     returncode = run_playwright(env)
     if returncode:
+        publish_container_logs()
         raise RuntimeError(f'Agent reflection Playwright failed with exit code {returncode}')
 
 

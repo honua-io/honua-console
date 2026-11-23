@@ -204,6 +204,43 @@ class HarnessTests(unittest.TestCase):
             run.assert_called_once_with(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0644',
                                          str(source / 'kc.key'), str(target / 'kc.key')], label='sudo install kc.key')
 
+    def test_failed_journey_publishes_redacted_server_and_console_logs(self):
+        harness = load_harness()
+        harness.REDACTOR.add(SAMPLE)
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp, 'artifacts/agent-reflection-containers.log')
+            with mock.patch.object(harness, 'compose', return_value=f'honua-1 | token {SAMPLE} rejected') as compose:
+                harness.publish_container_logs(target)
+            compose.assert_called_once_with('logs', '--no-color', '--timestamps', *harness.LOGGED_SERVICES)
+            self.assertEqual(target.read_text(), f'honua-1 | token {REDACTED} rejected\n')
+
+    def test_container_logs_drop_runtime_bearers_and_jwts(self):
+        harness = load_harness()
+        jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl'
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp, 'logs.txt')
+            with mock.patch.object(harness, 'compose', return_value=f'Authorization: Bearer opaque-123 id_token={jwt}'):
+                harness.publish_container_logs(target)
+            self.assertEqual(target.read_text(), f'Authorization: Bearer {REDACTED} id_token={REDACTED}\n')
+
+    def test_container_log_failure_is_recorded_instead_of_raised(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp, 'agent-reflection-containers.log')
+            with mock.patch.object(harness, 'compose', side_effect=CommandFailed('docker compose logs', 1, b'gone')):
+                harness.publish_container_logs(target)
+            self.assertIn('container logs unavailable', target.read_text())
+
+    def test_console_reaches_both_servers_over_https(self):
+        harness = load_harness()
+        tls = {'Kestrel__Endpoints__Https__Url': 'https://*:8445'}
+        services = harness.console_services(tls)
+        console = services['console']['environment']
+        self.assertEqual(console['HONUA_SERVER_BASE_URL'], 'https://honua:8445')
+        self.assertEqual(console['HONUA_MANAGER_BASE_URL'], 'https://compose-manager:8445')
+        self.assertEqual(services['compose-manager']['environment'], tls)
+        self.assertEqual(services['honua']['environment'], tls)
+
     def test_run_raises_command_failed_with_stderr(self):
         harness = load_harness()
         with self.assertRaises(CommandFailed) as caught:
