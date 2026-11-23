@@ -55,6 +55,7 @@ public sealed class StyleCatalogListV4Tests
             .Add(c => c.Catalog, new StudioMapStyleCatalog([], null, new("Styles", "Unavailable", "GET /ogc/styles", "The Honua server does not expose the OGC API - Styles list.")))
             .Add(c => c.Loaded, true));
         Assert.Contains("does not expose", failed.Find("[data-style-catalog-issue]").TextContent, StringComparison.Ordinal);
+        Assert.StartsWith("The server style catalog (", failed.Find("[data-style-catalog-summary]").TextContent, StringComparison.Ordinal);
         Assert.Empty(failed.FindAll("[data-style-catalog]"));
 
         var empty = ctx.Render<StyleCatalogListV4>(p => p.Add(c => c.Catalog, StudioMapStyleCatalog.Empty).Add(c => c.Loaded, true));

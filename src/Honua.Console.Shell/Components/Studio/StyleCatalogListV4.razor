@@ -53,7 +53,7 @@ else
     private string _query = string.Empty;
     private int _page = 1;
 
-    private string Summary => !Loaded ? "The server style catalog"
+    private string Summary => !Loaded || (Catalog.Issue is not null && !Catalog.HasStyles) ? "The server style catalog"
         : ConsolePublicationTreeContext.FormatCount(Catalog.Styles.Count, "style") + " in the server style catalog";
 
     private IReadOnlyList<StudioMapStyleOption> Matches => Catalog.Styles

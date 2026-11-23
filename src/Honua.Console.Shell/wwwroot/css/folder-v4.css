@@ -113,9 +113,13 @@
     min-width: 0;
 }
 
+[data-console-v4="true"] .console-layer-preview-filters .console-input {
+    width: auto;
+    min-width: 0;
+}
+
 [data-console-v4="true"] .console-layer-preview-filters .console-input[type="search"] {
     flex: 0 1 18rem;
-    min-width: 0;
 }
 
 [data-console-v4="true"] .console-layer-preview-links {
