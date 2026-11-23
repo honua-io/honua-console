@@ -48,7 +48,8 @@ public static class ConsoleServerBoundClients
             .AddHttpMessageHandler(provider => CreateCredentialHandler(provider))
             .AddHttpMessageHandler(provider => new ConsoleManagerRoutingHandler(
                 provider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
-                provider.GetRequiredService<IConsoleManagerEndpoint>()));
+                provider.GetRequiredService<IConsoleManagerEndpoint>(),
+                ManagementSession(provider)));
 
         // The anonymous-capable chain: same binding (forwards the operator bearer WHEN resolved) but NO
         // fail-closed guard, so /public open-data + the public /ogc/styles list keep rendering for
@@ -62,6 +63,18 @@ public static class ConsoleServerBoundClients
         services.TryAddSingleton<IHonuaServerBoundClientFactory, HttpClientFactoryServerBoundClientFactory>();
 
         return services;
+    }
+
+    private static Func<string, Uri, HttpClient?>? ManagementSession(IServiceProvider services)
+    {
+        var store = services.GetService<ConsoleServerSessionClientStore>();
+        var operators = services.GetService<IConsoleOperatorContext>();
+        if (store is null || operators is null) return null;
+        return (profileId, manager) =>
+            store.TryGet(operators.RequireOperatorKey(), profileId, manager, out var partition)
+            && partition is not null && !string.IsNullOrWhiteSpace(partition.AuthenticatedProviderKey)
+                ? ConsoleServerSessionCookieClient.Create(partition, manager)
+                : null;
     }
 
     private static HonuaServerBindingHandler CreateBindingHandler(IServiceProvider services) =>
