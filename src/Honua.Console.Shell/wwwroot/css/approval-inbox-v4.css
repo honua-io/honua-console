@@ -45,6 +45,7 @@
 
 .approval-inbox-v4 .approval-inbox-queue {
     min-width: 0;
+    width: 100%;
 }
 
 .approval-inbox-v4 .approval-inbox-table-scroll {
@@ -84,6 +85,7 @@
 
 .approval-inbox-v4 .approval-inbox-select {
     min-width: 200px;
+    min-height: 24px;
     color: var(--c-accent);
     text-align: left;
     gap: var(--space-2);
