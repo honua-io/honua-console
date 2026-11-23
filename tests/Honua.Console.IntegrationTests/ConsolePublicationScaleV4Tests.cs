@@ -2,8 +2,6 @@ using Bunit;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
-using AdminModels = Honua.Sdk.Admin.Models;
-using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 using static Honua.Console.IntegrationTests.ConsolePublicationRenderFixture;
@@ -140,30 +138,14 @@ public sealed class ConsolePublicationScaleV4Tests
         Assert.Equal("Layers", tree.Find("#console-search-layers").TextContent.Trim());
     }
 
-    [Fact]
-    public void V4SearchOnAFolderPageKeepsTheSearchWhenThatFolderDoesNotMatch()
-    {
-        var source = new PublicationNavigationSource { ServiceSummaries = FolderedServices() };
-        using var context = V4Context(source);
-        context.Services.AddSingleton<IConsoleFolderClient>(new FolderCatalogClient());
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/folders/folder-00");
-        var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal("true",
-            tree.Find("[data-publication-key='folder:folder-00']").GetAttribute("aria-selected")));
-        tree.Find("[data-tree-filter]").Input("signal");
-        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search]")));
-        Assert.Equal("signal", tree.Find("[data-tree-filter]").GetAttribute("value"));
-        Assert.Equal("Folders (1)", tree.Find("#console-search-folders").TextContent.Trim());
-    }
-
-    private static BunitContext V4Context(PublicationNavigationSource source)
+    internal static BunitContext V4Context(PublicationNavigationSource source)
     {
         var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         return context;
     }
 
-    private static Honua.Sdk.Admin.Models.ServiceSummary[] FolderedServices() =>
+    internal static Honua.Sdk.Admin.Models.ServiceSummary[] FolderedServices() =>
         Enumerable.Range(0, 39).Select(index => $"folder-{index:D2}").Append("signals")
             .SelectMany(folder => Enumerable.Range(0, 13).Select(index => new Honua.Sdk.Admin.Models.ServiceSummary
             {
@@ -172,22 +154,6 @@ public sealed class ConsolePublicationScaleV4Tests
                 ServiceName = $"{folder}-{index:D2}",
                 LayerCount = 4
             })).ToArray();
-
-    private sealed class FolderCatalogClient : IConsoleFolderClient
-    {
-        public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(
-                FolderedServices().Select(service => service.FolderId!).Distinct()
-                    .Select(id => new AdminModels.Folder { Metadata = new() { Id = id, Name = id } }).ToArray(), "\"catalog-1\"", "authority")));
-        public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, AdminModels.CreateFolderRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-        public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, AdminModels.UpdateFolderRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-        public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-        public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, AdminModels.MoveServiceRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-    }
 
     private static void Capture((string Tree, string Header) markup, ConsolePresentationMode presentation, string state)
     {
