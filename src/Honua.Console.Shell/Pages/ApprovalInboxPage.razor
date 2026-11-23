@@ -296,7 +296,7 @@
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         DecisionPending="@(IsDecisionPending(proposalId))"
-                        RecordedDecision="@_recordedDecisions.GetValueOrDefault(proposalId)"
+                        RecordedStatus="@(_recordedStatuses.TryGetValue(proposalId, out var status) ? status : null)"
                         UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, proposalId, summary))"
                         OnActioned="@(detail => OnProposalActioned(approvalInstance, detail))" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
                     @if (linked is not null)
@@ -394,7 +394,7 @@
     private string? _selectedProposalId;
     private object _approvalInstance = new();
     private readonly Dictionary<object, (string ProposalId, ConsoleAgentUnsavedSummary Summary)> _approvalStates = new();
-    private readonly Dictionary<string, ConsoleProposalDetail> _recordedDecisions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ConsoleProposalStatus> _recordedStatuses = new(StringComparer.Ordinal);
     private string? _routeProposalId;
     private string? _linkedRequestId;
     private ConsoleProposalDetail? _selectedDetail;
@@ -736,7 +736,10 @@
     {
         if (_disposed) return;
 
-        _recordedDecisions[detail.ProposalId] = detail;
+        if (!detail.IsAwaitingApproval)
+        {
+            _recordedStatuses[detail.ProposalId] = detail.Status;
+        }
         if (detail.ProposalId == _selectedProposalId)
         {
             _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;

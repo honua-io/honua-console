@@ -36,7 +36,7 @@ const assertFeedLeads = async page => {
 
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
-  widths: [1440, 390],
+  widths: [1440, 1280, 390],
   themes: ["light", "dark"],
   pageNames: ["activity-selected", "activity-empty"],
   title: "Activity presentation fixture",

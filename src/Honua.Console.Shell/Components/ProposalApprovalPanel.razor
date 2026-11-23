@@ -370,7 +370,7 @@ else
     public bool DecisionPending { get; set; }
 
     [Parameter]
-    public ConsoleProposalDetail? RecordedDecision { get; set; }
+    public ConsoleProposalStatus? RecordedStatus { get; set; }
 
     [Parameter]
     public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
@@ -430,10 +430,10 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        if (RecordedDecision is { IsAwaitingApproval: false } receipt &&
-            (_detail is null || _detail.ProposalId != ProposalId || _detail.IsAwaitingApproval))
+        if (_detail is { IsAwaitingApproval: true } detail &&
+            detail.ProposalId == ProposalId && RecordedStatus is { } status)
         {
-            Apply(OperateSectionResult<ConsoleProposalDetail>.Allowed(receipt));
+            _detail = detail with { Status = status };
         }
 
         if (!string.Equals(_loadedProposalId, ProposalId, StringComparison.Ordinal))
@@ -441,6 +441,7 @@ else
             _loadedProposalId = ProposalId;
             _detailRefresh = new();
             _loadedReloadToken = ReloadToken;
+            Apply(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, string.Empty));
             _reason = null;
             _approveForbidden = false;
             _actionMessage = null;
@@ -476,13 +477,15 @@ else
     {
         if (_disposed) return;
         var version = ++_loadVersion;
+        _loadedPolicyRule = null;
+        StateHasChanged();
         var result = await Proposals.GetAsync(ProposalId);
         if (!IsCurrentLoad(version)) return;
 
-        if (RecordedDecision is { IsAwaitingApproval: false } receipt &&
-            (!result.IsAllowed || result.Value is not { IsAwaitingApproval: false }))
+        if (result.IsAllowed && result.Value is { IsAwaitingApproval: true } detail &&
+            RecordedStatus is { } status)
         {
-            result = OperateSectionResult<ConsoleProposalDetail>.Allowed(_detail is { IsAwaitingApproval: false } ? _detail : receipt);
+            result = result with { Value = detail with { Status = status } };
         }
 
         Apply(result);
@@ -513,7 +516,6 @@ else
             return;
         }
 
-        _loadedPolicyRule = null;
         if (snapshot.Status == OperateSectionStatus.Unsupported)
         {
             _autonomySupported = false;
@@ -655,7 +657,7 @@ else
         Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,
         Func<ConsoleProposalDetail, ConsoleProposalDecisionFeedback> feedback)
     {
-        if (DecisionUnavailable || _detail?.IsAwaitingApproval != true || RecordedDecision is { IsAwaitingApproval: false })
+        if (DecisionUnavailable || _detail?.IsAwaitingApproval != true || RecordedStatus is not null)
         {
             return false;
         }
