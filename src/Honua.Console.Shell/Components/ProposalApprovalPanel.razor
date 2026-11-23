@@ -557,7 +557,9 @@ else
         var approved = await RunActionAsync(
             () => Proposals.ApproveAsync(proposalId, reviewedPlan),
             feedback: ConsoleProposalDecisionFeedback.ForApproval);
-        if (approved && promoteAfterApproval && !string.IsNullOrWhiteSpace(rule))
+        if (approved && promoteAfterApproval && !_disposed && ProposalId == proposalId &&
+            PolicyLoaded && _loadedPolicyRule == rule && _rulePolicy?.Mode != "AutoApply" &&
+            !string.IsNullOrWhiteSpace(rule))
         {
             var reason = string.IsNullOrWhiteSpace(enteredReason)
                 ? $"Promoted to AutoApply from approval inbox proposal {proposalId}"

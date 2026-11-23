@@ -274,8 +274,10 @@ public sealed class ProposalApprovalPanelReceiptTests
         });
     }
 
-    [Fact]
-    public async Task RuleBackedProposalWaitsForPolicyBeforeAllowingPromotion()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RuleBackedProposalWaitsForPolicyBeforeAllowingPromotion(bool enabledDuringApproval)
     {
         using var context = new BunitContext();
         var detail = new ConsoleProposalDetail(
@@ -305,7 +307,8 @@ public sealed class ProposalApprovalPanelReceiptTests
         };
         var policyRead = new TaskCompletionSource();
         var autonomy = new FakeInboxAutonomyClient("alert-dispatch-backlog", "ProposeOnly", policyRead.Task);
-        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail));
+        var approval = new TaskCompletionSource();
+        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail, approval.Task));
         context.Services.AddSingleton<IConsoleOpsAutonomyClient>(autonomy);
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
 
@@ -339,7 +342,23 @@ public sealed class ProposalApprovalPanelReceiptTests
         await panel.InvokeAsync(() => policyRefresh.SetResult());
         panel.WaitForAssertion(() => Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
 
-        panel.Find("[data-proposal-approve]").Click();
+        var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        panel.WaitForAssertion(() => Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
+        if (enabledDuringApproval)
+        {
+            autonomy.ObservePolicyMode("AutoApply");
+            panel.Render(parameters => parameters.Add(component => component.ReloadToken, 2));
+            panel.WaitForAssertion(() =>
+                Assert.Equal("AutoApply", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim()));
+        }
+
+        await panel.InvokeAsync(() => approval.SetResult());
+        await approve;
+        if (enabledDuringApproval)
+        {
+            Assert.Empty(autonomy.PolicyUpdates);
+            return;
+        }
 
         panel.WaitForAssertion(() =>
         {
@@ -355,7 +374,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         });
     }
 
-    private sealed class SingleDetailProposalClient(ConsoleProposalDetail detail) : IConsoleProposalsClient
+    private sealed class SingleDetailProposalClient(ConsoleProposalDetail detail, Task? approval = null) : IConsoleProposalsClient
     {
         private ConsoleProposalDetail _current = detail;
 
@@ -367,11 +386,12 @@ public sealed class ProposalApprovalPanelReceiptTests
             string proposalId, CancellationToken cancellationToken = default) =>
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(_current));
 
-        public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
+        public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(
             string proposalId, CancellationToken cancellationToken = default)
         {
+            await (approval ?? Task.CompletedTask);
             _current = _current with { Status = ConsoleProposalStatus.Submitted, ExecutionOperationId = "op-approved-1" };
-            return Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Allowed(_current));
+            return OperateSectionResult<ConsoleProposalDetail>.Allowed(_current);
         }
 
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
@@ -382,6 +402,8 @@ public sealed class ProposalApprovalPanelReceiptTests
     private sealed class FakeInboxAutonomyClient(string rule, string initialMode, Task policyRead) : IConsoleOpsAutonomyClient
     {
         private string _mode = initialMode;
+
+        public void ObservePolicyMode(string mode) => _mode = mode;
 
         public Task PolicyRead { get; set; } = policyRead;
 

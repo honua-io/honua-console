@@ -36,10 +36,8 @@ public sealed class ApprovalInboxPresentationTests
     [InlineData(59 * 60 + 59, "59 min")]
     [InlineData(60 * 60, "1 h")]
     [InlineData(25 * 60 * 60, "1 d")]
-    public void WaitingFor_RoundsDownToTheLargestWholeUnit(int seconds, string expected)
-    {
+    public void WaitingFor_RoundsDownToTheLargestWholeUnit(int seconds, string expected) =>
         Assert.Equal(expected, ApprovalInboxPresentation.WaitingFor(Now.AddSeconds(-seconds), Now));
-    }
 
     [Fact]
     public void IsReportedTime_RejectsServerPlaceholders()
@@ -53,16 +51,12 @@ public sealed class ApprovalInboxPresentationTests
     [InlineData(0, "No proposals waiting.")]
     [InlineData(1, "1 proposal waiting.")]
     [InlineData(5, "5 proposals waiting.")]
-    public void WaitingSentence_CountsAwaitingProposals(int awaiting, string expected)
-    {
+    public void WaitingSentence_CountsAwaitingProposals(int awaiting, string expected) =>
         Assert.Equal(expected, ApprovalInboxPresentation.WaitingSentence(awaiting));
-    }
 
     [Theory]
     [InlineData(0, 3, "No results")]
     [InlineData(2, 3, "Results 1 to 2 (out of 3)")]
-    public void Results_DescribesTheVisibleRange(int shown, int total, string expected)
-    {
+    public void Results_DescribesTheVisibleRange(int shown, int total, string expected) =>
         Assert.Equal(expected, ApprovalInboxPresentation.Results(shown, total));
-    }
 }
