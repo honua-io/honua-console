@@ -10,8 +10,7 @@
     [Parameter, EditorRequired]
     public ConsoleProposalSummary Proposal { get; set; } = default!;
 
-    [Parameter]
-    public bool Waiting { get; set; }
+    private bool Waiting => Proposal.IsAwaitingApproval;
 
     private ApprovalRequester Requester => ApprovalInboxPresentation.Requester(Proposal);
 
@@ -25,6 +24,6 @@
     };
 
     private string Message => Waiting
-        ? "You opened this from a link. Accepting the request in your AI client only opened this page and never counts as approval. Nothing has changed yet: the change runs only after a person with approval permission approves it here."
+        ? "You opened this request from a link. Review the proposed change below. The connected server checks approval permissions before carrying out the change."
         : "A decision has been made. The review below shows where the change stands now.";
 }

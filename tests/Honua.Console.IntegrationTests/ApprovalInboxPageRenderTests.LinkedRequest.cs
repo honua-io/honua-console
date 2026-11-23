@@ -26,7 +26,11 @@ public sealed partial class ApprovalInboxPageRenderTests
             ],
             details:
             [
-                FakeProposalFactory.Detail("deploy-1", ConsoleProposalKind.Deploy),
+                FakeProposalFactory.Detail("deploy-1", ConsoleProposalKind.Deploy) with
+                {
+                    RequestedBy = "kai@example.org",
+                    RequestedByAgent = "Claude Desktop",
+                },
                 FakeProposalFactory.Detail("import-1", ConsoleProposalKind.DataImport),
             ]);
         var ctx = NewContext(proposals, registerServices: context =>
@@ -51,9 +55,10 @@ public sealed partial class ApprovalInboxPageRenderTests
         }
 
         Assert.Equal("Claude Desktop is asking you to approve a change", page.Find($"{LinkedIntro} h2").TextContent);
-        Assert.Contains("never counts as approval", page.Find(LinkedIntro).TextContent, StringComparison.Ordinal);
+        Assert.Contains("checks approval permissions", page.Find(LinkedIntro).TextContent, StringComparison.Ordinal);
+        var layout = page.Find(".approval-inbox-layout.is-linked-request");
+        Assert.True(layout.Children[0].HasAttribute("data-approval-review"));
         Assert.Single(page.FindAll(LinkedNext));
-        Assert.Single(page.FindAll(".approval-inbox-layout.is-linked-request"));
         CatalogAdminPreview.Capture("approvals-request", $"<div class=\"console-shell\" data-console-v4=\"true\">{page.Markup}</div>");
     }
 
@@ -100,10 +105,10 @@ public sealed partial class ApprovalInboxPageRenderTests
     }
 
     [Fact]
-    public void LinkedRequest_SaysWhenTheRequestIsNoLongerWaiting()
+    public void LinkedRequest_ShowsTheOutcomeAfterTheProposalLeavesTheQueue()
     {
         var proposals = new FakeConsoleProposalsClient(
-            proposals: [FakeProposalFactory.Summary("done-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Completed)],
+            proposals: [],
             details: [FakeProposalFactory.Detail("done-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Completed)]);
         using var ctx = NewContext(proposals, registerServices: context =>
             context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));

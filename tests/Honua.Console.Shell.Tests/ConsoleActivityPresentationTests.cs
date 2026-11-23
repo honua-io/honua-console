@@ -42,13 +42,19 @@ public sealed class ConsoleActivityPresentationTests
         Assert.Equal(expected, ConsoleActivityPresentation.QueryString(new ConsoleActivityFeedQuery(actor, cursor)));
     }
 
-    [Fact]
-    public void Visible_AgentFilterKeepsRowsWithAnAgent()
+    [Theory]
+    [InlineData(ConsoleActivityActorFilter.Person, "UserId")]
+    [InlineData(ConsoleActivityActorFilter.ApiKey, "ApiKey")]
+    [InlineData(ConsoleActivityActorFilter.System, "System")]
+    public void Visible_KeepsOnlyTheSelectedActorKind(ConsoleActivityActorFilter filter, string actorType)
     {
-        ObservabilityAuditRecordResponse[] rows = [Row("UserId", "Cursor"), Row("UserId"), Row("ApiKey", "")];
+        var principal = Row(actorType, " ");
+        var agent = Row(actorType, "Cursor");
+        ObservabilityAuditRecordResponse[] rows = [agent, principal, Row("Anonymous")];
 
-        Assert.Single(ConsoleActivityPresentation.Visible(rows, ConsoleActivityActorFilter.Agent));
-        Assert.Equal(3, ConsoleActivityPresentation.Visible(rows, ConsoleActivityActorFilter.Any).Count);
+        Assert.Same(principal, Assert.Single(ConsoleActivityPresentation.Visible(rows, filter)));
+        Assert.Same(agent, Assert.Single(ConsoleActivityPresentation.Visible(rows, ConsoleActivityActorFilter.Agent)));
+        Assert.Same(rows, ConsoleActivityPresentation.Visible(rows, ConsoleActivityActorFilter.Any));
     }
 
     [Fact]

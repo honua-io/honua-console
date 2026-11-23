@@ -225,11 +225,6 @@
         _serverAuthMessage = null;
         try
         {
-            // Saved even for Home, so an earlier abandoned attempt cannot redirect this sign-in.
-            if (Services.GetService<Microsoft.JSInterop.IJSRuntime>() is { } js)
-            {
-                await Honua.Console.Shell.Security.ConsolePendingReturn.SaveAsync(js, _returnTo, DateTimeOffset.UtcNow);
-            }
             var destination = await _oidc.BeginAsync(providerKey, _returnTo);
             Navigation.NavigateTo(destination.AbsoluteUri, forceLoad: true);
         }

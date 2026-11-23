@@ -140,19 +140,6 @@ public sealed class BrowserSignInPageTests
     }
 
     [Fact]
-    public async Task ProviderSignInSavesTheRequestedPageBeforeLeaving()
-    {
-        await using var context = CreateContext();
-        context.Services.AddSingleton<IConsoleOidcAuthentication>(new StubOidc());
-        var page = context.Render<AuthSignInPage>();
-
-        await page.Find("button").ClickAsync(new());
-
-        var saved = Assert.Single(context.JSInterop.Invocations, invocation => invocation.Identifier == "sessionStorage.setItem");
-        Assert.EndsWith("|/operate/connections", (string)saved.Arguments[1]!, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ProviderInitiationTimeoutAllowsRetry()
     {
         await using var context = CreateContext();
@@ -210,7 +197,6 @@ public sealed class BrowserSignInPageTests
     private static BunitContext CreateContext(MountedNavigation? navigation = null)
     {
         var context = new BunitContext();
-        context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore([
             new ConsoleEnvironmentProfile { Id = "configured-api", DisplayName = "Honua" }
         ]));

@@ -42,12 +42,21 @@ public static class ConsoleActivityPresentation
         return "?" + string.Join('&', parts);
     }
 
-    // The server cannot filter on "has an agent", so the agent filter narrows the page it returns.
+    // Agent attribution takes precedence over the underlying principal type.
     public static IReadOnlyList<ObservabilityAuditRecordResponse> Visible(
         IReadOnlyList<ObservabilityAuditRecordResponse> items, ConsoleActivityActorFilter filter) =>
-        filter == ConsoleActivityActorFilter.Agent
-            ? items.Where(item => Clean(item.ActorAgent) is not null).ToArray()
-            : items;
+        filter == ConsoleActivityActorFilter.Any
+            ? items
+            : items.Where(item => ClassifyActor(item) == filter).ToArray();
+
+    private static ConsoleActivityActorFilter ClassifyActor(ObservabilityAuditRecordResponse row) =>
+        Clean(row.ActorAgent) is not null ? ConsoleActivityActorFilter.Agent : row.ActorType switch
+        {
+            "UserId" => ConsoleActivityActorFilter.Person,
+            "ApiKey" => ConsoleActivityActorFilter.ApiKey,
+            "System" => ConsoleActivityActorFilter.System,
+            _ => ConsoleActivityActorFilter.Any,
+        };
 
     public static ConsoleActivityActor Actor(ObservabilityAuditRecordResponse row)
     {
@@ -56,11 +65,11 @@ public static class ConsoleActivityPresentation
         {
             return new(agent, row.ActorType == "ApiKey" ? "Agent · API key" : $"Agent · on behalf of {principal}", "agent");
         }
-        return row.ActorType switch
+        return ClassifyActor(row) switch
         {
-            "ApiKey" => new("API key", principal, "key"),
-            "System" => new(principal, "System", "system"),
-            "Anonymous" => new("Anonymous", "Not signed in", "person"),
+            ConsoleActivityActorFilter.ApiKey => new("API key", principal, "key"),
+            ConsoleActivityActorFilter.System => new(principal, "System", "system"),
+            _ when row.ActorType == "Anonymous" => new("Anonymous", "Not signed in", "person"),
             _ => new(principal, "Person", "person"),
         };
     }
