@@ -1,0 +1,227 @@
+/* v4 service page (mockup 03): summary line, tab counts, layer table, web-service cards, Administration. */
+.console-shell[data-console-v4="true"] .console-tab-count {
+    display: inline-block;
+    min-width: 1.25rem;
+    margin-inline-start: var(--space-1);
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background: var(--c-surface-2);
+    color: var(--c-text-2);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+[data-console-v4="true"] .console-service-summary,
+[data-console-v4="true"] .console-service-description {
+    color: var(--c-text-2);
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-service-summary code,
+[data-console-v4="true"] .console-service-layer-path,
+[data-console-v4="true"] .console-service-web-services code {
+    font-family: var(--font-mono);
+}
+
+/* Links inside running text stay underlined: colour alone does not set them apart (axe link-in-text-block). */
+[data-console-v4="true"] .console-service-summary a,
+[data-console-v4="true"] .console-service-kv a,
+[data-console-v4="true"] .console-service-web-services > p .console-link-button {
+    color: var(--c-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+[data-console-v4="true"] .console-service-layer-table a {
+    color: var(--c-link);
+    text-decoration: none;
+}
+
+[data-console-v4="true"] .console-service-layer-table a:hover {
+    text-decoration: underline;
+}
+
+[data-console-v4="true"] .console-service-administration .console-detail-actions {
+    justify-content: flex-start;
+}
+
+[data-console-v4="true"] .console-service-list-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+[data-console-v4="true"] .console-service-layer-table th[scope="row"] a {
+    display: block;
+    font-weight: 500;
+}
+
+[data-console-v4="true"] .console-service-layer-path {
+    display: block;
+    color: var(--c-text-3);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-service-layer-type {
+    width: 2.5rem;
+}
+
+[data-console-v4="true"] td.console-service-layer-type {
+    color: var(--c-accent);
+}
+
+[data-console-v4="true"] .console-service-web-services {
+    margin: var(--space-6) 0;
+}
+
+[data-console-v4="true"] .console-service-web-services h2 {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-md);
+    font-weight: 600;
+}
+
+[data-console-v4="true"] .console-service-web-services > p {
+    color: var(--c-text-2);
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--c-link);
+    font: inherit;
+    cursor: pointer;
+}
+
+[data-console-v4="true"] .console-service-web-service-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+[data-console-v4="true"] .console-service-web-service-list li {
+    min-width: 0;
+    max-width: 100%;
+}
+
+[data-console-v4="true"] .console-service-web-service {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    max-width: 100%;
+    padding: 6px var(--space-3);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-pill);
+    color: var(--c-text);
+    font-size: var(--text-sm);
+    text-decoration: none;
+}
+
+[data-console-v4="true"] a.console-service-web-service:hover {
+    border-color: var(--c-accent);
+}
+
+[data-console-v4="true"] .console-service-web-service small {
+    min-width: 0;
+    color: var(--c-text-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-service-kv {
+    display: grid;
+    grid-template-columns: minmax(7rem, max-content) 1fr;
+    gap: var(--space-2) var(--space-4);
+    margin: var(--space-4) 0 0;
+}
+
+[data-console-v4="true"] .console-service-kv dt {
+    color: var(--c-text-2);
+}
+
+[data-console-v4="true"] .console-service-kv dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-service-admin-editors {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    gap: var(--space-4);
+    align-items: start;
+    margin-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    [data-console-v4="true"] .console-service-kv {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+
+    [data-console-v4="true"] .console-service-kv dd {
+        margin-bottom: var(--space-2);
+    }
+}
+
+/* v4 layer page (mockup 04): one row per service URL that serves the layer. */
+[data-console-v4="true"] .console-layer-endpoints {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+[data-console-v4="true"] .console-layer-endpoints li {
+    display: grid;
+    grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--c-border);
+}
+
+[data-console-v4="true"] .console-layer-endpoints li:first-child {
+    border-top: 0;
+}
+
+[data-console-v4="true"] .console-layer-endpoint-protocol {
+    font-weight: 500;
+}
+
+[data-console-v4="true"] .console-layer-endpoints code {
+    min-width: 0;
+    color: var(--c-text-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-layer-endpoint-actions {
+    display: inline-flex;
+    gap: var(--space-1);
+}
+
+[data-console-v4="true"] .console-layer-endpoints small {
+    grid-column: 2 / -1;
+    color: var(--c-text-3);
+}
+
+@media (max-width: 640px) {
+    [data-console-v4="true"] .console-layer-endpoints li {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    [data-console-v4="true"] .console-layer-endpoints code {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+}
