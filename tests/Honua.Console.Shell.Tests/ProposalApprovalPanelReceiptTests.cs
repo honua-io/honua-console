@@ -142,6 +142,58 @@ public sealed class ProposalApprovalPanelReceiptTests
     }
 
     [Fact]
+    public async Task ADecisionRefreshesReopenedReviewOfTheSameProposal()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
+        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var page = context.Render<ApprovalInboxPage>(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
+        var approval = page.Find("[data-proposal-approve]").ClickAsync(new());
+        page.WaitForAssertion(() => Assert.True(client.Started));
+        page.FindAll("button").Single(button => button.TextContent == "Close review").Click();
+        page.Render(parameters => parameters.Add(p => p.ProposalId, (string?)null));
+        page.Render(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
+        page.Find("[data-proposal-approve]");
+
+        var completed = await new ReceiptProposalClient(ConsoleProposalStatus.Succeeded).GetAsync("proposal-1");
+        client.NextRead = Task.FromResult(completed);
+        client.Completion.SetResult(completed);
+        await approval;
+
+        page.WaitForAssertion(() =>
+            Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
+        Assert.Empty(page.FindAll("[data-proposal-approve]"));
+    }
+
+    [Fact]
+    public async Task OverlappingRefreshesRenderTheFirstReadWhileTheFollowUpIsPending()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        var first = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        var followUp = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        client.NextRead = first.Task;
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
+        client.NextRead = followUp.Task;
+        panel.Render(parameters => parameters.Add(p => p.ReloadToken, 1));
+
+        var receipts = new ReceiptProposalClient();
+        var pending = await receipts.GetAsync("proposal-1");
+        await panel.InvokeAsync(() => first.SetResult(pending));
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-proposal-approve]")));
+
+        var submitted = await receipts.ApproveAsync("proposal-1");
+        await panel.InvokeAsync(() => followUp.SetResult(submitted));
+        panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-proposal-approve]")));
+    }
+
+    [Fact]
     public async Task FailedDecisionRetainsReasonAndClearsPendingCount()
     {
         using var context = new BunitContext();

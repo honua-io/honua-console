@@ -401,6 +401,7 @@ else
     private string? _loadedProposalId;
     private int _loadedReloadToken = -1;
     private long _loadVersion;
+    private ConsoleRefreshCoalescer _detailRefresh = new();
 
     protected override void OnInitialized()
     {
@@ -424,6 +425,7 @@ else
         if (!string.Equals(_loadedProposalId, ProposalId, StringComparison.Ordinal))
         {
             _loadedProposalId = ProposalId;
+            _detailRefresh = new();
             _loadedReloadToken = ReloadToken;
             _reason = null;
             _approveForbidden = false;
@@ -447,25 +449,30 @@ else
         && _autonomySupported
         && !string.IsNullOrWhiteSpace(detail.AutonomyRule);
 
-    private async Task LoadAsync()
+    private Task LoadAsync()
     {
+        var refresh = _detailRefresh;
+        return refresh.RunAsync(() => ReferenceEquals(refresh, _detailRefresh)
+            ? ReadDetailAsync()
+            : Task.CompletedTask);
+    }
+
+    private async Task ReadDetailAsync()
+    {
+        if (_disposed) return;
         var version = ++_loadVersion;
         var result = await Proposals.GetAsync(ProposalId);
-        if (!IsCurrentLoad(version))
-        {
-            return;
-        }
+        if (!IsCurrentLoad(version)) return;
+
         Apply(result);
-        await LoadAutonomyRulePolicyAsync(version);
-        if (!IsCurrentLoad(version))
-        {
-            return;
-        }
         await ReportUnsavedAsync();
-        if (IsCurrentLoad(version))
-        {
-            await OnDetailLoaded.InvokeAsync(_detail);
-        }
+        if (!IsCurrentLoad(version)) return;
+
+        await OnDetailLoaded.InvokeAsync(_detail);
+        if (!IsCurrentLoad(version)) return;
+
+        StateHasChanged();
+        await LoadAutonomyRulePolicyAsync(version);
     }
 
     private bool IsCurrentLoad(long version) => !_disposed && version == _loadVersion;

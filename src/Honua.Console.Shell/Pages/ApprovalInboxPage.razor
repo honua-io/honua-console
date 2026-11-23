@@ -106,122 +106,6 @@
         var snapshot = _result.Value ?? ApprovalInboxSnapshot.Empty;
         var multiSource = snapshot.PresentSources.Count > 1;
 
-        var linkedMode = V4Enabled && _linkedRequestId is not null;
-        var linked = LinkedRequest;
-        RenderFragment queue = @<div class="approval-inbox-queue">
-            @if (VisibleItems.Count == 0)
-            {
-                <OperateSectionStatusPanel Heading="Approval inbox" Empty="true"
-                    EmptyTitle="No work in the queue"
-                    EmptyMessage="No agent-proposed operations are awaiting a decision. Wait for an agent or API to propose one." />
-            }
-            else
-            {
-                @if (V4Enabled)
-                {
-                    <ConsoleTableRegion Class="approval-inbox-table-scroll" Label="Proposals in the approval queue">
-                        <table class="approval-inbox-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Proposal</th>
-                                    <th scope="col">Requested by</th>
-                                    <th scope="col">Status and risk</th>
-                                    <th scope="col">Waiting</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @{ var keyRows = RowIdsAreUnique; }
-                                @foreach (var item in VisibleItems)
-                                {
-                                    <tr @key="(keyRows ? item.ProposalId : null)" class="@(IsSelected(item) ? "is-selected" : null)">
-                                        <td>
-                                            <button type="button" class="approval-inbox-select"
-                                                    aria-pressed="@(IsSelected(item) ? "true" : "false")"
-                                                    @ref="_rowButtons[item.ProposalId]"
-                                                    data-proposal-id="@item.ProposalId"
-                                                    data-proposal-source="@item.Source"
-                                                    @onclick="() => Select(item)">
-                                                <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
-                                            </button>
-                                            <span class="console-mono approval-inbox-proposal-id" data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType) · @item.ProposalId</span>
-                                        </td>
-                                        <td>
-                                            @{ var requester = ApprovalInboxPresentation.Requester(item.Proposal); }
-                                            <span class="approval-inbox-requester" data-requester>@requester.Name</span>
-                                            <span class="console-muted approval-inbox-channel" data-requester-channel>@requester.Channel</span>
-                                            @if (multiSource)
-                                            {
-                                                <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">@ConsoleProposalPresentation.SourceLabel(item.Source)</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <span class="approval-inbox-pills">
-                                                <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
-                                                <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
-                                                                   CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
-                                            </span>
-                                        </td>
-                                        <td>
-                                            @if (ApprovalInboxPresentation.IsReportedTime(item.Proposal.CreatedAt))
-                                            {
-                                                <time datetime="@item.Proposal.CreatedAt.ToString("O")"
-                                                      title="@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)">@ApprovalInboxPresentation.WaitingFor(item.Proposal.CreatedAt, Clock.GetUtcNow())</time>
-                                            }
-                                            else
-                                            {
-                                                <span class="console-muted">Not reported</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </ConsoleTableRegion>
-                }
-                else
-                {
-                    <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
-                        @{ var keyRows = RowIdsAreUnique; }
-                        @foreach (var item in VisibleItems)
-                        {
-                            <li @key="(keyRows ? item.ProposalId : null)" class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
-                                <button type="button"
-                                        class="approval-inbox-select"
-                                        aria-pressed="@(IsSelected(item) ? "true" : "false")"
-                                        @ref="_rowButtons[item.ProposalId]"
-                                        data-proposal-id="@item.ProposalId"
-                                        data-proposal-source="@item.Source"
-                                        @onclick="() => Select(item)">
-                                    <span class="approval-inbox-row-head">
-                                        <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
-                                            @ApprovalTicketPresentation.Label(item.TicketType)
-                                        </span>
-                                        @if (multiSource)
-                                        {
-                                            <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">
-                                                @ConsoleProposalPresentation.SourceLabel(item.Source)
-                                            </span>
-                                        }
-                                        <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
-                                        <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
-                                            CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
-                                    </span>
-                                    <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
-                                    <span class="console-muted approval-inbox-row-sub">
-                                        <span class="console-mono">@item.ProposalId</span>
-                                        @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedBy))
-                                        {
-                                            <text> &middot; @item.Proposal.RequestedBy</text>
-                                        }
-                                    </span>
-                                </button>
-                            </li>
-                        }
-                    </ul>
-                }
-            }
-        </div>;
-
         <div class="approval-inbox-summary" role="status" aria-live="polite">
             <span class="approval-inbox-metric @(snapshot.AwaitingApprovalCount > 0 ? "is-actionable" : null)"
                   data-awaiting-count>
@@ -264,6 +148,127 @@
             </div>
         }
 
+        var linkedMode = V4Enabled && _linkedRequestId is not null;
+        var linked = LinkedRequest;
+        RenderFragment queue =
+            @<div class="approval-inbox-queue">
+                @if (VisibleItems.Count == 0)
+                {
+                    <OperateSectionStatusPanel Heading="Approval inbox" Empty="true"
+                        EmptyTitle="No work in the queue"
+                        EmptyMessage="No agent-proposed operations are awaiting a decision. Wait for an agent or API to propose one." />
+                }
+                else
+                {
+                    @if (V4Enabled)
+                    {
+                        <ConsoleTableRegion Class="approval-inbox-table-scroll" Label="Proposals in the approval queue">
+                            <table class="approval-inbox-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Proposal</th>
+                                        <th scope="col">Requested by</th>
+                                        <th scope="col">Status and risk</th>
+                                        <th scope="col">Waiting</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{ var keyRows = RowIdsAreUnique; }
+                                    @foreach (var item in VisibleItems)
+                                    {
+                                        <tr @key="(keyRows ? item.ProposalId : null)" class="@(IsSelected(item) ? "is-selected" : null)">
+                                            <td>
+                                                <button type="button" class="approval-inbox-select"
+                                                        aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                                        @ref="_rowButtons[item.ProposalId]"
+                                                        data-proposal-id="@item.ProposalId"
+                                                        data-proposal-source="@item.Source"
+                                                        @onclick="() => Select(item)">
+                                                    <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
+                                                </button>
+                                                <span class="console-mono approval-inbox-proposal-id" data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType) · @item.ProposalId</span>
+                                            </td>
+                                            <td>
+                                                @{ var requester = ApprovalInboxPresentation.Requester(item.Proposal); }
+                                                <span class="approval-inbox-requester" data-requester>@requester.Name</span>
+                                                <span class="console-muted approval-inbox-channel" data-requester-channel>@requester.Channel</span>
+                                                @if (multiSource)
+                                                {
+                                                    <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">@ConsoleProposalPresentation.SourceLabel(item.Source)</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="approval-inbox-pills">
+                                                    <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                                    <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                                                       CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
+                                                </span>
+                                            </td>
+                                            <td>
+                                                @if (!item.Proposal.IsAwaitingApproval)
+                                                {
+                                                    <span class="console-muted">&mdash;</span>
+                                                }
+                                                else if (ApprovalInboxPresentation.IsReportedTime(item.Proposal.CreatedAt))
+                                                {
+                                                    <time datetime="@item.Proposal.CreatedAt.ToString("O")"
+                                                          title="@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)">@ApprovalInboxPresentation.WaitingFor(item.Proposal.CreatedAt, Clock.GetUtcNow())</time>
+                                                }
+                                                else
+                                                {
+                                                    <span class="console-muted">Not reported</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </ConsoleTableRegion>
+                    }
+                    else
+                    {
+                        <ul class="approval-inbox-list" aria-label="Pending agent-proposed operations">
+                            @{ var keyRows = RowIdsAreUnique; }
+                            @foreach (var item in VisibleItems)
+                            {
+                                <li @key="(keyRows ? item.ProposalId : null)" class="approval-inbox-row @(IsSelected(item) ? "is-selected" : null)">
+                                    <button type="button"
+                                            class="approval-inbox-select"
+                                            aria-pressed="@(IsSelected(item) ? "true" : "false")"
+                                            @ref="_rowButtons[item.ProposalId]"
+                                            data-proposal-id="@item.ProposalId"
+                                            data-proposal-source="@item.Source"
+                                            @onclick="() => Select(item)">
+                                        <span class="approval-inbox-row-head">
+                                            <span class="console-chip approval-inbox-ticket" data-ticket-type="@item.TicketType">
+                                                @ApprovalTicketPresentation.Label(item.TicketType)
+                                            </span>
+                                            @if (multiSource)
+                                            {
+                                                <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">
+                                                    @ConsoleProposalPresentation.SourceLabel(item.Source)
+                                                </span>
+                                            }
+                                            <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
+                                            <OperateStatusPill Label="@ConsoleProposalPresentation.RiskLabel(item.Proposal.RiskLevel)"
+                                                CssClass="@ConsoleProposalPresentation.RiskClass(item.Proposal.RiskLevel)" />
+                                        </span>
+                                        <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
+                                        <span class="console-muted approval-inbox-row-sub">
+                                            <span class="console-mono">@item.ProposalId</span>
+                                            @if (!string.IsNullOrWhiteSpace(item.Proposal.RequestedBy))
+                                            {
+                                                <text> &middot; @item.Proposal.RequestedBy</text>
+                                            }
+                                        </span>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </div>;
+
         @if (linked is not null)
         {
             <ApprovalRequestIntro Proposal="@linked" />
@@ -291,7 +296,7 @@
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
-                        OnActioned="OnProposalActioned" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
+                        OnActioned="@(detail => OnProposalActioned(approvalInstance, detail))" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
                     @if (linked is not null)
                     {
                         <ApprovalRequestNextSteps Proposal="linked" OnShowAll="ShowAllApprovals" />
@@ -721,11 +726,17 @@
         }
     }
 
-    private async Task OnProposalActioned(ConsoleProposalDetail detail)
+    private async Task OnProposalActioned(object instance, ConsoleProposalDetail detail)
     {
-        if (detail.ProposalId == _selectedProposalId)
+        if (_disposed) return;
+
+        if (ReferenceEquals(instance, _approvalInstance))
         {
-            OnDetailLoaded(_approvalInstance, detail);
+            OnDetailLoaded(instance, detail);
+        }
+        else if (detail.ProposalId == _selectedProposalId)
+        {
+            _detailReloadToken++;
         }
 
         // After an approve / reject, refresh the queue so a now-resolved proposal drops out of
