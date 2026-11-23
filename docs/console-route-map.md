@@ -1018,10 +1018,10 @@ eligible for `/share/public/items/:idOrSlug` per §6.6).
      `share` (row 6). The Studio-generated artifact is **not** routed
      here; it fails `isPublicOpenDataItem` on both `openData` and
      `type`.
-   - **`/maps/:mapId`** — viewer load of the generated saved map
-     (authenticated path uses the server-owned saved-map/package read
-     path; anonymous-via-token path uses `?token=<value>` per §2.5 /
-     §6.4). Smoke label: `viewer` (row 11).
+   - **`/maps/:mapId`** — signed-in viewer load of the generated saved map
+     through the server-owned saved-map/package read path. Verify that a
+     signed-out visit goes to sign-in and returns to the requested map.
+     Smoke label: `viewer` (row 11).
    - **`/embed/maps/:mapId`** — anonymous embed of the generated
      saved map (`resolveEmbedAuthorization`; token-authorized embeds
      keep the bearer in the `#embedToken=` fragment per §8). Smoke
@@ -1129,8 +1129,8 @@ When `Honua:Agent:WorkspaceApiEnabled` is true, `/operate/resources/import/task`
 ### Active Studio publication maps
 
 `/maps/published/*route` is the reader for the Studio lifecycle's active publication
-route, resolved through `/api/v1/studio/published/*route`. It is a separate family
-from the older content-map `/maps/:mapId` and its ShareAccess query tokens. Studio
+route, resolved through `/api/v1/studio/published/*route`. The content-map reader
+at `/maps/:mapId` requires sign-in, including for legacy ShareAccess links. Studio
 visibility and each source's current server authorization govern access; a public
 map definition does not make its data sources public.
 
