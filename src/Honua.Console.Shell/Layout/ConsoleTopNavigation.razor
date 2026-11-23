@@ -1,12 +1,22 @@
 @inject NavigationManager Navigation
 
 @inject IServiceProvider Services
+@implements IDisposable
 
 <header class="console-topbar">
     <a class="console-topbar-brand" href="@Navigation.ToConsoleHref("/")">@if (!V4Enabled) { <span>H</span> }<strong>Honua Console</strong></a>
     <button type="button" class="console-menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="console-primary" data-navigation-toggle>
         <svg viewBox="0 0 24 24" width="@(V4Enabled ? 16 : 20)" height="@(V4Enabled ? 16 : 20)" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
     </button>
+    @if (V4Enabled && AuthenticationStateTask is not null)
+    {
+        <AuthorizeView>
+            <Authorized>
+                <button type="button" class="console-topbar-tree-toggle" data-tree-toggle aria-expanded="false" aria-controls="console-publication-sidebar"
+                        aria-label="Browse services" title="Browse services"><ConsoleTreeIcon Name="folder" /></button>
+            </Authorized>
+        </AuthorizeView>
+    }
     <nav id="console-primary" class="console-topnav" aria-label="Primary">
         <NavLink href="@Navigation.ToConsoleHref("/")" Match="NavLinkMatch.All">Home</NavLink>
         @foreach (var group in Groups)
@@ -25,8 +35,12 @@
             </details>
         }
     </nav>
-    <ConsoleAccountControl />
-    <a class="console-environment-link" href="@Navigation.ToConsoleHref("/environments")" data-workspace-header-target>Choose an environment</a>
+    @if (!V4Enabled)
+    {
+        <ConsoleAccountControl />
+    }
+    <a class="console-environment-link" href="@Navigation.ToConsoleHref("/environments")" data-workspace-header-target
+       aria-label="@(V4Enabled && _environmentName is not null ? $"Environment: {_environmentName}. Choose an environment" : null)">@(V4Enabled ? _environmentName ?? "Choose an environment" : "Choose an environment")</a>
     @if (V4Enabled)
     {
         <button type="button" class="console-theme-toggle" data-console-theme-toggle aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode">
@@ -54,10 +68,51 @@
             <text>Help</text>
         }
     </a>
+    @if (V4Enabled)
+    {
+        <ConsoleAccountControl />
+    }
 </header>
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private string? _environmentName;
+    private IConsoleEnvironmentProfileStore? _profiles;
+
+    protected override Task OnInitializedAsync()
+    {
+        if (!V4Enabled) return Task.CompletedTask;
+        _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
+        if (_profiles is null) return Task.CompletedTask;
+        _profiles.ActiveProfileChanged += ActiveProfileChanged;
+        return ReadEnvironmentNameAsync();
+    }
+
+    private void ActiveProfileChanged() => _ = InvokeAsync(async () =>
+    {
+        await ReadEnvironmentNameAsync();
+        StateHasChanged();
+    });
+
+    private async Task ReadEnvironmentNameAsync()
+    {
+        try
+        {
+            var profile = await _profiles!.GetActiveProfileAsync(CancellationToken.None);
+            _environmentName = string.IsNullOrWhiteSpace(profile?.DisplayName) ? null : profile.DisplayName;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.Text.Json.JsonException or OperationCanceledException)
+        {
+            _environmentName = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_profiles is not null) _profiles.ActiveProfileChanged -= ActiveProfileChanged;
+    }
+
+    [CascadingParameter] public Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
 }

@@ -21,10 +21,10 @@ else
         }
     </div>
 }
-<p class="console-tree-coverage" role="status">
+<p class="@(View.V4Enabled ? "console-tree-coverage console-visually-hidden" : "console-tree-coverage")" role="status">
     @if (Searching)
     {
-        <text>Searching service names in the active scope. Open a result to view its service.</text>
+        <text>Searching Folders, services and layers in the active scope. Open a result to show it in the tree.</text>
     }
     else
     {

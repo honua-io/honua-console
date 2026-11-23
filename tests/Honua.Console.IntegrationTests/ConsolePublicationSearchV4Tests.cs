@@ -20,11 +20,11 @@ public sealed class ConsolePublicationSearchV4Tests
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
         var query = new string('x', length);
         tree.Find("input").Input(query);
         tree.WaitForAssertion(() => Assert.Contains("200 characters", tree.Find("[role='alert']").TextContent));
-        Assert.Equal(1, source.ServiceReads);
+        Assert.Equal(5, source.ServiceReads);
         Assert.Equal(query, tree.Find("input").GetAttribute("value"));
         Assert.Equal("true", tree.Find("input").GetAttribute("aria-invalid"));
         Assert.False(tree.Find("input").HasAttribute("disabled"));
@@ -34,7 +34,7 @@ public sealed class ConsolePublicationSearchV4Tests
         Assert.Empty(tree.FindAll("[role='alert']"));
         tree.Find("input").Input(query);
         tree.Find("input").Input("");
-        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
         Assert.Null(source.LastQuery.NameQuery);
         Assert.Empty(tree.FindAll("[role='alert']"));
     }
@@ -59,11 +59,11 @@ public sealed class ConsolePublicationSearchV4Tests
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
         tree.Find("input").Input(" service ");
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search]")));
-        Assert.Equal(["Folders", "Services (500)", "Layers", "Styles"],
-            tree.FindAll("[data-publication-search] h3").Select(element => element.TextContent));
+        tree.WaitForAssertion(() => Assert.Equal(["Folders (0)", "Services (500)", "Layers (0)"],
+            tree.FindAll("[data-publication-search] h3").Select(element => element.TextContent.Trim())));
         Assert.Equal(25, tree.FindAll("[role='treeitem']").Count);
         Assert.Equal("service", source.LastQuery.NameQuery);
         Assert.NotEmpty(tree.FindAll("mark"));
@@ -78,14 +78,15 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.WaitForAssertion(() => Assert.Equal(125, tree.FindAll("[role='treeitem']").Count));
         Assert.Equal("service:service-080", tree.Find("[aria-selected='true']").GetAttribute("data-publication-key"));
         Assert.Equal(0, source.ChildReads);
-        Assert.Equal(0, source.ConnectionReads);
+        Assert.Equal(1, source.ConnectionReads);
+        Assert.Equal(["service"], source.LayerQueries);
         Assert.All(tree.FindAll("[data-tree-link]"), link => Assert.StartsWith("/operate/services/", link.GetAttribute("href")));
         tree.Find("input").Input("absent");
         tree.WaitForAssertion(() => Assert.Contains("No services match this search.", tree.Markup));
         Assert.Empty(tree.FindAll("[data-search-more]"));
         tree.Find("input").Input("");
         tree.WaitForAssertion(() => Assert.Empty(tree.FindAll("[data-publication-search]")));
-        Assert.Equal(26, tree.FindAll("[role='treeitem']").Count);
+        Assert.Equal(201, tree.FindAll("[role='treeitem']").Count);
     }
 
     [Fact]
@@ -113,10 +114,10 @@ public sealed class ConsolePublicationSearchV4Tests
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
         source.HoldCount = 1;
         tree.Find("input").Input("absent");
-        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
+        tree.WaitForAssertion(() => Assert.Equal(6, source.ServiceReads));
         Assert.Empty(tree.FindAll("[role='treeitem']"));
         Assert.Equal("Services", tree.Find("#console-search-services").TextContent.Trim());
         Assert.Contains("Searching…", tree.Markup);
@@ -141,12 +142,12 @@ public sealed class ConsolePublicationSearchV4Tests
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(26, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
         tree.Find("input").Input("wanted");
         tree.WaitForAssertion(() => Assert.Equal(25, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
-        Assert.Equal(2, source.ServiceReads);
+        Assert.Equal(6, source.ServiceReads);
         tree.Find("[data-search-more]").Click();
-        tree.WaitForAssertion(() => Assert.Equal(3, source.ServiceReads));
+        tree.WaitForAssertion(() => Assert.Equal(7, source.ServiceReads));
         tree.WaitForAssertion(() => Assert.Equal(50, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
         Assert.Equal(2, source.LastQuery.Page);
         Assert.Equal("wanted", source.LastQuery.NameQuery);
@@ -171,7 +172,7 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.Find("input").Input("wanted");
         tree.WaitForAssertion(() => Assert.Equal(8, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
         Assert.Empty(tree.FindAll("[data-search-more]"));
-        Assert.StartsWith("8 of 8 service matches", tree.Find(".console-search-summary").TextContent);
+        Assert.StartsWith("8 matches in Services", tree.Find(".console-search-summary").TextContent.Trim());
     }
 
     [Fact]

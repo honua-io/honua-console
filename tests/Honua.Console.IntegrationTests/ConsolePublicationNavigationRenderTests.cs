@@ -709,16 +709,37 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(2, source.ServiceReads);
     }
 
+    [Fact]
+    public void V4SearchOnAFolderPageKeepsTheSearchWhenThatFolderDoesNotMatch()
+    {
+        var source = new PublicationNavigationSource { ServiceSummaries = ConsolePublicationScaleV4Tests.FolderedServices() };
+        using var context = ConsolePublicationScaleV4Tests.V4Context(source);
+        var folderIds = source.ServiceSummaries!.Select(service => service.FolderId!).Distinct();
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient
+        {
+            Folders = [.. folderIds.Select(id => new Folder { Metadata = new() { Id = id, Name = id } })]
+        });
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/folders/folder-00");
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal("true",
+            tree.Find("[data-publication-key='folder:folder-00']").GetAttribute("aria-selected")));
+        tree.Find("[data-tree-filter]").Input("signal");
+        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search]")));
+        Assert.Equal("signal", tree.Find("[data-tree-filter]").GetAttribute("value"));
+        Assert.Equal("Folders (1)", tree.Find("#console-search-folders").TextContent.Trim());
+    }
+
     private sealed class FolderClient : IConsoleFolderClient
     {
         public bool Denied { get; init; }
+        public IReadOnlyList<Folder> Folders { get; init; } = [new Folder { Metadata = new() { Id = "empty", Name = "Empty survey" } }];
         public int Reads { get; private set; }
         public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default)
         {
             Reads++;
             return Task.FromResult(Denied
                 ? OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Forbidden, "Folder read refused")
-                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new([new Folder { Metadata = new() { Id = "empty", Name = "Empty survey" } }], "etag", "authority")));
+                : OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(Folders, "etag", "authority")));
         }
         public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

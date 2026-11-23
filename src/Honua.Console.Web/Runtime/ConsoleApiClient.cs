@@ -60,11 +60,33 @@ public sealed class ConsoleApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task SignOutCookieAsync(CancellationToken cancellationToken = default)
+    public async Task<Uri?> SignOutCookieAsync(CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsync("api/v1/admin/auth/logout", null, cancellationToken);
         response.EnsureSuccessStatusCode();
+        return ProviderLogoutUrl(await response.Content.ReadAsStringAsync(cancellationToken));
     }
+
+    // The identity provider's end-session URL may take the whole window only when it is a valid provider address.
+    internal static Uri? ProviderLogoutUrl(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("logoutUrl", out var value)
+                && value.ValueKind == JsonValueKind.String ? ProviderAddress(value.GetString()) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // Absolute, without user info, and HTTPS (or HTTP on loopback for a local identity provider).
+    private static Uri? ProviderAddress(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.UserInfo.Length == 0
+        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)) ? uri : null;
 
     public async Task<ConsoleSessionCredentials> GetPasswordTokenAsync(string password, CancellationToken cancellationToken = default)
     {
@@ -106,12 +128,7 @@ public sealed class ConsoleApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var value = document?.RootElement.GetProperty("authorizeUrl").GetString();
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.UserInfo.Length != 0
-            || (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
-        {
-            throw new JsonException("Invalid identity provider authorization address.");
-        }
-        return uri;
+        return ProviderAddress(value) ?? throw new JsonException("Invalid identity provider authorization address.");
     }
 }
 
@@ -212,14 +229,16 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
         }
     }
 
-    public async Task SignOutAsync(CancellationToken cancellationToken = default)
+    public async Task<Uri?> SignOutAsync(CancellationToken cancellationToken = default)
     {
+        Uri? providerLogout = null;
         if (api.UsesCookieSession)
         {
             await PrepareCookieRequestAsync(cancellationToken);
-            await api.SignOutCookieAsync(cancellationToken);
+            providerLogout = await api.SignOutCookieAsync(cancellationToken);
         }
         await ClearAuthenticationAsync();
+        return providerLogout;
     }
 
     public async Task PrepareCookieRequestAsync(CancellationToken cancellationToken = default)

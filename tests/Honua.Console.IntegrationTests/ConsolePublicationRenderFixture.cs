@@ -178,6 +178,26 @@ internal sealed class PublicationNavigationSource : IConsolePublicationNavigatio
         ConnectionReads++;
         return Task.FromResult(OperateSectionResult<IReadOnlyList<string>>.Allowed(ConnectionKeys));
     }
+    public IReadOnlyList<ConsolePublicationLayerMatch> LayerMatches { get; init; } = [];
+    public OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>? LayerSearchResult { get; init; }
+    public List<string> LayerQueries { get; } = [];
+    public bool HoldLayerSearches { get; init; }
+    public List<TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>>> HeldLayerSearches { get; } = [];
+    public List<IReadOnlyList<string>> LayerSearchConnections { get; } = [];
+    public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>> SearchLayersAsync(
+        string nameQuery, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)
+    {
+        LayerQueries.Add(nameQuery);
+        LayerSearchConnections.Add(connectionKeys.ToArray());
+        if (HoldLayerSearches)
+        {
+            var gate = new TaskCompletionSource<OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            HeldLayerSearches.Add(gate);
+            return gate.Task;
+        }
+        return Task.FromResult(LayerSearchResult ?? OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>.Allowed(
+            LayerMatches.Where(match => match.Layer.Name.Contains(nameQuery, StringComparison.OrdinalIgnoreCase)).ToArray()));
+    }
     public Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
         string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken)
     {

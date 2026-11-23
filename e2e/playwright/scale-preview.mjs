@@ -6,8 +6,9 @@ import { chromium } from "@playwright/test";
 import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
 
 const previews = path.resolve(process.env.HONUA_CATALOG_PREVIEW_DIR ?? "artifacts/catalog-preview");
-const states = ["initial", "paged", "expanded", "search", "empty"];
-const names = ["v4", "legacy"].flatMap(mode => states.map(state => `scale-${mode}-${state}`));
+const states = { v4: ["initial", "expanded", "search", "empty"], legacy: ["initial", "paged", "expanded", "search", "empty"] };
+const names = Object.entries(states).flatMap(([mode, modeStates]) => modeStates.map(state => `scale-${mode}-${state}`));
+const scrollState = { v4: "scale-v4-expanded", legacy: "scale-legacy-paged" };
 const pages = new Map(await Promise.all(names.map(async name => [name, await fs.readFile(path.join(previews, `${name}.html`), "utf8")])));
 const scripts = ["/src/Honua.Console.Web/wwwroot/js/modal-surface.js", "/src/Honua.Console.Web/wwwroot/js/publication-tree.js"];
 const server = await startPresentationFixtureServer({
@@ -20,7 +21,7 @@ let browser;
 try {
   browser = await chromium.launch();
   for (const name of names) {
-    for (const width of (name === "scale-v4-paged" ? [1280, 1050, 390] : [1280, 390])) {
+    for (const width of (name === scrollState.v4 ? [1280, 1050, 390] : [1280, 390])) {
       const context = await browser.newContext({ viewport: { width, height: 844 } });
       const page = await context.newPage();
       const errors = [];
@@ -53,25 +54,27 @@ try {
           assert.equal(dimensions.size, "14px");
         }
         assert.equal((await page.locator(".console-topbar").boundingBox()).height, 48);
-        const footer = await page.locator(".console-tree-coverage").boundingBox();
-        assert.ok(footer.y + footer.height <= 845, "Coverage remains visible while the tree scrolls");
-        if (name.endsWith("paged") || name.endsWith("expanded")) {
+        const footer = await page.locator(".console-tree-foot").boundingBox();
+        assert.ok(footer.y + footer.height <= 845, "The tree footer remains visible while the tree scrolls");
+        if (name.endsWith("initial") || name.endsWith("expanded")) {
           assert.equal(await page.locator(".console-tree-branches").evaluate(element => element.scrollHeight > element.clientHeight), true);
         }
       }
       if (name === "scale-v4-search" || name === "scale-v4-empty") {
-        assert.deepEqual(await page.locator("[data-publication-search] h3").allTextContents(),
-          ["Folders", `Services (${name.endsWith("search") ? 1 : 0})`, "Layers", "Styles"]);
-        assert.equal(await page.locator(".console-search-scope").textContent(), "Scope: Services · service names");
+        assert.deepEqual((await page.locator("[data-publication-search] h3").allTextContents()).map(text => text.replace(/\s+/g, " ").trim()),
+          name.endsWith("search") ? ["Folders (1)", "Services (13)", "Layers (1)"] : ["Folders (0)", "Services (0)", "Layers (0)"]);
+        assert.equal(await page.locator(".console-tree-scope").textContent(), "Scope: Services");
         if (name.endsWith("search")) {
-          assert.deepEqual(await page.locator("mark").allTextContents(), ["service-499", "service-499"]);
-          await page.locator("[data-tree-link]").evaluate(element => element.addEventListener("click", event => {
+          assert.deepEqual(await page.locator("[data-publication-key='folder:signals'] mark").allTextContents(), ["Signal"]);
+          const layer = page.locator("[data-publication-key^='search-layer:'] [data-tree-link]");
+          await layer.evaluate(element => element.addEventListener("click", event => {
             event.preventDefault();
             element.dataset.activated = "true";
           }));
-          await page.getByRole("treeitem").focus();
+          await page.getByRole("treeitem").first().focus();
+          await page.keyboard.press("End");
           await page.keyboard.press("Enter");
-          assert.equal(await page.locator("[data-tree-link]").getAttribute("data-activated"), "true");
+          assert.equal(await layer.getAttribute("data-activated"), "true");
           if (width === 390) {
             assert.equal(await sidebar.isVisible(), false, "Following a result closes the narrow navigation drawer");
             await toggle.click();
@@ -87,7 +90,7 @@ try {
         await page.keyboard.press("ArrowUp");
         assert.equal(await first.evaluate(element => element === document.activeElement), true);
       }
-      if (name === "scale-v4-paged") {
+      if (name === scrollState.v4) {
         await page.keyboard.press("End");
         const last = page.getByRole("treeitem").last();
         assert.equal(await last.evaluate(element => element === document.activeElement), true);
@@ -101,8 +104,8 @@ try {
         if (width > 1000) {
           await page.locator("main").evaluate(element => element.style.minHeight = "1800px");
           await page.evaluate(() => window.scrollTo(0, 400));
-          const footer = await page.locator(".console-tree-coverage").boundingBox();
-          assert.ok(Math.abs(footer.y + footer.height - 844) <= 1, "Coverage stays at the viewport bottom after page scroll");
+          const footer = await page.locator(".console-tree-foot").boundingBox();
+          assert.ok(Math.abs(footer.y + footer.height - 844) <= 1, "The tree footer stays at the viewport bottom after page scroll");
           assert.equal((await sidebar.boundingBox()).y, 48);
           await page.evaluate(() => window.scrollTo(0, 0));
         }
@@ -122,7 +125,7 @@ try {
         assert.equal(await sidebar.isVisible(), false);
         assert.equal(await toggle.evaluate(element => element === document.activeElement), true);
       }
-      if (name === "scale-v4-paged" && width > 1000) {
+      if (name === scrollState.v4 && width > 1000) {
         await sidebar.evaluate(element => element.remove());
         await page.locator("main").evaluate(element => {
           element.style.minHeight = "1800px";

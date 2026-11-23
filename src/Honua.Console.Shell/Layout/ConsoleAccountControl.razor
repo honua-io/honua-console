@@ -6,16 +6,27 @@
 {
     <AuthorizeView>
         <Authorized Context="account">
-            <div class="console-account-control">
-                @{ var identity = account.User.Identity?.Name ?? account.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Signed in"; }
-                <span class="console-account-identity" title="@identity">@identity</span>
-                <button type="button" class="console-button" data-console-signout disabled="@_signingOut"
-                        @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
-                @if (_error is not null)
-                {
-                    <span role="alert">@_error</span>
-                }
-            </div>
+            @{ var identity = account.User.Identity?.Name ?? account.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Signed in"; }
+            @{
+                RenderFragment actions = @<text>
+                    <span class="console-account-identity" title="@identity">@identity</span>
+                    <button type="button" class="@(V4Enabled ? "console-button console-button-secondary" : "console-button")" data-console-signout disabled="@_signingOut"
+                            @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
+                </text>;
+                RenderFragment error = @<text>@if (_error is not null) { <span class="console-account-error" role="alert">@_error</span> }</text>;
+            }
+            @if (V4Enabled)
+            {
+                <details class="console-account-menu" data-navigation-menu="Account">
+                    <summary class="console-account-avatar" aria-label="Account: @identity" title="@identity">@Initials(identity)</summary>
+                    <div class="console-account-items" role="group" aria-label="Account">@actions</div>
+                </details>
+                @error
+            }
+            else
+            {
+                <div class="console-account-control">@actions @error</div>
+            }
         </Authorized>
         <NotAuthorized>
             @if (!OnSignInPage)
@@ -30,6 +41,19 @@
 
 @code {
     private bool _signingOut;
+    private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+
+    public static string Initials(string identity)
+    {
+        var words = identity.Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return "?";
+        var initials = words.Length >= 2 && !identity.Contains('@', StringComparison.Ordinal)
+            ? FirstLetter(words[0]) + FirstLetter(words[1])
+            : FirstLetter(words[0]) + FirstLetter(words[0][FirstLetter(words[0]).Length..]);
+        return initials.ToUpperInvariant();
+    }
+
+    private static string FirstLetter(string word) => word.Length == 0 ? "" : System.Globalization.StringInfo.GetNextTextElement(word);
     private string? _error;
 
     protected override void OnInitialized() => Navigation.LocationChanged += LocationChanged;
@@ -53,8 +77,8 @@
         _error = null;
         try
         {
-            await authentication.SignOutAsync();
-            Navigation.NavigateTo(Navigation.ToConsoleHref("/auth/signin"));
+            var providerLogout = await authentication.SignOutAsync();
+            Navigation.NavigateTo(providerLogout?.AbsoluteUri ?? Navigation.ToConsoleHref("/auth/signin"), forceLoad: providerLogout is not null);
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or InvalidOperationException)
         {
