@@ -159,3 +159,14 @@
 @media (max-width: 1000px) {
     .console-shell[data-console-v4="true"] .console-tree-toggle { display: inline-grid; }
 }
+/* Narrow top bar keeps one row as in mockup 02 mobile: the environment shrinks to its status dot. */
+@media (max-width: 640px) {
+    .console-shell[data-console-v4="true"] .console-topbar { gap: 2px; padding-inline: var(--space-2); }
+    .console-shell[data-console-v4="true"] .console-environment-link {
+        order: 0; flex: 0 0 auto; max-width: none; width: 32px; height: 32px; min-height: 32px; justify-content: center;
+        padding: 0; border: 1px solid var(--c-border); border-radius: var(--radius-pill); background: var(--c-surface-2); font-size: 0;
+    }
+    .console-shell[data-console-v4="true"] :is(.console-theme-toggle, .console-conversation-toggle, .console-help-link, .console-menu-toggle, .console-tree-toggle) {
+        flex-basis: 32px; width: 32px;
+    }
+}

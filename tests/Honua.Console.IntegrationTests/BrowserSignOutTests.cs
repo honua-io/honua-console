@@ -45,8 +45,10 @@ public sealed class BrowserSignOutTests
         header.WaitForAssertion(() => Assert.Contains("Test operator", header.Markup));
         await header.Find("[data-console-signout]").ClickAsync(new());
         var navigation = fixture.Context.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
-        header.WaitForAssertion(() => Assert.EndsWith(providerLogout ?? "/auth/signin", navigation.Uri, StringComparison.Ordinal));
-        Assert.Equal(providerLogout is not null, navigation.History.First().Options.ForceLoad);
+        header.WaitForAssertion(() => Assert.NotEmpty(navigation.History));
+        var navigated = navigation.History.First();
+        Assert.EndsWith(providerLogout ?? "auth/signin", navigated.Uri, StringComparison.Ordinal);
+        Assert.Equal(providerLogout is not null, navigated.Options.ForceLoad);
         Assert.False(fixture.Session.IsAuthenticated);
     }
 

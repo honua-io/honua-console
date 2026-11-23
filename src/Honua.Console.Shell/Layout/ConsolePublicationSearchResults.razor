@@ -17,7 +17,7 @@
                 @for (var index = 0; index < folders.Count; index++)
                 {
                     var folder = folders[index];
-                    <ConsoleSearchResultRow Key="@folder.Key" Href="@folder.Href!" Icon="folder" Label="@View.Label(folder)"
+                    <ConsoleSearchResultRow Key="@folder.Key" Href="@(folder.Href!)" Icon="folder" Label="@View.Label(folder)"
                                             Path="@FolderPath(folder)" Position="index + 1" SetSize="folders.Count" />
                 }
             </ul>
@@ -39,7 +39,7 @@
                 @for (var index = 0; index < services.Count; index++)
                 {
                     var service = services[index];
-                    <ConsoleSearchResultRow Key="@service.Key" Href="@service.Href!" Icon="service" Label="@service.Label"
+                    <ConsoleSearchResultRow Key="@service.Key" Href="@(service.Href!)" Icon="service" Label="@service.Label"
                                             Path="@ServicePath(service)" Position="index + 1" SetSize="View.Tree.SearchMatchCount" />
                 }
             </ul>

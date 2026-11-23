@@ -8,7 +8,7 @@
     <button type="button" class="console-menu-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="console-primary" data-navigation-toggle>
         <svg viewBox="0 0 24 24" width="@(V4Enabled ? 16 : 20)" height="@(V4Enabled ? 16 : 20)" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
     </button>
-    @if (V4Enabled && AuthenticationState is not null)
+    @if (V4Enabled && AuthenticationStateTask is not null)
     {
         <AuthorizeView>
             <Authorized>
@@ -112,7 +112,7 @@
         if (_profiles is not null) _profiles.ActiveProfileChanged -= ActiveProfileChanged;
     }
 
-    [CascadingParameter] public Task<AuthenticationState>? AuthenticationState { get; set; }
+    [CascadingParameter] public Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     [Parameter] public IReadOnlyList<ConsoleNavigationGroup> Groups { get; set; } = [];
 }
