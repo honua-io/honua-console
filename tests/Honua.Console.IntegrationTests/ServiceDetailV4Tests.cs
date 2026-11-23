@@ -103,7 +103,7 @@ public sealed class ServiceDetailV4Tests
         Assert.Contains("Service transport/roads-public · 0 layers · 0 protocols", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal);
         Assert.Equal("This service has no layers yet.", page.Find("[data-service-no-layers]").TextContent);
         Assert.Empty(page.FindAll(".console-service-layer-table"));
-        Assert.Contains("No protocols are enabled", page.Find("[data-service-web-services]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("No protocol endpoints were reported", page.Find("[data-service-web-services]").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]

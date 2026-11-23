@@ -16,7 +16,7 @@ public partial class OperateServiceDetailPage
     private ElementReference? _focusPanel;
 
     // The served path the endpoint URLs use; an unresolved Folder is marked rather than shown as the root.
-    private string ServicePath => _service is null ? ServiceName : _service.PublicPath ?? $"…/{_service.Name}";
+    private string ServicePath => _service?.DisplayPath ?? ServiceName;
 
     // Endpoints are built from the enabled protocols only; ServiceType carries a placeholder when there are none.
     private int ProtocolCount => _settings.Bound ? _settings.EnabledProtocols.Count : _service?.Endpoints.Count ?? 0;

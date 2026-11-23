@@ -163,6 +163,8 @@ public sealed record OperateServiceDetail(
     // The path the endpoint URLs use, or null while the service's Folder name is unresolved.
     public string? PublicPath => PublicServiceName is not { } name ? null
         : string.IsNullOrWhiteSpace(FolderName) ? name : $"{FolderName}/{name}";
+    // PublicPath for display: an unresolved Folder is marked rather than shown as the root.
+    public string DisplayPath => PublicPath ?? $"…/{PublicName ?? Name}";
     // ServiceType lists the enabled protocols, comma separated.
     public IReadOnlyList<string> Protocols =>
         ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);

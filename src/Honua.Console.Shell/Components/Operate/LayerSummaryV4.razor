@@ -12,7 +12,7 @@
 
     private OperateServiceLayer Layer => Exposure.Layer;
 
-    private string Path => $"{Exposure.Service.PublicPath ?? $"…/{Exposure.Service.Name}"}/{Layer.Name}";
+    private string Path => $"{Exposure.Service.DisplayPath}/{Layer.Name}";
 
     private string? Table => string.IsNullOrWhiteSpace(Layer.Table) ? null
         : string.IsNullOrWhiteSpace(Layer.Schema) ? Layer.Table : $"{Layer.Schema}.{Layer.Table}";

@@ -102,6 +102,10 @@
         }
         else
         {
+        @if (_service.LayerCount > _service.Layers.Count)
+        {
+            <p data-service-partial-layers>Showing @_service.Layers.Count of @ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer"); the others were not returned.</p>
+        }
         <ConsoleTableRegion Class="console-table-wrap" Label="@($"Layers in {_service!.Name}")">
             <table class="console-table console-service-layer-table">
                 <thead>
@@ -142,7 +146,7 @@
             <p>Enabled on <code>@_service!.Name</code>. Changing a protocol here affects all @ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer"). <button type="button" class="console-link-button" @onclick="@(() => OpenTab("service-protocols-tab"))">Change protocols</button></p>
             @if (_service.Endpoints.Count == 0)
             {
-                <p role="status">No protocols are enabled on this service.</p>
+                <p>No protocol endpoints were reported for this service.</p>
             }
             else
             {
