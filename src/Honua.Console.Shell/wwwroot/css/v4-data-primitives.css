@@ -331,7 +331,12 @@
     gap: 8px;
 }
 
-@media (max-width: 640px) {
+/* Stack discovered rows by the tree's own width in root ems, so enlarged text at desktop widths stacks too. */
+.console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] {
+    container: discovered-tree / inline-size;
+}
+
+@container discovered-tree (max-width: 48rem) {
     .console-shell[data-console-v4="true"] .operate-import-page [data-discovered-tree] :is(.console-tree-folder, .console-tree-service, .console-tree-layer) {
         display: grid;
         grid-template-columns: auto auto minmax(0, 1fr);
