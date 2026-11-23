@@ -150,7 +150,7 @@
 
         @if (LinkedRequest is { } linked)
         {
-            <ApprovalRequestIntro Proposal="@linked.Proposal" />
+            <ApprovalRequestIntro Proposal="@linked.Proposal" Waiting="@LinkedWaiting" />
         }
 
         <div class="approval-inbox-layout @(LinkedRequest is null ? null : "is-linked-request")">
@@ -287,7 +287,7 @@
                         OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
                     @if (LinkedRequest is not null)
                     {
-                        <ApprovalRequestNextSteps Waiting="@LinkedRequest.IsAwaitingApproval" OnShowAll="ShowAllApprovals" />
+                        <ApprovalRequestNextSteps Waiting="@LinkedWaiting" OnShowAll="ShowAllApprovals" />
                     }
                 }
                 else
@@ -377,6 +377,7 @@
     private readonly Dictionary<object, ConsoleAgentUnsavedSummary> _approvalStates = new();
     private string? _routeProposalId;
     private string? _linkedRequestId;
+    private bool? _selectedDetailWaiting;
     private int _detailReloadToken;
     private string? _terminalProposalId;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
@@ -624,6 +625,9 @@
             && (item.ProposalId == linked || item.ProposalId == "manager:" + linked))
         : null;
 
+    // The latest detail read wins: another operator may decide while the queue snapshot is stale.
+    private bool LinkedWaiting => _selectedDetailWaiting ?? LinkedRequest?.IsAwaitingApproval == true;
+
     private void ShowAllApprovals() => _linkedRequestId = null;
 
     private void Select(ApprovalInboxItem item)
@@ -649,6 +653,7 @@
     {
         if (string.Equals(_selectedProposalId, proposalId, StringComparison.Ordinal)) return;
         _selectedProposalId = proposalId;
+        _selectedDetailWaiting = null;
         _approvalInstance = new object();
     }
 
@@ -703,6 +708,7 @@
         if (detail.ProposalId == _selectedProposalId)
         {
             _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;
+            _selectedDetailWaiting = detail.Status == ConsoleProposalStatus.AwaitingApproval;
         }
     }
 

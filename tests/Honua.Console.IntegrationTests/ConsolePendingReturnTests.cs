@@ -32,6 +32,16 @@ public sealed class ConsolePendingReturnTests
     }
 
     [Fact]
+    public async Task SaveWithBlockedStorageLetsSignInContinue()
+    {
+        using var context = new BunitContext();
+        context.JSInterop.SetupVoid("sessionStorage.setItem", _ => true)
+            .SetException(new Microsoft.JSInterop.JSException("The quota has been exceeded."));
+
+        await ConsolePendingReturn.SaveAsync(context.JSInterop.JSRuntime, "/operate/settings", Now);
+    }
+
+    [Fact]
     public async Task TakeWithNothingSavedReturnsNothing()
     {
         using var context = new BunitContext();

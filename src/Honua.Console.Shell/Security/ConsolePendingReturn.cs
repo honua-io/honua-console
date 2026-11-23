@@ -10,9 +10,18 @@ public static class ConsolePendingReturn
     private const string StorageKey = "honua.console.pendingReturn";
     internal static readonly TimeSpan MaxAge = TimeSpan.FromMinutes(10);
 
-    public static ValueTask SaveAsync(IJSRuntime js, string route, DateTimeOffset now) =>
-        js.InvokeVoidAsync("sessionStorage.setItem", StorageKey,
-            string.Create(CultureInfo.InvariantCulture, $"{now.ToUnixTimeMilliseconds()}|{route}"));
+    // Best effort: with browser storage blocked or full, sign-in goes ahead and returns to Home.
+    public static async Task SaveAsync(IJSRuntime js, string route, DateTimeOffset now)
+    {
+        try
+        {
+            await js.InvokeVoidAsync("sessionStorage.setItem", StorageKey,
+                string.Create(CultureInfo.InvariantCulture, $"{now.ToUnixTimeMilliseconds()}|{route}"));
+        }
+        catch (JSException)
+        {
+        }
+    }
 
     // Reads and removes the saved page; returns it only while it is fresh and still a safe local route.
     public static async Task<string?> TakeAsync(IJSRuntime js, DateTimeOffset now)

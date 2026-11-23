@@ -114,4 +114,20 @@ public sealed partial class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Equal("This request is no longer waiting for approval", page.Find($"{LinkedIntro} h2").TextContent));
         Assert.DoesNotContain("stays waiting", page.Find(LinkedNext).TextContent, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void LinkedRequest_FollowsTheLatestDetailWhenTheQueueIsStale()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("stale-1", ConsoleProposalKind.Deploy)],
+            details: [FakeProposalFactory.Detail("stale-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Rejected)]);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/inbox?proposalId=stale-1");
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Equal("false", page.Find(LinkedIntro).GetAttribute("data-request-waiting")));
+        Assert.DoesNotContain("stays waiting", page.Find(LinkedNext).TextContent, StringComparison.Ordinal);
+    }
 }
