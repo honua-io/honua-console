@@ -9,6 +9,12 @@
 @inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
+@if (V4Enabled && !OperatorView && !_missingBinding && _failureMessage is null && _items is not null)
+{
+    <PublicCatalogView Items="_items" />
+}
+else
+{
 <section class="console-page share-home">
     @if (V4Enabled)
     {
@@ -132,6 +138,7 @@
         </ConsoleTableRegion>
     }
 </section>
+}
 </CatalogAvailabilityGate>
 
 @code {
@@ -139,6 +146,8 @@
         "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
         + "catalog/content metadata projection from honua-server. The merged runtime never renders seeded "
         + "or demo share content (Console Patterns Charter section 11).";
+
+    [Parameter] public bool OperatorView { get; set; }
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
