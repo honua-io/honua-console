@@ -11,7 +11,6 @@ public readonly record struct HonuaAdminCatalogQuery(int Page, int PageSize, str
 
     public int? StorageLayerId { get; init; }
 
-    // SHIM(honua-sdk-dotnet#166): The published Admin catalog query has no Folder scope.
     public string? FolderId { get; init; }
 
     public const int MaxPageSize = 100;
