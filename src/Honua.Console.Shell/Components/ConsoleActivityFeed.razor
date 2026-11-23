@@ -6,9 +6,7 @@
 @inject IServiceProvider Services
 
 <section id="changes" class="operate-section console-activity-feed" aria-labelledby="changes-heading" data-activity-feed>
-    <div class="operate-section-heading">
-        <h2 id="changes-heading">Changes</h2>
-    </div>
+    <h2 id="changes-heading" class="operate-section-heading">Changes</h2>
 
     <div class="console-activity-feed-toolbar" role="group" aria-label="Change list controls">
         <div class="console-activity-feed-pager">
@@ -48,8 +46,8 @@
     }
     else if (Page is not null)
     {
-        <ConsoleTableRegion Class="console-activity-feed-scroll" Label="Changes, newest first">
-            <table class="console-activity-feed-table">
+        <ConsoleTableRegion Class="operate-table-scroll console-activity-feed-scroll" Label="Changes, newest first">
+            <table class="operate-table console-activity-feed-table">
                 <thead>
                     <tr>
                         <th scope="col">Time</th>
@@ -63,7 +61,7 @@
                     @foreach (var row in Rows)
                     {
                         var actor = ConsoleActivityPresentation.Actor(row);
-                        var href = ConsoleActivityPresentation.ReferenceHref(row);
+                        var reference = ConsoleActivityPresentation.Reference(row);
                         <tr @key="row.AuditId" data-feed-row="@row.AuditId">
                             <td><time datetime="@row.Timestamp.ToString("O", CultureInfo.InvariantCulture)">@row.Timestamp.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)</time></td>
                             <td data-feed-actor-kind="@actor.Kind">
@@ -79,9 +77,9 @@
                             </td>
                             <td>@ConsoleActivityPresentation.What(row)</td>
                             <td>
-                                @if (href is not null)
+                                @if (reference is { } link)
                                 {
-                                    <a href="@href">@ConsoleActivityPresentation.ReferenceLabel(row)</a>
+                                    <a href="@link.Href">@link.Label</a>
                                 }
                                 else
                                 {
@@ -99,7 +97,7 @@
 @code {
     private readonly Stack<string?> _cursors = new();
     private IConsoleActivityFeedClient Feed => Services.GetService<IConsoleActivityFeedClient>() ?? new UnsupportedConsoleActivityFeedClient();
-    private ConsoleActivityActorFilter _actor = ConsoleActivityActorFilter.Any;
+    private ConsoleActivityActorFilter _actor;
     private string? _cursor;
     private OperateSectionResult<ConsoleActivityFeedPage>? _result;
     private bool _busy;
@@ -113,7 +111,7 @@
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 
-    private async Task ReloadAsync() => await LoadAsync(_cursor);
+    private Task ReloadAsync() => LoadAsync(_cursor);
 
     private async Task OnActorChangedAsync(ChangeEventArgs args)
     {
@@ -126,7 +124,7 @@
 
     private async Task OlderAsync()
     {
-        if (!_busy && Page?.NextCursor is { } next && await LoadAsync(next))
+        if (Page?.NextCursor is { } next && await LoadAsync(next))
         {
             _cursors.Push(_cursor);
             _cursor = next;
@@ -135,7 +133,7 @@
 
     private async Task NewerAsync()
     {
-        if (!_busy && _cursors.TryPeek(out var previous) && await LoadAsync(previous))
+        if (_cursors.TryPeek(out var previous) && await LoadAsync(previous))
         {
             _cursor = _cursors.Pop();
         }
@@ -143,6 +141,7 @@
 
     private async Task<bool> LoadAsync(string? cursor)
     {
+        if (_busy) return false;
         _busy = true;
         try
         {

@@ -7,14 +7,12 @@ public sealed class ConsoleActivityPresentationTests
 {
     private static ObservabilityAuditRecordResponse Row(string actorType, string? agent = null) => new()
     {
-        AuditId = 1,
         Actor = "kai@example.org",
         ActorType = actorType,
         ActorAgent = agent,
         ResourceType = "operation_proposal",
         ResourceId = "p-47",
         Action = "operation.approval_denied",
-        Outcome = "Success",
         CorrelationId = "corr-1",
     };
 
@@ -65,11 +63,10 @@ public sealed class ConsoleActivityPresentationTests
 
         Assert.Equal("Operation proposal p-47", ConsoleActivityPresentation.What(proposal));
         Assert.Equal("Operation approval denied", ConsoleActivityPresentation.Humanize(proposal.Action));
-        Assert.Equal(CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, "p-47"), ConsoleActivityPresentation.ReferenceHref(proposal));
-        Assert.Equal("proposal", ConsoleActivityPresentation.ReferenceLabel(proposal));
+        Assert.Equal((CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, "p-47"), "proposal"), ConsoleActivityPresentation.Reference(proposal));
         Assert.Equal("Connection", ConsoleActivityPresentation.What(config));
-        Assert.Equal(CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, "corr-1"), ConsoleActivityPresentation.ReferenceHref(config));
-        Assert.Null(ConsoleActivityPresentation.ReferenceHref(config with { CorrelationId = " " }));
+        Assert.Equal((CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, "corr-1"), "related events"), ConsoleActivityPresentation.Reference(config));
+        Assert.Null(ConsoleActivityPresentation.Reference(config with { CorrelationId = " " }));
     }
 
     [Theory]

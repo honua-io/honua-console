@@ -101,19 +101,13 @@ public static class ConsoleActivityPresentation
     public static bool Succeeded(ObservabilityAuditRecordResponse row) =>
         string.Equals(row.Outcome, "Success", StringComparison.OrdinalIgnoreCase);
 
-    public static string? ReferenceHref(ObservabilityAuditRecordResponse row)
-    {
-        if (row.ResourceType == ProposalResource && Clean(row.ResourceId) is { } proposal)
+    public static (string Href, string Label)? Reference(ObservabilityAuditRecordResponse row) =>
+        (row.ResourceType, Clean(row.ResourceId), Clean(row.CorrelationId)) switch
         {
-            return CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, proposal);
-        }
-        return Clean(row.CorrelationId) is { } correlation
-            ? CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, correlation)
-            : null;
-    }
-
-    public static string ReferenceLabel(ObservabilityAuditRecordResponse row) =>
-        row.ResourceType == ProposalResource ? "proposal" : "related events";
+            (ProposalResource, { } proposal, _) => (CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, proposal), "proposal"),
+            (_, _, { } correlation) => (CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, correlation), "related events"),
+            _ => null,
+        };
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
