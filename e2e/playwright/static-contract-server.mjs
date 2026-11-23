@@ -120,6 +120,12 @@ async function signInWithPassword({ request, response, crossOrigin, pathname, or
   }
 }
 
+// The fixture publishes no admin events and ends the stream, so the Console falls back to REST
+// refresh as it does when a live server drops the connection. Callers check the session first.
+function serveEmptyLiveStream(response) {
+  response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store" }).end();
+}
+
 function readResource({ request, response, pathname, crossOrigin, authorized, json, capabilities }) {
   if (request.method !== "GET") {
     response.writeHead(405).end();
@@ -154,7 +160,8 @@ function readResource({ request, response, pathname, crossOrigin, authorized, js
     response.writeHead(401).end();
     return;
   }
-  readAuthorizedResource({ response, pathname, json });
+  if (pathname === "/api/v1/admin/live") serveEmptyLiveStream(response);
+  else readAuthorizedResource({ response, pathname, json });
 }
 
 function readAuthorizedResource({ response, pathname, json }) {
