@@ -36,6 +36,18 @@ for (const screen of screens) {
       if (!screen.heading) {
         await context.addCookies([{ name: 'console-fixture-session', value: 'issued', url: origin }]);
       }
+      await page.route(`${origin}/api/v1/capabilities/manifest`, route => route.fulfill({
+        json: {
+          schemaVersion: 'honua.capability_manifest.v1',
+          capabilities: [{
+            id: 'console.content.persistent',
+            lifecycle: 'Implemented',
+            optInRequired: false,
+            available: true,
+            supported: true,
+          }],
+        },
+      }));
       await page.route(`${origin}/api/v1/open-data/datasets**`, async route => {
         const path = new URL(route.request().url()).pathname;
         const data = path.endsWith('/' + item.itemId)
