@@ -45,7 +45,11 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
 
     public IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
         new HttpConsoleProposalsClient(_http, new InMemoryConsoleEnvironmentProfileStore([profile]), _sessionStore,
-            _adminApiKey, _operatorBearerProvider, _credentialMode) { _resourceBaseUri = this._resourceBaseUri, ExpectedProfile = profile };
+            _adminApiKey, _operatorBearerProvider, _credentialMode)
+        {
+            _resourceBaseUri = this._resourceBaseUri,
+            ExpectedProfile = profile
+        };
 
     // A management approval reads and posts on the manager origin. Other calls stay on the profile.
     internal void UseResourceBase(Uri resourceBaseUri) => _resourceBaseUri = resourceBaseUri;

@@ -44,7 +44,10 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
 
     public IConsoleOpsAutonomyClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
         new HttpConsoleOpsAutonomyClient(_http, new InMemoryConsoleEnvironmentProfileStore([profile]), _sessions,
-            _adminApiKey, _operatorBearerProvider, _credentialMode) { ExpectedProfile = profile };
+            _adminApiKey, _operatorBearerProvider, _credentialMode)
+        {
+            ExpectedProfile = profile
+        };
 
     public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(
         CancellationToken cancellationToken = default)
