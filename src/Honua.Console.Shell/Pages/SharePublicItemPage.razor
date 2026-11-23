@@ -64,7 +64,7 @@
                     <div>
                         <div data-share-opendata-downloads>
                             <ConsolePanel Title="Download" HeadingId="public-download-heading">
-                                @DownloadContent(item)
+                                @PublicDownloads(item)
                             </ConsolePanel>
                         </div>
                         @if (item.Publications.Length > 0)
@@ -160,7 +160,24 @@
     private CatalogItemReadResult? _result;
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
-    private RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
+    private static RenderFragment PublicDownloads(ConsoleContentDetail item) => @<text>
+        @{ var downloads = item.Publications.Where(publication => !string.IsNullOrWhiteSpace(publication.Format)).ToArray(); }
+        @if (downloads.Length == 0)
+        {
+            <p class="console-muted">No download links are published for this item.</p>
+        }
+        else
+        {
+            <ul class="share-opendata-download-list">
+                @foreach (var download in downloads)
+                {
+                    <li><a href="@download.Route">@ConsoleDownloadFormatLabels.Display(download.Format!)</a></li>
+                }
+            </ul>
+        }
+    </text>;
+
+    private static RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
                 @if (!item.Summary.Formats.Any())
                 {
                     <p class="console-muted">No downloadable formats are published for this item.</p>
@@ -171,11 +188,8 @@
                         @foreach (var format in item.Summary.Formats)
                         {
                             <li>
-                                <span class="share-opendata-download-name">@(V4Enabled ? ConsoleDownloadFormatLabels.Display(format) : format)</span>
-                                @if (!V4Enabled)
-                                {
-                                    <span class="console-muted">download ↓</span>
-                                }
+                                <span class="share-opendata-download-name">@format</span>
+                                <span class="console-muted">download ↓</span>
                             </li>
                         }
                     </ul>

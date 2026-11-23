@@ -368,7 +368,10 @@ public sealed record ConsoleContentLineageLink(string Direction, string ItemId, 
 
 public sealed record ConsoleContentBinding(string Name, string Kind, string Target, string Status);
 
-public sealed record ConsoleContentPublication(string Route, string Visibility, bool Embeddable, string Status);
+public sealed record ConsoleContentPublication(string Route, string Visibility, bool Embeddable, string Status)
+{
+    public string? Format { get; init; }
+}
 
 public sealed record ConsoleContentPermission(string Principal, string Role, string Source);
 
