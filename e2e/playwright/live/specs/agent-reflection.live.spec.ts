@@ -27,6 +27,28 @@ function required(name: string): string {
   return value;
 }
 
+// The managed services are the serving server and its database, so the recovery scenario stops the
+// database on purpose. From that stop until recovery is confirmed, server errors, the browser's
+// failed-load messages and network churn from the restart are the expected outage; every other failure counts.
+function recordFailures(page: Page, origins: Set<string>, journal: { errors: string[]; outage: boolean }) {
+  const { errors } = journal;
+  page.on('pageerror', error => errors.push(`pageerror: ${error.name}`));
+  page.on('console', message => {
+    if (message.type() === 'error' && !journal.outage) errors.push(`console error at ${message.location().url.split('?')[0]}`);
+  });
+  page.on('response', response => {
+    const url = new URL(response.url());
+    if (origins.has(url.origin) && response.status() >= 400 && !(journal.outage && response.status() >= 500))
+      errors.push(`${response.status()} ${response.request().method()} ${url.origin}${url.pathname}`);
+  });
+  page.on('requestfailed', request => {
+    const reason = request.failure()?.errorText;
+    if (reason === 'net::ERR_ABORTED' || (journal.outage && reason === 'net::ERR_NETWORK_CHANGED')) return;
+    const url = new URL(request.url());
+    if (origins.has(url.origin)) errors.push(`request failed ${url.origin}${url.pathname}: ${reason}`);
+  });
+}
+
 test('Console reflects agent changes in the customer quickstart', async ({ page }, info) => {
   const consoleUrl = required('HONUA_REFLECTION_CONSOLE_URL');
   const managerUrl = required('HONUA_REFLECTION_MANAGER_URL');
@@ -47,27 +69,10 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
   const failures: string[] = [];
   const failureDetails: Array<{ stage: string; message: string }> = [];
   const origins = new Set([consoleUrl, managerUrl, serverUrl].map(value => new URL(value).origin));
-  // The managed services are the serving server and its database, so the recovery scenario stops the
-  // database on purpose. From that stop until recovery is confirmed, server errors and the browser's
-  // failed-load messages are the expected outage; every other failure still counts.
+  // The recovery scenario stops the serving server's database on purpose (see recordFailures).
   const recoveryService = 'postgres';
-  let outage = false;
-  page.on('pageerror', error => errors.push(`pageerror: ${error.name}`));
-  page.on('console', message => {
-    if (message.type() === 'error' && !outage) errors.push(`console error at ${message.location().url.split('?')[0]}`);
-  });
-  page.on('response', response => {
-    const url = new URL(response.url());
-    if (origins.has(url.origin) && response.status() >= 400 && !(outage && response.status() >= 500))
-      errors.push(`${response.status()} ${response.request().method()} ${url.origin}${url.pathname}`);
-  });
-  page.on('requestfailed', request => {
-    if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
-    // Restarting a Compose service changes the host's container network; Chromium then drops requests in flight.
-    if (outage && request.failure()?.errorText === 'net::ERR_NETWORK_CHANGED') return;
-    const url = new URL(request.url());
-    if (origins.has(url.origin)) errors.push(`request failed ${url.origin}${url.pathname}: ${request.failure()?.errorText}`);
-  });
+  const journal = { errors, outage: false };
+  recordFailures(page, origins, journal);
   const check = async (stage: string, action: () => Promise<void>) => {
     try { await action(); completed.push(stage); }
     catch (error) {
@@ -90,7 +95,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
       managerUrl, proposerKey: managerProposer, approverKey: managerApprover, approve,
       service: recoveryService,
       stopService: async () => {
-        outage = true;
+        journal.outage = true;
         const args = ['docker', 'compose', '--project-directory', composeDir, 'stop', recoveryService];
         if (sshHost) execFileSync('ssh', [sshHost, ...args], { stdio: 'ignore', timeout: 60_000 });
         else execFileSync(args[0], args.slice(1), { stdio: 'ignore', timeout: 60_000 });
@@ -144,7 +149,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
           const managed = page.locator(`[data-managed-target="compose-local"] [data-managed-service="${recoveryService}"]`);
           await expect(managed).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
           await expect(managed).not.toContainText(/unhealthy/i);
-          outage = false;
+          journal.outage = false;
           await scrollForMilestone(managed);
           await captureMilestone(page, info, '06-health-recovered');
         });
