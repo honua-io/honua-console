@@ -42,6 +42,10 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         _credentialMode = credentialMode;
     }
 
+    public IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+        new HttpConsoleProposalsClient(_http, new InMemoryConsoleEnvironmentProfileStore([profile]), _sessionStore,
+            _adminApiKey, _operatorBearerProvider, _credentialMode) { _resourceBaseUri = this._resourceBaseUri };
+
     // A management approval reads and posts on the manager origin. Other calls stay on the profile.
     internal void UseResourceBase(Uri resourceBaseUri) => _resourceBaseUri = resourceBaseUri;
 
@@ -111,16 +115,6 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             return OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, NoProfileMessage);
         }
 
-        return await ApproveForEnvironmentAsync(profile, proposalId, reviewed, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<OperateSectionResult<ConsoleProposalDetail>> ApproveForEnvironmentAsync(
-        ConsoleEnvironmentProfile profile,
-        string proposalId,
-        ConsoleProposalReviewedPlan? reviewed,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
         var id = proposalId.Trim();
         var review = await SendHumanApprovalAsync(
             profile,
@@ -137,9 +131,8 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
             // Servers without the approval-review route answer it with 404. They take the plain
             // approve and apply their own approve-grant and separation-of-duties rules; a server with the
             // route never 404s a live proposal, and rejects a capability-less approve.
-            var legacy = await SendAsync(profile, HttpMethod.Post, ProposalAdminRoutes.Approve(id), content: null,
-                ProposalJsonContext.Default.ProposalDetailWire, cancellationToken).ConfigureAwait(false);
-            return ToDetailResult(legacy);
+            return await SendDetailAsync(HttpMethod.Post, ProposalAdminRoutes.Approve(id), content: null, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (!review.IsAllowed)

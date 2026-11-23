@@ -41,6 +41,10 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
         _credentialMode = credentialMode;
     }
 
+    public IConsoleOpsAutonomyClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+        new HttpConsoleOpsAutonomyClient(_http, new InMemoryConsoleEnvironmentProfileStore([profile]), _sessions,
+            _adminApiKey, _operatorBearerProvider, _credentialMode);
+
     public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(
         CancellationToken cancellationToken = default)
     {
@@ -52,13 +56,6 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
                 NoProfileMessage);
         }
 
-        return await LoadForEnvironmentAsync(profile, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadForEnvironmentAsync(
-        ConsoleEnvironmentProfile profile,
-        CancellationToken cancellationToken = default)
-    {
         // Policies are the capability probe. Stop on an older server so the existing
         // propose-only findings flow remains untouched and we do not fan out dead reads.
         var policies = await GetAsync(
@@ -109,27 +106,11 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             message: auditMessage);
     }
 
-    public Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
+    public async Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
         string rule,
         string mode,
         string reason,
-        CancellationToken cancellationToken = default) =>
-        SetPolicyModeAsync(rule, mode, reason, null, cancellationToken);
-
-    public Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeForEnvironmentAsync(
-        ConsoleEnvironmentProfile profile,
-        string rule,
-        string mode,
-        string reason,
-        CancellationToken cancellationToken = default) =>
-        SetPolicyModeAsync(rule, mode, reason, profile, cancellationToken);
-
-    private Task<OperateSectionResult<OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
-        string rule,
-        string mode,
-        string reason,
-        ConsoleEnvironmentProfile? profile,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rule);
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
@@ -144,13 +125,13 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
             Mode = mode,
             Reason = reason?.Trim() ?? string.Empty
         };
-        return PutAsync(
-            OpsAutonomyRoutes.Policy(rule),
-            request,
-            OpsAutonomyJsonContext.Default.OpsAutonomyPolicyUpdateRequest,
-            OpsAutonomyJsonContext.Default.OpsAutonomyPolicyResponse,
-            cancellationToken,
-            profile);
+        return await PutAsync(
+                OpsAutonomyRoutes.Policy(rule),
+                request,
+                OpsAutonomyJsonContext.Default.OpsAutonomyPolicyUpdateRequest,
+                OpsAutonomyJsonContext.Default.OpsAutonomyPolicyResponse,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<OperateSectionResult<OpsAutonomySettingsResponse>> SetKillSwitchAsync(
@@ -215,10 +196,9 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
         TRequest body,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TResponse> responseTypeInfo,
-        CancellationToken cancellationToken,
-        ConsoleEnvironmentProfile? profile = null)
+        CancellationToken cancellationToken)
     {
-        profile ??= await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null)
         {
             return OperateSectionResult<TResponse>.Denied(

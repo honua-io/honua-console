@@ -10,14 +10,17 @@ public sealed class DualConsoleProposalsClient(
 {
     private const string ManagerPrefix = "manager:";
 
+    public IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+        new DualConsoleProposalsClient(serving.ForEnvironment(profile), manager.ForEnvironment(profile),
+            new InMemoryConsoleEnvironmentProfileStore([profile]), endpoint);
+
     internal static bool IsManagerProposal(string proposalId) =>
         proposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal);
 
-    private async Task<bool?> HasSeparateManager(
-        CancellationToken cancellationToken, ConsoleEnvironmentProfile? profile = null)
+    private async Task<bool?> HasSeparateManager(CancellationToken cancellationToken)
     {
         if (endpoint is null) return false;
-        profile ??= await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        var profile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         if (profile is null) return null;
         var target = endpoint.Resolve(profile.ServerBaseUri);
         if (target is null) return null;
@@ -78,21 +81,15 @@ public sealed class DualConsoleProposalsClient(
         string proposalId, ConsoleProposalReviewedPlan? reviewed, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.ApproveAsync(id, reviewed, cancellationToken), cancellationToken);
 
-    public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveForEnvironmentAsync(
-        ConsoleEnvironmentProfile profile, string proposalId, ConsoleProposalReviewedPlan? reviewed,
-        CancellationToken cancellationToken = default) =>
-        Route(proposalId, (client, id) => client.ApproveForEnvironmentAsync(profile, id, reviewed, cancellationToken),
-            cancellationToken, profile);
-
     public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(string proposalId, string reason, CancellationToken cancellationToken = default) =>
         Route(proposalId, (client, id) => client.RejectAsync(id, reason, cancellationToken), cancellationToken);
 
     private async Task<OperateSectionResult<ConsoleProposalDetail>> Route(
         string proposalId, Func<IConsoleProposalsClient, string, Task<OperateSectionResult<ConsoleProposalDetail>>> action,
-        CancellationToken cancellationToken, ConsoleEnvironmentProfile? profile = null)
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
-        var separate = await HasSeparateManager(cancellationToken, profile).ConfigureAwait(false);
+        var separate = await HasSeparateManager(cancellationToken).ConfigureAwait(false);
         if (separate is null) return OperateSectionResult<ConsoleProposalDetail>.Denied(
             OperateSectionStatus.Unavailable, "The management endpoint is not bound to this environment.");
         var isManager = IsManagerProposal(proposalId);

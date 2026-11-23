@@ -5,6 +5,9 @@ namespace Honua.Console.Shell.Services;
 // Approve and reject both require the server approve grant; approval also requires a live human browser session and a review capability. This client does not bypass that gate.
 public interface IConsoleProposalsClient
 {
+    // A client with an active profile must bind its requests to the supplied profile.
+    IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) => this;
+
     Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
         string? status = null,
         string? kind = null,
@@ -25,14 +28,6 @@ public interface IConsoleProposalsClient
         ConsoleProposalReviewedPlan? reviewed,
         CancellationToken cancellationToken = default) =>
         ApproveAsync(proposalId, cancellationToken);
-
-    Task<OperateSectionResult<ConsoleProposalDetail>> ApproveForEnvironmentAsync(
-        ConsoleEnvironmentProfile profile,
-        string proposalId,
-        ConsoleProposalReviewedPlan? reviewed,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(
-            OperateSectionStatus.Unavailable, "This proposal client cannot bind to the selected environment."));
 
     Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(
         string proposalId,
