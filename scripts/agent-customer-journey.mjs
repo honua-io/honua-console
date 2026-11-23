@@ -53,7 +53,8 @@ export async function approveRecordedProposal(request) {
 }
 
 /** Call the manager's actual MCP tools and let the customer-facing test observe each state. */
-export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverKey, stopRedis, observe, approve }) {
+export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverKey, service, stopService, observe, approve }) {
+  if (!service) throw new Error('A managed Compose service to stop is required');
   if (!proposerKey || !approverKey || proposerKey === approverKey) throw new Error('Separate proposer and approver credentials are required');
   if (typeof approve !== 'function') throw new Error('A Console approval is required');
   const mcp = new AgentMcpClient(managerUrl, proposerKey);
@@ -67,13 +68,13 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
   if (readback?.observedImageId !== target.observedImageId || readback?.serverVersion !== target.serverVersion ||
       readback?.observationStatus !== 'observed') throw new Error('MCP release status differs from manager API readback');
   await observe('revision', target);
-  await stopRedis();
+  await stopService();
   const findingResult = await poll(() => mcp.call('honua_ops_findings', { rule: 'managed-compose-service-unhealthy' }),
-    result => result.findings?.some(item => item.subject?.workloadId === 'redis'));
-  const finding = findingResult.findings.find(item => item.subject?.workloadId === 'redis');
+    result => result.findings?.some(item => item.subject?.workloadId === service));
+  const finding = findingResult.findings.find(item => item.subject?.workloadId === service);
   const unhealthy = await poll(() => api(managerUrl, approverKey, '/api/v1/admin/observability/ops-health'), value =>
-    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(service =>
-      service.name === 'redis' && service.status?.toLowerCase() === 'unhealthy')));
+    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(entry =>
+      entry.name === service && entry.status?.toLowerCase() === 'unhealthy')));
   await observe('finding', { finding, health: unhealthy });
   const proposed = await mcp.call('honua_propose_finding', { findingId: finding.id, candidateId: 'compose-local' });
   if (!proposed.proposalId) throw new Error('MCP did not create a restart proposal');
@@ -85,10 +86,10 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
     value => ['completed', 'succeeded', 'failed', 'rejected', 'cancelled'].includes(value.status?.toLowerCase()));
   if (!['completed', 'succeeded'].includes(completed.status.toLowerCase())) throw new Error('The approved restart failed');
   const remaining = await poll(() => mcp.call('honua_ops_findings', { rule: 'managed-compose-service-unhealthy' }),
-    value => !value.findings?.some(item => item.subject?.workloadId === 'redis'));
+    value => !value.findings?.some(item => item.subject?.workloadId === service));
   const healthy = await poll(() => api(managerUrl, approverKey, '/api/v1/admin/observability/ops-health'), value =>
-    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(service =>
-      service.name === 'redis' && service.status?.toLowerCase() === 'healthy')));
+    value.managedTargets?.some(item => item.targetId === 'compose-local' && item.services?.some(entry =>
+      entry.name === service && entry.status?.toLowerCase() === 'healthy')));
   await observe('recovered', { proposal: completed, findings: remaining, health: healthy });
   return { target, finding, proposalId: proposed.proposalId, completed };
 }

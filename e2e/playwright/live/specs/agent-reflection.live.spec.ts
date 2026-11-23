@@ -47,13 +47,18 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
   const failures: string[] = [];
   const failureDetails: Array<{ stage: string; message: string }> = [];
   const origins = new Set([consoleUrl, managerUrl, serverUrl].map(value => new URL(value).origin));
+  // The managed services are the serving server and its database, so the recovery scenario stops the
+  // database on purpose. From that stop until recovery is confirmed, server errors and the browser's
+  // failed-load messages are the expected outage; every other failure still counts.
+  const recoveryService = 'postgres';
+  let outage = false;
   page.on('pageerror', error => errors.push(`pageerror: ${error.name}`));
   page.on('console', message => {
-    if (message.type() === 'error') errors.push(`console error at ${message.location().url.split('?')[0]}`);
+    if (message.type() === 'error' && !outage) errors.push(`console error at ${message.location().url.split('?')[0]}`);
   });
   page.on('response', response => {
     const url = new URL(response.url());
-    if (origins.has(url.origin) && response.status() >= 400)
+    if (origins.has(url.origin) && response.status() >= 400 && !(outage && response.status() >= 500))
       errors.push(`${response.status()} ${response.request().method()} ${url.origin}${url.pathname}`);
   });
   page.on('requestfailed', request => {
@@ -81,8 +86,10 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     let proposalId = '';
     await exerciseAgentRecovery({
       managerUrl, proposerKey: managerProposer, approverKey: managerApprover, approve,
-      stopRedis: async () => {
-        const args = ['docker', 'compose', '--project-directory', composeDir, 'stop', 'redis'];
+      service: recoveryService,
+      stopService: async () => {
+        outage = true;
+        const args = ['docker', 'compose', '--project-directory', composeDir, 'stop', recoveryService];
         if (sshHost) execFileSync('ssh', [sshHost, ...args], { stdio: 'ignore', timeout: 60_000 });
         else execFileSync(args[0], args.slice(1), { stdio: 'ignore', timeout: 60_000 });
       },
@@ -97,9 +104,9 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         });
         if (stage === 'finding') await check('agent-degradation-finding', async () => {
           await go('/operate/health');
-          const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
-          await expect(redis).toContainText(/unhealthy/i, { timeout: 45_000 });
-          await scrollForMilestone(redis);
+          const managed = page.locator(`[data-managed-target="compose-local"] [data-managed-service="${recoveryService}"]`);
+          await expect(managed).toContainText(/unhealthy/i, { timeout: 45_000 });
+          await scrollForMilestone(managed);
           await captureMilestone(page, info, '02-health-degraded');
           await go('/operate/copilot');
           await expect(page.locator('body')).toContainText('managed-compose-service-unhealthy', { timeout: 45_000 });
@@ -132,10 +139,11 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
           await scrollForMilestone(panel.locator('[data-proposal-status]'));
           await captureMilestone(page, info, '05-restart-completed');
           await go('/operate/health');
-          const redis = page.locator('[data-managed-target="compose-local"] [data-managed-service="redis"]');
-          await expect(redis).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
-          await expect(redis).not.toContainText(/unhealthy/i);
-          await scrollForMilestone(redis);
+          const managed = page.locator(`[data-managed-target="compose-local"] [data-managed-service="${recoveryService}"]`);
+          await expect(managed).toContainText(/\bhealthy\b/i, { timeout: 45_000 });
+          await expect(managed).not.toContainText(/unhealthy/i);
+          outage = false;
+          await scrollForMilestone(managed);
           await captureMilestone(page, info, '06-health-recovered');
         });
       },
