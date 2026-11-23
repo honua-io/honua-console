@@ -1,0 +1,27 @@
+@inject NavigationManager Navigation
+
+@* v4 layer header line (mockup 04): path, geometry, SRS and source table, then the layer description. *@
+<p class="console-service-summary" data-layer-summary>Layer <code>@Path</code> · @Layer.Geometry@if (Layer.Srid is { } srid) { <text> · EPSG:@srid</text> }@if (Table is { } table) { <text> · table </text><code>@table</code> }@if (Layer.ConnectionName is { } connection && Layer.ConnectionId is { } connectionId) { <text> on </text><a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connectionId)}")">@connection</a> }</p>
+@if (Layer.Description is { } description)
+{
+    <p class="console-service-description">@description</p>
+}
+
+@code {
+    [Parameter, EditorRequired] public OperateLayerExposure Exposure { get; set; } = default!;
+
+    private OperateServiceLayer Layer => Exposure.Layer;
+
+    private string Path
+    {
+        get
+        {
+            var service = Exposure.Service;
+            var servicePath = string.IsNullOrWhiteSpace(service.FolderName) ? service.Name : $"{service.FolderName}/{service.Name}";
+            return $"{servicePath}/{Layer.Name}";
+        }
+    }
+
+    private string? Table => string.IsNullOrWhiteSpace(Layer.Table) ? null
+        : string.IsNullOrWhiteSpace(Layer.Schema) ? Layer.Table : $"{Layer.Schema}.{Layer.Table}";
+}
