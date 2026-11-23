@@ -204,6 +204,24 @@ class HarnessTests(unittest.TestCase):
             run.assert_called_once_with(['sudo', 'install', '-o', '1000', '-g', '0', '-m', '0644',
                                          str(source / 'kc.key'), str(target / 'kc.key')], label='sudo install kc.key')
 
+    def test_failed_journey_publishes_redacted_server_and_console_logs(self):
+        harness = load_harness()
+        harness.REDACTOR.add(SAMPLE)
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp, 'artifacts/agent-reflection-containers.log')
+            with mock.patch.object(harness, 'compose', return_value=f'honua-1 | token {SAMPLE} rejected') as compose:
+                harness.publish_container_logs(target)
+            compose.assert_called_once_with('logs', '--no-color', '--timestamps', *harness.LOGGED_SERVICES)
+            self.assertEqual(target.read_text(), f'honua-1 | token {REDACTED} rejected\n')
+
+    def test_container_log_failure_is_recorded_instead_of_raised(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp, 'agent-reflection-containers.log')
+            with mock.patch.object(harness, 'compose', side_effect=CommandFailed('docker compose logs', 1, b'gone')):
+                harness.publish_container_logs(target)
+            self.assertIn('container logs unavailable', target.read_text())
+
     def test_run_raises_command_failed_with_stderr(self):
         harness = load_harness()
         with self.assertRaises(CommandFailed) as caught:

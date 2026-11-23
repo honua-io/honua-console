@@ -224,6 +224,20 @@ def run_playwright(env, *, playwright_dir=ROOT / 'e2e/playwright', raw_report=IN
             scrub_tree(Path(playwright_dir) / 'test-results', REDACTOR)
 
 
+LOGGED_SERVICES = ('honua', 'console', 'keycloak')
+CONTAINER_LOG = ROOT / 'artifacts/studio-customer/agent-reflection-containers.log'
+
+
+def publish_container_logs(target=CONTAINER_LOG):
+    """After a failed journey, keep the redacted server, Console and IdP logs; a log failure never hides the cause."""
+    try:
+        text = compose('logs', '--no-color', '--timestamps', *LOGGED_SERVICES)
+    except (CommandFailed, OSError, subprocess.TimeoutExpired) as error:
+        text = f'container logs unavailable: {type(error).__name__}'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(REDACTOR.redact(text) + '\n')
+
+
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ('run', 'clean'):
         raise RuntimeError('Specify run or clean')
@@ -235,6 +249,7 @@ def main():
     REDACTOR.add_install_secrets(INSTALL)
     returncode = run_playwright(env)
     if returncode:
+        publish_container_logs()
         raise RuntimeError(f'Agent reflection Playwright failed with exit code {returncode}')
 
 
