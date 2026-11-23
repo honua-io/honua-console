@@ -295,7 +295,9 @@
                     <button type="button" class="console-button console-button-secondary" @ref="_closeReviewButton" @onclick="ClearSelection">Close review</button>
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
-                        UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
+                        DecisionPending="@(IsDecisionPending(proposalId))"
+                        RecordedDecision="@_recordedDecisions.GetValueOrDefault(proposalId)"
+                        UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, proposalId, summary))"
                         OnActioned="@(detail => OnProposalActioned(approvalInstance, detail))" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
                     @if (linked is not null)
                     {
@@ -332,8 +334,8 @@
         Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty },
         Unsaved = new()
         {
-            ChangedFieldCount = _approvalStates.GetValueOrDefault(_approvalInstance)?.ChangedFieldCount ?? 0,
-            PendingOperationCount = _approvalStates.Values.Sum(state => state.PendingOperationCount)
+            ChangedFieldCount = _approvalStates.GetValueOrDefault(_approvalInstance).Summary?.ChangedFieldCount ?? 0,
+            PendingOperationCount = _approvalStates.Values.Sum(state => state.Summary.PendingOperationCount)
         }
     };
 
@@ -391,7 +393,8 @@
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
     private object _approvalInstance = new();
-    private readonly Dictionary<object, ConsoleAgentUnsavedSummary> _approvalStates = new();
+    private readonly Dictionary<object, (string ProposalId, ConsoleAgentUnsavedSummary Summary)> _approvalStates = new();
+    private readonly Dictionary<string, ConsoleProposalDetail> _recordedDecisions = new(StringComparer.Ordinal);
     private string? _routeProposalId;
     private string? _linkedRequestId;
     private ConsoleProposalDetail? _selectedDetail;
@@ -671,7 +674,10 @@
         _approvalInstance = new object();
     }
 
-    private void OnApprovalUnsavedChanged(object instance, ConsoleAgentUnsavedSummary summary)
+    private bool IsDecisionPending(string proposalId) =>
+        _approvalStates.Values.Any(state => state.ProposalId == proposalId && state.Summary.PendingOperationCount > 0);
+
+    private void OnApprovalUnsavedChanged(object instance, string proposalId, ConsoleAgentUnsavedSummary summary)
     {
         if (_disposed) return;
         // A completed old panel must not clear the current reason, while its server write
@@ -682,7 +688,7 @@
         }
         else
         {
-            _approvalStates[instance] = summary;
+            _approvalStates[instance] = (proposalId, summary);
         }
     }
 
@@ -730,13 +736,15 @@
     {
         if (_disposed) return;
 
-        if (ReferenceEquals(instance, _approvalInstance))
+        _recordedDecisions[detail.ProposalId] = detail;
+        if (detail.ProposalId == _selectedProposalId)
         {
-            OnDetailLoaded(instance, detail);
-        }
-        else if (detail.ProposalId == _selectedProposalId)
-        {
-            _detailReloadToken++;
+            _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;
+            _selectedDetail = detail;
+            if (!ReferenceEquals(instance, _approvalInstance))
+            {
+                _detailReloadToken++;
+            }
         }
 
         // After an approve / reject, refresh the queue so a now-resolved proposal drops out of

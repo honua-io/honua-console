@@ -142,7 +142,7 @@ public sealed class ProposalApprovalPanelReceiptTests
     }
 
     [Fact]
-    public async Task ADecisionRefreshesReopenedReviewOfTheSameProposal()
+    public async Task ReopenedReviewKeepsDecisionsDisabledAndDisplaysTheRecordedOutcome()
     {
         using var context = new BunitContext();
         var client = new PendingProposalClient();
@@ -159,15 +159,21 @@ public sealed class ProposalApprovalPanelReceiptTests
         page.FindAll("button").Single(button => button.TextContent == "Close review").Click();
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox"));
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=proposal-1"));
-        page.WaitForAssertion(() => Assert.Single(page.FindAll("[data-proposal-approve]")));
+        page.WaitForAssertion(() => Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
 
+        var staleRead = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        client.NextRead = staleRead.Task;
         var completed = await new ReceiptProposalClient(ConsoleProposalStatus.Succeeded).GetAsync("proposal-1");
-        client.NextRead = Task.FromResult(completed);
         client.Completion.SetResult(completed);
         await approval;
 
         page.WaitForAssertion(() =>
             Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
+        Assert.Empty(page.FindAll("[data-proposal-approve]"));
+
+        var pending = await new ReceiptProposalClient().GetAsync("proposal-1");
+        await page.InvokeAsync(() => staleRead.SetResult(pending));
+        Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
         Assert.Empty(page.FindAll("[data-proposal-approve]"));
     }
 
@@ -269,7 +275,7 @@ public sealed class ProposalApprovalPanelReceiptTests
     }
 
     [Fact]
-    public void RuleBackedProposalAutoApplyTogglePromotesPolicyAndSurfacesAuditTrailReceipt()
+    public async Task RuleBackedProposalWaitsForPolicyBeforeAllowingPromotion()
     {
         using var context = new BunitContext();
         var detail = new ConsoleProposalDetail(
@@ -297,7 +303,8 @@ public sealed class ProposalApprovalPanelReceiptTests
             AutonomyRule = "alert-dispatch-backlog",
             ActionDiscriminator = "alerts.redrive_dead_letters"
         };
-        var autonomy = new FakeInboxAutonomyClient("alert-dispatch-backlog", "ProposeOnly");
+        var policyRead = new TaskCompletionSource();
+        var autonomy = new FakeInboxAutonomyClient("alert-dispatch-backlog", "ProposeOnly", policyRead.Task);
         context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail));
         context.Services.AddSingleton<IConsoleOpsAutonomyClient>(autonomy);
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
@@ -305,6 +312,14 @@ public sealed class ProposalApprovalPanelReceiptTests
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "prop-rule-1"));
 
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal("Unavailable", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
+            Assert.True(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled"));
+            Assert.Empty(panel.FindAll("[data-proposal-auto-apply-toggle]"));
+        });
+
+        await panel.InvokeAsync(() => policyRead.SetResult());
         panel.WaitForAssertion(() =>
         {
             Assert.Equal("ProposeOnly", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
@@ -352,14 +367,16 @@ public sealed class ProposalApprovalPanelReceiptTests
             Task.FromResult(OperateSectionResult<ConsoleProposalDetail>.Denied(OperateSectionStatus.Unavailable, "n/a"));
     }
 
-    private sealed class FakeInboxAutonomyClient(string rule, string initialMode) : IConsoleOpsAutonomyClient
+    private sealed class FakeInboxAutonomyClient(string rule, string initialMode, Task policyRead) : IConsoleOpsAutonomyClient
     {
         private string _mode = initialMode;
 
         public List<(string Rule, string Mode, string Reason)> PolicyUpdates { get; } = [];
 
-        public Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<OpsAutonomySnapshot>.Allowed(new OpsAutonomySnapshot(
+        public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            await policyRead;
+            return OperateSectionResult<OpsAutonomySnapshot>.Allowed(new OpsAutonomySnapshot(
                 new Honua.Console.Contracts.OpsAutonomySettingsResponse { KillSwitchEnabled = false },
                 [
                     new Honua.Console.Contracts.OpsAutonomyPolicyResponse
@@ -373,7 +390,8 @@ public sealed class ProposalApprovalPanelReceiptTests
                         UpdatedAt = DateTimeOffset.Parse("2026-06-28T10:00:00Z")
                     }
                 ],
-                [])));
+                []));
+        }
 
         public Task<OperateSectionResult<Honua.Console.Contracts.OpsAutonomyPolicyResponse>> SetPolicyModeAsync(
             string targetRule, string mode, string reason, CancellationToken cancellationToken = default)

@@ -216,19 +216,19 @@ else
                 <h4>Automation policy &mdash; <span class="console-mono">@detail.AutonomyRule</span></h4>
                 <p class="console-muted">
                     Current server mode:
-                    <strong data-proposal-autonomy-mode>@(string.IsNullOrWhiteSpace(_rulePolicy?.Mode) ? "ProposeOnly" : _rulePolicy.Mode)</strong>
-                    @if (_rulePolicy is { MaxAutoActionsPerWindow: > 0, WindowSeconds: > 0 } bounded)
+                    <strong data-proposal-autonomy-mode>@(PolicyLoaded ? _rulePolicy?.Mode ?? "ProposeOnly" : "Unavailable")</strong>
+                    @if (PolicyLoaded && _rulePolicy is { MaxAutoActionsPerWindow: > 0, WindowSeconds: > 0 } bounded)
                     {
                         <span> &middot; max @bounded.MaxAutoActionsPerWindow actions / @(bounded.WindowSeconds)s &middot; max blast radius @bounded.MaxBlastRadius</span>
                     }
                 </p>
-                @if (_killSwitchEnabled)
+                @if (PolicyLoaded && _killSwitchEnabled)
                 {
                     <p class="console-state-warning" data-proposal-autonomy-killswitch>
                         Global autonomy kill switch is enabled; rules stay propose-only until resumed.
                     </p>
                 }
-                @if (detail.IsAwaitingApproval && !isAutoApply)
+                @if (PolicyLoaded && detail.IsAwaitingApproval && !isAutoApply)
                 {
                     <label class="proposal-auto-apply-option">
                         <input type="checkbox"
@@ -241,7 +241,7 @@ else
                 <div class="proposal-approval-action-row">
                     <button type="button"
                             class="console-button console-button-secondary"
-                            disabled="@(_policyBusy || _busy || !RendererInfo.IsInteractive)"
+                            disabled="@(!PolicyLoaded || _policyBusy || _busy || DecisionPending || !RendererInfo.IsInteractive)"
                             data-proposal-auto-apply-action
                             @onclick="ToggleRulePolicyAsync">
                         @(isAutoApply
@@ -367,6 +367,12 @@ else
     public int ReloadToken { get; set; }
 
     [Parameter]
+    public bool DecisionPending { get; set; }
+
+    [Parameter]
+    public ConsoleProposalDetail? RecordedDecision { get; set; }
+
+    [Parameter]
     public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
 
     [Parameter]
@@ -378,6 +384,8 @@ else
     private bool _disposed;
     private IConsoleOpsAutonomyClient? _autonomyClient;
     private OpsAutonomyPolicyResponse? _rulePolicy;
+    private string? _loadedPolicyRule;
+    private bool PolicyLoaded => _loadedPolicyRule is not null && _loadedPolicyRule == _detail?.AutonomyRule;
     private bool _autonomySupported = true;
     private bool _killSwitchEnabled;
     private bool _promoteRuleOnApprove;
@@ -393,7 +401,7 @@ else
     private string? _reason;
     private bool _busy;
     private bool _approveForbidden;
-    private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy || _approveForbidden;
+    private bool DecisionUnavailable => !RendererInfo.IsInteractive || _busy || DecisionPending || _approveForbidden;
     private string? _actionMessage;
     private string? _actionDetail;
     private string _actionMessageClass = string.Empty;
@@ -422,6 +430,12 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
+        if (RecordedDecision is { IsAwaitingApproval: false } receipt &&
+            (_detail is null || _detail.ProposalId != ProposalId || _detail.IsAwaitingApproval))
+        {
+            Apply(OperateSectionResult<ConsoleProposalDetail>.Allowed(receipt));
+        }
+
         if (!string.Equals(_loadedProposalId, ProposalId, StringComparison.Ordinal))
         {
             _loadedProposalId = ProposalId;
@@ -432,6 +446,7 @@ else
             _actionMessage = null;
             _promoteRuleOnApprove = false;
             _rulePolicy = null;
+            _loadedPolicyRule = null;
             _policyMessage = null;
             _policyAuditReceipt = null;
             _autonomySupported = true;
@@ -464,6 +479,12 @@ else
         var result = await Proposals.GetAsync(ProposalId);
         if (!IsCurrentLoad(version)) return;
 
+        if (RecordedDecision is { IsAwaitingApproval: false } receipt &&
+            (!result.IsAllowed || result.Value is not { IsAwaitingApproval: false }))
+        {
+            result = OperateSectionResult<ConsoleProposalDetail>.Allowed(_detail is { IsAwaitingApproval: false } ? _detail : receipt);
+        }
+
         Apply(result);
         await ReportUnsavedAsync();
         if (!IsCurrentLoad(version)) return;
@@ -473,13 +494,15 @@ else
 
         StateHasChanged();
         await LoadAutonomyRulePolicyAsync(version);
+        if (IsCurrentLoad(version)) StateHasChanged();
     }
 
     private bool IsCurrentLoad(long version) => !_disposed && version == _loadVersion;
 
     private async Task LoadAutonomyRulePolicyAsync(long version)
     {
-        if (_autonomyClient is null || string.IsNullOrWhiteSpace(_detail?.AutonomyRule))
+        var rule = _detail?.AutonomyRule;
+        if (_autonomyClient is null || string.IsNullOrWhiteSpace(rule))
         {
             return;
         }
@@ -490,6 +513,7 @@ else
             return;
         }
 
+        _loadedPolicyRule = null;
         if (snapshot.Status == OperateSectionStatus.Unsupported)
         {
             _autonomySupported = false;
@@ -500,9 +524,10 @@ else
         if (snapshot.IsAllowed && snapshot.Value is { } value)
         {
             _autonomySupported = true;
+            _loadedPolicyRule = rule;
             _killSwitchEnabled = value.Settings.KillSwitchEnabled;
             _rulePolicy = value.Policies.FirstOrDefault(p =>
-                string.Equals(p.Rule, _detail.AutonomyRule, StringComparison.Ordinal));
+                string.Equals(p.Rule, rule, StringComparison.Ordinal));
         }
     }
 
@@ -518,7 +543,7 @@ else
     {
         var proposalId = ProposalId;
         var reviewedPlan = ConsoleProposalReviewedPlan.From(_detail);
-        var promoteAfterApproval = _promoteRuleOnApprove && ShowAutonomyPolicyControl(_detail!);
+        var promoteAfterApproval = _promoteRuleOnApprove && PolicyLoaded;
         var rule = _detail?.AutonomyRule;
         var enteredReason = _reason;
         var approved = await RunActionAsync(
@@ -551,7 +576,8 @@ else
 
     private Task ToggleRulePolicyAsync()
     {
-        if (_detail is null || string.IsNullOrWhiteSpace(_detail.AutonomyRule))
+        if (!PolicyLoaded || DecisionPending || _busy ||
+            _detail?.AutonomyRule is not { Length: > 0 } rule)
         {
             return Task.CompletedTask;
         }
@@ -560,9 +586,9 @@ else
             ? "ProposeOnly"
             : "AutoApply";
         var reason = string.IsNullOrWhiteSpace(_reason)
-            ? $"Updated rule {_detail.AutonomyRule} to {nextMode} from approval inbox proposal {ProposalId}"
+            ? $"Updated rule {rule} to {nextMode} from approval inbox proposal {ProposalId}"
             : _reason.Trim();
-        return ApplyPolicyModeAsync(_detail.AutonomyRule, nextMode, reason);
+        return ApplyPolicyModeAsync(rule, nextMode, reason);
     }
 
     private async Task ApplyPolicyModeAsync(string rule, string targetMode, string reason)
@@ -629,7 +655,7 @@ else
         Func<Task<OperateSectionResult<ConsoleProposalDetail>>> action,
         Func<ConsoleProposalDetail, ConsoleProposalDecisionFeedback> feedback)
     {
-        if (_busy || _approveForbidden)
+        if (DecisionUnavailable || _detail?.IsAwaitingApproval != true || RecordedDecision is { IsAwaitingApproval: false })
         {
             return false;
         }
