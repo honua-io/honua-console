@@ -155,6 +155,7 @@ public sealed record OperateServiceDetail(
     public string? FolderId { get; init; }
     public string? FolderName { get; init; }
     public string? PublicName { get; init; }
+    public string? Description { get; init; }
     public IReadOnlyList<string> FolderMutationIssues { get; init; } = [];
     public int? ReportedLayerCount { get; init; }
     public int LayerCount => ReportedLayerCount ?? Layers.Count;
@@ -177,6 +178,12 @@ public sealed record OperateServiceLayer(
     bool Enabled = true)
 {
     public string? ServiceName { get; init; }
+    public int? Srid { get; init; }
+    public string? ConnectionId { get; init; }
+    public string? ConnectionName { get; init; }
+    public string? Schema { get; init; }
+    public string? Table { get; init; }
+    public string? Description { get; init; }
 }
 
 public sealed record OperateRuntimeSetting(

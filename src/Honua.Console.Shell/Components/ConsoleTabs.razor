@@ -8,7 +8,7 @@
     {
         <button type="button" id="@tab.Id" role="tab" aria-selected="@(tab.Id == SelectedId ? "true" : "false")"
                 aria-controls="@tab.PanelId" tabindex="@(tab.Id == SelectedId ? 0 : -1)"
-                @onclick="() => SelectedIdChanged.InvokeAsync(tab.Id)">@tab.Label</button>
+                @onclick="() => SelectedIdChanged.InvokeAsync(tab.Id)">@tab.Label @if (tab.Count is { } count) { <span class="console-tab-count" aria-hidden="true" data-tab-count>@count</span> }</button>
     }
 </div>
 

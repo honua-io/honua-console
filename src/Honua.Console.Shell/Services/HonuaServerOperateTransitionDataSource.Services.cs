@@ -82,6 +82,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 FolderId = service.FolderId,
                 FolderName = service.FolderName,
                 PublicName = service.PublicName,
+                Description = string.IsNullOrWhiteSpace(service.Description) ? null : service.Description.Trim(),
                 FolderMutationIssues = service.FolderMutationIssues
             };
             return detail with { Endpoints = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
