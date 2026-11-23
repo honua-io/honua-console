@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 const routes = [
+  '/catalog/example-layer',
+  '/maps/example-map',
   '/studio/automations',
   '/studio/automations/new',
   '/studio/automations/missing',
@@ -10,7 +12,7 @@ const routes = [
 ];
 
 for (const route of routes) {
-  test(`anonymous workflow route offers sign-in first: ${route}`, async ({ page }, testInfo) => {
+  test(`anonymous operator route offers sign-in first: ${route}`, async ({ page }, testInfo) => {
     const origin = 'http://127.0.0.1:5185';
     const errors: string[] = [];
     const resourceRequests: string[] = [];
@@ -39,7 +41,7 @@ for (const route of routes) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(resourceRequests).toEqual([]);
     expect(errors).toEqual([]);
-    await testInfo.attach('anonymous-workflow-sign-in', {
+    await testInfo.attach('anonymous-operator-sign-in', {
       body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
     });
   });
