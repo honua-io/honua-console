@@ -222,6 +222,16 @@ class HarnessTests(unittest.TestCase):
                 harness.publish_container_logs(target)
             self.assertIn('container logs unavailable', target.read_text())
 
+    def test_console_reaches_both_servers_over_https(self):
+        harness = load_harness()
+        tls = {'Kestrel__Endpoints__Https__Url': 'https://*:8445'}
+        services = harness.console_services(tls)
+        console = services['console']['environment']
+        self.assertEqual(console['HONUA_SERVER_BASE_URL'], 'https://honua:8445')
+        self.assertEqual(console['HONUA_MANAGER_BASE_URL'], 'https://compose-manager:8445')
+        self.assertEqual(services['compose-manager']['environment'], tls)
+        self.assertEqual(services['honua']['environment'], tls)
+
     def test_run_raises_command_failed_with_stderr(self):
         harness = load_harness()
         with self.assertRaises(CommandFailed) as caught:

@@ -113,6 +113,23 @@ def install_idp_certs(source, target):
         label='sudo install kc.key')
 
 
+def console_services(server_tls):
+    """Server, management server and Console wiring. Both servers take the Console's CSRF and OIDC token
+    exchange only over HTTPS, so each listens on :8445 with the test certificate (SANs honua, compose-manager)."""
+    certs = ['./auth/certs:/certs:ro']
+    return {
+        'honua': {'environment': server_tls, 'volumes': certs},
+        'compose-manager': {'environment': server_tls, 'volumes': certs},
+        'console': {'image': CONSOLE_IMAGE, 'ports': ['127.0.0.1:15274:8080'],
+                    'environment': {'ASPNETCORE_ENVIRONMENT': 'Development', 'ASPNETCORE_HTTP_PORTS': '8080',
+                                    'HONUA_SERVER_BASE_URL': 'https://honua:8445',
+                                    'HONUA_MANAGER_BASE_URL': 'https://compose-manager:8445',
+                                    'SSL_CERT_FILE': '/certs/kc.crt',
+                                    'Honua__Console__Auth__Mode': 'Dev'},
+                    'volumes': certs},
+    }
+
+
 def setup():
     if INSTALL.exists():
         raise RuntimeError('The isolated quickstart directory already exists')
@@ -147,18 +164,7 @@ def setup():
     # server also listens on :8445 with the test certificate (its SAN includes `honua`).
     server_tls = {**server_auth, **yaml.safe_load((ROOT / 'e2e/docker-compose.server-tls.yml').read_text())
                   ['services']['honua-server']['environment']}
-    override = {'services': {
-        'keycloak': keycloak,
-        'honua': {'environment': server_tls, 'volumes': ['./auth/certs:/certs:ro']},
-        'compose-manager': {'environment': server_auth, 'volumes': ['./auth/certs:/certs:ro']},
-        'console': {'image': CONSOLE_IMAGE, 'ports': ['127.0.0.1:15274:8080'],
-                    'environment': {'ASPNETCORE_ENVIRONMENT': 'Development', 'ASPNETCORE_HTTP_PORTS': '8080',
-                                    'HONUA_SERVER_BASE_URL': 'https://honua:8445',
-                                    'HONUA_MANAGER_BASE_URL': 'http://compose-manager:8080',
-                                    'SSL_CERT_FILE': '/certs/kc.crt',
-                                    'Honua__Console__Auth__Mode': 'Dev'},
-                    'volumes': ['./auth/certs:/certs:ro']},
-    }}
+    override = {'services': {'keycloak': keycloak, **console_services(server_tls)}}
     (INSTALL / COMPOSE_FILES[-1]).write_text(json.dumps(override))
     os.chmod(INSTALL / COMPOSE_FILES[-1], 0o600)
     compose('up', '-d', '--wait', '--wait-timeout', '300')
