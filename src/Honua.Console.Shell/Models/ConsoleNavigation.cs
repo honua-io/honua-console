@@ -100,15 +100,26 @@ public static class ConsoleNavigation
         if (path == "/approvals") return new(path, "Approvals", ConsoleNavigationContextKind.Page);
         var destinations = groups.SelectMany(group => group.Destinations);
         var exact = destinations.FirstOrDefault(entry => entry.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
-        var label = exact?.Label ?? FallbackLabel(segments);
+        var label = exact?.Label ?? (StaticRoutes.Value.Contains(path) ? Words(segments[^1]) : FallbackLabel(segments));
         return new(path, label, ConsoleNavigationContextKind.Page);
     }
+
+    // Routes without parameters name a page ("/studio/styles" is "Styles"); a parameter segment stays as written.
+    private static readonly Lazy<HashSet<string>> StaticRoutes = new(() => typeof(ConsoleNavigation).Assembly.GetTypes()
+        .SelectMany(type => type.GetCustomAttributes(typeof(Microsoft.AspNetCore.Components.RouteAttribute), inherit: false))
+        .Select(attribute => "/" + ((Microsoft.AspNetCore.Components.RouteAttribute)attribute).Template.Trim('/'))
+        .Where(template => !template.Contains('{', StringComparison.Ordinal))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase));
 
     private static string FallbackLabel(string[] segments)
     {
         var last = Uri.UnescapeDataString(segments[^1]);
-        if (segments.Length != 1) return last;
-        var words = last.Replace('-', ' ').Trim();
+        return segments.Length != 1 ? last : Words(last);
+    }
+
+    private static string Words(string segment)
+    {
+        var words = Uri.UnescapeDataString(segment).Replace('-', ' ').Trim();
         return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
 

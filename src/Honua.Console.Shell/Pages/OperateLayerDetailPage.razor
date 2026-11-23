@@ -39,8 +39,7 @@
         @if (V4Enabled)
         {
             <ConsolePageHeading Title="@_exposures[0].Layer.Name">
-                <ChildContent><p><code>@CanonicalResourceId</code> · @_exposures[0].Layer.Geometry · @_serviceSummary</p></ChildContent>
-                <Actions>@LayerActions</Actions>
+                <LayerSummaryV4 Exposure="_exposures[0]" />
             </ConsolePageHeading>
             <ConsolePanel Title="Layer preview" HeadingId="layer-preview-heading">
                 <div data-layer-preview><p class="console-muted">Live map rendered by honua-server through the Console map proxy.</p>
@@ -282,28 +281,7 @@
         </section></text>;
 
     private RenderFragment LayerOverview => @<text>
-        <div class="console-panel-grid">
-            @for (var i = 0; i < _exposures.Count; i++)
-            {
-                var exposure = _exposures[i];
-                <ConsolePanel Title="@exposure.Service.DisplayName" HeadingId="@($"layer-exposure-{i}-heading")">
-                    <dl class="console-definition-list">
-                        <dt>Service</dt>
-                        <dd><ConsoleNameIdentifier Name="@exposure.Service.DisplayName" Identifier="@exposure.Service.Name"
-                            Href="@ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(exposure.Service.Name))" /></dd>
-                        <dt>Geometry</dt><dd>@exposure.Layer.Geometry</dd>
-                        <dt>Runtime</dt><dd>@exposure.Service.RuntimeStatus</dd>
-                    </dl>
-                </ConsolePanel>
-            }
-            <ConsolePanel Title="Resource owner" HeadingId="layer-resource-heading">
-                <dl class="console-definition-list">
-                    <dt>Resource</dt><dd><ConsoleNameIdentifier Name="@_exposures[0].Layer.CanonicalResourceName" Identifier="@CanonicalResourceId"
-                        Href="@($"/operate/resources/{Uri.EscapeDataString(CanonicalResourceId)}")" /></dd>
-                    <dt>Ownership</dt><dd>@_exposures[0].Service.MetadataOwnership</dd>
-                </dl>
-            </ConsolePanel>
-        </div>
+        <LayerOverviewV4 Exposures="_exposures" Actions="LayerActions" />
         <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForLayer(_exposures[0].Layer.LayerId)"
             UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
     </text>;

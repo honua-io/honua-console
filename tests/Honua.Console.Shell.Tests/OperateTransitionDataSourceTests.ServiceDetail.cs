@@ -36,6 +36,30 @@ public sealed partial class OperateTransitionDataSourceTests
     }
 
     [Fact]
+    public async Task ServiceDetail_KeepsTheRegistryLayerCountWhenFewerLayerRowsReturn()
+    {
+        const string connection = "11111111-1111-1111-1111-111111111111";
+        var responses = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/api/v1/admin/connections/"] = $$$"""
+                {"success":true,"data":[{"connectionId":"{{{connection}}}","name":"Selected","host":"db","databaseName":"honua","provider":"PostgreSQL/PostGIS"}]}
+                """,
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":3,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":1,"layerTotal":3}}
+                """,
+            [$"/api/v1/admin/connections/{connection}/layers/?page=1&pageSize=100&serviceName=planning"] = """
+                {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Target parcels","schema":"public","table":"parcels","geometryType":"Polygon","serviceName":"planning","enabled":true}],"page":1,"pageSize":100,"total":1}}
+                """,
+        };
+
+        var view = await CreateServerDataSource(new RecordingJsonFixtureHandler(responses)).GetServiceViewAsync("planning");
+
+        var service = Assert.Single(view.Services);
+        Assert.Single(service.Layers);
+        Assert.Equal(3, service.LayerCount);
+    }
+
+    [Fact]
     public async Task ServiceDetail_MissingServiceSkipsUnrelatedSettingsAndLayerFanout()
     {
         const string connection = "11111111-1111-1111-1111-111111111111";

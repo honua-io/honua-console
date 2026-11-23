@@ -38,12 +38,18 @@ public partial class OperateServiceDetailPage
         new HashSet<string>(ParseRoles(current), StringComparer.OrdinalIgnoreCase).SetEquals(saved);
 
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             _interactiveReady = true;
             StateHasChanged();
+        }
+
+        if (_focusPanel is { } panel)
+        {
+            _focusPanel = null;
+            await panel.FocusAsync();
         }
     }
 

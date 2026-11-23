@@ -197,6 +197,24 @@ public sealed class ConsolePublicationNavigationRenderTests
         Assert.Equal(0, source.ChildReads);
     }
 
+    [Fact]
+    public void V4BreadcrumbStartsWithTheEnvironmentOnPagesOutsideTheTree()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = [new() { ServiceName = "roads", FolderId = "public", FolderName = "Public", Title = "Roads" }]
+        };
+        using var context = PublicationLayoutContext(source);
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore(
+            [new() { Id = "production", DisplayName = "Production" }], activeProfileId: "production"));
+        context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/studio/styles");
+        var layout = RenderLayerLayout(context);
+        layout.WaitForAssertion(() => Assert.Equal("Production", layout.Find("[data-crumb-environment]").TextContent));
+        Assert.Equal("/", layout.Find("[data-crumb-environment]").GetAttribute("href"));
+        Assert.Equal("Styles", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent);
+    }
+
     [Theory]
     [InlineData("/operate/services/denied/settings")]
     [InlineData("/operate/layers/denied")]

@@ -423,7 +423,15 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
                             ? new[] { ext.MinX, ext.MinY, ext.MaxX, ext.MaxY }
                             : null,
                         normalizedLayer.Enabled ?? true)
-                    { ServiceName = normalizedLayer.ServiceName }));
+                    {
+                        ServiceName = normalizedLayer.ServiceName,
+                        Srid = normalizedLayer.Srid,
+                        ConnectionId = connection.Id,
+                        ConnectionName = connection.Name,
+                        Schema = normalizedLayer.Schema,
+                        Table = normalizedLayer.Table,
+                        Description = string.IsNullOrWhiteSpace(normalizedLayer.Description) ? null : normalizedLayer.Description.Trim()
+                    }));
             }
         }
 
