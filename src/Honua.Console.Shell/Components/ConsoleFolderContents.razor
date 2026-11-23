@@ -26,7 +26,7 @@ else
         <div class="console-folder-toolbar">
             @if (_services is { IsAllowed: true, Value: { } page })
             {
-                <ConsoleListPager Label="Folder service pages" Page="_query.Page" PageSize="FolderPageSize" Total="page.Total"
+                <ConsoleListPager Label="Folder service pages" Page="_query.Page" PageSize="@(page.PageSize > 0 ? page.PageSize : FolderPageSize)" Total="page.Total"
                                   Unit="@(_serverIgnoresFolder ? "catalog services" : "services")" Disabled="_busy" PageChanged="ReadPageAsync" />
             }
             <label class="console-visually-hidden" for="console-folder-search">Search services in this folder</label>

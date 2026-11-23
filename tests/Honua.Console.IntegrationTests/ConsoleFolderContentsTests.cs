@@ -119,6 +119,18 @@ public sealed class ConsoleFolderContentsTests
     }
 
     [Fact]
+    public void PagerFollowsThePageSizeTheServerReturned()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { TransportServices = 30, WholeListPage = true });
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        Assert.Equal(30, page.FindAll("tbody tr").Count);
+        Assert.Equal("Results 1 to 30 (out of 30 services)", page.Find("[data-list-pager] [role='status']").TextContent);
+        Assert.True(page.Find("[aria-label='Next page']").HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void PartialOrMismatchedPageIsMarkedIncomplete()
     {
         using var context = new BunitContext();
@@ -271,6 +283,7 @@ public sealed class ConsoleFolderContentsTests
         public int? TransportServices { get; init; }
         public TaskCompletionSource? HoldSearch { get; init; }
         public int OtherServicesAfterTransport { get; init; }
+        public bool WholeListPage { get; init; }
         public TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>> HeldRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private ServiceSummary[] Catalog => TransportServices is { } count
@@ -293,13 +306,14 @@ public sealed class ConsoleFolderContentsTests
         {
             var matches = Catalog.Where(service => IgnoreFolder || service.FolderId == query.FolderId)
                 .Where(service => query.NameQuery is null || service.ServiceName.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase)).ToArray();
-            var items = matches.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToArray();
+            var pageSize = WholeListPage ? matches.Length : query.PageSize;
+            var items = matches.Skip((query.Page - 1) * pageSize).Take(pageSize).ToArray();
             var page = query.Page == 2 && MismatchedSecondPage ? 1 : query.Page;
             return OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
             {
                 Items = items,
                 Page = page,
-                PageSize = query.PageSize,
+                PageSize = pageSize,
                 Total = matches.Length,
                 LayerTotal = matches.Sum(service => service.LayerCount)
             });
