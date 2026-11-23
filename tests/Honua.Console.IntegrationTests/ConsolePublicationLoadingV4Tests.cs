@@ -1,6 +1,7 @@
 using Bunit;
 using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
+using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;

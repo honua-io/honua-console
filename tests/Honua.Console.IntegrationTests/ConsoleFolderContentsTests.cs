@@ -254,7 +254,11 @@ public sealed class ConsoleFolderContentsTests
             var page = query.Page == 2 && MismatchedSecondPage ? 1 : query.Page;
             return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
             {
-                Items = items, Page = page, PageSize = query.PageSize, Total = matches.Length, LayerTotal = matches.Sum(service => service.LayerCount)
+                Items = items,
+                Page = page,
+                PageSize = query.PageSize,
+                Total = matches.Length,
+                LayerTotal = matches.Sum(service => service.LayerCount)
             }));
         }
 
