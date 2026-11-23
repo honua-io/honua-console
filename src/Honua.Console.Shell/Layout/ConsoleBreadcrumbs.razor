@@ -5,7 +5,14 @@
 
 <nav class="console-contextbar" aria-label="Breadcrumb">
     <ol>
-        <li><a href="@Navigation.ToConsoleHref("/")">Home</a></li>
+        @if (Environment is { } environment)
+        {
+            <li><a href="@Navigation.ToConsoleHref("/")" data-crumb-environment><ConsoleTreeIcon Name="globe" />@environment.Label</a></li>
+        }
+        else
+        {
+            <li><a href="@Navigation.ToConsoleHref("/")">Home</a></li>
+        }
         @if (ParentArea is { } area)
         {
             <li><a href="@Navigation.ToConsoleHref(area.Path)">@area.Name</a></li>
@@ -15,7 +22,7 @@
             <li>
                 @if (V4Enabled && folder.Href is { } href)
                 {
-                    <a href="@Navigation.ToConsoleHref(href)">@folder.Label</a>
+                    <a href="@Navigation.ToConsoleHref(href)"><ConsoleTreeIcon Name="folder" />@folder.ShortestLabel</a>
                 }
                 else
                 {
@@ -25,11 +32,11 @@
         }
         @if (ParentService is { Href: not null } service)
         {
-            <li><a href="@Navigation.ToConsoleHref(service.Href)">@service.Label</a></li>
+            <li><a href="@Navigation.ToConsoleHref(service.Href)">@if (V4Enabled) { <ConsoleTreeIcon Name="service" /> }@service.Label</a></li>
         }
         <li aria-current="page">
             <details class="console-navigation-menu" data-navigation-menu="Context">
-                <summary>@(SelectedNode?.Label ?? Context.Label)</summary>
+                <summary>@if (V4Enabled && SelectedNode is { } selected) { <ConsoleTreeIcon Name="@(selected.Kind == ConsolePublicationNodeKind.Folder ? "folder" : ConsoleTreeIcon.ForNode(selected))" />@selected.ShortestLabel } else { @(SelectedNode?.Label ?? Context.Label) }</summary>
                 <div class="console-navigation-items" role="group" aria-label="Current context">
                     @foreach (var entry in ContextActions)
                     {
@@ -56,6 +63,8 @@
     private bool HasPublicationPath => (Context.Kind is ConsoleNavigationContextKind.Folder or ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
         && PublicationPath.LastOrDefault()?.Href == Context.Path;
     private ConsolePublicationNode? SelectedNode => HasPublicationPath ? PublicationPath[^1] : null;
+    private ConsolePublicationNode? Environment => V4Enabled && HasPublicationPath && PublicationPath[0].Kind == ConsolePublicationNodeKind.Environment
+        ? PublicationPath[0] : null;
     private ConsolePublicationNode? Folder => HasPublicationPath && SelectedNode?.Kind != ConsolePublicationNodeKind.Folder
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Folder) : null;
     private ConsolePublicationNode? ParentService => SelectedNode?.Kind == ConsolePublicationNodeKind.Layer

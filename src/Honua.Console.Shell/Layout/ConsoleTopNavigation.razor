@@ -40,7 +40,14 @@
         <ConsoleAccountControl />
     }
     <a class="console-environment-link" href="@Navigation.ToConsoleHref("/environments")" data-workspace-header-target
-       aria-label="@(V4Enabled && _environmentName is not null ? $"Environment: {_environmentName}. Choose an environment" : null)">@(V4Enabled ? _environmentName ?? "Choose an environment" : "Choose an environment")</a>
+       aria-label="@(V4Enabled && _environmentName is not null ? $"Environment: {_environmentName}. Choose an environment" : null)">@if (V4Enabled)
+       {
+           <span data-environment-name>@(_environmentName ?? "Choose an environment")</span>
+       }
+       else
+       {
+           <text>Choose an environment</text>
+       }</a>
     @if (V4Enabled)
     {
         <button type="button" class="console-theme-toggle" data-console-theme-toggle aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode">

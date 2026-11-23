@@ -30,12 +30,12 @@ public sealed class ConsolePublicationSearchV4Tests
         Assert.False(tree.Find("input").HasAttribute("disabled"));
         Assert.DoesNotContain("Temporarily unavailable", tree.Markup);
         tree.Find("input").Input(" service ");
-        tree.WaitForAssertion(() => Assert.Equal("service", source.LastQuery.NameQuery));
+        tree.WaitForAssertion(() => Assert.Equal("Services (500)", tree.Find("#console-search-services").TextContent.Trim()));
         Assert.Empty(tree.FindAll("[role='alert']"));
         tree.Find("input").Input(query);
         tree.Find("input").Input("");
         tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
-        Assert.Null(source.LastQuery.NameQuery);
+        Assert.Equal(5, source.ServiceReads);
         Assert.Empty(tree.FindAll("[role='alert']"));
     }
 
@@ -53,7 +53,7 @@ public sealed class ConsolePublicationSearchV4Tests
     }
 
     [Fact]
-    public void GroupedSearchPagesServicesWithoutReadingLayersAndClearsBackToTree()
+    public void GroupedSearchOfALoadedCatalogPagesServicesWithoutReadingAndClearsBackToTree()
     {
         var source = new PublicationNavigationSource();
         using var context = PublicationLayoutContext(source);
@@ -65,7 +65,7 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.WaitForAssertion(() => Assert.Equal(["Folders (0)", "Services (500)", "Layers (0)"],
             tree.FindAll("[data-publication-search] h3").Select(element => element.TextContent.Trim())));
         Assert.Equal(25, tree.FindAll("[role='treeitem']").Count);
-        Assert.Equal("service", source.LastQuery.NameQuery);
+        Assert.Equal(5, source.ServiceReads);
         Assert.NotEmpty(tree.FindAll("mark"));
         for (var page = 0; page < 4; page++)
         {
@@ -87,6 +87,7 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.Find("input").Input("");
         tree.WaitForAssertion(() => Assert.Empty(tree.FindAll("[data-publication-search]")));
         Assert.Equal(201, tree.FindAll("[role='treeitem']").Count);
+        Assert.Equal(5, source.ServiceReads);
     }
 
     [Fact]
@@ -103,34 +104,35 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.Find("input").Input(" roads ");
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-publication-search] [role='treeitem']")));
         Assert.Contains("Bridges", tree.Find("[data-publication-search] [role='treeitem']").TextContent);
-        Assert.Equal("roads", source.LastQuery.NameQuery);
+        Assert.Equal(1, source.ServiceReads);
         Assert.Equal(" roads ", tree.Find("input").GetAttribute("value"));
     }
 
     [Fact]
-    public void PendingSearchHidesServicesThatDoNotMatchTheNewQuery()
+    public void PendingServerSearchHidesServicesThatDoNotMatchTheNewQuery()
     {
-        var source = new PublicationNavigationSource();
+        var source = HoldingSecondPage(new PublicationNavigationSource());
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(101, tree.FindAll("[role='treeitem']").Count));
         source.HoldCount = 1;
         tree.Find("input").Input("absent");
-        tree.WaitForAssertion(() => Assert.Equal(6, source.ServiceReads));
+        tree.WaitForAssertion(() => Assert.Equal(3, source.ServiceReads));
         Assert.Empty(tree.FindAll("[role='treeitem']"));
         Assert.Equal("Services", tree.Find("#console-search-services").TextContent.Trim());
         Assert.Contains("Searching…", tree.Markup);
         Assert.DoesNotContain("No services match this search.", tree.Markup);
         Assert.Empty(tree.FindAll("[data-search-more], .console-search-summary"));
         source.ReleaseNext();
+        source.ReleaseNext();
         tree.WaitForAssertion(() => Assert.Contains("Services <span>(0)</span>", tree.Markup));
     }
 
     [Fact]
-    public void SearchReadsTheNextPageWhenLoadedServicesDoNotAllMatch()
+    public void ServerSearchReadsTheNextPageWhenLoadedServicesDoNotAllMatch()
     {
-        var source = new PublicationNavigationSource
+        var source = HoldingSecondPage(new PublicationNavigationSource
         {
             IgnoreNameQuery = true,
             ServiceSummaries = Enumerable.Range(0, 500)
@@ -138,16 +140,16 @@ public sealed class ConsolePublicationSearchV4Tests
                 {
                     ServiceName = $"{(index % 4 == 0 ? "wanted" : "other")}-{index:D3}"
                 }).ToArray()
-        };
+        });
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(201, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(101, tree.FindAll("[role='treeitem']").Count));
         tree.Find("input").Input("wanted");
         tree.WaitForAssertion(() => Assert.Equal(25, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
-        Assert.Equal(6, source.ServiceReads);
+        Assert.Equal(3, source.ServiceReads);
         tree.Find("[data-search-more]").Click();
-        tree.WaitForAssertion(() => Assert.Equal(7, source.ServiceReads));
+        tree.WaitForAssertion(() => Assert.Equal(4, source.ServiceReads));
         tree.WaitForAssertion(() => Assert.Equal(50, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
         Assert.Equal(2, source.LastQuery.Page);
         Assert.Equal("wanted", source.LastQuery.NameQuery);
@@ -173,6 +175,12 @@ public sealed class ConsolePublicationSearchV4Tests
         tree.WaitForAssertion(() => Assert.Equal(8, tree.FindAll("[data-publication-search] [role='treeitem']").Count));
         Assert.Empty(tree.FindAll("[data-search-more]"));
         Assert.StartsWith("8 matches in Services", tree.Find(".console-search-summary").TextContent.Trim());
+    }
+
+    internal static PublicationNavigationSource HoldingSecondPage(PublicationNavigationSource source)
+    {
+        source.OnServiceRead = () => { if (source.ServiceReads == 2) source.HoldCount = 1; };
+        return source;
     }
 
     [Fact]

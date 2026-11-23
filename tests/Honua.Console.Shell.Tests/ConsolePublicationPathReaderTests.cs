@@ -19,14 +19,14 @@ public sealed class ConsolePublicationPathReaderTests(ITestOutputHelper output)
         using var handler = new PathHandler(scenario);
         using var http = new HttpClient(handler);
         using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
-        var result = await new ConsolePublicationPathReader(new ServerConsolePublicationNavigationSource(client))
+        var result = await new ConsolePublicationPathReader(new ServerConsolePublicationNavigationSource(client), "production")
             .ReadAsync(new("connection-one-layer-101", "z-parcels", "Bridges"), CancellationToken.None);
         Assert.Equal(scenario != "catalog-denied", result.IsAllowed);
         if (scenario == "catalog-denied") Assert.Equal(OperateSectionStatus.Forbidden, result.Status);
         Assert.Equal(expectedNodes, result.Value?.Count ?? 0);
         if (expectedNodes > 0)
         {
-            Assert.Equal(["Services", "Public", "Parcels", "Bridges"], result.Value!.Select(node => node.Label));
+            Assert.Equal(["production", "Public", "Parcels", "Bridges"], result.Value!.Select(node => node.Label));
             Assert.Single(handler.Paths);
         }
         Assert.All(handler.Paths.Where(path => path.Contains("/services/", StringComparison.Ordinal)),

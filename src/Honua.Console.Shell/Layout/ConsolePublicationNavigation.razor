@@ -58,7 +58,8 @@
             {
                 <ConsolePublicationTreeFooter Loading="_loading" Live="@(_servicesRead is { IsAllowed: true })" ServiceCount="_tree.ServiceCount"
                                               CanRefresh="@(Source is not UnsupportedConsolePublicationNavigationSource)"
-                                              Refresh="RefreshAsync" CollapseAll="CollapseAll" />
+                                              Refresh="RefreshAsync" CollapseAll="CollapseAll"
+                                              LoadedServiceCount="_tree.LoadedServiceCount" PageFailure="@PageFailure" RetryPages="RetryCatalogAsync" />
             }
         </section>
     </div>
@@ -196,7 +197,7 @@
         _loading = false;
         await InvokeAsync(StateHasChanged);
         await ResolveSelectedLayerAsync();
-        if (outcome == CatalogOutcome.Applied) await CompleteV4CatalogAsync(null, _filterRevision);
+        if (outcome == CatalogOutcome.Applied) await CompleteV4CatalogAsync(null, _searchRevision);
     }
 
     private CatalogAttempt BeginCatalog(HonuaAdminCatalogQuery query, CatalogApply apply)
@@ -215,7 +216,7 @@
     {
         var result = await ConsoleReadBudget.RunAsync(
             token => Source.ReadServicesAsync(attempt.Query, token), ConsoleReadBudget.Default,
-            "Service navigation is unavailable. Retry when the server is reachable.", _authorityLifetime.Token);
+            "Service navigation is unavailable. Retry when the server is reachable.", CatalogToken(attempt.Query));
         if (!IsCurrent(attempt)) return CatalogOutcome.Obsolete;
         if (attempt.Apply != CatalogApply.Append && Services.GetService<IConsoleFolderClient>() is { } folders)
         {
@@ -225,6 +226,7 @@
             _foldersRead = folderRead;
         }
         _inflight = null;
+        if (KeepsTreeOnFailure(attempt, result)) return CatalogOutcome.Failed;
         _servicesRead = result;
         if (!result.IsAllowed || result.Value is null)
         {
@@ -233,9 +235,11 @@
         }
 
         _failed = null;
+        _pageFailure = null;
         _settled = attempt;
         if (attempt.Apply == CatalogApply.Append) _tree.Append(result.Value);
         else _tree.Load(result.Value, _environmentLabel, _foldersRead?.Value?.Folders);
+        SignalCatalogApplied();
         return CatalogOutcome.Applied;
     }
 
@@ -249,6 +253,7 @@
     {
         if (_disposed || _loading || _inflight is not null || _failed is not { } failed) return;
         if (failed.FilterRevision != _filterRevision || failed.AuthorityRevision != _authorityRevision) return;
+        var searchRevision = _searchRevision;
         if (failed.Apply == CatalogApply.Authority)
         {
             await ReloadAuthorityAsync();
@@ -266,7 +271,7 @@
         _loading = false;
         await InvokeAsync(StateHasChanged);
         if (outcome == CatalogOutcome.Applied && (attempt.Apply == CatalogApply.Replace || attempt.Query.NameQuery is null))
-            await CompleteV4CatalogAsync(attempt.Query.NameQuery, attempt.FilterRevision);
+            await CompleteV4CatalogAsync(attempt.Query.NameQuery, searchRevision);
     }
 
     private enum CatalogApply { Replace, Append, Authority }
@@ -289,8 +294,9 @@
         _authorityLifetime.Cancel();
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
+        RestartSearch();
         _connectionsRead = null;
-        _layerSearch = null;
+        _pageFailure = null;
         _pathAttempt = null;
         _resolvedPath = [];
         _tree.Load(new HonuaAdminServicePage(), _environmentLabel);
@@ -364,10 +370,15 @@
     {
         var filter = args.Value?.ToString() ?? "";
         var revision = _authorityRevision;
-        var filterRevision = ++_filterRevision;
-        _layerSearch = null;
-        _tree.SetFilter(filter);
+        var searchRevision = RestartSearch();
         var nameQuery = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
+        if (SearchesLoadedCatalog)
+        {
+            await SearchLoadedCatalogAsync(filter, searchRevision);
+            return;
+        }
+        var filterRevision = ++_filterRevision;
+        _tree.SetFilter(filter);
         if (nameQuery is { Length: > MaxNameQueryLength })
         {
             _inflight = null;
@@ -385,7 +396,7 @@
             RevealCurrentLocationIfMatching();
         }
         await InvokeAsync(StateHasChanged);
-        if (outcome == CatalogOutcome.Applied) await CompleteV4CatalogAsync(nameQuery, filterRevision);
+        if (outcome == CatalogOutcome.Applied) await CompleteV4CatalogAsync(nameQuery, searchRevision);
     }
     private void ShowFirstPage(ConsolePublicationNode node) => _tree.ShowFirstPage(node);
     private async Task ShowMore(ConsolePublicationNode node)
@@ -421,7 +432,7 @@
     {
         await CheckAuthorityAsync();
         if (_disposed) return;
-        _tree.RevealPath(CurrentPath);
+        RevealCurrentLocationIfMatching();
         await InvokeAsync(StateHasChanged);
         await ResolveSelectedLayerAsync();
     }
@@ -436,7 +447,7 @@
         _pathAttempt = attempt;
         _resolvedPath = [];
         var result = await ConsoleReadBudget.RunAsync(
-            token => new ConsolePublicationPathReader(Source).ReadAsync(selection, token), ConsoleReadBudget.Default,
+            token => new ConsolePublicationPathReader(Source, _environmentLabel).ReadAsync(selection, token), ConsoleReadBudget.Default,
             "Layer ancestry could not be read.", _authorityLifetime.Token);
         if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision) return;
         _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];
@@ -474,6 +485,8 @@
         if (_folderChanges is not null) _folderChanges.Changed -= FoldersChanged;
         if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
         if (_authentication is not null) _authentication.AuthenticationStateChanged -= AuthenticationChanged;
+        _searchLifetime.Cancel();
+        _searchLifetime.Dispose();
         _authorityLifetime.Cancel();
         _authorityLifetime.Dispose();
     }

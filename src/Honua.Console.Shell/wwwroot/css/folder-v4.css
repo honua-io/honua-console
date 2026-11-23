@@ -1,15 +1,106 @@
+[data-console-v4="true"] .console-folder-summary {
+    color: var(--c-text-2);
+}
+
+[data-console-v4="true"] .console-folder-summary code {
+    font-family: var(--font-mono);
+}
+
 [data-console-v4="true"] .console-folder-services {
+    display: grid;
+    gap: var(--space-4);
     margin-bottom: var(--space-6);
 }
 
-[data-console-v4="true"] .console-folder-services > h2 {
-    margin-bottom: var(--space-3);
+[data-console-v4="true"] .console-folder-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+[data-console-v4="true"] .console-folder-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+[data-console-v4="true"] .console-folder-toolbar .console-input {
+    flex: 0 1 18rem;
+    min-width: 0;
 }
 
 [data-console-v4="true"] .console-folder-services > p {
-    color: var(--honua-text-muted);
+    color: var(--c-text-2);
 }
 
-[data-console-v4="true"] .console-folder-services .console-table-wrap {
-    margin-block: var(--space-4);
+[data-console-v4="true"] .console-folder-table th[scope="row"] a {
+    display: block;
+    color: var(--c-link);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+[data-console-v4="true"] .console-folder-table th[scope="row"] a:hover {
+    text-decoration: underline;
+}
+
+[data-console-v4="true"] .console-folder-service-path {
+    display: block;
+    color: var(--c-text-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+}
+
+[data-console-v4="true"] .console-folder-table .console-number {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+}
+
+[data-console-v4="true"] .console-list-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+[data-console-v4="true"] .console-list-pager-buttons {
+    display: inline-flex;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+[data-console-v4="true"] .console-list-pager-buttons button {
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-inline-end: 1px solid var(--c-border);
+    background: var(--c-surface);
+    color: var(--c-text);
+    font: inherit;
+    cursor: pointer;
+}
+
+[data-console-v4="true"] .console-list-pager-buttons button:last-child {
+    border-inline-end: 0;
+}
+
+[data-console-v4="true"] .console-list-pager-buttons button[aria-current="page"] {
+    background: var(--c-surface-2);
+    font-weight: 600;
+}
+
+[data-console-v4="true"] .console-list-pager-buttons button:disabled {
+    color: var(--c-text-3);
+    cursor: default;
+}
+
+[data-console-v4="true"] .console-list-pager-range {
+    margin: 0;
+    color: var(--c-text-2);
 }

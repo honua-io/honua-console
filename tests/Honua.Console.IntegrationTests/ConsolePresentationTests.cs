@@ -62,6 +62,7 @@ public sealed class ConsolePresentationTests
     [InlineData("/operate/deploy?operationId=op-1", true)]
     [InlineData("/catalog/map-1?tab=versions", true)]
     [InlineData("/studio/map", false)]
+    [InlineData("/operate/folders/transport", true)]
     [InlineData("/operate/scenes", false)]
     [InlineData("/operate/settings", false)]
     [InlineData("/operate/services-unrelated", false)]

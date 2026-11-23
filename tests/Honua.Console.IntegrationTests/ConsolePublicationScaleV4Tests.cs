@@ -141,16 +141,16 @@ public sealed class ConsolePublicationScaleV4Tests
     }
 
     [Fact]
-    public void V4RetriedSearchAlsoSearchesLayers()
+    public void V4RetriedServerSearchAlsoSearchesLayers()
     {
-        var source = new PublicationNavigationSource
+        var source = ConsolePublicationSearchV4Tests.HoldingSecondPage(new PublicationNavigationSource
         {
             ServiceSummaries = FolderedServices(),
             LayerMatches = [new(new("connection-one-layer-9", "signal-controllers", "Point"), "signals-00")]
-        };
+        });
         using var context = V4Context(source);
         var tree = context.Render<ConsolePublicationNavigation>();
-        tree.WaitForAssertion(() => Assert.Equal(41, tree.FindAll("[role='treeitem']").Count));
+        tree.WaitForAssertion(() => Assert.Equal(2, source.ServiceReads));
         source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Unavailable, "Catalog unavailable");
         tree.Find("[data-tree-filter]").Input("signal");
         tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-tree-retry]")));

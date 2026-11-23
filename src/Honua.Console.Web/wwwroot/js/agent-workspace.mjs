@@ -606,7 +606,7 @@ export function mountWorkspace() {
         importTaskLink.hidden = state.context?.task?.kind !== 'dataset-import';
         taskSeparator.nodeValue = importTaskLink.hidden ? '' : ' · ';
         const header = document.querySelector('[data-workspace-header-target]');
-        if (header) header.textContent = state.context ? `${state.session.environmentName} · ${resources || currentTask}` : 'Choose an environment';
+        if (header && !header.querySelector('[data-environment-name]')) header.textContent = state.context ? `${state.session.environmentName} · ${resources || currentTask}` : 'Choose an environment';
         host.dataset.connected = String(Boolean(state.context));
         const start = host.querySelector('[data-workspace-start]');
         if (start) start.hidden = Boolean(state.context);
