@@ -2,6 +2,7 @@
 """Run the agent-reflection browser journey on the server's customer Compose package."""
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ import urllib.request
 
 import yaml
 
-from quickstart_diagnostics import (CommandFailed, DetailedError, Redactor, describe_failure, publish_report,
+from quickstart_diagnostics import (REDACTED, CommandFailed, DetailedError, Redactor, describe_failure, publish_report,
                                    read_error_body, scrub_tree, stream_redacted)
 from quickstart_secrets import read_install_secrets
 
@@ -231,6 +232,8 @@ def run_playwright(env, *, playwright_dir=ROOT / 'e2e/playwright', raw_report=IN
 
 
 LOGGED_SERVICES = ('honua', 'compose-manager', 'console', 'keycloak')
+# Tokens issued at run time are unknown to the redactor; logs leave the runner in a public artifact.
+RUNTIME_TOKEN = re.compile(r'(?i)(bearer\s+)\S+|eyJ[\w-]+\.[\w-]+\.[\w-]*')
 CONTAINER_LOG = ROOT / 'artifacts/studio-customer/agent-reflection-containers.log'
 
 
@@ -241,7 +244,8 @@ def publish_container_logs(target=CONTAINER_LOG):
     except (CommandFailed, OSError, subprocess.TimeoutExpired) as error:
         text = f'container logs unavailable: {type(error).__name__}'
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(REDACTOR.redact(text) + '\n')
+    redacted = RUNTIME_TOKEN.sub(lambda match: (match.group(1) or '') + REDACTED, REDACTOR.redact(text))
+    target.write_text(redacted + '\n')
 
 
 def main():

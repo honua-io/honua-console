@@ -155,6 +155,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         });
       },
     });
+    journal.outage = false;
     const suffix = randomBytes(5).toString('hex');
     const fixture = new URL('../fixtures/', import.meta.url);
     const fields = { name: 'esriFieldTypeString', population: 'esriFieldTypeBigInteger', rating: 'esriFieldTypeDouble' };

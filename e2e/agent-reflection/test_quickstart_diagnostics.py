@@ -214,6 +214,15 @@ class HarnessTests(unittest.TestCase):
             compose.assert_called_once_with('logs', '--no-color', '--timestamps', *harness.LOGGED_SERVICES)
             self.assertEqual(target.read_text(), f'honua-1 | token {REDACTED} rejected\n')
 
+    def test_container_logs_drop_runtime_bearers_and_jwts(self):
+        harness = load_harness()
+        jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl'
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp, 'logs.txt')
+            with mock.patch.object(harness, 'compose', return_value=f'Authorization: Bearer opaque-123 id_token={jwt}'):
+                harness.publish_container_logs(target)
+            self.assertEqual(target.read_text(), f'Authorization: Bearer {REDACTED} id_token={REDACTED}\n')
+
     def test_container_log_failure_is_recorded_instead_of_raised(self):
         harness = load_harness()
         with tempfile.TemporaryDirectory() as temp:
