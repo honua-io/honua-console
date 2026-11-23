@@ -373,14 +373,24 @@ p {
 
 .console-toolbar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    row-gap: 8px;
     margin: -4px 0 18px;
 }
 
 .console-toolbar-inline {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-end;
     gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.console-toolbar-inline > label {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .studio-form-label-inline {
@@ -8790,8 +8800,10 @@ p {
 
 .data-publish-flow__rail {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 1.25rem;
+    gap: 0.5rem 1.25rem;
+    min-width: 0;
     list-style: none;
     margin: 0;
     padding: 0;
@@ -8851,6 +8863,12 @@ p {
     gap: 0.5rem;
     flex-wrap: wrap;
     margin: 0.5rem 0;
+}
+
+.data-publish-flow,
+.add-data-intake {
+    min-width: 0;
+    overflow-wrap: break-word;
 }
 
 .add-data-intake__modes {
