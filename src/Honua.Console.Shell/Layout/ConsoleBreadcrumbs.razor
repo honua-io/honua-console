@@ -63,8 +63,8 @@
     private bool HasPublicationPath => (Context.Kind is ConsoleNavigationContextKind.Folder or ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
         && PublicationPath.LastOrDefault()?.Href == Context.Path;
     private ConsolePublicationNode? SelectedNode => HasPublicationPath ? PublicationPath[^1] : null;
-    private ConsolePublicationNode? Environment => V4Enabled && HasPublicationPath && PublicationPath[0].Kind == ConsolePublicationNodeKind.Environment
-        ? PublicationPath[0] : null;
+    private ConsolePublicationNode? Environment => V4Enabled && PublicationPath.FirstOrDefault() is { Kind: ConsolePublicationNodeKind.Environment } root
+        ? root : null;
     private ConsolePublicationNode? Folder => HasPublicationPath && SelectedNode?.Kind != ConsolePublicationNodeKind.Folder
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Folder) : null;
     private ConsolePublicationNode? ParentService => SelectedNode?.Kind == ConsolePublicationNodeKind.Layer

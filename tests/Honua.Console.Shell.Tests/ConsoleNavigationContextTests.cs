@@ -10,6 +10,8 @@ public sealed class ConsoleNavigationContextTests
     [InlineData("release-notes", "Release notes")]
     [InlineData("operate/health", "Health")]
     [InlineData("operate/jobs/job-abc", "job-abc")]
+    [InlineData("studio/styles", "Styles")]
+    [InlineData("operate/connections/new/object-storage", "Object storage")]
     public void PageContextLabelNamesTopLevelAreasAndKeepsIdentifiers(string relativePath, string expected) =>
         Assert.Equal(expected, ConsoleNavigation.ContextForPath(relativePath, ConsoleNavigation.Groups).Label);
 }
