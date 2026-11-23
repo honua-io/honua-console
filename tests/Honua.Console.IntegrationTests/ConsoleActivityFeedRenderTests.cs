@@ -55,11 +55,11 @@ public sealed class ConsoleActivityFeedRenderTests
     }
 
     [Fact]
-    public void Feed_ListsWhoMadeEachChangeAndLinksProposals()
+    public void Feed_ListsChangesAndFiltersByActor()
     {
-        using var context = NewContext(new FakeActivityFeedClient());
+        var client = new FakeActivityFeedClient();
+        using var context = NewContext(client);
         var feed = context.Render<ConsoleActivityFeed>();
-
         var rows = feed.FindAll("[data-feed-row]");
         Assert.Equal(3, rows.Count);
         Assert.Contains("Claude Desktop", rows[0].TextContent, StringComparison.Ordinal);
@@ -68,17 +68,7 @@ public sealed class ConsoleActivityFeedRenderTests
         Assert.Equal("key", rows[2].QuerySelector("[data-feed-actor-kind]")!.GetAttribute("data-feed-actor-kind"));
         Assert.Contains("Failure", rows[2].TextContent, StringComparison.Ordinal);
         Assert.Equal("3 changes on page 1, newest first", feed.Find("[data-feed-range]").TextContent);
-    }
-
-    [Fact]
-    public void Feed_ActorFilterAsksTheServerAgainAndAgentsNarrowThePage()
-    {
-        var client = new FakeActivityFeedClient();
-        using var context = NewContext(client);
-        var feed = context.Render<ConsoleActivityFeed>();
-
         feed.Find("[data-feed-actor]").Change(nameof(ConsoleActivityActorFilter.Agent));
-
         Assert.Equal(ConsoleActivityActorFilter.Agent, client.Queries[^1].Actor);
         Assert.Single(feed.FindAll("[data-feed-row]"));
     }
@@ -97,9 +87,7 @@ public sealed class ConsoleActivityFeedRenderTests
         using var context = NewContext(client);
         var feed = context.Render<ConsoleActivityFeed>();
         Assert.True(feed.Find("[data-feed-newer]").HasAttribute("disabled"));
-
         feed.Find("[data-feed-older]").Click();
-
         Assert.Equal("next-1", client.Queries[^1].Cursor);
         Assert.True(feed.Find("[data-feed-older]").HasAttribute("disabled"));
         Assert.Equal("3 changes on page 2, newest first", feed.Find("[data-feed-range]").TextContent);
@@ -125,7 +113,6 @@ public sealed class ConsoleActivityFeedRenderTests
             Respond = _ => OperateSectionResult<ConsoleActivityFeedPage>.Denied(OperateSectionStatus.Forbidden, "Platform admins only."),
         });
         Assert.Contains("Platform admins only.", forbidden.Render<ConsoleActivityFeed>().Markup, StringComparison.Ordinal);
-
         using var missing = NewContext(feed: null);
         var unbound = missing.Render<ConsoleActivityFeed>();
         Assert.Empty(unbound.FindAll("[data-feed-row]"));

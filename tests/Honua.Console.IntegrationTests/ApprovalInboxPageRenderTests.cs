@@ -318,10 +318,7 @@ public sealed partial class ApprovalInboxPageRenderTests
     public void DeepLink_SelectsManagerFallbackOnlyWhenNoExactMatch(string queryId, bool hasServing, string expectedId)
     {
         var managerSummary = FakeProposalFactory.Summary("manager:op-1", ConsoleProposalKind.Deploy);
-        var managerDetail = FakeProposalFactory.Detail("manager:op-1", ConsoleProposalKind.Deploy) with
-        {
-            Source = ConsoleProposalSource.Server,
-        };
+        var managerDetail = FakeProposalFactory.Detail("manager:op-1", ConsoleProposalKind.Deploy);
         var proposals = new FakeConsoleProposalsClient(
             proposals: hasServing ? [managerSummary, FakeProposalFactory.Summary("op-1", ConsoleProposalKind.Deploy)] : [managerSummary],
             details: hasServing ? [managerDetail, FakeProposalFactory.Detail("op-1", ConsoleProposalKind.Deploy)] : [managerDetail]);

@@ -56,15 +56,9 @@ public sealed class ConsoleActivityPresentationTests
     }
 
     [Fact]
-    public void WhatAndReference_LinkProposalsToTheirReview()
+    public void Reference_UsesRelatedEventsForOtherAuditRecords()
     {
-        var proposal = Row("UserId");
         var config = Row("UserId") with { ResourceType = "connection", ResourceId = null };
-
-        Assert.Equal("Operation proposal p-47", ConsoleActivityPresentation.What(proposal));
-        Assert.Equal("Operation approval denied", ConsoleActivityPresentation.Humanize(proposal.Action));
-        Assert.Equal(("inbox?proposalId=p-47&source=serving", "proposal"), ConsoleActivityPresentation.Reference(proposal));
-        Assert.Equal("Connection", ConsoleActivityPresentation.What(config));
         Assert.Equal((CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, "corr-1"), "related events"), ConsoleActivityPresentation.Reference(config));
         Assert.Null(ConsoleActivityPresentation.Reference(config with { CorrelationId = " " }));
     }

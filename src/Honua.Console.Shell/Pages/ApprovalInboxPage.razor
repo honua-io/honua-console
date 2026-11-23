@@ -182,7 +182,7 @@
                                                         @ref="_rowButtons[item.ProposalId]"
                                                         data-proposal-id="@item.ProposalId"
                                                         data-proposal-source="@item.Source"
-                                                        disabled="@ReviewDecisionPending" @onclick="() => Select(item)">
+                                                        @onclick="() => Select(item)">
                                                     <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
                                                 </button>
                                                 <span class="console-mono approval-inbox-proposal-id" data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType) · @item.ProposalId</span>
@@ -464,11 +464,11 @@
 
     private void ResolveSelectedProposalSource()
     {
-        if (!_selectionIsServing
-            && _selectedProposalId is { Length: > 0 } raw
-            && !raw.StartsWith("manager:", StringComparison.Ordinal)
-            && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
-            && _result.Value.Items.Any(item => string.Equals(item.ProposalId, "manager:" + raw, StringComparison.Ordinal)))
+        if (_selectionIsServing || _selectedProposalId is not { Length: > 0 } raw ||
+            raw.StartsWith("manager:", StringComparison.Ordinal) || _result.Value is not { } snapshot) return;
+
+        _selectionIsServing = snapshot.Items.Any(item => item.ProposalId == raw);
+        if (!_selectionIsServing && snapshot.Items.Any(item => item.ProposalId == "manager:" + raw))
         {
             SetSelectedProposal("manager:" + raw);
         }
@@ -655,7 +655,6 @@
 
     private void Select(ApprovalInboxItem item)
     {
-        if (ReviewDecisionPending) return;
         _linkedRequestId = null;
         _selectionIsServing = item.Source == ConsoleProposalSource.Server;
         SetSelectedProposal(item.ProposalId);
@@ -745,6 +744,7 @@
         {
             _terminalProposalId = detail?.IsTerminal == true ? detail.ProposalId : null;
             _selectedDetail = detail;
+            _selectionIsServing |= detail is not null && !detail.ProposalId.StartsWith("manager:", StringComparison.Ordinal);
         }
     }
 

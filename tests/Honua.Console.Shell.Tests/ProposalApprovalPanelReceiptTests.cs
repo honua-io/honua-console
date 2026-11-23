@@ -313,29 +313,34 @@ public sealed class ProposalApprovalPanelReceiptTests
         AssertPromotionReceipt(panel, autonomy);
     }
 
-    [Fact]
-    public async Task ApprovalSkipsPolicyUpdateWhenRefreshAlreadyShowsAutoApply()
+    [Theory]
+    [InlineData(ConsoleProposalStatus.Submitted)]
+    [InlineData(ConsoleProposalStatus.AwaitingApproval)]
+    public async Task ApprovalRechecksPolicyAndRequiresAConfirmedDecision(ConsoleProposalStatus status)
     {
         using var context = new BunitContext();
-        var (panel, autonomy, policyRead, approval) = RenderRuleBackedProposal(context);
+        var (panel, autonomy, policyRead, approval) = RenderRuleBackedProposal(context, status);
         await panel.InvokeAsync(() => policyRead.SetResult());
         panel.WaitForAssertion(() => Assert.NotNull(panel.Find("[data-proposal-auto-apply-toggle]")));
         panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
 
         var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
         panel.WaitForAssertion(() => Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
-        autonomy.ObservePolicyMode("AutoApply");
-        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
-        panel.WaitForAssertion(() =>
-            Assert.Equal("AutoApply", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim()));
+        if (status == ConsoleProposalStatus.Submitted)
+        {
+            autonomy.ObservePolicyMode("AutoApply");
+        }
 
         await panel.InvokeAsync(() => approval.SetResult());
         await approve;
         Assert.Empty(autonomy.PolicyUpdates);
+        var expectedMode = status == ConsoleProposalStatus.Submitted ? "AutoApply" : "ProposeOnly";
+        Assert.Equal(expectedMode, panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
     }
 
     private static (IRenderedComponent<ProposalApprovalPanel> Panel, FakeInboxAutonomyClient Autonomy,
-        TaskCompletionSource PolicyRead, TaskCompletionSource Approval) RenderRuleBackedProposal(BunitContext context)
+        TaskCompletionSource PolicyRead, TaskCompletionSource Approval) RenderRuleBackedProposal(
+        BunitContext context, ConsoleProposalStatus status = ConsoleProposalStatus.Submitted)
     {
         var detail = new ConsoleProposalDetail(
             ProposalId: "prop-rule-1",
@@ -365,7 +370,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         var policyRead = new TaskCompletionSource();
         var autonomy = new FakeInboxAutonomyClient("alert-dispatch-backlog", "ProposeOnly", policyRead.Task);
         var approval = new TaskCompletionSource();
-        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail, approval.Task));
+        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail, approval.Task, status));
         context.Services.AddSingleton<IConsoleOpsAutonomyClient>(autonomy);
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
 
@@ -391,7 +396,8 @@ public sealed class ProposalApprovalPanelReceiptTests
         });
     }
 
-    private sealed class SingleDetailProposalClient(ConsoleProposalDetail detail, Task? approval = null) : IConsoleProposalsClient
+    private sealed class SingleDetailProposalClient(ConsoleProposalDetail detail, Task? approval = null,
+        ConsoleProposalStatus status = ConsoleProposalStatus.Submitted) : IConsoleProposalsClient
     {
         private ConsoleProposalDetail _current = detail;
 
@@ -407,7 +413,7 @@ public sealed class ProposalApprovalPanelReceiptTests
             string proposalId, CancellationToken cancellationToken = default)
         {
             await (approval ?? Task.CompletedTask);
-            _current = _current with { Status = ConsoleProposalStatus.Submitted, ExecutionOperationId = "op-approved-1" };
+            _current = _current with { Status = status, ExecutionOperationId = "op-approved-1" };
             return OperateSectionResult<ConsoleProposalDetail>.Allowed(_current);
         }
 

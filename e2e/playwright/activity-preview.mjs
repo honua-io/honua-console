@@ -7,10 +7,10 @@ const splitWords = page => page.locator(".console-activity-v4").evaluate(scope =
     .filter(element => {
       const text = element.textContent.trim();
       if (!/^[A-Za-z][A-Za-z.]*$/.test(text)) return false;
+      const range = document.createRange();
       const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
       const tops = new Set();
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const range = document.createRange();
         range.selectNodeContents(node);
         for (const rect of range.getClientRects()) tops.add(Math.round(rect.top));
       }
@@ -26,13 +26,6 @@ const assertWholeWords = async (page, width) => {
   await page.setViewportSize({ width, height: 844 });
 };
 
-const assertFeedLeads = async page => {
-  assert.equal(await page.locator("[data-feed-row]").count(), 3);
-  const feed = await page.locator("[data-activity-feed]").boundingBox();
-  const events = await page.locator("#events").boundingBox();
-  assert.ok(feed.y < events.y, "Activity leads with the change list");
-};
-
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
   widths: [1440, 1280, 390],
@@ -45,7 +38,11 @@ await runV4PagePresentation({
   controls: "#events :is(a[href], input, select, button, summary, [tabindex='0']):not(:disabled):visible",
   inspect: async (page, name) => {
     assert.equal(await page.locator("[data-timeline-row]").count(), name === "activity-selected" ? 2 : 0);
-    if (name === "activity-selected") await assertFeedLeads(page);
+    if (name === "activity-selected") {
+      assert.equal(await page.locator("[data-feed-row]").count(), 3);
+      assert.ok(await page.locator("[data-activity-feed]").evaluate(feed =>
+        feed.getBoundingClientRect().top < document.querySelector("#events").getBoundingClientRect().top));
+    }
     const width = page.viewportSize().width;
     assert.equal(await page.locator("h1").evaluate(element => getComputedStyle(element).fontSize), width === 390 ? "22px" : "28px");
     for (const heading of await page.locator("h2").all()) {

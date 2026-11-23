@@ -15,11 +15,8 @@ public sealed partial class ApprovalInboxPageRenderTests
     private static BunitContext NewLinkedRequestContext(ConsolePresentationMode presentation)
     {
         var proposals = new FakeConsoleProposalsClient(
-            proposals:
-            [
-                FakeProposalFactory.Summary("deploy-1", ConsoleProposalKind.Deploy),
-                FakeProposalFactory.Summary("import-1", ConsoleProposalKind.DataImport),
-            ],
+            proposals: [FakeProposalFactory.Summary("deploy-1", ConsoleProposalKind.Deploy),
+                FakeProposalFactory.Summary("import-1", ConsoleProposalKind.DataImport)],
             details:
             [
                 FakeProposalFactory.Detail("deploy-1", ConsoleProposalKind.Deploy) with
