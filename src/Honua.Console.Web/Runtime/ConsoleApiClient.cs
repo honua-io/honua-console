@@ -60,10 +60,29 @@ public sealed class ConsoleApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task SignOutCookieAsync(CancellationToken cancellationToken = default)
+    public async Task<Uri?> SignOutCookieAsync(CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsync("api/v1/admin/auth/logout", null, cancellationToken);
         response.EnsureSuccessStatusCode();
+        return ProviderLogoutUrl(await response.Content.ReadAsStringAsync(cancellationToken));
+    }
+
+    // The identity provider's end-session URL; only an absolute HTTPS address may take the whole window.
+    internal static Uri? ProviderLogoutUrl(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("logoutUrl", out var value)
+                && value.ValueKind == JsonValueKind.String
+                && Uri.TryCreate(value.GetString(), UriKind.Absolute, out var url)
+                && url.Scheme == Uri.UriSchemeHttps ? url : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public async Task<ConsoleSessionCredentials> GetPasswordTokenAsync(string password, CancellationToken cancellationToken = default)
@@ -212,14 +231,16 @@ public sealed class BrowserAuthenticationStateProvider : AuthenticationStateProv
         }
     }
 
-    public async Task SignOutAsync(CancellationToken cancellationToken = default)
+    public async Task<Uri?> SignOutAsync(CancellationToken cancellationToken = default)
     {
+        Uri? providerLogout = null;
         if (api.UsesCookieSession)
         {
             await PrepareCookieRequestAsync(cancellationToken);
-            await api.SignOutCookieAsync(cancellationToken);
+            providerLogout = await api.SignOutCookieAsync(cancellationToken);
         }
         await ClearAuthenticationAsync();
+        return providerLogout;
     }
 
     public async Task PrepareCookieRequestAsync(CancellationToken cancellationToken = default)

@@ -32,6 +32,24 @@ public sealed class BrowserSignOutTests
         Assert.Empty(header.FindAll("[data-console-signout]"));
     }
 
+    [Theory]
+    [InlineData("""{"logoutUrl":"https://idp.example/logout?client_id=console"}""", "https://idp.example/logout?client_id=console")]
+    [InlineData("""{"logoutUrl":null}""", null)]
+    [InlineData("""{"logoutUrl":"http://idp.example/logout"}""", null)]
+    [InlineData("", null)]
+    public async Task SignOutLeavesForTheProviderLogoutOnlyWhenItIsHttps(string body, string? providerLogout)
+    {
+        using var fixture = new Fixture();
+        fixture.Handler.LogoutBody = body;
+        var header = fixture.RenderHeader();
+        header.WaitForAssertion(() => Assert.Contains("Test operator", header.Markup));
+        await header.Find("[data-console-signout]").ClickAsync(new());
+        var navigation = fixture.Context.Services.GetRequiredService<Bunit.TestDoubles.BunitNavigationManager>();
+        header.WaitForAssertion(() => Assert.EndsWith(providerLogout ?? "/auth/signin", navigation.Uri, StringComparison.Ordinal));
+        Assert.Equal(providerLogout is not null, navigation.History.First().Options.ForceLoad);
+        Assert.False(fixture.Session.IsAuthenticated);
+    }
+
     [Fact]
     public async Task FailedLogoutKeepsOperatorStateAndAllowsRetry()
     {
@@ -207,6 +225,7 @@ public sealed class BrowserSignOutTests
     {
         public int Logouts { get; private set; }
         public HttpStatusCode LogoutStatus { get; set; } = HttpStatusCode.OK;
+        public string LogoutBody { get; set; } = "";
         public TaskCompletionSource<HttpResponseMessage>? PendingLogout { get; set; }
         public HttpStatusCode CsrfStatus { get; set; } = HttpStatusCode.OK;
         public string CsrfToken { get; set; } = "csrf-token";
@@ -225,7 +244,7 @@ public sealed class BrowserSignOutTests
                 LogoutAuthorization = request.Headers.Authorization?.ToString();
                 LogoutUsedCookies = request.Options.TryGetValue(new HttpRequestOptionsKey<IDictionary<string, object>>("WebAssemblyFetchOptions"), out var options)
                     && options.TryGetValue("credentials", out var credentials) && Equals(credentials, "same-origin");
-                return PendingLogout?.Task ?? Task.FromResult(new HttpResponseMessage(LogoutStatus));
+                return PendingLogout?.Task ?? Task.FromResult(new HttpResponseMessage(LogoutStatus) { Content = new StringContent(LogoutBody) });
             }
             var csrf = request.RequestUri.AbsolutePath.EndsWith("/csrf", StringComparison.Ordinal);
             return Task.FromResult(new HttpResponseMessage(csrf ? CsrfStatus : HttpStatusCode.OK)
