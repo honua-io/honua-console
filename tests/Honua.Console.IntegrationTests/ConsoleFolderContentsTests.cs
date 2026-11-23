@@ -27,49 +27,73 @@ public sealed class ConsoleFolderContentsTests
     }
 
     [Fact]
-    public void IncompleteCatalogUsesReturnedFolderServicesAndExplicitlyPartialCounts()
+    public void FolderPageReadsOnlyItsServicesWithTheServerFolderFilter()
     {
         using var context = new BunitContext();
         var source = new NavigationSource();
         context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
-        Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent);
-        Assert.Contains("incomplete", page.Markup);
-        Assert.DoesNotContain("other-service", page.Markup);
+        var query = Assert.Single(source.Reads);
+        Assert.Equal(("transport", 25, 1), (query.FolderId, query.PageSize, query.Page));
         Assert.Equal("Transport", page.Find("h1").TextContent);
-        Assert.Single(source.Reads);
-        page.Find("button").Click();
-        Assert.Equal([1, 2], source.Reads.Select(query => query.Page));
-        Assert.Contains("2 Services · 7 Layers", page.Find("[data-folder-count]").TextContent);
-        Assert.DoesNotContain("in pages read", page.Find("[data-folder-count]").TextContent);
-        Assert.Empty(page.FindAll("button"));
+        Assert.Equal("Folder transport · 2 services · 7 layers", page.Find(".console-folder-summary").TextContent);
+        Assert.Equal(["roads", "bridges"], page.FindAll("tbody th a").Select(link => link.TextContent));
+        Assert.Equal("transport/roads", page.Find("tbody .console-folder-service-path").TextContent);
+        Assert.Equal(["3", "2"], page.FindAll("tbody tr:first-child td.console-number").Select(cell => cell.TextContent));
+        Assert.Equal("/operate/data/new", page.Find(".console-folder-actions a").GetAttribute("href"));
+        Assert.Equal("Results 1 to 2 (out of 2 services)", page.Find("[data-list-pager] [role='status']").TextContent);
+        Assert.DoesNotContain("other-service", page.Markup);
+        Assert.DoesNotContain("Administration", page.Markup);
         CatalogAdminPreview.Capture("folder-v4", $"<div class=\"console-shell\" data-console-v4=\"true\"><section class=\"console-page console-folder-page\">{page.Markup}</section></div>");
     }
 
     [Fact]
-    public void PartialEarlierPageCannotBecomeCompleteWhenTheLastPageIsNotPartial()
+    public void FolderPagerReadsTheRequestedPageAndSearchKeepsTheFolderTotals()
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { PartialPage = 1 });
+        var source = new NavigationSource { TransportServices = 30 };
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
-        page.Find("button").Click();
-        Assert.Contains("2 Services · 7 Layers in pages read", page.Find("[data-folder-count]").TextContent);
-        Assert.Contains("incomplete", page.Markup);
+        Assert.Equal("Results 1 to 25 (out of 30 services)", page.Find("[data-list-pager] [role='status']").TextContent);
+        Assert.Equal(25, page.FindAll("tbody tr").Count);
+        page.Find("[aria-label='Next page']").Click();
+        page.WaitForAssertion(() => Assert.Equal("Results 26 to 30 (out of 30 services)", page.Find("[data-list-pager] [role='status']").TextContent));
+        Assert.Equal(5, page.FindAll("tbody tr").Count);
+        Assert.Equal("page", page.Find("[aria-label='Page 2']").GetAttribute("aria-current"));
+
+        page.Find("[data-folder-search]").Change(" route-01 ");
+        page.WaitForAssertion(() => Assert.Equal(("route-01", 1), (source.Reads[^1].NameQuery, source.Reads[^1].Page)));
+        Assert.Equal(["route-01"], page.FindAll("tbody th a").Select(link => link.TextContent));
+        Assert.Equal("Folder transport · 30 services · 30 layers", page.Find(".console-folder-summary").TextContent);
+        page.Find("[data-folder-search]").Change("absent");
+        page.WaitForAssertion(() => Assert.Contains("No services in this Folder match this search.", page.Markup));
     }
 
     [Fact]
-    public void EmptyPageBeforeReportedTotalDoesNotClaimCompleteCounts()
+    public void ServerThatIgnoresTheFolderFilterShowsOnlyFolderRowsWithoutClaimingFolderCounts()
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { EmptyPage = 2 });
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { IgnoreFolder = true });
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
-        page.Find("button").Click();
-        Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent);
-        Assert.Contains("incomplete", page.Markup);
-        Assert.Empty(page.FindAll("button"));
+        Assert.Equal(["roads", "bridges"], page.FindAll("tbody th a").Select(link => link.TextContent));
+        Assert.Contains("does not filter services by Folder", page.Find("[role='note']").TextContent);
+        Assert.Empty(page.FindAll("[data-folder-count]"));
+        Assert.Equal("Results 1 to 3 (out of 3 catalog services)", page.Find("[data-list-pager] [role='status']").TextContent);
+    }
+
+    [Fact]
+    public void PartialOrMismatchedPageIsMarkedIncomplete()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { TransportServices = 30, MismatchedSecondPage = true });
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        Assert.Empty(page.FindAll("[role='note']"));
+        page.Find("[aria-label='Next page']").Click();
+        page.WaitForAssertion(() => Assert.Contains("incomplete", page.Find("[role='note']").TextContent));
     }
 
     [Fact]
@@ -82,7 +106,7 @@ public sealed class ConsoleFolderContentsTests
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "absent"));
         Assert.Empty(source.Reads);
         Assert.Contains("not available in the selected environment", page.Markup);
-        Assert.DoesNotContain("no Services", page.Markup);
+        Assert.DoesNotContain("no services", page.Markup);
     }
 
     [Fact]
@@ -98,14 +122,14 @@ public sealed class ConsoleFolderContentsTests
     }
 
     [Fact]
-    public void DeniedLaterPageHidesPreviouslyReadCountsAndStopsPaging()
+    public void DeniedLaterPageHidesTheFolderCountsAndThePager()
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { Status = OperateSectionStatus.Forbidden, StatusPage = 2 });
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { TransportServices = 30, Status = OperateSectionStatus.Forbidden, StatusPage = 2 });
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
-        page.Find("button").Click();
-        Assert.Contains("Access denied", page.Markup);
+        page.Find("[aria-label='Next page']").Click();
+        page.WaitForAssertion(() => Assert.Contains("Access denied", page.Markup));
         Assert.Empty(page.FindAll("[data-folder-count]"));
         Assert.Empty(page.FindAll("button"));
     }
@@ -122,7 +146,7 @@ public sealed class ConsoleFolderContentsTests
             .Add(component => component.LoadBudget, TimeSpan.FromMilliseconds(25)));
         page.WaitForAssertion(() => Assert.Contains("did not respond in time", page.Markup));
         page.Find("button").Click();
-        page.WaitForAssertion(() => Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
+        page.WaitForAssertion(() => Assert.Equal(" · 2 services · 7 layers", page.Find("[data-folder-count]").TextContent));
         Assert.Equal(2, source.Reads.Count);
     }
 
@@ -142,28 +166,10 @@ public sealed class ConsoleFolderContentsTests
         var page = context.Render<OperateFolderPage>(parameters => parameters.Add(component => component.FolderId, "transport"));
         page.WaitForAssertion(() => Assert.Single(source.Reads));
         await profiles.ActivateProfileAsync("second");
-        page.WaitForAssertion(() => Assert.Contains("1 Service · 3 Layers in pages read", page.Find("[data-folder-count]").TextContent));
-        source.HeldRead.SetResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
-        {
-            Items = [new() { ServiceName = "stale", FolderId = "transport", LayerCount = 999 }],
-            Total = 1
-        }));
+        page.WaitForAssertion(() => Assert.Equal(" · 2 services · 7 layers", page.Find("[data-folder-count]").TextContent));
+        source.HeldRead.SetResult(StaleRead("stale"));
         page.WaitForAssertion(() => Assert.DoesNotContain("stale", page.Markup));
         Assert.Equal(2, source.Reads.Count);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RepeatedOrMismatchedPagesCannotClaimCompleteCounts(bool mismatchedPage)
-    {
-        using var context = new BunitContext();
-        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new NavigationSource { DuplicateSecondPage = !mismatchedPage, MismatchedSecondPage = mismatchedPage });
-        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
-        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
-        page.Find("button").Click();
-        Assert.Contains("in pages read", page.Find("[data-folder-count]").TextContent);
-        Assert.Contains("incomplete", page.Markup);
     }
 
     [Fact]
@@ -189,14 +195,18 @@ public sealed class ConsoleFolderContentsTests
         page.WaitForAssertion(() => Assert.Equal(2, source.Reads.Count));
         await profiles.ActivateProfileAsync("second");
         page.WaitForAssertion(() => Assert.Equal(3, source.Reads.Count));
-        source.HeldRead.SetResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
-        {
-            Items = [new() { ServiceName = "stale-operator", FolderId = "transport", LayerCount = 999 }],
-            Total = 1
-        }));
-        page.WaitForAssertion(() => Assert.Contains("1 Service · 3 Layers", page.Find("[data-folder-count]").TextContent));
+        source.HeldRead.SetResult(StaleRead("stale-operator"));
+        page.WaitForAssertion(() => Assert.Equal(" · 2 services · 7 layers", page.Find("[data-folder-count]").TextContent));
         Assert.DoesNotContain("stale-operator", page.Markup);
     }
+
+    private static OperateSectionResult<HonuaAdminServicePage> StaleRead(string serviceName) =>
+        OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+        {
+            Items = [new() { ServiceName = serviceName, FolderId = "transport", LayerCount = 999 }],
+            Page = 1,
+            Total = 1
+        });
 
     private sealed class MutableOperator : IConsoleOperatorContext
     {
@@ -222,22 +232,30 @@ public sealed class ConsoleFolderContentsTests
         public int? StatusPage { get; init; }
         public bool HoldFirstRead { get; init; }
         public int? HoldReadNumber { get; set; }
-        public bool DuplicateSecondPage { get; init; }
+        public bool IgnoreFolder { get; init; }
         public bool MismatchedSecondPage { get; init; }
+        public int? TransportServices { get; init; }
         public TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>> HeldRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public int? PartialPage { get; init; }
-        public int? EmptyPage { get; init; }
+
+        private ServiceSummary[] Catalog => TransportServices is { } count
+            ? Enumerable.Range(0, count).Select(index => new ServiceSummary { ServiceName = $"route-{index:D2}", FolderId = "transport", LayerCount = 1 }).ToArray()
+            : [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3, EnabledProtocols = ["wms", "wfs"] },
+               new() { ServiceName = "other-service", FolderId = "other", LayerCount = 90 },
+               new() { ServiceName = "bridges", FolderId = "transport", LayerCount = 4 }];
+
         public Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(HonuaAdminCatalogQuery query, CancellationToken cancellationToken)
         {
             Reads.Add(query);
             if ((HoldFirstRead && Reads.Count == 1) || Reads.Count == HoldReadNumber) return HeldRead.Task;
             if (Status is { } status && (StatusPage is null || StatusPage == query.Page)) return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Denied(status, "Access denied"));
-            ServiceSummary[] items = query.Page == 1
-                ? [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3 }, new() { ServiceName = "other-service", FolderId = "other", LayerCount = 90 }]
-                : [new() { ServiceName = "bridges", FolderId = "transport", LayerCount = 4 }];
-            if (query.Page == 2 && DuplicateSecondPage) items = [new() { ServiceName = "roads", FolderId = "transport", LayerCount = 3 }];
-            if (query.Page == EmptyPage) items = [];
-            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new() { Items = items, Page = query.Page == 2 && MismatchedSecondPage ? 1 : query.Page, PageSize = 2, Total = 3, LayerTotal = 97 }, partialResult: query.Page == PartialPage));
+            var matches = Catalog.Where(service => IgnoreFolder || service.FolderId == query.FolderId)
+                .Where(service => query.NameQuery is null || service.ServiceName.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var items = matches.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToArray();
+            var page = query.Page == 2 && MismatchedSecondPage ? 1 : query.Page;
+            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+            {
+                Items = items, Page = page, PageSize = query.PageSize, Total = matches.Length, LayerTotal = matches.Sum(service => service.LayerCount)
+            }));
         }
 
         public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken) => throw new InvalidOperationException();

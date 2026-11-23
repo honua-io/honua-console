@@ -1,0 +1,40 @@
+<nav class="console-list-pager" aria-label="@Label" data-list-pager>
+    <div class="console-list-pager-buttons">
+        <button type="button" aria-label="First page" disabled="@(Page <= 1)" @onclick="() => Go(1)">«</button>
+        <button type="button" aria-label="Previous page" disabled="@(Page <= 1)" @onclick="() => Go(Page - 1)">‹</button>
+        @foreach (var number in PageNumbers)
+        {
+            <button type="button" aria-label="@($"Page {number}")" aria-current="@(number == Page ? "page" : null)" @onclick="() => Go(number)">@number</button>
+        }
+        <button type="button" aria-label="Next page" disabled="@(Page >= PageCount)" @onclick="() => Go(Page + 1)">›</button>
+        <button type="button" aria-label="Last page" disabled="@(Page >= PageCount)" @onclick="() => Go(PageCount)">»</button>
+    </div>
+    <p class="console-list-pager-range" role="status">@RangeText</p>
+</nav>
+
+@code {
+    private const int VisiblePageNumbers = 5;
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int PageSize { get; set; } = 25;
+    [Parameter] public int Total { get; set; }
+    [Parameter] public string Unit { get; set; } = "items";
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+
+    private int PageCount => Math.Max(1, (Total + PageSize - 1) / PageSize);
+
+    private IEnumerable<int> PageNumbers
+    {
+        get
+        {
+            var first = Math.Clamp(Page - VisiblePageNumbers / 2, 1, Math.Max(1, PageCount - VisiblePageNumbers + 1));
+            return Enumerable.Range(first, Math.Min(VisiblePageNumbers, PageCount - first + 1));
+        }
+    }
+
+    private string RangeText => Total == 0
+        ? $"No {Unit}"
+        : $"Results {(Page - 1) * PageSize + 1} to {Math.Min(Page * PageSize, Total)} (out of {Total} {Unit})";
+
+    private Task Go(int page) => page == Page || page < 1 || page > PageCount ? Task.CompletedTask : PageChanged.InvokeAsync(page);
+}
