@@ -5,6 +5,10 @@
     <div class="public-catalog-hero">
         <h1>Explore open data</h1>
         <p>Browse @Items.Count public items.</p>
+        @if (HasMoreItems)
+        {
+            <p>Search and filters cover only the items shown here. The server has more public items.</p>
+        }
         <form role="search" @onsubmit="Search" @onsubmit:preventDefault>
             <label class="console-visually-hidden" for="public-catalog-search">Search open data</label>
             <input id="public-catalog-search" class="console-input" type="search" @bind="_query" @bind:event="oninput" />
@@ -79,6 +83,8 @@
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<ConsoleContentSummary> Items { get; set; } = [];
+    [Parameter] public bool HasMoreItems { get; set; }
+
     private const int PageSize = 12;
     private string _query = string.Empty;
     private string _search = string.Empty;

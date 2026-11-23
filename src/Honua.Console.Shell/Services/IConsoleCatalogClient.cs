@@ -47,6 +47,8 @@ public sealed record CatalogSearchResult(
 
     public string FailureMessage { get; init; } = string.Empty;
 
+    public bool HasMoreItems { get; init; }
+
     public bool Succeeded => Status == CatalogReadStatus.Allowed;
 
     public static CatalogSearchResult Failed(CatalogListRequest request, CatalogReadStatus status, string message) =>
