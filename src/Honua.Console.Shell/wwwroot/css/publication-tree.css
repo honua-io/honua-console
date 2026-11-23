@@ -119,6 +119,7 @@
     [data-console-v4="true"] .console-tree-search > .console-tree-icon { top: 26px; }
     [data-console-v4="true"] .console-tree-search input { min-height: 44px; }
     [data-console-v4="true"] .console-tree-scope { grid-column: 1 / -1; }
+    [data-console-v4="true"] .console-tree-search .console-tree-close { grid-column: 2; grid-row: 1; display: inline-grid; place-items: center; width: 44px; min-height: 44px; padding: 0; }
     [data-console-v4="true"] .console-tree-row > button,
     [data-console-v4="true"] .console-tree-spacer { width: 32px; }
     [data-console-v4="true"] .console-tree-foot-action { min-height: 44px; }

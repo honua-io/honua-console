@@ -20,7 +20,7 @@
                            aria-invalid="@(FilterTooLong ? "true" : null)" aria-describedby="@(FilterTooLong ? "console-tree-filter-error" : "console-tree-scope")"
                            placeholder="Search in @(_environmentLabel)…" @oninput="FilterChanged" disabled="@(_loading || Source is UnsupportedConsolePublicationNavigationSource)" data-tree-filter />
                     <p id="console-tree-scope" class="console-tree-scope">Scope: @_environmentLabel</p>
-                    <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation">Close</button>
+                    <button type="button" class="console-tree-close" data-tree-close aria-label="Close service navigation" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
                 </div>
             }
             else
