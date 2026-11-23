@@ -23,6 +23,7 @@ public sealed class ConsoleHomeInventoryRenderTests
         inventory.WaitForAssertion(() => Assert.Equal("500", inventory.Find(".console-metric-value").TextContent.Trim()));
         Assert.Equal("5,000", inventory.Find("[data-home-layer-count]").TextContent.Trim());
         Assert.Equal("1", inventory.Find("[data-home-folder-count]").TextContent.Trim());
+        Assert.Empty(inventory.FindAll("[data-home-no-folders]"));
         Assert.Equal("/operate/services", inventory.Find("[data-home-services]").GetAttribute("href"));
         Assert.Equal(1, source.ServiceReads);
         Assert.Equal(0, source.ChildReads);
@@ -47,6 +48,22 @@ public sealed class ConsoleHomeInventoryRenderTests
         Assert.Equal("Not available", inventory.Find("[data-home-layer-count]").TextContent.Trim());
         Assert.Equal("Not available", inventory.Find("[data-home-folder-count]").TextContent.Trim());
         Assert.Empty(inventory.FindAll("button"));
+        Assert.Empty(inventory.FindAll("[data-home-no-folders]"));
+    }
+
+    [Fact]
+    public void ServerWithoutActiveFoldersSaysServicesAreAtTheRoot()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(new PublicationNavigationSource());
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderReads([
+            new() { Metadata = new() { Id = "old", Name = "Retired" }, Deleted = true }
+        ]));
+        var inventory = context.Render<ConsoleHomeInventory>();
+        inventory.WaitForAssertion(() => Assert.Equal("0", inventory.Find("[data-home-folder-count]").TextContent.Trim()));
+        var note = inventory.Find("[data-home-no-folders]");
+        Assert.Equal("note", note.GetAttribute("role"));
+        Assert.Contains("Services are listed at the root", note.TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -143,14 +160,16 @@ public sealed class ConsoleHomeInventoryRenderTests
         return context;
     }
 
-    private sealed class FolderReads : IConsoleFolderClient
+    private sealed class FolderReads(IReadOnlyList<Folder>? folders = null) : IConsoleFolderClient
     {
+        private readonly IReadOnlyList<Folder> _folders = folders ?? [
+            new() { Metadata = new() { Id = "transport", Name = "Transport" } },
+            new() { Metadata = new() { Id = "old", Name = "Retired" }, Deleted = true },
+            new() { Metadata = new() { Id = "", Name = "Unidentified" } }
+        ];
+
         public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(OperateSectionResult<ConsoleFolderCatalog>.Allowed(new([
-                new() { Metadata = new() { Id = "transport", Name = "Transport" } },
-                new() { Metadata = new() { Id = "old", Name = "Retired" }, Deleted = true },
-                new() { Metadata = new() { Id = "", Name = "Unidentified" } }
-            ], null, "synthetic-authority")));
+            Task.FromResult(OperateSectionResult<ConsoleFolderCatalog>.Allowed(new(_folders, null, "synthetic-authority")));
         public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

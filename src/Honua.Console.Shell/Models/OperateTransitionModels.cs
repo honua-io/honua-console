@@ -155,10 +155,16 @@ public sealed record OperateServiceDetail(
     public string? FolderId { get; init; }
     public string? FolderName { get; init; }
     public string? PublicName { get; init; }
+    public string? Description { get; init; }
     public IReadOnlyList<string> FolderMutationIssues { get; init; } = [];
     public int? ReportedLayerCount { get; init; }
     public int LayerCount => ReportedLayerCount ?? Layers.Count;
     public string? PublicServiceName => FolderId is not null && string.IsNullOrWhiteSpace(FolderName) ? null : PublicName ?? Name;
+    // The path the endpoint URLs use, or null while the service's Folder name is unresolved.
+    public string? PublicPath => PublicServiceName is not { } name ? null
+        : string.IsNullOrWhiteSpace(FolderName) ? name : $"{FolderName}/{name}";
+    // PublicPath for display: an unresolved Folder is marked rather than shown as the root.
+    public string DisplayPath => PublicPath ?? $"…/{PublicName ?? Name}";
     // ServiceType lists the enabled protocols, comma separated.
     public IReadOnlyList<string> Protocols =>
         ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
@@ -177,6 +183,12 @@ public sealed record OperateServiceLayer(
     bool Enabled = true)
 {
     public string? ServiceName { get; init; }
+    public int? Srid { get; init; }
+    public string? ConnectionId { get; init; }
+    public string? ConnectionName { get; init; }
+    public string? Schema { get; init; }
+    public string? Table { get; init; }
+    public string? Description { get; init; }
 }
 
 public sealed record OperateRuntimeSetting(

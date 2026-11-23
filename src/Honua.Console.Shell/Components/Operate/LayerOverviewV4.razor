@@ -1,0 +1,84 @@
+@using System.Globalization
+@inject NavigationManager Navigation
+<ConsolePanel Title="Web services for this layer" HeadingId="layer-web-services-heading" Class="console-layer-web-services">
+    <Actions><span class="console-muted">Public URLs · copy or open</span></Actions>
+    <ChildContent>
+        @if (Endpoints.Count == 0)
+        {
+            <p>No protocol endpoints were reported for the services that serve this layer.</p>
+        }
+        else
+        {
+            <ul class="console-layer-endpoints">
+                @foreach (var (service, endpoint) in Endpoints)
+                {
+                    <li data-layer-endpoint="@endpoint.Name">
+                        <span class="console-layer-endpoint-protocol">@endpoint.Name</span>
+                        @if (endpoint.Url is { } url)
+                        {
+                            <code>@url</code>
+                            <span class="console-layer-endpoint-actions">
+                                <ConsoleCopyButton Text="@url" Label="@($"Copy {endpoint.Name} URL")" />
+                                <a class="console-button console-button-secondary console-button-small" href="@url" target="_blank" rel="noopener" aria-label="@OpenLabel(service, endpoint)">Open</a>
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="console-muted">@endpoint.Status</span>
+                        }
+                        @if (Exposures.Count > 1)
+                        {
+                            <small>@service.Name</small>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </ChildContent>
+</ConsolePanel>
+
+<ConsolePanel Title="Administration" HeadingId="layer-administration-heading" Class="console-service-administration">
+    @Actions
+    <dl class="console-service-kv" data-layer-administration>
+        <dt>@(Exposures.Count == 1 ? "Service" : "Services")</dt>
+        <dd>
+            @for (var i = 0; i < Exposures.Count; i++)
+            {
+                var service = Exposures[i].Service;
+                @if (i > 0) { <text>, </text> }
+                <a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(service.Name)))">@service.DisplayName</a>
+            }
+        </dd>
+        <dt>Dataset</dt>
+        <dd>
+            <a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(Layer.CanonicalResourceId)}")">@Layer.CanonicalResourceName</a>
+            @if (Layer.ConnectionName is { } connection)
+            {
+                <text> on </text><code>@connection</code>
+            }
+        </dd>
+        <dt>Extent</dt>
+        <dd>@Extent</dd>
+        <dt>Enabled</dt>
+        <dd>@(Layer.Enabled ? "Enabled" : "Disabled")</dd>
+        <dt>Ownership</dt>
+        <dd>@Exposures[0].Service.MetadataOwnership</dd>
+    </dl>
+</ConsolePanel>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<OperateLayerExposure> Exposures { get; set; } = [];
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    private OperateServiceLayer Layer => Exposures[0].Layer;
+
+    private IReadOnlyList<(OperateServiceDetail Service, OperateServiceEndpoint Endpoint)> Endpoints =>
+        Exposures.SelectMany(exposure => exposure.Service.Endpoints.Select(endpoint => (exposure.Service, endpoint))).ToArray();
+
+    private string OpenLabel(OperateServiceDetail service, OperateServiceEndpoint endpoint) =>
+        Exposures.Count > 1 ? $"Open {endpoint.Name} URL for {service.Name} (new tab)" : $"Open {endpoint.Name} URL (new tab)";
+
+    private string Extent => Layer.Extent is [var minX, var minY, var maxX, var maxY]
+        ? string.Create(CultureInfo.InvariantCulture, $"{minX:0.##}, {minY:0.##} → {maxX:0.##}, {maxY:0.##}")
+        : "Not computed yet";
+}
