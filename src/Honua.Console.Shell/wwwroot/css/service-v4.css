@@ -24,17 +24,26 @@
     font-family: var(--font-mono);
 }
 
+/* Links inside running text stay underlined: colour alone does not set them apart (axe link-in-text-block). */
 [data-console-v4="true"] .console-service-summary a,
-[data-console-v4="true"] .console-service-layer-table a,
-[data-console-v4="true"] .console-service-kv a {
+[data-console-v4="true"] .console-service-kv a,
+[data-console-v4="true"] .console-service-web-services > p .console-link-button {
+    color: var(--c-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+[data-console-v4="true"] .console-service-layer-table a {
     color: var(--c-link);
     text-decoration: none;
 }
 
-[data-console-v4="true"] .console-service-summary a:hover,
-[data-console-v4="true"] .console-service-layer-table a:hover,
-[data-console-v4="true"] .console-service-kv a:hover {
+[data-console-v4="true"] .console-service-layer-table a:hover {
     text-decoration: underline;
+}
+
+[data-console-v4="true"] .console-service-administration .console-detail-actions {
+    justify-content: flex-start;
 }
 
 [data-console-v4="true"] .console-service-list-actions {
@@ -86,10 +95,6 @@
     color: var(--c-link);
     font: inherit;
     cursor: pointer;
-}
-
-[data-console-v4="true"] .console-link-button:hover {
-    text-decoration: underline;
 }
 
 [data-console-v4="true"] .console-service-web-service-list {
