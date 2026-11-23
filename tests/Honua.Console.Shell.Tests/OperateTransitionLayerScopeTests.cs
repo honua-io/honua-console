@@ -25,7 +25,7 @@ public sealed class OperateTransitionLayerScopeTests
     public async Task SingleLayerViewRetainsLegacyPublicationWithoutStorageBinding()
     {
         var handler = new RecordingHandler(Fixtures(
-            $"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}"));
+            "/api/v1/admin/services/?page=1&pageSize=100"));
 
         var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
             .GetLayerViewAsync($"{ConnectionId:D}-layer-7");
@@ -37,7 +37,7 @@ public sealed class OperateTransitionLayerScopeTests
     [Fact]
     public async Task SingleResourceViewReadsOnlyItsOwnConnectionLayers()
     {
-        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}");
+        var fixtures = Fixtures("/api/v1/admin/services/?page=1&pageSize=100");
         fixtures["/api/v1/admin/connections/"] = $$"""
             {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
             """;
@@ -50,7 +50,8 @@ public sealed class OperateTransitionLayerScopeTests
         Assert.Equal($"{ConnectionId:D}-layer-7", resource.ResourceId);
         Assert.DoesNotContain(handler.Requests, path => path.Contains($"{OtherConnectionId:D}/layers", StringComparison.Ordinal));
         AssertOnlyLayerServicesRead(handler);
-        Assert.DoesNotContain(handler.Requests, path => path.Contains("storageLayerId=", StringComparison.Ordinal));
+        Assert.DoesNotContain(handler.Requests, path => path.StartsWith("/api/v1/admin/services/", StringComparison.Ordinal)
+            && (path.Contains("connectionId=", StringComparison.Ordinal) || path.Contains("storageLayerId=", StringComparison.Ordinal)));
     }
 
     [Theory]
@@ -58,8 +59,8 @@ public sealed class OperateTransitionLayerScopeTests
     [InlineData(true)]
     public async Task ScopedDetailRetainsPublishedLayerWithoutServiceSummary(bool dataset)
     {
-        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}");
-        fixtures[$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}"] = EmptyLayerPage;
+        var fixtures = Fixtures("/api/v1/admin/services/?page=1&pageSize=100");
+        fixtures["/api/v1/admin/services/?page=1&pageSize=100"] = EmptyLayerPage;
         fixtures["/api/v1/admin/connections/"] = $$"""
             {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
             """;
@@ -96,7 +97,7 @@ public sealed class OperateTransitionLayerScopeTests
     [InlineData(true)]
     public async Task ScopedDetailRetainsDefaultAndNamedPublications(bool dataset)
     {
-        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}");
+        var fixtures = Fixtures("/api/v1/admin/services/?page=1&pageSize=100");
         fixtures[$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = """
             {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"default"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"default"}],"page":1,"pageSize":100,"total":2}}
             """;

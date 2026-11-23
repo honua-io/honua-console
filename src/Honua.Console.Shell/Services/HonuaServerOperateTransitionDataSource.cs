@@ -191,7 +191,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     {
         using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
-        var summariesTask = LoadServiceSummariesAsync(cancellationToken, scope);
+        // Service discovery requires either both scope keys or neither. Read summaries
+        // without a layer scope so legacy service-level publications remain discoverable;
+        // the layer reads below still use only the selected connection.
+        var summariesTask = LoadServiceSummariesAsync(cancellationToken);
         await Task.WhenAll(connectionsTask, summariesTask).ConfigureAwait(false);
         var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
         var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
@@ -281,11 +284,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     private async Task<(Honua.Sdk.Admin.Models.ServiceSummary[] Summaries, List<OperateCapabilityState> States)>
-        LoadServiceSummariesAsync(CancellationToken cancellationToken, DataViewScope? scope = null)
+        LoadServiceSummariesAsync(CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
         var serviceResult = await HonuaAdminCatalogReader.ReadAllAsync(
-            (query, token) => _client.ListServicesAsync(query with { ConnectionId = scope?.ConnectionId }, token),
+            (query, token) => _client.ListServicesAsync(query, token),
             page => page.Items,
             page => page.Total,
             cancellationToken).ConfigureAwait(false);
