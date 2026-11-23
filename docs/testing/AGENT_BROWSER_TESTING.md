@@ -57,6 +57,20 @@ Playwright retains failure traces and screenshots and writes an HTML report.
 Inspect these together with browser console and network errors before changing
 the application. The fixtures are test infrastructure, not deployment servers.
 
+## Capture v4 presentation evidence
+
+The Home, Folder, service and layer detail, Styles, Layer Preview and scale
+presentation fixtures capture 1440- and 390-pixel views in both light and dark
+themes. These images are taken before keyboard or form interaction checks change
+the rendered state; mobile scale captures show the open navigation drawer.
+Existing 1280- and 390-pixel behavior checks remain in place.
+
+CI uploads the images with the corresponding presentation artifacts. Files named
+`<fixture>-fidelity-<width>-<theme>.png` record rendered output, theme activation
+and absence of horizontal page overflow. They are review evidence, not approved
+pixel baselines or proof of a live customer journey. Compare them with the
+adopted design references before approving a visual baseline.
+
 ## Check a live candidate in a browser
 
 Use the immutable Console bundle and server image selected for qualification.

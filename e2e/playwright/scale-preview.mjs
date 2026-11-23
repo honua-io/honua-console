@@ -1,3 +1,4 @@
+import { captureFidelityThemes, presentationWidths } from "./fidelity-capture.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -21,7 +22,7 @@ let browser;
 try {
   browser = await chromium.launch();
   for (const name of names) {
-    for (const width of (name === scrollState.v4 ? [1280, 1050, 390] : [1280, 390])) {
+    for (const width of presentationWidths(name, name === scrollState.v4 ? [1280, 1050, 390] : [1280, 390])) {
       const context = await browser.newContext({ viewport: { width, height: 844 } });
       const page = await context.newPage();
       const errors = [];
@@ -40,6 +41,7 @@ try {
         assert.equal(await sidebar.getAttribute("aria-modal"), "true");
         assert.equal(await page.locator("[data-tree-filter]").evaluate(element => element === document.activeElement), true);
       }
+      await captureFidelityThemes(page, { previews, name, width });
       assert.equal(await sidebar.isVisible(), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       const row = page.locator(".console-tree-row").first();

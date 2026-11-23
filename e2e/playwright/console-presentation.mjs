@@ -1,3 +1,4 @@
+import { captureFidelityThemes, presentationWidths } from "./fidelity-capture.mjs";
 import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -211,7 +212,7 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
     browser = await chromium.launch();
     const context = await browser.newContext();
     for (const name of pages.keys()) {
-      for (const width of [1280, 390]) {
+      for (const width of presentationWidths(name)) {
         const page = await context.newPage();
         await inspectV4Presentation(page, {
           previews, name, width, origin: `http://127.0.0.1:${server.address().port}`,
@@ -234,6 +235,7 @@ async function inspectV4Presentation(page, { previews, name, width, origin, styl
   await page.evaluate(() => document.fonts.ready);
   assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), typeof heading === "function" ? heading(name) : heading);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
+  await captureFidelityThemes(page, { previews, name, width });
   await inspect(page, name);
   const pageControls = typeof controls === "function" ? controls(name) : controls;
   if (pageControls !== null) {

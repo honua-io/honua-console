@@ -192,6 +192,9 @@ jobs:
           cd e2e/playwright
           npx playwright install --with-deps chromium
 
+      - name: Verify fidelity capture behavior
+        run: node --test e2e/playwright/fidelity-capture.test.mjs
+
       - name: Verify rendered catalog presentation
         run: node e2e/playwright/catalog-preview.mjs
 

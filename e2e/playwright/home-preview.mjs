@@ -1,3 +1,4 @@
+import { captureFidelityThemes, presentationWidths } from "./fidelity-capture.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -23,12 +24,13 @@ try {
   const context = await browser.newContext();
   const page = await context.newPage();
   for (const name of pages.keys()) {
-    for (const width of [1280, 390]) {
+    for (const width of presentationWidths(name)) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto(`http://127.0.0.1:${server.address().port}/${name}`);
       await page.evaluate(() => document.fonts.ready);
       assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), "Welcome");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
+      await captureFidelityThemes(page, { previews, name, width });
       const inventory = page.locator(".console-home-inventory");
       if (name.endsWith("v4")) {
         assert.equal((await inventory.locator(".console-metric-value").textContent()).trim(), "500");

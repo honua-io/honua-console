@@ -4,6 +4,7 @@ import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "@playwright/test";
 import { startPresentationFixtureServer } from "./presentation-fixture-server.mjs";
+import { captureFidelityThemes, presentationWidths } from "./fidelity-capture.mjs";
 import { checkKeyboardControls, inspectSharedPresentation, inspectCatalogCounts, catalogKeyboardTargets } from "./console-presentation.mjs";
 
 import { inspectV4NavigationPresentation } from "./v4-navigation-presentation.mjs";
@@ -32,7 +33,9 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
-  const samples = [...pages.keys()].flatMap(name => (v4Previews.includes(name) ? [390, 1280] : name.startsWith("service") ? [390, 600, 1440] : [390, 1440]).map(width => ({ name, width })));
+  const samples = [...pages.keys()].flatMap(name => presentationWidths(name,
+    v4Previews.includes(name) ? [390, 1280] : name.startsWith("service") ? [390, 600, 1440] : [390, 1440]
+  ).map(width => ({ name, width })));
   const failures = [];
   for (const sample of samples) failures.push(await capturePresentationCase(page, sample));
   assert.deepEqual(failures.filter(Boolean), []);
@@ -40,7 +43,7 @@ try {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
 }
-console.log("Dark presentation is unsupported by the current Console shell; no dark evidence was produced.");
+console.log("Owned v4 fidelity fixtures include light and dark captures; legacy presentation checks retain light mode.");
 
 async function capturePresentationCase(page, sample) {
   try {
@@ -60,6 +63,7 @@ async function inspectPresentation(page, { name, width }) {
   assert.equal((await stylesheet).status(), 200);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), "light");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}`);
+  await captureFidelityThemes(page, { previews, name, width });
   if (navigationPreviews.includes(name)) return inspectV4NavigationPresentation(page, { name, width }, previews);
   if (operatePreviews.includes(name)) return inspectOperateSharedPresentation(page, { name, width }, previews);
   if (v4Previews.includes(name)) return inspectV4HomePresentation(page, { name, width }, previews);
