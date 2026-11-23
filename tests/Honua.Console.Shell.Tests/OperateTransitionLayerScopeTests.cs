@@ -86,6 +86,39 @@ public sealed class OperateTransitionLayerScopeTests
         Assert.Equal($"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100", layerRead);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ScopedDetailRetainsDefaultAndNamedPublications(bool dataset)
+    {
+        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7");
+        fixtures[$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = """
+            {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"default"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"default"}],"page":1,"pageSize":100,"total":2}}
+            """;
+        var handler = new RecordingHandler(fixtures);
+        var source = new HonuaServerOperateTransitionDataSource(CreateClient(handler));
+        var resourceId = $"{ConnectionId:D}-layer-7";
+
+        if (dataset)
+        {
+            var view = await source.GetResourceViewAsync(resourceId);
+            var resource = Assert.Single(view.ResourceEdits);
+            Assert.Equal(resourceId, resource.ResourceId);
+            Assert.Equal(new[] { "default", "planning" }, resource.BlastRadius.Services);
+            Assert.Empty(view.CapabilityStates);
+        }
+        else
+        {
+            var view = await source.GetLayerViewAsync(resourceId);
+            Assert.Equal(new[] { "default", "planning" }, view.Services.Where(service => service.Layers.Count > 0).Select(service => service.Name).OrderBy(name => name));
+            Assert.All(view.Services.Where(service => service.Layers.Count > 0), service => Assert.Equal(resourceId, Assert.Single(service.Layers).CanonicalResourceId));
+            Assert.Empty(view.CapabilityStates);
+        }
+
+        Assert.Equal(2, handler.Requests.Count(path => path.Contains("/layers/", StringComparison.Ordinal)));
+        AssertOnlyLayerServicesRead(handler);
+    }
+
     private static void AssertOnlyLayerServicesRead(RecordingHandler handler)
     {
         Assert.Contains(handler.Requests, path => path.EndsWith("serviceName=planning", StringComparison.Ordinal));

@@ -452,11 +452,12 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
             return [string.Equals(serviceName, "default", StringComparison.OrdinalIgnoreCase) ? null : serviceName];
         }
 
-        // A published layer can precede its service registry projection. Keep the default
-        // layer read on the already-filtered connection and retain the storage-layer filter.
-        if (read.Scope?.StorageLayerId is not null && read.Services.Count == 0)
+        // Default publications may be absent from the service registry projection.
+        // Preserve them alongside named services on the already-filtered connection;
+        // the storage-layer filter still limits the returned rows to this resource.
+        if (read.Scope?.StorageLayerId is not null && read.Scope?.ServiceName is null)
         {
-            return [null];
+            return CreateLayerServiceScopes(layerServices);
         }
 
         return layerServices
