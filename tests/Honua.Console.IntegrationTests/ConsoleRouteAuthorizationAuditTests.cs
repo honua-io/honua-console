@@ -25,13 +25,11 @@ public sealed class ConsoleRouteAuthorizationAuditTests
         "/maps/published/{*Route}",     // PublishedMapPage — Studio publication audience viewer
     };
 
-    // Anonymous on the static host only (route map 2.5): its in-app sign-in page, public-link map and item
-    // views authorized by ShareAccess, and not-found. This host signs in at its own /auth/login.
+    // Anonymous on the static host only (route map 2.5): its in-app sign-in and not-found pages.
+    // The server host signs in at its own /auth/login.
     internal static readonly IReadOnlySet<string> InAppAnonymousRouteTemplates = new HashSet<string>(StringComparer.Ordinal)
     {
         "/auth/signin",
-        "/maps/{MapId}",
-        "/catalog/{IdOrSlug}",
         "/not-found",
     };
 
