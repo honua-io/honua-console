@@ -10,6 +10,12 @@ namespace Honua.Console.Shell.Services;
 internal static class ConsoleServerHttp
 {
     private const int MaxProblemBodyCharacters = 16 * 1024;
+    internal static readonly HttpRequestOptionsKey<ConsoleEnvironmentProfile> ExpectedProfile =
+        new("Honua.Console.ExpectedProfile");
+
+    internal static bool MatchesExpectedProfile(HttpRequestMessage request, ConsoleEnvironmentProfile? active) =>
+        !request.Options.TryGetValue(ExpectedProfile, out var expected)
+        || (active is not null && active.Id == expected.Id && active.ServerBaseUri == expected.ServerBaseUri);
 
     internal readonly record struct AuthenticationResult(bool IsAuthenticated, string Message);
 

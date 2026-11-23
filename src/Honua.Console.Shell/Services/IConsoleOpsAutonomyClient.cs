@@ -5,6 +5,9 @@ namespace Honua.Console.Shell.Services;
 
 public interface IConsoleOpsAutonomyClient
 {
+    // A client with an active profile must bind its requests to the supplied profile.
+    IConsoleOpsAutonomyClient ForEnvironment(ConsoleEnvironmentProfile profile) => this;
+
     Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(
         CancellationToken cancellationToken = default);
 

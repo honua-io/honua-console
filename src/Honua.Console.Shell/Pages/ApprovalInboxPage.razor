@@ -20,7 +20,7 @@
         <ConsoleAgentContext Context="@AgentContext" />
         <link rel="stylesheet" href="_content/Honua.Console.Shell/css/approval-inbox-v4.css" />
         <ConsolePageHeading Title="Approvals">
-            <p>Review proposed changes before they run. Approval permissions and checks are enforced by the connected Honua server.</p>
+            <p data-approval-intro>@IntroLead Review proposed changes before they run. Approval permissions and checks are enforced by the connected Honua server.</p>
         </ConsolePageHeading>
     }
     else
@@ -39,11 +39,19 @@
     @* Keep the connection state and last successful read visible when live updates pause. *@
     <div class="approval-inbox-toolbar" role="group" aria-label="Inbox controls"
          data-freshness-state="@(Realtime.IsConnected ? "live" : "paused")">
+        @if (V4Enabled && _loaded && _result.IsAllowed)
+        {
+            <span class="approval-inbox-results" data-approval-results>@ApprovalInboxPresentation.Results(VisibleItems.Count, (_result.Value ?? ApprovalInboxSnapshot.Empty).TotalCount)</span>
+        }
         @if (Realtime.IsConnected)
         {
             <span class="approval-inbox-live is-live" data-live-state="live"
                   data-fallback-engaged="@Realtime.IsFallbackEngaged">
                 @(_managerOnlyUpdates ? "Manager live — refresh for serving updates" : "Live")
+                @if (V4Enabled && _lastSuccessfulRefreshUtc is not null)
+                {
+                    <span class="console-muted" data-inbox-updated> · updated @ConsoleFreshness.LastRefreshedShort(_lastSuccessfulRefreshUtc)</span>
+                }
             </span>
         }
         else
@@ -60,11 +68,7 @@
         </button>
     </div>
 
-    @if (V4Enabled)
-    {
-        <OperationsAlertsPanel />
-    }
-
+    @{ RenderFragment? queue = null; }
     @if (!_loaded)
     {
         <OperateSectionStatusPanel Heading="Approval inbox" Loading="true" />
@@ -145,8 +149,8 @@
             </div>
         }
 
-        <div class="approval-inbox-layout">
-            <div class="approval-inbox-queue">
+        queue =
+            @<div class="approval-inbox-queue">
                 @if (VisibleItems.Count == 0)
                 {
                     <OperateSectionStatusPanel Heading="Approval inbox" Empty="true"
@@ -163,9 +167,8 @@
                                     <tr>
                                         <th scope="col">Proposal</th>
                                         <th scope="col">Requested by</th>
-                                        <th scope="col">Type</th>
                                         <th scope="col">Status and risk</th>
-                                        <th scope="col">Requested</th>
+                                        <th scope="col">Waiting</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -181,18 +184,18 @@
                                                         data-proposal-source="@item.Source"
                                                         @onclick="() => Select(item)">
                                                     <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
-                                                    <span class="console-mono approval-inbox-proposal-id">@item.ProposalId</span>
                                                 </button>
+                                                <span class="console-mono approval-inbox-proposal-id" data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType) · @item.ProposalId</span>
                                             </td>
                                             <td>
-                                                <span class="approval-inbox-requester">Agent: @(string.IsNullOrWhiteSpace(item.Proposal.RequestedByAgent) ? "Not reported" : item.Proposal.RequestedByAgent)</span>
-                                                <span class="console-muted">Requester: @(string.IsNullOrWhiteSpace(item.Proposal.RequestedBy) ? "Not reported" : item.Proposal.RequestedBy)</span>
+                                                @{ var requester = ApprovalInboxPresentation.Requester(item.Proposal); }
+                                                <span class="approval-inbox-requester" data-requester>@requester.Name</span>
+                                                <span class="console-muted approval-inbox-channel" data-requester-channel>@requester.Channel</span>
                                                 @if (multiSource)
                                                 {
                                                     <span class="console-chip approval-inbox-source" data-proposal-source-chip="@item.Source">@ConsoleProposalPresentation.SourceLabel(item.Source)</span>
                                                 }
                                             </td>
-                                            <td data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType)</td>
                                             <td>
                                                 <span class="approval-inbox-pills">
                                                     <OperateStatusPill Status="@ConsoleProposalPresentation.ToStatus(item.Proposal.Status)" />
@@ -201,9 +204,14 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                @if (item.Proposal.CreatedAt != DateTimeOffset.UnixEpoch && item.Proposal.CreatedAt != DateTimeOffset.MinValue)
+                                                @if (!item.Proposal.IsAwaitingApproval)
                                                 {
-                                                    <time datetime="@item.Proposal.CreatedAt.ToString("O")">@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)</time>
+                                                    <span class="console-muted">&mdash;</span>
+                                                }
+                                                else if (ApprovalInboxPresentation.IsReportedTime(item.Proposal.CreatedAt))
+                                                {
+                                                    <time datetime="@item.Proposal.CreatedAt.ToString("O")"
+                                                          title="@item.Proposal.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture)">@ApprovalInboxPresentation.WaitingFor(item.Proposal.CreatedAt, Clock.GetUtcNow())</time>
                                                 }
                                                 else
                                                 {
@@ -258,7 +266,23 @@
                         </ul>
                     }
                 }
-            </div>
+            </div>;
+    }
+
+    @if (queue is not null || _selectedProposalId is not null)
+    {
+        var linkedMode = V4Enabled && _linkedRequestId is not null;
+        var linked = LinkedRequest;
+        @if (linked is not null)
+        {
+            <ApprovalRequestIntro Proposal="@linked" />
+        }
+
+        <div class="approval-inbox-layout @(linkedMode ? "is-linked-request" : null)">
+            @if (!linkedMode)
+            {
+                @queue
+            }
 
             @* Not a live region: the review is several hundred characters and re-renders on every
                detail poll. Selecting a proposal moves focus to the review instead, and Close review
@@ -272,11 +296,17 @@
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
                     var approvalInstance = _approvalInstance;
-                    <button type="button" class="console-button console-button-secondary" @ref="_closeReviewButton" @onclick="ClearSelection">Close review</button>
+                    <button type="button" class="console-button console-button-secondary" @ref="_closeReviewButton" disabled="@ReviewDecisionPending" @onclick="ClearSelection">Close review</button>
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
-                        UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
-                        OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
+                        DecisionPending="@(IsDecisionPending(proposalId))"
+                        RecordedDetail="@_recordedDetails.GetValueOrDefault(proposalId)"
+                        UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, proposalId, summary))"
+                        OnActioned="@(detail => OnProposalActioned(approvalInstance, detail))" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
+                    @if (linked is not null)
+                    {
+                        <ApprovalRequestNextSteps Proposal="linked" OnShowAll="ShowAllApprovals" />
+                    }
                 }
                 else
                 {
@@ -285,7 +315,17 @@
                         EmptyMessage="Choose a proposal from the queue to review its plan, diff, dry-run, and risk before you authorize it." />
                 }
             </div>
+
+            @if (linkedMode)
+            {
+                @queue
+            }
         </div>
+    }
+
+    @if (V4Enabled)
+    {
+        <OperationsAlertsPanel />
     }
 </section>
 
@@ -298,8 +338,8 @@
         Filters = new Dictionary<string, string> { ["ticketType"] = _filter?.ToString() ?? string.Empty },
         Unsaved = new()
         {
-            ChangedFieldCount = _approvalStates.GetValueOrDefault(_approvalInstance)?.ChangedFieldCount ?? 0,
-            PendingOperationCount = _approvalStates.Values.Sum(state => state.PendingOperationCount)
+            ChangedFieldCount = _approvalStates.GetValueOrDefault(_approvalInstance).Summary?.ChangedFieldCount ?? 0,
+            PendingOperationCount = _approvalStates.Values.Sum(state => state.Summary.PendingOperationCount)
         }
     };
 
@@ -309,6 +349,12 @@
 
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
 
+    private TimeProvider Clock => ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+
+    private string? IntroLead => _loaded && _result.IsAllowed
+        ? ApprovalInboxPresentation.WaitingSentence((_result.Value ?? ApprovalInboxSnapshot.Empty).AwaitingApprovalCount)
+        : null;
+
     /// <summary>
     /// A proposal id to pre-select on load (console#292 correlation-id chip deep link, e.g.
     /// <c>CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, id)</c>). This is the last
@@ -317,6 +363,9 @@
     /// </summary>
     [SupplyParameterFromQuery(Name = "proposalId")]
     public string? ProposalId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "source")]
+    public string? ProposalSource { get; set; }
 
     /// <summary>
     /// The bounded-loading budget for the queue read (console#308). A parameter so component
@@ -351,8 +400,12 @@
     private ApprovalTicketType? _filter;
     private string? _selectedProposalId;
     private object _approvalInstance = new();
-    private readonly Dictionary<object, ConsoleAgentUnsavedSummary> _approvalStates = new();
-    private string? _routeProposalId;
+    private readonly Dictionary<object, (string ProposalId, ConsoleAgentUnsavedSummary Summary)> _approvalStates = new();
+    private readonly Dictionary<string, ConsoleProposalDetail> _recordedDetails = new(StringComparer.Ordinal);
+    private (string? Id, string? Source) _routeSelection;
+    private bool _selectionIsServing;
+    private string? _linkedRequestId;
+    private ConsoleProposalDetail? _selectedDetail;
     private int _detailReloadToken;
     private string? _terminalProposalId;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
@@ -380,9 +433,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _routeProposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
-        SetSelectedProposal(_routeProposalId);
-
         _updates = new ConsoleProposalSubscription(Realtime,
             new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
 
@@ -401,8 +451,11 @@
     protected override void OnParametersSet()
     {
         var proposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
-        if (string.Equals(proposalId, _routeProposalId, StringComparison.Ordinal)) return;
-        _routeProposalId = proposalId;
+        var route = (proposalId, ProposalSource);
+        if (route == _routeSelection) return;
+        _routeSelection = route;
+        _selectionIsServing = ProposalSource == "serving";
+        _linkedRequestId = string.Equals(proposalId, _selectedProposalId, StringComparison.Ordinal) ? null : proposalId;
         SetSelectedProposal(proposalId);
         _terminalProposalId = null;
         _detailReloadToken++;
@@ -411,10 +464,11 @@
 
     private void ResolveSelectedProposalSource()
     {
-        if (_selectedProposalId is { Length: > 0 } raw
-            && !raw.StartsWith("manager:", StringComparison.Ordinal)
-            && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
-            && _result.Value.Items.Any(item => string.Equals(item.ProposalId, "manager:" + raw, StringComparison.Ordinal)))
+        if (_selectionIsServing || _selectedProposalId is not { Length: > 0 } raw ||
+            raw.StartsWith("manager:", StringComparison.Ordinal) || _result.Value is not { } snapshot) return;
+
+        _selectionIsServing = snapshot.Items.Any(item => item.ProposalId == raw);
+        if (!_selectionIsServing && snapshot.Items.Any(item => item.ProposalId == "manager:" + raw))
         {
             SetSelectedProposal("manager:" + raw);
         }
@@ -593,8 +647,16 @@
     private bool IsSelected(ApprovalInboxItem item) =>
         string.Equals(item.ProposalId, _selectedProposalId, StringComparison.Ordinal);
 
+    private ConsoleProposalSummary? LinkedRequest => V4Enabled && _linkedRequestId is not null
+        ? _selectedDetail?.ToSummary()
+        : null;
+
+    private void ShowAllApprovals() => _linkedRequestId = null;
+
     private void Select(ApprovalInboxItem item)
     {
+        _linkedRequestId = null;
+        _selectionIsServing = item.Source == ConsoleProposalSource.Server;
         SetSelectedProposal(item.ProposalId);
         _terminalProposalId = null;
         _focusReviewPending = true;
@@ -604,6 +666,9 @@
 
     private void ClearSelection()
     {
+        if (ReviewDecisionPending) return;
+        _selectionIsServing = false;
+        _linkedRequestId = null;
         _focusRowPendingId = _selectedProposalId;
         _focusReviewPending = false;
         SetSelectedProposal(null);
@@ -614,10 +679,16 @@
     {
         if (string.Equals(_selectedProposalId, proposalId, StringComparison.Ordinal)) return;
         _selectedProposalId = proposalId;
+        _selectedDetail = null;
         _approvalInstance = new object();
     }
 
-    private void OnApprovalUnsavedChanged(object instance, ConsoleAgentUnsavedSummary summary)
+    private bool ReviewDecisionPending => V4Enabled && _selectedProposalId is { } id && IsDecisionPending(id);
+
+    private bool IsDecisionPending(string proposalId) =>
+        _approvalStates.Values.Any(state => state.ProposalId == proposalId && state.Summary.PendingOperationCount > 0);
+
+    private void OnApprovalUnsavedChanged(object instance, string proposalId, ConsoleAgentUnsavedSummary summary)
     {
         if (_disposed) return;
         // A completed old panel must not clear the current reason, while its server write
@@ -628,7 +699,7 @@
         }
         else
         {
-            _approvalStates[instance] = summary;
+            _approvalStates[instance] = (proposalId, summary);
         }
     }
 
@@ -636,7 +707,11 @@
     {
         if (V4Enabled)
         {
-            Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("proposalId", _selectedProposalId), replace: true);
+            Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+            {
+                ["proposalId"] = _selectedProposalId,
+                ["source"] = _selectionIsServing ? "serving" : null,
+            }), replace: true);
         }
     }
 
@@ -663,17 +738,34 @@
         }
     }
 
-    private void OnDetailLoaded(ConsoleProposalDetail detail)
+    private void OnDetailLoaded(object instance, ConsoleProposalDetail? detail)
     {
-        if (detail.ProposalId == _selectedProposalId)
+        if (ReferenceEquals(instance, _approvalInstance))
         {
-            _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;
+            _terminalProposalId = detail?.IsTerminal == true ? detail.ProposalId : null;
+            _selectedDetail = detail;
+            _selectionIsServing |= detail is not null && !detail.ProposalId.StartsWith("manager:", StringComparison.Ordinal);
         }
     }
 
-    private async Task OnProposalActioned(ConsoleProposalDetail detail)
+    private async Task OnProposalActioned(object instance, ConsoleProposalDetail detail)
     {
-        OnDetailLoaded(detail);
+        if (_disposed) return;
+
+        if (!detail.IsAwaitingApproval)
+        {
+            _recordedDetails[detail.ProposalId] = detail;
+        }
+        if (detail.ProposalId == _selectedProposalId)
+        {
+            _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;
+            _selectedDetail = detail;
+            if (!ReferenceEquals(instance, _approvalInstance))
+            {
+                _detailReloadToken++;
+            }
+        }
+
         // After an approve / reject, refresh the queue so a now-resolved proposal drops out of
         // the pending set.
         await RefreshAsync();

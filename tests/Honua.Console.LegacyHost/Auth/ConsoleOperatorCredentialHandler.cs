@@ -29,6 +29,11 @@ public sealed class ConsoleOperatorCredentialHandler(
         }
 
         var profile = await profiles.GetActiveProfileAsync(cancellationToken);
+        if (!ConsoleServerHttp.MatchesExpectedProfile(request, profile))
+        {
+            return new HttpResponseMessage(HttpStatusCode.Conflict) { RequestMessage = request };
+        }
+
         if (profile is not null && request.Options.TryGetValue(ConsoleAuthorityRequestOptions.RelativeStylePath, out var relativeStylePath))
         {
             if (!IsCanonicalStylePath(relativeStylePath)

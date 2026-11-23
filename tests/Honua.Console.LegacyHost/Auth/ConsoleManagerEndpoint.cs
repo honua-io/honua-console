@@ -44,6 +44,9 @@ public sealed class ConsoleManagerRoutingHandler(
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var profile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (!ConsoleServerHttp.MatchesExpectedProfile(request, profile))
+            return new HttpResponseMessage(HttpStatusCode.Conflict) { RequestMessage = request };
+
         var source = profile is null ? null : new Uri(profile.ServerBaseUri.AbsoluteUri.TrimEnd('/') + "/");
         var destination = source is null ? null : endpoint.Resolve(source);
         if (source is null || destination is null || request.RequestUri is not { IsAbsoluteUri: true } target

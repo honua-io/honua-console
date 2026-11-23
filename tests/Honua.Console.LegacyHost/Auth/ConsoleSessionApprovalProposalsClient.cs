@@ -14,6 +14,10 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
     IServiceProvider services) : IConsoleProposalsClient
 {
     private const string ManagerPrefix = "manager:";
+    private ConsoleEnvironmentProfile? ExpectedProfile { get; init; }
+
+    public IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+        new ConsoleSessionApprovalProposalsClient(inner.ForEnvironment(profile), services) { ExpectedProfile = profile };
 
     public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(
         string? status = null,
@@ -73,7 +77,7 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
         return bound
             ? await new HttpConsoleProposalsClient(
                     http,
-                    services.GetRequiredService<IConsoleEnvironmentProfileStore>(),
+                    new InMemoryConsoleEnvironmentProfileStore([profile]),
                     services.GetRequiredService<IConsoleAccountSessionStore>())
                 .ApproveAsync(proposalId, reviewed, cancellationToken).ConfigureAwait(false)
             : OperateSectionResult<ConsoleProposalDetail>.Denied(
@@ -90,7 +94,7 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
         var profiles = services.GetRequiredService<IConsoleEnvironmentProfileStore>();
         var profile = await profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
         var endpoint = services.GetService<IConsoleManagerEndpoint>();
-        if (profile is null || endpoint is null || !operators.HasOperator)
+        if (profile is null || !MatchesProfile(profile) || endpoint is null || !operators.HasOperator)
         {
             return null;
         }
@@ -135,7 +139,7 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
 
         var client = new HttpConsoleProposalsClient(
             http,
-            profiles,
+            new InMemoryConsoleEnvironmentProfileStore([profile]),
             services.GetRequiredService<IConsoleAccountSessionStore>());
         client.UseResourceBase(manager);
         var approved = await client.ApproveAsync(id, reviewed, cancellationToken).ConfigureAwait(false);
@@ -143,6 +147,10 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
             ? approved with { Value = detail with { ProposalId = ManagerPrefix + detail.ProposalId } }
             : approved;
     }
+
+    private bool MatchesProfile(ConsoleEnvironmentProfile active) =>
+        ExpectedProfile is not { } expected
+        || (active.Id == expected.Id && active.ServerBaseUri == expected.ServerBaseUri);
 
     private static async Task<bool> OffersApprovalReviewAsync(
         HttpClient http,
@@ -159,7 +167,7 @@ internal sealed class ConsoleSessionApprovalProposalsClient(
         var operators = services.GetRequiredService<IConsoleOperatorContext>();
         var profile = await services.GetRequiredService<IConsoleEnvironmentProfileStore>()
             .GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
-        if (profile is null || !operators.HasOperator)
+        if (profile is null || !MatchesProfile(profile) || !operators.HasOperator)
         {
             return null;
         }
