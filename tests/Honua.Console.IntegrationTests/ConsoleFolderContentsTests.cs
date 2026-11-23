@@ -102,7 +102,7 @@ public sealed class ConsoleFolderContentsTests
     }
 
     [Fact]
-    public async Task PagingDuringAPendingSearchKeepsTheSearch()
+    public async Task PagerWaitsForAPendingSearch()
     {
         using var context = new BunitContext();
         var source = new NavigationSource { TransportServices = 30, HoldSearch = new(TaskCreationOptions.RunContinuationsAsynchronously) };
@@ -110,11 +110,12 @@ public sealed class ConsoleFolderContentsTests
         context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
         var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
         page.Find("[data-folder-search]").Change("route-2");
-        page.Find("[aria-label='Next page']").Click();
-        page.WaitForAssertion(() => Assert.Equal(("route-2", 2), (source.Reads[^1].NameQuery, source.Reads[^1].Page)));
+        Assert.True(page.Find("[aria-label='Next page']").HasAttribute("disabled"));
+        Assert.Equal(2, source.Reads.Count);
         await page.InvokeAsync(() => source.HoldSearch!.SetResult());
-        page.WaitForAssertion(() => Assert.Contains("No services in this Folder match this search.", page.Markup));
-        Assert.Empty(page.FindAll("tbody tr"));
+        page.WaitForAssertion(() => Assert.Equal(10, page.FindAll("tbody tr").Count));
+        Assert.Equal(("route-2", 1), (source.Reads[^1].NameQuery, source.Reads[^1].Page));
+        Assert.True(page.Find("[aria-label='Next page']").HasAttribute("disabled"));
     }
 
     [Fact]

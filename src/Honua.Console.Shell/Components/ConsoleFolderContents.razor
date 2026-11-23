@@ -27,7 +27,7 @@ else
             @if (_services is { IsAllowed: true, Value: { } page })
             {
                 <ConsoleListPager Label="Folder service pages" Page="_query.Page" PageSize="FolderPageSize" Total="page.Total"
-                                  Unit="@(_serverIgnoresFolder ? "catalog services" : "services")" PageChanged="ReadPageAsync" />
+                                  Unit="@(_serverIgnoresFolder ? "catalog services" : "services")" Disabled="_busy" PageChanged="ReadPageAsync" />
             }
             <label class="console-visually-hidden" for="console-folder-search">Search services in this folder</label>
             <input id="console-folder-search" class="console-input" type="search" placeholder="Search services in this folder"
@@ -85,7 +85,6 @@ else
     private OperateSectionResult<ConsoleFolderCatalog> _folders = OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Missing, "Folders are not available.");
     private OperateSectionResult<HonuaAdminServicePage> _services = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Missing, "Services are not available.");
     private HonuaAdminCatalogQuery _query;
-    private HonuaAdminCatalogQuery _requested;
     private Folder? _folder;
     private bool _loading = true;
     private bool _busy;
@@ -128,19 +127,18 @@ else
         _loading = false;
     }
 
-    private Task ReadPageAsync(int page) => ReadAsync(_requested with { Page = page });
+    private Task ReadPageAsync(int page) => ReadAsync(_query with { Page = page });
 
     private Task SearchAsync(ChangeEventArgs args)
     {
         var search = args.Value?.ToString()?.Trim();
-        return ReadAsync(_requested with { Page = 1, NameQuery = string.IsNullOrEmpty(search) ? null : search });
+        return ReadAsync(_query with { Page = 1, NameQuery = string.IsNullOrEmpty(search) ? null : search });
     }
 
     private async Task ReadAsync(HonuaAdminCatalogQuery query)
     {
         if (_disposed) return;
         var generation = ++_readGeneration;
-        _requested = query;
         _busy = true;
         var client = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
         var result = await ConsoleReadBudget.RunAsync(token => client.ReadServicesAsync(query, token), LoadBudget, "The service catalog did not respond in time.", _lifetime.Token);
