@@ -447,7 +447,7 @@
         _pathAttempt = attempt;
         _resolvedPath = [];
         var result = await ConsoleReadBudget.RunAsync(
-            token => new ConsolePublicationPathReader(Source).ReadAsync(selection, token), ConsoleReadBudget.Default,
+            token => new ConsolePublicationPathReader(Source, _environmentLabel).ReadAsync(selection, token), ConsoleReadBudget.Default,
             "Layer ancestry could not be read.", _authorityLifetime.Token);
         if (_disposed || _pathAttempt != attempt || attempt.AuthorityRevision != _authorityRevision) return;
         _resolvedPath = result.IsAllowed ? result.Value ?? [] : [];

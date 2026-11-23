@@ -4,7 +4,7 @@ using Honua.Console.Shell.Models;
 
 namespace Honua.Console.Shell.Services;
 
-public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSource source)
+public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSource source, string environmentLabel = "Services")
 {
     public async Task<OperateSectionResult<IReadOnlyList<ConsolePublicationNode>>> ReadAsync(
         ConsolePublicationLayerSelection selection, CancellationToken cancellationToken)
@@ -15,7 +15,7 @@ public sealed class ConsolePublicationPathReader(IConsolePublicationNavigationSo
         if (services.Value.Count != 1) return Empty();
 
         var tree = new ConsolePublicationTree();
-        tree.Load(new HonuaAdminServicePage { Items = services.Value.ToArray(), Total = 1 }, "Services");
+        tree.Load(new HonuaAdminServicePage { Items = services.Value.ToArray(), Total = 1 }, environmentLabel);
         var service = ConsolePublicationTree.Descendants(tree.Root).Single(node => node.Kind == ConsolePublicationNodeKind.Service);
         service.Children = ConsolePublicationTree.LayerNodes(service,
             [ConsolePublicationLayer.Project(selection.ResourceId, selection.LayerName, selection.GeometryType)]);
