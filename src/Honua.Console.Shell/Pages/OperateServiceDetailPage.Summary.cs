@@ -1,4 +1,5 @@
 using System.Globalization;
+using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Microsoft.AspNetCore.Components;
 
@@ -20,6 +21,12 @@ public partial class OperateServiceDetailPage
 
     // Endpoints are built from the enabled protocols only; ServiceType carries a placeholder when there are none.
     private int ProtocolCount => _settings.Bound ? _settings.EnabledProtocols.Count : _service?.Endpoints.Count ?? 0;
+
+    // Without a settings read, an empty endpoint list may mean the protocols were not reported, not that there are none.
+    private bool ProtocolsReported => _settings.Bound || ProtocolCount > 0;
+
+    private string ProtocolSummary => ProtocolsReported
+        ? ConsolePublicationTreeContext.FormatCount(ProtocolCount, "protocol") : "protocols not reported";
 
     // DisplayName falls back to the description when a service has no title; never show it twice.
     private string? ServiceDescription => _service?.Description is { } description

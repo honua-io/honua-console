@@ -85,12 +85,12 @@
     private IReadOnlyList<ConsoleTab> ServiceTabs =>
     [
         new("service-layers-tab", "Layers", "service-layers-panel") { Count = _service?.LayerCount },
-        new("service-protocols-tab", "Protocols", "service-protocols-panel") { Count = ProtocolCount },
+        new("service-protocols-tab", "Protocols", "service-protocols-panel") { Count = ProtocolsReported ? ProtocolCount : null },
         new("service-access-tab", "Access", "service-access-panel"),
         new("service-limits-tab", "Limits and rendering", "service-limits-panel")
     ];
 
-    private RenderFragment ServiceSummary => @<text>Service <code>@ServicePath</code> · @ConsolePublicationTreeContext.FormatCount(_service!.LayerCount, "layer") · @ConsolePublicationTreeContext.FormatCount(ProtocolCount, "protocol")@if (AccessSummary is { } access) { <span data-service-access-summary> · @access</span> }@foreach (var connection in Connections) { <span data-service-connection> · connection <a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connection.Id)}")">@connection.Name</a></span> }</text>;
+    private RenderFragment ServiceSummary => @<text>Service <code>@ServicePath</code> · @ConsolePublicationTreeContext.FormatCount(_service!.LayerCount, "layer") · @ProtocolSummary@if (AccessSummary is { } access) { <span data-service-access-summary> · @access</span> }@foreach (var connection in Connections) { <span data-service-connection> · connection <a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connection.Id)}")">@connection.Name</a></span> }</text>;
 
     private RenderFragment LayersV4 => @<text>
         <div class="console-service-list-actions">
@@ -112,7 +112,7 @@
                     <tr>
                         <th scope="col" class="console-service-layer-type">Type</th>
                         <th scope="col">Name</th>
-                        <th scope="col">Native SRS</th>
+                        <th scope="col">SRS</th>
                         <th scope="col">Metadata</th>
                         <th scope="col">Enabled</th>
                         <th scope="col"><span class="console-visually-hidden">Preview</span></th>
