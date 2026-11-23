@@ -160,6 +160,9 @@ public sealed record OperateServiceDetail(
     public int? ReportedLayerCount { get; init; }
     public int LayerCount => ReportedLayerCount ?? Layers.Count;
     public string? PublicServiceName => FolderId is not null && string.IsNullOrWhiteSpace(FolderName) ? null : PublicName ?? Name;
+    // The path the endpoint URLs use, or null while the service's Folder name is unresolved.
+    public string? PublicPath => PublicServiceName is not { } name ? null
+        : string.IsNullOrWhiteSpace(FolderName) ? name : $"{FolderName}/{name}";
     // ServiceType lists the enabled protocols, comma separated.
     public IReadOnlyList<string> Protocols =>
         ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);

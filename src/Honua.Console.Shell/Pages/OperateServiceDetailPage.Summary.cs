@@ -11,10 +11,12 @@ public partial class OperateServiceDetailPage
     private ElementReference _protocolsPanel;
     private ElementReference _accessPanel;
     private ElementReference _limitsPanel;
+    private ElementReference _folderEditor;
+    private ElementReference _metadataEditor;
     private ElementReference? _focusPanel;
 
-    // The served path: endpoint URLs use the public name, so the path shown must too.
-    private string ServicePath => _service is null ? ServiceName : OperateServicePaths.Path(_service);
+    // The served path the endpoint URLs use; an unresolved Folder is marked rather than shown as the root.
+    private string ServicePath => _service is null ? ServiceName : _service.PublicPath ?? $"…/{_service.Name}";
 
     // Endpoints are built from the enabled protocols only; ServiceType carries a placeholder when there are none.
     private int ProtocolCount => _settings.Bound ? _settings.EnabledProtocols.Count : _service?.Endpoints.Count ?? 0;
@@ -75,6 +77,9 @@ public partial class OperateServiceDetailPage
             _ => null
         };
     }
+
+    // Same-page fragment links scroll but do not move focus in Blazor; move it to the target as well.
+    private void FocusSection(ElementReference target) => _focusPanel = target;
 
     // In-page anchors must carry the current path: a bare "#id" resolves against <base href> and leaves the page.
     private string SectionHref(string id)

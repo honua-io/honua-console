@@ -85,6 +85,8 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 Description = string.IsNullOrWhiteSpace(service.Description) ? null : service.Description.Trim(),
                 FolderMutationIssues = service.FolderMutationIssues
             };
+            // A failed layer read leaves no rows; keep the registry's count so the service is not shown as empty.
+            if (layers.Length == 0 && service.LayerCount > 0) detail = detail with { ReportedLayerCount = service.LayerCount };
             return detail with { Endpoints = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
         }
 

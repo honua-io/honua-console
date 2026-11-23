@@ -128,8 +128,34 @@ public sealed class ServiceDetailV4Tests
     private static IRenderedComponent<OperateServiceDetailPage> Render(BunitContext ctx)
     {
         var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, Emergency.Name));
-        page.WaitForAssertion(() => Assert.Contains("anonymous read", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal));
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[data-service-access-summary]")));
         return page;
+    }
+
+    [Fact]
+    public void UnreturnedLayersAndUnresolvedFolderAreNotShownAsEmptyOrRoot()
+    {
+        var unread = new OperateServiceDetail("bridges", "Bridges", "FeatureServer", "Configured", "honua-server", [], [], [])
+        { FolderId = "folder-9", ReportedLayerCount = 3 };
+        using var ctx = CreateContext(new UnsupportedServiceConfigurationOperation(), unread);
+        var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, unread.Name));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-summary]")));
+
+        Assert.Contains("Service …/bridges · 3 layers", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal);
+        Assert.Equal("This service reports 3 layers, but their details were not returned.", page.Find("[data-service-no-layers]").TextContent);
+        Assert.StartsWith("Folder name not reported", page.Find(".console-service-kv dd").TextContent.Trim(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AccessWordingFollowsRoleLimitedReadAndAnonymousWrite()
+    {
+        using var ctx = CreateContext(new BoundSettings(view => view with { AllowAnonymous = false, AllowAnonymousWrite = true }));
+        var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, Emergency.Name));
+        page.WaitForAssertion(() => Assert.NotNull(page.FindAll("[data-service-access-summary]").SingleOrDefault()));
+
+        Assert.Equal(" · read limited to roles · anonymous write", page.Find("[data-service-access-summary]").TextContent);
+        Assert.Equal("Read limited to roles · read: viewer · anonymous write · write: emd-editors",
+            page.FindAll(".console-service-kv dd")[1].TextContent.Trim());
     }
 
     private static BunitContext CreateContext(IServiceConfigurationOperation? settings = null, OperateServiceDetail? service = null)
@@ -145,12 +171,12 @@ public sealed class ServiceDetailV4Tests
         return ctx;
     }
 
-    private sealed class BoundSettings : IServiceConfigurationOperation
+    private sealed class BoundSettings(Func<ServiceSettingsView, ServiceSettingsView>? adjust = null) : IServiceConfigurationOperation
     {
         private readonly UnsupportedServiceConfigurationOperation _unsupported = new();
 
         public Task<ServiceSettingsView> GetSettingsAsync(string serviceName, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ServiceSettingsView
+            Task.FromResult((adjust ?? (view => view))(new ServiceSettingsView
             {
                 Bound = true,
                 ServiceName = serviceName,
@@ -160,7 +186,7 @@ public sealed class ServiceDetailV4Tests
                 AllowedRoles = ["viewer"],
                 AllowedWriteRoles = ["emd-editors"],
                 MapServer = new() { MaxImageWidth = 4096, MaxImageHeight = 4096, MaxFeaturesPerLayer = 10_000 }
-            });
+            }));
 
         public Task<ServiceConfigurationResult> UpdateProtocolsAsync(ServiceProtocolsCommand command, CancellationToken cancellationToken = default) =>
             _unsupported.UpdateProtocolsAsync(command, cancellationToken);

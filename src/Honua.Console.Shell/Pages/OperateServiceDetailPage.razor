@@ -98,7 +98,7 @@
         </div>
         @if (_service!.Layers.Count == 0)
         {
-            <p role="status" data-service-no-layers>@(_service.LayerCount > 0 ? $"This service reports {ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer")}, but their details were not returned." : "This service has no layers yet.")</p>
+            <p data-service-no-layers>@(_service.LayerCount > 0 ? $"This service reports {ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer")}, but their details were not returned." : "This service has no layers yet.")</p>
         }
         else
         {
@@ -170,11 +170,11 @@
             <div class="console-action-row">
                 <button type="button" class="console-button console-button-secondary" @onclick="@(() => OpenTab("service-access-tab"))" data-service-admin-access>Access</button>
                 <button type="button" class="console-button console-button-secondary" @onclick="@(() => OpenTab("service-limits-tab"))">Limits and rendering</button>
-                <a class="console-button console-button-secondary" href="@SectionHref("service-metadata-editor")">Edit metadata</a>
+                <a class="console-button console-button-secondary" href="@SectionHref("service-metadata-editor")" @onclick="() => FocusSection(_metadataEditor)">Edit metadata</a>
             </div>
             <dl class="console-service-kv">
                 <dt>Folder</dt>
-                <dd>@(_service!.FolderName ?? (_service.FolderId is null ? "No Folder" : "Folder name not reported")) · <a href="@SectionHref("service-folder-editor")">Move…</a></dd>
+                <dd>@(_service!.FolderName ?? (_service.FolderId is null ? "No Folder" : "Folder name not reported")) · <a href="@SectionHref("service-folder-editor")" @onclick="() => FocusSection(_folderEditor)">Move…</a></dd>
                 <dt>Access</dt>
                 <dd>@AccessDetail</dd>
                 <dt>Render limits</dt>
@@ -272,10 +272,10 @@
         {
             <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
         }
-        <div id="service-folder-editor" tabindex="-1">
+        <div id="service-folder-editor" tabindex="-1" @ref="_folderEditor">
             <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" />
         </div>
-        <div id="service-metadata-editor" tabindex="-1">
+        <div id="service-metadata-editor" tabindex="-1" @ref="_metadataEditor">
             <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
         </div>
     </text>;
