@@ -11,6 +11,7 @@ public sealed class ConsolePublicationNode
     public required string Key { get; init; }
     public required string Label { get; init; }
     public string? ShortLabel { get; init; }
+    public string ShortestLabel => ShortLabel ?? Label;
     public required ConsolePublicationNodeKind Kind { get; init; }
     public string? Href { get; init; }
     public string? ServiceName { get; init; }
