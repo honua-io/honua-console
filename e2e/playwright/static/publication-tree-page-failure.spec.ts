@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { fileURLToPath } from 'node:url';
+import { startStaticBundleServer } from '../static-bundle-server.mjs';
+import { createContractApi } from '../static-contract-server.mjs';
 import { signInWithFixturePassword } from './fixture-sign-in';
-import { startReflowFixture } from './reflow-fixture';
 
 const total = 250;
 
@@ -13,20 +16,29 @@ function servicePage(page: number, pageSize: number) {
 }
 
 test('v4 tree keeps loaded services when a later service page fails, and retries the rest', async ({ page }, testInfo) => {
-  const fixture = await startReflowFixture(page, { v4Enabled: true });
   let failSecondPage = true;
-  await page.route(url => url.pathname === '/api/v1/admin/services', async route => {
-    const query = new URL(route.request().url()).searchParams;
-    const pageNumber = Number(query.get('page') ?? '1');
-    if (pageNumber === 2 && failSecondPage) {
-      await route.fulfill({ status: 503, json: { success: false, message: 'Service page unavailable.' } });
-      return;
-    }
-    await route.fulfill({ json: servicePage(pageNumber, Number(query.get('pageSize') ?? '100')) });
-  });
+  let contract: (request: IncomingMessage, response: ServerResponse) => Promise<void>;
+  const handleApi = async (request: IncomingMessage, response: ServerResponse) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (url.pathname !== '/api/v1/admin/services' || request.method !== 'GET') return contract(request, response);
+    const pageNumber = Number(url.searchParams.get('page') ?? '1');
+    const failed = pageNumber === 2 && failSecondPage;
+    const body = failed ? { success: false, message: 'Service page unavailable.' }
+      : servicePage(pageNumber, Number(url.searchParams.get('pageSize') ?? '100'));
+    response.writeHead(failed ? 503 : 200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify(body));
+  };
+  const server = await startStaticBundleServer(
+    fileURLToPath(new URL('../../../artifacts/static-publish/wwwroot/console', import.meta.url)), 0,
+    { configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: true }, handleApi },
+  );
+  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  contract = createContractApi({ allowedOrigin: origin });
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   try {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await signInWithFixturePassword(page, fixture.origin, '/operate/services');
+    await signInWithFixturePassword(page, origin, '/operate/services');
     const tree = page.locator('[data-publication-tree]');
     const retry = page.locator('[data-tree-page-retry]');
     await expect(retry).toBeVisible();
@@ -42,9 +54,9 @@ test('v4 tree keeps loaded services when a later service page fails, and retries
     await expect(page.locator('.console-tree-foot')).toContainText('250 services');
     await expect(page.locator('.console-tree-foot')).not.toContainText('100 of');
     await expect(retry).toHaveCount(0);
-    expect(fixture.errors).toEqual([]);
+    expect(errors).toEqual([]);
   } finally {
     await page.close();
-    await fixture.close();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
