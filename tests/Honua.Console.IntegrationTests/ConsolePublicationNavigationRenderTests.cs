@@ -206,9 +206,11 @@ public sealed class ConsolePublicationNavigationRenderTests
         };
         using var context = PublicationLayoutContext(source);
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleEnvironmentProfileStore>(new InMemoryConsoleEnvironmentProfileStore(
+            [new() { Id = "production", DisplayName = "Production" }], activeProfileId: "production"));
         context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/studio/styles");
         var layout = RenderLayerLayout(context);
-        layout.WaitForAssertion(() => Assert.NotNull(layout.Find("[data-crumb-environment]")));
+        layout.WaitForAssertion(() => Assert.Equal("Production", layout.Find("[data-crumb-environment]").TextContent));
         Assert.Equal("/", layout.Find("[data-crumb-environment]").GetAttribute("href"));
         Assert.Equal("Styles", layout.Find("nav[aria-label='Breadcrumb'] summary").TextContent);
     }

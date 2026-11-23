@@ -153,8 +153,6 @@
             ancestors = _tree.PathTo(contextPath);
             if (ancestors.Count == 0 && _pathAttempt == new PathAttempt(contextPath, _authorityRevision, LayerContext?.Revision ?? 0))
                 ancestors = _resolvedPath;
-            // Pages outside the tree still sit in this environment; the breadcrumb starts with it.
-            if (ancestors.Count == 0) ancestors = [_tree.Root];
         }
         if (_reportedPath is not null && _reportedPath.SequenceEqual(ancestors)) return;
         _reportedPath = ancestors;
