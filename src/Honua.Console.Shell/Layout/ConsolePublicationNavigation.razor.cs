@@ -1,3 +1,4 @@
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
@@ -7,11 +8,11 @@ namespace Honua.Console.Shell.Layout;
 // v4 navigation: the whole catalog is loaded so every Folder shows its count, and a search also reads layers.
 public partial class ConsolePublicationNavigation
 {
-    private async Task CompleteV4CatalogAsync(string? nameQuery, int filterRevision)
+    private async Task CompleteV4CatalogAsync(string? nameQuery, int searchRevision)
     {
         if (!V4Enabled) return;
         if (nameQuery is null) await LoadRemainingServicesAsync();
-        else await SearchLayersAsync(nameQuery, filterRevision);
+        else await SearchLayersAsync(nameQuery, searchRevision);
     }
 
     private async Task LoadRemainingServicesAsync()
@@ -38,11 +39,11 @@ public partial class ConsolePublicationNavigation
         _connectionsRead ??= ConsoleReadBudget.RunAsync(Source.ReadConnectionsAsync, ConsoleReadBudget.Default,
             "Connections could not be read.", token);
 
-    private async Task SearchLayersAsync(string nameQuery, int filterRevision)
+    private async Task SearchLayersAsync(string nameQuery, int searchRevision)
     {
         var revision = _authorityRevision;
-        var token = _authorityLifetime.Token;
-        bool Stale() => _disposed || revision != _authorityRevision || filterRevision != _filterRevision;
+        var token = _searchLifetime.Token;
+        bool Stale() => _disposed || revision != _authorityRevision || searchRevision != _searchRevision;
         var connections = await ConnectionsAsync(token);
         if (Stale()) return;
         if (!connections.IsAllowed) _connectionsRead = null;
@@ -57,16 +58,84 @@ public partial class ConsolePublicationNavigation
 
     private async Task OpenSearchResultAsync(ConsoleSearchTarget target)
     {
-        var cleared = FilterChanged(new ChangeEventArgs { Value = "" });
-        var filterRevision = _filterRevision;
-        await cleared;
-        if (_disposed || filterRevision != _filterRevision) return;
-        var service = target.ServiceName is null ? null : ConsolePublicationTree.Descendants(_tree.Root).FirstOrDefault(node =>
-            node.Kind == ConsolePublicationNodeKind.Service && string.Equals(node.ServiceName, target.ServiceName, StringComparison.OrdinalIgnoreCase));
+        var clearing = FilterChanged(new ChangeEventArgs { Value = "" });
+        var searchRevision = _searchRevision;
+        bool Stale() => _disposed || searchRevision != _searchRevision;
+        await UnfilteredTargetReadyAsync(target, clearing, Stale);
+        if (Stale()) return;
+        var service = FindService(target.ServiceName);
         if (service is not null) await ExpandAsync(service);
-        if (_disposed || filterRevision != _filterRevision) return;
+        if (Stale()) return;
         var revealed = _tree.PathTo(target.Href).Count > 0 ? target.Href : service?.Href ?? target.Href;
         _tree.RevealPath(revealed);
         await InvokeAsync(StateHasChanged);
+    }
+
+    // Waits until the result exists in the unfiltered catalog, so a large catalog does not delay the reveal.
+    private async Task UnfilteredTargetReadyAsync(ConsoleSearchTarget target, Task clearing, Func<bool> stale)
+    {
+        while (!stale() && !clearing.IsCompleted)
+        {
+            var applied = _catalogApplied.Task;
+            if (HoldsUnfilteredCatalog && (FindService(target.ServiceName) is not null || _tree.PathTo(target.Href).Count > 0)) return;
+            await Task.WhenAny(clearing, applied);
+        }
+    }
+
+    private ConsolePublicationNode? FindService(string? serviceName) => serviceName is null ? null
+        : ConsolePublicationTree.Descendants(_tree.Root).FirstOrDefault(node =>
+            node.Kind == ConsolePublicationNodeKind.Service && string.Equals(node.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase));
+
+    private bool HoldsUnfilteredCatalog => _settled is { Query.NameQuery: null } && _inflight is not { Apply: CatalogApply.Replace }
+        && string.IsNullOrWhiteSpace(_tree.Filter);
+
+    private TaskCompletionSource _catalogApplied = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private void SignalCatalogApplied()
+    {
+        var applied = _catalogApplied;
+        _catalogApplied = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        applied.TrySetResult();
+    }
+
+    private int _searchRevision;
+    private CancellationTokenSource _searchLifetime = new();
+
+    private int RestartSearch()
+    {
+        _searchLifetime.Cancel();
+        _searchLifetime.Dispose();
+        _searchLifetime = CancellationTokenSource.CreateLinkedTokenSource(_authorityLifetime.Token);
+        _layerSearch = null;
+        return ++_searchRevision;
+    }
+
+    private CancellationToken CatalogToken(HonuaAdminCatalogQuery query) =>
+        query.NameQuery is null ? _authorityLifetime.Token : _searchLifetime.Token;
+
+    // A complete unfiltered catalog is searched in place: no catalog read, and clearing restores the tree as it was.
+    private bool SearchesLoadedCatalog => V4Enabled && !_loading && _inflight is null && !_tree.HasUnloadedServices
+        && _servicesRead is { IsAllowed: true } && _settled is { Query.NameQuery: null } settled
+        && settled.AuthorityRevision == _authorityRevision;
+
+    private async Task SearchLoadedCatalogAsync(string filter, int searchRevision)
+    {
+        _tree.SetFilter(filter);
+        if (string.IsNullOrWhiteSpace(filter)) RevealCurrentLocationIfMatching();
+        await InvokeAsync(StateHasChanged);
+        if (!string.IsNullOrWhiteSpace(filter) && !FilterTooLong) await SearchLayersAsync(filter.Trim(), searchRevision);
+    }
+
+    private OperateSectionResult<HonuaAdminServicePage>? _pageFailure;
+
+    private string? PageFailure => _pageFailure is null ? null : _pageFailure.Message ?? "Some services could not be read.";
+
+    // Under v4 a later service page that fails leaves the services already shown in place; the footer offers the retry.
+    private bool KeepsTreeOnFailure(CatalogAttempt attempt, OperateSectionResult<HonuaAdminServicePage> result)
+    {
+        if (!V4Enabled || attempt.Apply != CatalogApply.Append || result is { IsAllowed: true, Value: not null }) return false;
+        _failed = attempt;
+        _pageFailure = result;
+        return true;
     }
 }

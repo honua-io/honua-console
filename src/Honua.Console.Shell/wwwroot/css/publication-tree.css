@@ -99,6 +99,7 @@
 [data-console-v4="true"] .console-tree-live { display: inline-flex; align-items: center; gap: 6px; }
 [data-console-v4="true"] .console-tree-live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c-neutral); }
 [data-console-v4="true"] .console-tree-live[data-live="true"]::before { background: var(--c-ok); }
+[data-console-v4="true"] .console-tree-live[data-live="partial"]::before { background: var(--c-warn); }
 [data-console-v4="true"] .console-tree-foot-action { padding: 0; border: 0; background: none; color: var(--c-link); font: inherit; cursor: pointer; }
 [data-console-v4="true"] .console-tree-foot-action:last-child { margin-inline-start: auto; }
 [data-console-v4="true"] .console-tree-refresh { display: inline-grid; place-items: center; }
