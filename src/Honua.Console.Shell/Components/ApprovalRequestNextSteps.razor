@@ -20,6 +20,7 @@
     public ConsoleProposalSummary Proposal { get; set; } = default!;
 
     private string AuditMessage => Proposal.Source == ConsoleProposalSource.DevOps
+        || DualConsoleProposalsClient.IsManagerProposal(Proposal.ProposalId)
         ? "The Manager records the approval decision."
         : "The serving server records the approval decision in Activity.";
 

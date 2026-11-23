@@ -117,6 +117,31 @@ public sealed class ProposalApprovalPanelReceiptTests
     }
 
     [Fact]
+    public async Task ARefreshStartedBeforeApprovalCannotReplaceTheDecision()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1"));
+        var receipts = new ReceiptProposalClient();
+        var pendingDetail = await receipts.GetAsync("proposal-1");
+        var refresh = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+
+        client.NextRead = refresh.Task;
+        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+        var approval = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        client.Completion.SetResult(await receipts.ApproveAsync("proposal-1"));
+        await approval;
+
+        await panel.InvokeAsync(() => refresh.SetResult(pendingDetail));
+
+        Assert.Empty(panel.FindAll("[data-proposal-approve]"));
+        Assert.Single(panel.FindAll("[data-proposal-action-message]"));
+    }
+
+    [Fact]
     public async Task FailedDecisionRetainsReasonAndClearsPendingCount()
     {
         using var context = new BunitContext();
@@ -328,6 +353,7 @@ public sealed class ProposalApprovalPanelReceiptTests
     private sealed class PendingProposalClient : IConsoleProposalsClient
     {
         private readonly ReceiptProposalClient _inner = new();
+        public Task<OperateSectionResult<ConsoleProposalDetail>>? NextRead { get; set; }
         public bool Started { get; private set; }
         public TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<OperateSectionResult<ConsoleProposalDetail>> ApproveAsync(string proposalId, CancellationToken cancellationToken = default)
@@ -335,7 +361,7 @@ public sealed class ProposalApprovalPanelReceiptTests
             Started = true;
             return Completion.Task;
         }
-        public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(string proposalId, CancellationToken cancellationToken = default) => _inner.GetAsync(proposalId, cancellationToken);
+        public Task<OperateSectionResult<ConsoleProposalDetail>> GetAsync(string proposalId, CancellationToken cancellationToken = default) => NextRead ?? _inner.GetAsync(proposalId, cancellationToken);
         public Task<OperateSectionResult<ConsoleProposalDetail>> RejectAsync(string proposalId, string reason, CancellationToken cancellationToken = default) => _inner.RejectAsync(proposalId, reason, cancellationToken);
         public Task<OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>> ListAsync(string? status = null, string? kind = null, string? requestedBy = null, CancellationToken cancellationToken = default) => _inner.ListAsync(status, kind, requestedBy, cancellationToken);
     }

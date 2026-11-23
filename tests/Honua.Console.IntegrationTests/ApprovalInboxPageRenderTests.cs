@@ -318,7 +318,10 @@ public sealed partial class ApprovalInboxPageRenderTests
     public void DeepLink_SelectsManagerFallbackOnlyWhenNoExactMatch(string queryId, bool hasServing, string expectedId)
     {
         var managerSummary = FakeProposalFactory.Summary("manager:op-1", ConsoleProposalKind.Deploy);
-        var managerDetail = FakeProposalFactory.Detail("manager:op-1", ConsoleProposalKind.Deploy);
+        var managerDetail = FakeProposalFactory.Detail("manager:op-1", ConsoleProposalKind.Deploy) with
+        {
+            Source = ConsoleProposalSource.Server,
+        };
         var proposals = new FakeConsoleProposalsClient(
             proposals: hasServing ? [managerSummary, FakeProposalFactory.Summary("op-1", ConsoleProposalKind.Deploy)] : [managerSummary],
             details: hasServing ? [managerDetail, FakeProposalFactory.Detail("op-1", ConsoleProposalKind.Deploy)] : [managerDetail]);
@@ -333,6 +336,8 @@ public sealed partial class ApprovalInboxPageRenderTests
         var page = ctx.Render<ApprovalInboxPage>();
         page.WaitForAssertion(() => page.Find("[data-proposal-approve]"), TimeSpan.FromSeconds(5));
         Assert.Equal(expectedId, Assert.Single(registry.Current.Entities).Id);
+        var auditRecorder = expectedId.StartsWith("manager:", StringComparison.Ordinal) ? "The Manager records" : "The serving server records";
+        Assert.Contains(auditRecorder, page.Find(LinkedNext).TextContent, StringComparison.Ordinal);
         page.Find("[data-proposal-approve]").Click();
         page.WaitForAssertion(() => Assert.Equal(expectedId, Assert.Single(proposals.Approved)), TimeSpan.FromSeconds(5));
     }

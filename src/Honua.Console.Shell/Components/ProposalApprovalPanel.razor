@@ -400,6 +400,7 @@ else
 
     private string? _loadedProposalId;
     private int _loadedReloadToken = -1;
+    private long _loadVersion;
 
     protected override void OnInitialized()
     {
@@ -448,16 +449,28 @@ else
 
     private async Task LoadAsync()
     {
+        var version = ++_loadVersion;
         var result = await Proposals.GetAsync(ProposalId);
-        if (_disposed) return;
+        if (!IsCurrentLoad(version))
+        {
+            return;
+        }
         Apply(result);
-        await LoadAutonomyRulePolicyAsync();
-        if (_disposed) return;
+        await LoadAutonomyRulePolicyAsync(version);
+        if (!IsCurrentLoad(version))
+        {
+            return;
+        }
         await ReportUnsavedAsync();
-        await OnDetailLoaded.InvokeAsync(_detail);
+        if (IsCurrentLoad(version))
+        {
+            await OnDetailLoaded.InvokeAsync(_detail);
+        }
     }
 
-    private async Task LoadAutonomyRulePolicyAsync()
+    private bool IsCurrentLoad(long version) => !_disposed && version == _loadVersion;
+
+    private async Task LoadAutonomyRulePolicyAsync(long version)
     {
         if (_autonomyClient is null || string.IsNullOrWhiteSpace(_detail?.AutonomyRule))
         {
@@ -465,7 +478,10 @@ else
         }
 
         var snapshot = await _autonomyClient.LoadAsync();
-        if (_disposed) return;
+        if (!IsCurrentLoad(version))
+        {
+            return;
+        }
 
         if (snapshot.Status == OperateSectionStatus.Unsupported)
         {
@@ -493,16 +509,18 @@ else
 
     private async Task ApproveAsync()
     {
+        var proposalId = ProposalId;
+        var reviewedPlan = ConsoleProposalReviewedPlan.From(_detail);
         var promoteAfterApproval = _promoteRuleOnApprove && ShowAutonomyPolicyControl(_detail!);
         var rule = _detail?.AutonomyRule;
         var enteredReason = _reason;
         var approved = await RunActionAsync(
-            () => Proposals.ApproveAsync(ProposalId, ConsoleProposalReviewedPlan.From(_detail)),
+            () => Proposals.ApproveAsync(proposalId, reviewedPlan),
             feedback: ConsoleProposalDecisionFeedback.ForApproval);
         if (approved && promoteAfterApproval && !string.IsNullOrWhiteSpace(rule))
         {
             var reason = string.IsNullOrWhiteSpace(enteredReason)
-                ? $"Promoted to AutoApply from approval inbox proposal {ProposalId}"
+                ? $"Promoted to AutoApply from approval inbox proposal {proposalId}"
                 : enteredReason.Trim();
             await ApplyPolicyModeAsync(rule, "AutoApply", reason);
         }
@@ -510,15 +528,17 @@ else
 
     private Task RejectAsync()
     {
-        if (string.IsNullOrWhiteSpace(_reason))
+        var reason = _reason;
+        if (string.IsNullOrWhiteSpace(reason))
         {
             _actionMessage = "A rejection reason is required.";
             _actionMessageClass = "console-state-warning";
             return Task.CompletedTask;
         }
 
+        var proposalId = ProposalId;
         return RunActionAsync(
-            () => Proposals.RejectAsync(ProposalId, _reason!),
+            () => Proposals.RejectAsync(proposalId, reason),
             feedback: _ => new("Rejected — recorded with your reason.", "console-state-success"));
     }
 
@@ -608,14 +628,21 @@ else
         }
 
         _busy = true;
+        var proposalId = ProposalId;
         _actionMessage = null;
         _actionDetail = null;
         await ReportUnsavedAsync();
         try
         {
             var result = await action();
+            if (!string.Equals(proposalId, ProposalId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
             if (result.IsAllowed && result.Value is not null)
             {
+                _loadVersion++;
                 Apply(result);
                 _reason = null;
                 await ReportUnsavedAsync();
