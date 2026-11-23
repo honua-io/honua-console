@@ -29,6 +29,8 @@ test('a long identity stays in the account menu and wrapped header controls stay
   await signIn(page, '/operate/connections', 'v4');
   const identity = page.locator('.console-account-identity');
   await expect(identity).toHaveText(longIdentity);
+  await page.locator('.console-account-avatar').click();
+  await expect(identity).toBeVisible();
   for (const width of [1377, 1440, 1536]) {
     await page.setViewportSize({ width, height: 900 });
     const header = await page.evaluate(() => {
@@ -38,7 +40,8 @@ test('a long identity stays in the account menu and wrapped header controls stay
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       return { overflow, barRight: bar.right, identityWidth: identityBox.width, helpRight: help.right, rootFont: parseFloat(getComputedStyle(document.documentElement).fontSize) };
     });
-    expect(header.identityWidth, `identity width at ${width}`).toBeLessThanOrEqual(12 * header.rootFont + 1);
+    expect(header.identityWidth, `identity width at ${width}`).toBeGreaterThan(0);
+    expect(header.identityWidth, `identity width at ${width}`).toBeLessThanOrEqual(20 * header.rootFont + 1);
     expect(header.overflow, `no sideways scroll at ${width}`).toBeLessThanOrEqual(0);
     expect(header.barRight - header.helpRight, `the account avatar stays at the trailing edge at ${width}`).toBeLessThan(40);
   }

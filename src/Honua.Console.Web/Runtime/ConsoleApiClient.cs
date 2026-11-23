@@ -67,7 +67,7 @@ public sealed class ConsoleApiClient(HttpClient http)
         return ProviderLogoutUrl(await response.Content.ReadAsStringAsync(cancellationToken));
     }
 
-    // The identity provider's end-session URL; only an absolute HTTPS address may take the whole window.
+    // The identity provider's end-session URL may take the whole window only when it is a valid provider address.
     internal static Uri? ProviderLogoutUrl(string body)
     {
         try
@@ -76,14 +76,18 @@ public sealed class ConsoleApiClient(HttpClient http)
             return document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("logoutUrl", out var value)
                 && value.ValueKind == JsonValueKind.String
-                && Uri.TryCreate(value.GetString(), UriKind.Absolute, out var url)
-                && url.Scheme == Uri.UriSchemeHttps ? url : null;
+                && TryProviderAddress(value.GetString(), out var url) ? url : null;
         }
         catch (JsonException)
         {
             return null;
         }
     }
+
+    // Absolute, without user info, and HTTPS (or HTTP on loopback for a local identity provider).
+    private static bool TryProviderAddress(string? value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Uri? uri) =>
+        Uri.TryCreate(value, UriKind.Absolute, out uri) && uri.UserInfo.Length == 0
+        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback));
 
     public async Task<ConsoleSessionCredentials> GetPasswordTokenAsync(string password, CancellationToken cancellationToken = default)
     {
@@ -125,8 +129,7 @@ public sealed class ConsoleApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var value = document?.RootElement.GetProperty("authorizeUrl").GetString();
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.UserInfo.Length != 0
-            || (uri.Scheme != Uri.UriSchemeHttps && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
+        if (!TryProviderAddress(value, out var uri))
         {
             throw new JsonException("Invalid identity provider authorization address.");
         }

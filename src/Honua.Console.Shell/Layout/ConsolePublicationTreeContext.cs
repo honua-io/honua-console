@@ -25,7 +25,6 @@ public sealed class ConsolePublicationTreeContext
     public EventCallback ShowMoreSearch { get; init; }
     public OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>? LayerSearch { get; init; }
     public EventCallback<ConsoleSearchTarget> OpenSearchResult { get; init; }
-    public EventCallback CollapseAll { get; init; }
 
     public IEnumerable<ConsolePublicationNode> PagedParents => Tree.VisibleNodes()
         .Where(node => node.Expanded && (node.VisibleOffset > 0 || Tree.HasHiddenLoadedChildren(node) || OffersMoreServices(node)));

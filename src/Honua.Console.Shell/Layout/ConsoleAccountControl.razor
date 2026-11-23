@@ -12,22 +12,20 @@
                     <span class="console-account-identity" title="@identity">@identity</span>
                     <button type="button" class="@(V4Enabled ? "console-button console-button-secondary" : "console-button")" data-console-signout disabled="@_signingOut"
                             @onclick="() => SignOutAsync(authentication)">@(_signingOut ? "Signing out…" : "Sign out")</button>
-                    @if (_error is not null)
-                    {
-                        <span role="alert">@_error</span>
-                    }
                 </text>;
+                RenderFragment error = @<text>@if (_error is not null) { <span class="console-account-error" role="alert">@_error</span> }</text>;
             }
             @if (V4Enabled)
             {
-                <details class="console-account-menu" data-navigation-menu="Account" open="@(_error is not null)">
+                <details class="console-account-menu" data-navigation-menu="Account">
                     <summary class="console-account-avatar" aria-label="Account: @identity" title="@identity">@Initials(identity)</summary>
                     <div class="console-account-items" role="group" aria-label="Account">@actions</div>
                 </details>
+                @error
             }
             else
             {
-                <div class="console-account-control">@actions</div>
+                <div class="console-account-control">@actions @error</div>
             }
         </Authorized>
         <NotAuthorized>

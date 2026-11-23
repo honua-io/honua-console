@@ -86,7 +86,7 @@
     </section>
     @if (!View.SearchPending)
     {
-        <p class="console-search-summary" role="status">@(folders.Count + services.Count + layers.Count) matches in @View.Tree.Root.Label · ↑↓ move · Enter open · Esc back to tree</p>
+        <p class="console-search-summary" role="status">@(FolderMatchCount + View.Tree.SearchMatchCount + layers.Count) matches in @View.Tree.Root.Label · ↑↓ move · Enter open · Esc back to tree</p>
     }
 </div>
 

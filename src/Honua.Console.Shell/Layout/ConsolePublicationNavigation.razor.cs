@@ -57,9 +57,10 @@ public partial class ConsolePublicationNavigation
 
     private async Task OpenSearchResultAsync(ConsoleSearchTarget target)
     {
-        await FilterChanged(new ChangeEventArgs { Value = "" });
+        var cleared = FilterChanged(new ChangeEventArgs { Value = "" });
         var filterRevision = _filterRevision;
-        if (_disposed) return;
+        await cleared;
+        if (_disposed || filterRevision != _filterRevision) return;
         var service = target.ServiceName is null ? null : ConsolePublicationTree.Descendants(_tree.Root).FirstOrDefault(node =>
             node.Kind == ConsolePublicationNodeKind.Service && string.Equals(node.ServiceName, target.ServiceName, StringComparison.OrdinalIgnoreCase));
         if (service is not null) await ExpandAsync(service);

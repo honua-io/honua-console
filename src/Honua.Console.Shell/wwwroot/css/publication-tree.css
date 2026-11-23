@@ -76,7 +76,7 @@
 }
 
 
-/* v4 sidebar: search, folder/service/layer tree and footer from mockups 01, 06 and 07. */
+/* v4 sidebar: scoped search, folder/service/layer tree and footer. */
 [data-console-v4="true"] .console-tree-search { position: relative; display: block; padding: var(--space-3); border-bottom: 1px solid var(--c-border); }
 [data-console-v4="true"] .console-tree-search > .console-tree-icon { position: absolute; left: 22px; top: 21px; width: 16px; height: 16px; color: var(--c-side-muted); pointer-events: none; }
 [data-console-v4="true"] .console-tree-search input { min-height: 34px; padding-inline-start: 32px; background: var(--c-surface); font-size: var(--text-sm); }

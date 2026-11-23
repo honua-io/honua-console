@@ -56,15 +56,9 @@
             </div>
             @if (V4Enabled)
             {
-                <div class="console-tree-foot">
-                    <span class="console-tree-live" data-live="@(_servicesRead is { IsAllowed: true } ? "true" : "false")">@(_loading ? "Loading" : _servicesRead is { IsAllowed: true } ? "Live" : "Unavailable")</span>
-                    <span>@ConsolePublicationTreeContext.FormatCount(_tree.ServiceCount, "service")</span>
-                    @if (Source is not UnsupportedConsolePublicationNavigationSource)
-                    {
-                        <button type="button" class="console-tree-foot-action console-tree-refresh" title="Refresh services" aria-disabled="@(_loading ? "true" : "false")" @onclick="RefreshAsync"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg><span class="console-visually-hidden">Refresh services</span></button>
-                    }
-                    <button type="button" class="console-tree-foot-action" data-tree-collapse-all @onclick="TreeContext.CollapseAll">Collapse all</button>
-                </div>
+                <ConsolePublicationTreeFooter Loading="_loading" Live="@(_servicesRead is { IsAllowed: true })" ServiceCount="_tree.ServiceCount"
+                                              CanRefresh="@(Source is not UnsupportedConsolePublicationNavigationSource)"
+                                              Refresh="RefreshAsync" CollapseAll="CollapseAll" />
             }
         </section>
     </div>
@@ -126,8 +120,7 @@
         ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore),
         ShowMoreSearch = EventCallback.Factory.Create(this, ShowMoreSearchAsync),
         LayerSearch = _layerSearch,
-        OpenSearchResult = EventCallback.Factory.Create<ConsoleSearchTarget>(this, OpenSearchResultAsync),
-        CollapseAll = EventCallback.Factory.Create(this, CollapseAll)
+        OpenSearchResult = EventCallback.Factory.Create<ConsoleSearchTarget>(this, OpenSearchResultAsync)
     };
     private ConsolePublicationNavigationReadState ReadState => new()
     {

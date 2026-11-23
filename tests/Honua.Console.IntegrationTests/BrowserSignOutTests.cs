@@ -36,8 +36,10 @@ public sealed class BrowserSignOutTests
     [InlineData("""{"logoutUrl":"https://idp.example/logout?client_id=console"}""", "https://idp.example/logout?client_id=console")]
     [InlineData("""{"logoutUrl":null}""", null)]
     [InlineData("""{"logoutUrl":"http://idp.example/logout"}""", null)]
+    [InlineData("""{"logoutUrl":"https://user:secret@idp.example/logout"}""", null)]
+    [InlineData("""{"logoutUrl":"http://localhost:8080/realms/dev/logout"}""", "http://localhost:8080/realms/dev/logout")]
     [InlineData("", null)]
-    public async Task SignOutLeavesForTheProviderLogoutOnlyWhenItIsHttps(string body, string? providerLogout)
+    public async Task SignOutLeavesOnlyForAValidProviderLogoutAddress(string body, string? providerLogout)
     {
         using var fixture = new Fixture();
         fixture.Handler.LogoutBody = body;
