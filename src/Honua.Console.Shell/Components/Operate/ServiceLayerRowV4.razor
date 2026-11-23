@@ -1,0 +1,20 @@
+@inject NavigationManager Navigation
+
+<tr data-layer-id="@Layer.LayerId">
+    <td class="console-service-layer-type" title="@Layer.Geometry"><ConsoleTreeIcon Name="@ConsoleTreeIcon.ForGeometry(Layer.Geometry)" /><span class="console-visually-hidden">@Layer.Geometry</span></td>
+    <th scope="row">
+        <a href="@LayerHref">@Layer.Name</a>
+        <code class="console-service-layer-path">@($"{ServicePath}/{Layer.Name}")</code>
+    </th>
+    <td>@(Layer.Srid is { } srid ? $"EPSG:{srid}" : "—")</td>
+    <td><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(Layer.CanonicalResourceId)}")">@Layer.CanonicalResourceName</a></td>
+    <td>@(Layer.Enabled ? "Enabled" : "Disabled")</td>
+    <td><a href="@LayerHref" aria-label="@($"Preview {Layer.Name}")">Preview</a></td>
+</tr>
+
+@code {
+    [Parameter, EditorRequired] public OperateServiceLayer Layer { get; set; } = default!;
+    [Parameter, EditorRequired] public string ServicePath { get; set; } = string.Empty;
+
+    private string LayerHref => Navigation.ToConsoleHref(ConsolePublicationTree.LayerHref(Layer.CanonicalResourceId));
+}

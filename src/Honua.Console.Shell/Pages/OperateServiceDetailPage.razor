@@ -36,8 +36,8 @@
                 </div>
                 <ConsoleTabs Tabs="ServiceTabs" Label="Service settings" @bind-SelectedId="_selectedTab" />
                 <section id="service-layers-panel" role="tabpanel" aria-labelledby="service-layers-tab" hidden="@(_selectedTab != "service-layers-tab")" tabindex="0">
-                    @LayersV4
-                    @WebServices
+                    <ServiceLayerTableV4 Service="_service" ServicePath="@ServicePath" />
+                    <ServiceWebServicesV4 Service="_service" ChangeProtocols="@(() => OpenTab("service-protocols-tab"))" />
                 </section>
                 <section id="service-protocols-panel" @ref="_protocolsPanel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
                     @Endpoints
@@ -92,82 +92,7 @@
 
     private RenderFragment ServiceSummary => @<text>Service <code>@ServicePath</code> · @ConsolePublicationTreeContext.FormatCount(_service!.LayerCount, "layer") · @ProtocolSummary@if (AccessSummary is { } access) { <span data-service-access-summary> · @access</span> }@foreach (var connection in Connections) { <span data-service-connection> · connection <a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connection.Id)}")">@connection.Name</a></span> }</text>;
 
-    private RenderFragment LayersV4 => @<text>
-        <div class="console-service-list-actions">
-            <a class="console-button console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing/quick")" data-service-add-layer>Add a layer</a>
-        </div>
-        @if (_service!.Layers.Count == 0)
-        {
-            <p data-service-no-layers>@(_service.LayerCount > 0 ? $"This service reports {ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer")}, but their details were not returned." : "This service has no layers yet.")</p>
-        }
-        else
-        {
-        @if (_service.LayerCount > _service.Layers.Count)
-        {
-            <p data-service-partial-layers>Showing @_service.Layers.Count of @ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer"); the others were not returned.</p>
-        }
-        <ConsoleTableRegion Class="console-table-wrap" Label="@($"Layers in {_service!.Name}")">
-            <table class="console-table console-service-layer-table">
-                <thead>
-                    <tr>
-                        <th scope="col" class="console-service-layer-type">Type</th>
-                        <th scope="col">Name</th>
-                        <th scope="col">SRS</th>
-                        <th scope="col">Metadata</th>
-                        <th scope="col">Enabled</th>
-                        <th scope="col"><span class="console-visually-hidden">Preview</span></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var layer in _service!.Layers)
-                    {
-                        var layerHref = Navigation.ToConsoleHref(ConsolePublicationTree.LayerHref(layer.CanonicalResourceId));
-                        <tr data-layer-id="@layer.LayerId">
-                            <td class="console-service-layer-type" title="@layer.Geometry"><ConsoleTreeIcon Name="@ConsoleTreeIcon.ForGeometry(layer.Geometry)" /><span class="console-visually-hidden">@layer.Geometry</span></td>
-                            <th scope="row">
-                                <a href="@layerHref">@layer.Name</a>
-                                <code class="console-service-layer-path">@($"{ServicePath}/{layer.Name}")</code>
-                            </th>
-                            <td>@(layer.Srid is { } srid ? $"EPSG:{srid}" : "—")</td>
-                            <td><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(layer.CanonicalResourceId)}")">@layer.CanonicalResourceName</a></td>
-                            <td>@(layer.Enabled ? "Enabled" : "Disabled")</td>
-                            <td><a href="@layerHref" aria-label="@($"Preview {layer.Name}")">Preview</a></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </ConsoleTableRegion>
-        }
-    </text>;
 
-    private RenderFragment WebServices => @<text>
-        <section class="console-service-web-services" aria-labelledby="service-web-services-heading" data-service-web-services>
-            <h2 id="service-web-services-heading">Web services for this service</h2>
-            <p>Enabled on <code>@_service!.Name</code>. Changing a protocol here affects all @ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer"). <button type="button" class="console-link-button" @onclick="@(() => OpenTab("service-protocols-tab"))">Change protocols</button></p>
-            @if (_service.Endpoints.Count == 0)
-            {
-                <p>No protocol endpoints were reported for this service.</p>
-            }
-            else
-            {
-                <ul class="console-service-web-service-list">
-                    @foreach (var endpoint in _service.Endpoints)
-                    {
-                        <li>
-                            @if (endpoint.Url is { } url)
-                            {
-                                <a class="console-service-web-service" href="@url" target="_blank" rel="noopener"><span>@endpoint.Name</span><small>@url</small></a>
-                            }
-                            else
-                            {
-                                <span class="console-service-web-service"><span>@endpoint.Name</span><small>@endpoint.Status</small></span>
-                            }
-                        </li>
-                    }
-                </ul>
-            }
-        </section>
-    </text>;
 
     private RenderFragment AdministrationV4 => @<text>
         <ConsolePanel Title="Administration" HeadingId="service-administration-heading" Class="console-service-administration">

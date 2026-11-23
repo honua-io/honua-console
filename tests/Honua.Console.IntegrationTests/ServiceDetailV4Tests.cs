@@ -101,7 +101,7 @@ public sealed class ServiceDetailV4Tests
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-summary]")));
 
         Assert.Contains("Service transport/roads-public · 0 layers · protocols not reported", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal);
-        Assert.Equal("This service has no layers yet.", page.Find("[data-service-no-layers]").TextContent);
+        Assert.Equal("This service has no layers yet.", page.Find("[data-service-layer-status]").TextContent);
         Assert.Empty(page.FindAll(".console-service-layer-table"));
         Assert.Contains("No protocol endpoints were reported", page.Find("[data-service-web-services]").TextContent, StringComparison.Ordinal);
     }
@@ -142,7 +142,7 @@ public sealed class ServiceDetailV4Tests
         page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-summary]")));
 
         Assert.Contains("Service …/bridges · 3 layers", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal);
-        Assert.Equal("This service reports 3 layers, but their details were not returned.", page.Find("[data-service-no-layers]").TextContent);
+        Assert.Equal("This service reports 3 layers, but their details were not returned.", page.Find("[data-service-layer-status]").TextContent);
         Assert.StartsWith("Folder name not reported", page.Find(".console-service-kv dd").TextContent.Trim(), StringComparison.Ordinal);
     }
 
