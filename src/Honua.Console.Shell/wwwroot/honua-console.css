@@ -8865,6 +8865,7 @@ p {
     margin: 0.5rem 0;
 }
 
+.data-publish-flow,
 .add-data-intake {
     min-width: 0;
     overflow-wrap: break-word;
