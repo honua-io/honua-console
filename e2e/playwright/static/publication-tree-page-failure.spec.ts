@@ -15,14 +15,15 @@ function servicePage(page: number, pageSize: number) {
   return { success: true, data: { items, page, pageSize, total, layerTotal: total * 2 } };
 }
 
-test('v4 tree keeps loaded services when a later service page fails, and retries the rest', async ({ page }, testInfo) => {
-  let failSecondPage = true;
+// Serves 250 services in pages; page 2 answers 503 until the fixture is healed.
+async function startPagedServiceFixture() {
+  const state = { failSecondPage: true };
   let contract: (request: IncomingMessage, response: ServerResponse) => Promise<void>;
   const handleApi = async (request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    if (url.pathname !== '/api/v1/admin/services' || request.method !== 'GET') return contract(request, response);
+    if (url.pathname.replace(/\/$/, '') !== '/api/v1/admin/services' || request.method !== 'GET') return contract(request, response);
     const pageNumber = Number(url.searchParams.get('page') ?? '1');
-    const failed = pageNumber === 2 && failSecondPage;
+    const failed = pageNumber === 2 && state.failSecondPage;
     const body = failed ? { success: false, message: 'Service page unavailable.' }
       : servicePage(pageNumber, Number(url.searchParams.get('pageSize') ?? '100'));
     response.writeHead(failed ? 503 : 200, { 'Content-Type': 'application/json' });
@@ -34,29 +35,34 @@ test('v4 tree keeps loaded services when a later service page fails, and retries
   );
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   contract = createContractApi({ allowedOrigin: origin });
+  return { origin, state, close: () => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) };
+}
+
+test('v4 tree keeps loaded services when a later service page fails, and retries the rest', async ({ page }, testInfo) => {
+  const fixture = await startPagedServiceFixture();
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   try {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await signInWithFixturePassword(page, origin, '/operate/services');
+    await signInWithFixturePassword(page, fixture.origin, '/operate/services');
     const tree = page.locator('[data-publication-tree]');
     const retry = page.locator('[data-tree-page-retry]');
+    const footer = page.locator('.console-tree-foot');
     await expect(retry).toBeVisible();
-    await expect(tree).toBeVisible();
     await expect(tree.locator("[data-publication-key='service:service-099']")).toBeVisible();
     await expect(page.locator('.console-tree-live')).toHaveText('Incomplete');
-    await expect(page.locator('.console-tree-foot')).toContainText('100 of 250 services');
+    await expect(footer).toContainText('100 of 250 services');
     await testInfo.attach('tree-page-failure-1280', { body: await page.screenshot(), contentType: 'image/png' });
 
-    failSecondPage = false;
+    fixture.state.failSecondPage = false;
     await retry.click();
     await expect(page.locator('.console-tree-live')).toHaveText('Live');
-    await expect(page.locator('.console-tree-foot')).toContainText('250 services');
-    await expect(page.locator('.console-tree-foot')).not.toContainText('100 of');
+    await expect(footer).toContainText('250 services');
+    await expect(footer).not.toContainText('100 of');
     await expect(retry).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     await page.close();
-    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await fixture.close();
   }
 });
