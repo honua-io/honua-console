@@ -193,7 +193,7 @@
         var attempt = PublicationContext?.BeginRead(resourceId);
         try
         {
-            var view = await OperateData.GetLayersViewAsync();
+            var view = await OperateData.GetLayerViewAsync(resourceId);
             if (generation != _generation) return;
             var exposures = view.FindExposures(resourceId);
             if (attempt is { } read) PublicationContext!.CompleteRead(read, exposures);
