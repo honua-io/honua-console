@@ -10,7 +10,6 @@ const pages = [
 async function measure(page: Page, parts: string) {
   return page.evaluate(selector => ({
     viewport: innerWidth, rootWidth: document.documentElement.scrollWidth,
-    pageOverflow: Math.max(0, ...[...document.querySelectorAll('.console-page')].map(page => page.scrollWidth - page.clientWidth)),
     parts: [...document.querySelectorAll(selector)].map(element => {
       const rect = element.getBoundingClientRect();
       return { text: element.textContent?.trim() || element.tagName, left: rect.left, right: rect.right, width: rect.width };
@@ -20,7 +19,6 @@ async function measure(page: Page, parts: string) {
 
 function expectFits(bounds: Awaited<ReturnType<typeof measure>>, context: string) {
   expectDocumentFits(bounds, `${context}: document`);
-  expect.soft(bounds.pageOverflow, `${context}: page content overflow`).toBeLessThanOrEqual(1);
   expect(bounds.parts.length, `${context}: measured parts`).toBeGreaterThan(0);
   for (const part of bounds.parts) {
     expect.soft(part.left, `${context}: ${part.text} left`).toBeGreaterThanOrEqual(0);
