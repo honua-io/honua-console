@@ -432,10 +432,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _routeProposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
-        _linkedRequestId = _routeProposalId;
-        SetSelectedProposal(_routeProposalId);
-
         _updates = new ConsoleProposalSubscription(Realtime,
             new ConsoleProposalObservers(OnProposalEvent, OnConnectionStateChanged, OnRefreshRequiredAsync));
 
