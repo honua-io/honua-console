@@ -21,7 +21,7 @@
                             <code>@url</code>
                             <span class="console-layer-endpoint-actions">
                                 <ConsoleCopyButton Text="@url" Label="@($"Copy {endpoint.Name} URL")" />
-                                <a class="console-button console-button-secondary console-button-small" href="@url" target="_blank" rel="noopener">Open</a>
+                                <a class="console-button console-button-secondary console-button-small" href="@url" target="_blank" rel="noopener" aria-label="@OpenLabel(service, endpoint)">Open</a>
                             </span>
                         }
                         else
@@ -76,6 +76,9 @@
 
     private IReadOnlyList<(OperateServiceDetail Service, OperateServiceEndpoint Endpoint)> Endpoints =>
         Exposures.SelectMany(exposure => exposure.Service.Endpoints.Select(endpoint => (exposure.Service, endpoint))).ToArray();
+
+    private string OpenLabel(OperateServiceDetail service, OperateServiceEndpoint endpoint) =>
+        Exposures.Count > 1 ? $"Open {endpoint.Name} URL for {service.Name} (new tab)" : $"Open {endpoint.Name} URL (new tab)";
 
     private string Extent => Layer.Extent is [var minX, var minY, var maxX, var maxY]
         ? string.Create(CultureInfo.InvariantCulture, $"{minX:0.##}, {minY:0.##} → {maxX:0.##}, {maxY:0.##}")

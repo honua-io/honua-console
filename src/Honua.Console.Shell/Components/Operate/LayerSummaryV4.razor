@@ -12,15 +12,7 @@
 
     private OperateServiceLayer Layer => Exposure.Layer;
 
-    private string Path
-    {
-        get
-        {
-            var service = Exposure.Service;
-            var servicePath = string.IsNullOrWhiteSpace(service.FolderName) ? service.Name : $"{service.FolderName}/{service.Name}";
-            return $"{servicePath}/{Layer.Name}";
-        }
-    }
+    private string Path => $"{OperateServicePaths.Path(Exposure.Service)}/{Layer.Name}";
 
     private string? Table => string.IsNullOrWhiteSpace(Layer.Table) ? null
         : string.IsNullOrWhiteSpace(Layer.Schema) ? Layer.Table : $"{Layer.Schema}.{Layer.Table}";

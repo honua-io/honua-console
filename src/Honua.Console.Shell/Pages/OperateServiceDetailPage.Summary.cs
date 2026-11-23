@@ -1,15 +1,23 @@
 using System.Globalization;
 using Honua.Console.Shell.Models;
+using Microsoft.AspNetCore.Components;
 
 namespace Honua.Console.Shell.Pages;
 
 // v4 service header and Administration values (mockup 03), derived from the reads the page already makes.
 public partial class OperateServiceDetailPage
 {
-    private string ServicePath => _service is null ? ServiceName
-        : string.IsNullOrWhiteSpace(_service.FolderName) ? _service.Name : $"{_service.FolderName}/{_service.Name}";
+    private const string SettingsNotRead = "Not available: service settings were not read";
+    private ElementReference _protocolsPanel;
+    private ElementReference _accessPanel;
+    private ElementReference _limitsPanel;
+    private ElementReference? _focusPanel;
 
-    private int ProtocolCount => _settings.Bound ? _settings.EnabledProtocols.Count : _service?.Protocols.Count ?? 0;
+    // The served path: endpoint URLs use the public name, so the path shown must too.
+    private string ServicePath => _service is null ? ServiceName : OperateServicePaths.Path(_service);
+
+    // Endpoints are built from the enabled protocols only; ServiceType carries a placeholder when there are none.
+    private int ProtocolCount => _settings.Bound ? _settings.EnabledProtocols.Count : _service?.Endpoints.Count ?? 0;
 
     // DisplayName falls back to the description when a service has no title; never show it twice.
     private string? ServiceDescription => _service?.Description is { } description
@@ -21,17 +29,20 @@ public partial class OperateServiceDetailPage
         .Distinct()
         .ToArray();
 
-    private string? AccessSummary => !_settings.Bound ? null
-        : _settings.AllowAnonymousWrite ? "anonymous read and write"
-        : _settings.AllowAnonymous ? "anonymous read" : "signed-in read";
+    private string ReadAccess => _settings.AllowAnonymous ? "anonymous read"
+        : _settings.AllowedRoles.Count > 0 ? "read limited to roles" : "signed-in read";
 
-    private string? AccessDetail
+    private string? AccessSummary => !_settings.Bound ? null
+        : _settings.AllowAnonymousWrite ? $"{ReadAccess} · anonymous write" : ReadAccess;
+
+    private string AccessDetail
     {
         get
         {
-            if (AccessSummary is not { } summary) return null;
-            var parts = new List<string> { char.ToUpperInvariant(summary[0]) + summary[1..] };
+            if (!_settings.Bound) return SettingsNotRead;
+            var parts = new List<string> { char.ToUpperInvariant(ReadAccess[0]) + ReadAccess[1..] };
             if (_settings.AllowedRoles.Count > 0) parts.Add("read: " + string.Join(", ", _settings.AllowedRoles));
+            if (_settings.AllowAnonymousWrite) parts.Add("anonymous write");
             if (_settings.AllowedWriteRoles.Count > 0) parts.Add("write: " + string.Join(", ", _settings.AllowedWriteRoles));
             return string.Join(" · ", parts);
         }
@@ -41,14 +52,28 @@ public partial class OperateServiceDetailPage
     {
         get
         {
-            if (_settings.MapServer is not { } mapServer) return "Compatibility defaults";
+            if (!_settings.Bound) return SettingsNotRead;
+            if (_settings.MapServer is not { } mapServer) return "Not reported";
             var parts = new List<string>();
             if (mapServer.MaxImageWidth is { } width && mapServer.MaxImageHeight is { } height)
                 parts.Add(string.Create(CultureInfo.InvariantCulture, $"{width} × {height} px"));
             if (mapServer.MaxFeaturesPerLayer is { } features)
                 parts.Add(string.Create(CultureInfo.InvariantCulture, $"{features:N0} features per layer"));
-            return parts.Count == 0 ? "Compatibility defaults" : string.Join(" · ", parts);
+            return parts.Count == 0 ? "Not reported" : string.Join(" · ", parts);
         }
+    }
+
+    // Switching tabs from below the tab strip moves focus to the opened panel, so keyboard users keep their place.
+    private void OpenTab(string tabId)
+    {
+        _selectedTab = tabId;
+        _focusPanel = tabId switch
+        {
+            "service-protocols-tab" => _protocolsPanel,
+            "service-access-tab" => _accessPanel,
+            "service-limits-tab" => _limitsPanel,
+            _ => null
+        };
     }
 
     // In-page anchors must carry the current path: a bare "#id" resolves against <base href> and leaves the page.

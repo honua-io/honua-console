@@ -71,6 +71,24 @@ public sealed class LayerDetailV4Tests
         Assert.Equal("Enabled", values[3]);
     }
 
+    [Fact]
+    public void LayerServedByTwoServicesNamesEachOne()
+    {
+        var planning = new OperateServiceDetail("planning", "Planning", "FeatureServer", "Configured", "Owned by honua-server.", [FloodZones], [],
+            [new("FeatureServer", "https://server.example.test/rest/services/planning/FeatureServer", "Exposed")]);
+        using var ctx = CreateContext(Emergency, planning);
+        var page = Render(ctx);
+
+        var administration = page.Find("[data-layer-administration]");
+        Assert.Equal("Services", administration.QuerySelector("dt")!.TextContent);
+        Assert.Equal(new[] { "Emergency management", "Planning" },
+            administration.QuerySelector("dd")!.QuerySelectorAll("a").Select(link => link.TextContent).ToArray());
+        var rows = page.FindAll("[data-layer-endpoint]");
+        Assert.Equal(3, rows.Count);
+        Assert.Equal("planning", rows[2].QuerySelector("small")!.TextContent);
+        Assert.Equal("Open FeatureServer URL for planning (new tab)", rows[2].QuerySelector("a")!.GetAttribute("aria-label"));
+    }
+
     private static IRenderedComponent<OperateLayerDetailPage> Render(BunitContext ctx)
     {
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(c => c.ResourceId, FloodZones.CanonicalResourceId));
@@ -78,7 +96,7 @@ public sealed class LayerDetailV4Tests
         return page;
     }
 
-    private static BunitContext CreateContext()
+    private static BunitContext CreateContext(params OperateServiceDetail[] services)
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
@@ -86,7 +104,7 @@ public sealed class LayerDetailV4Tests
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(Emergency));
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(services.Length == 0 ? new[] { Emergency } : services));
         ctx.Services.AddSingleton<IConsoleLayerFieldsOperation>(new UnsupportedConsoleLayerFieldsOperation());
         return ctx;
     }

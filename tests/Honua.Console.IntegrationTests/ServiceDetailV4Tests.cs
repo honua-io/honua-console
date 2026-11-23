@@ -74,6 +74,36 @@ public sealed class ServiceDetailV4Tests
 
         page.Find("[data-service-web-services] .console-link-button").Click();
         Assert.Equal("true", page.Find("#service-protocols-tab").GetAttribute("aria-selected"));
+        ctx.JSInterop.VerifyFocusAsyncInvoke();
+    }
+
+    [Fact]
+    public void UnreadSettingsAreNotPresentedAsValues()
+    {
+        using var ctx = CreateContext(new UnsupportedServiceConfigurationOperation());
+        var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, Emergency.Name));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-summary]")));
+
+        Assert.Contains("2 protocols", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-service-access-summary]"));
+        var values = page.FindAll(".console-service-kv dd").Select(value => value.TextContent.Trim()).ToArray();
+        Assert.Equal("Not available: service settings were not read", values[1]);
+        Assert.Equal("Not available: service settings were not read", values[2]);
+    }
+
+    [Fact]
+    public void ServiceWithoutLayersOrProtocolsSaysSoAndUsesItsPublicPath()
+    {
+        var empty = new OperateServiceDetail("roads", "Roads", "Geo service", "No layers", "honua-server", [], [], [])
+        { FolderId = "folder-1", FolderName = "transport", PublicName = "roads-public" };
+        using var ctx = CreateContext(new UnsupportedServiceConfigurationOperation(), empty);
+        var page = ctx.Render<OperateServiceDetailPage>(p => p.Add(c => c.ServiceName, empty.Name));
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-service-summary]")));
+
+        Assert.Contains("Service transport/roads-public · 0 layers · 0 protocols", page.Find("[data-service-summary]").TextContent, StringComparison.Ordinal);
+        Assert.Equal("This service has no layers yet.", page.Find("[data-service-no-layers]").TextContent);
+        Assert.Empty(page.FindAll(".console-service-layer-table"));
+        Assert.Contains("No protocols are enabled", page.Find("[data-service-web-services]").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -102,7 +132,7 @@ public sealed class ServiceDetailV4Tests
         return page;
     }
 
-    private static BunitContext CreateContext()
+    private static BunitContext CreateContext(IServiceConfigurationOperation? settings = null, OperateServiceDetail? service = null)
     {
         var ctx = new BunitContext();
         ctx.Services.AddSingleton<Microsoft.AspNetCore.Components.NavigationManager>(new MountedNavigationManager("/console/"));
@@ -110,8 +140,8 @@ public sealed class ServiceDetailV4Tests
         ctx.Services.AddSingleton<ConsoleAgentContextRegistry>();
         ctx.AddConsoleNotifications();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(Emergency));
-        ctx.Services.AddSingleton<IServiceConfigurationOperation>(new BoundSettings());
+        ctx.Services.AddSingleton<IOperateTransitionDataSource>(new FixedServicesDataSource(service ?? Emergency));
+        ctx.Services.AddSingleton(settings ?? new BoundSettings());
         return ctx;
     }
 

@@ -39,16 +39,16 @@
                     @LayersV4
                     @WebServices
                 </section>
-                <section id="service-protocols-panel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
+                <section id="service-protocols-panel" @ref="_protocolsPanel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
                     @Endpoints
                     @if (_selectedTab == "service-protocols-tab") { @ConfigurationState }
                     @if (_settings.Bound) { @ProtocolEditor }
                 </section>
-                <section id="service-access-panel" role="tabpanel" aria-labelledby="service-access-tab" hidden="@(_selectedTab != "service-access-tab")" tabindex="0">
+                <section id="service-access-panel" @ref="_accessPanel" role="tabpanel" aria-labelledby="service-access-tab" hidden="@(_selectedTab != "service-access-tab")" tabindex="0">
                     @if (_selectedTab == "service-access-tab") { @ConfigurationState }
                     @if (_settings.Bound) { @AccessEditor }
                 </section>
-                <section id="service-limits-panel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
+                <section id="service-limits-panel" @ref="_limitsPanel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
                     @Runtime
                     @if (_selectedTab == "service-limits-tab" && !_settings.Bound) { @ConfigurationState }
                     @if (_settings.Bound) { @RenderingLimits }
@@ -96,6 +96,12 @@
         <div class="console-service-list-actions">
             <a class="console-button console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing/quick")" data-service-add-layer>Add a layer</a>
         </div>
+        @if (_service!.Layers.Count == 0)
+        {
+            <p role="status" data-service-no-layers>@(_service.LayerCount > 0 ? $"This service reports {ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer")}, but their details were not returned." : "This service has no layers yet.")</p>
+        }
+        else
+        {
         <ConsoleTableRegion Class="console-table-wrap" Label="@($"Layers in {_service!.Name}")">
             <table class="console-table console-service-layer-table">
                 <thead>
@@ -127,12 +133,13 @@
                 </tbody>
             </table>
         </ConsoleTableRegion>
+        }
     </text>;
 
     private RenderFragment WebServices => @<text>
         <section class="console-service-web-services" aria-labelledby="service-web-services-heading" data-service-web-services>
             <h2 id="service-web-services-heading">Web services for this service</h2>
-            <p>Enabled on <code>@_service!.Name</code>. Changing a protocol here affects all @ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer"). <button type="button" class="console-link-button" @onclick="@(() => _selectedTab = "service-protocols-tab")">Change protocols</button></p>
+            <p>Enabled on <code>@_service!.Name</code>. Changing a protocol here affects all @ConsolePublicationTreeContext.FormatCount(_service.LayerCount, "layer"). <button type="button" class="console-link-button" @onclick="@(() => OpenTab("service-protocols-tab"))">Change protocols</button></p>
             @if (_service.Endpoints.Count == 0)
             {
                 <p role="status">No protocols are enabled on this service.</p>
@@ -161,15 +168,15 @@
     private RenderFragment AdministrationV4 => @<text>
         <ConsolePanel Title="Administration" HeadingId="service-administration-heading" Class="console-service-administration">
             <div class="console-action-row">
-                <button type="button" class="console-button console-button-secondary" @onclick="@(() => _selectedTab = "service-access-tab")" data-service-admin-access>Access</button>
-                <button type="button" class="console-button console-button-secondary" @onclick="@(() => _selectedTab = "service-limits-tab")">Limits and rendering</button>
+                <button type="button" class="console-button console-button-secondary" @onclick="@(() => OpenTab("service-access-tab"))" data-service-admin-access>Access</button>
+                <button type="button" class="console-button console-button-secondary" @onclick="@(() => OpenTab("service-limits-tab"))">Limits and rendering</button>
                 <a class="console-button console-button-secondary" href="@SectionHref("service-metadata-editor")">Edit metadata</a>
             </div>
             <dl class="console-service-kv">
                 <dt>Folder</dt>
                 <dd>@(_service!.FolderName ?? (_service.FolderId is null ? "No Folder" : "Folder name not reported")) · <a href="@SectionHref("service-folder-editor")">Move…</a></dd>
                 <dt>Access</dt>
-                <dd>@(AccessDetail ?? "Not reported")</dd>
+                <dd>@AccessDetail</dd>
                 <dt>Render limits</dt>
                 <dd>@RenderLimits</dd>
                 <dt>Connection</dt>
@@ -265,10 +272,10 @@
         {
             <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
         }
-        <div id="service-folder-editor">
+        <div id="service-folder-editor" tabindex="-1">
             <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" />
         </div>
-        <div id="service-metadata-editor">
+        <div id="service-metadata-editor" tabindex="-1">
             <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
         </div>
     </text>;
@@ -402,22 +409,13 @@
     </text>;
 
     private RenderFragment Layers => @<text>
-        @if (V4Enabled)
-        {
-            <ConsolePanel Title="Layers" HeadingId="service-layers-heading">
-                @LayersContent
-            </ConsolePanel>
-        }
-        else
-        {
-            <section class="console-section">
-                <div class="console-page-heading">
-                    <p class="console-kicker">Layers</p>
-                    <h2>Layers</h2>
-                </div>
-                @LayersContent
-            </section>
-        }
+        <section class="console-section">
+            <div class="console-page-heading">
+                <p class="console-kicker">Layers</p>
+                <h2>Layers</h2>
+            </div>
+            @LayersContent
+        </section>
     </text>;
 
     private RenderFragment LayersContent => @<text>
