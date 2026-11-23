@@ -8,6 +8,8 @@ public sealed record ConsolePublicationLayer(string ResourceId, string Name, str
         new(resourceId, name, string.IsNullOrWhiteSpace(geometryType) ? "Unknown" : geometryType);
 }
 
+public sealed record ConsolePublicationLayerMatch(ConsolePublicationLayer Layer, string? ServiceName);
+
 public interface IConsolePublicationNavigationSource
 {
     Task<OperateSectionResult<HonuaAdminServicePage>> ReadServicesAsync(
@@ -15,6 +17,10 @@ public interface IConsolePublicationNavigationSource
     Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken);
     Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayer>>> ReadLayersAsync(
         string serviceName, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken);
+    Task<OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>> SearchLayersAsync(
+        string nameQuery, IReadOnlyList<string> connectionKeys, CancellationToken cancellationToken) =>
+        Task.FromResult(OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>.Denied(
+            OperateSectionStatus.Unsupported, "Layer search is not available for this environment."));
 }
 
 public sealed class UnsupportedConsolePublicationNavigationSource : IConsolePublicationNavigationSource

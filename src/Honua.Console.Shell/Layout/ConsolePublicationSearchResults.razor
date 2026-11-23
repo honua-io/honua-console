@@ -1,74 +1,122 @@
-@inject NavigationManager Navigation
-
-@{ var results = Results; }
+@{
+    var folders = Folders;
+    var services = Services;
+    var layers = View.LayerSearch?.Value ?? [];
+}
 
 <div class="console-tree-branches console-search-results" data-publication-search>
-    <p class="console-search-scope">Scope: @View.Tree.Root.Label · service names</p>
     <section aria-labelledby="console-search-folders">
-        <h3 id="console-search-folders">Folders</h3>
-        <p class="console-search-empty">Folder search is not available yet.</p>
-    </section>
-    <section aria-labelledby="console-search-services">
-        @if (View.SearchPending)
+        <h3 id="console-search-folders">Folders <span>(@FolderMatchCount)</span></h3>
+        @if (folders.Count == 0)
         {
-            <h3 id="console-search-services">Services</h3>
+            <p class="console-search-empty">No Folders match.</p>
         }
         else
         {
-            <h3 id="console-search-services">Services <span>(@View.Tree.SearchMatchCount)</span></h3>
+            <ul role="tree" aria-labelledby="console-search-folders" class="console-publication-tree" data-publication-tree>
+                @for (var index = 0; index < folders.Count; index++)
+                {
+                    var folder = folders[index];
+                    <ConsoleSearchResultRow @key="folder.Key" Key="@folder.Key" Href="@(folder.Href!)" Icon="folder" Label="@View.Label(folder)"
+                                            Path="@FolderPath(folder)" Position="index + 1" SetSize="folders.Count" />
+                }
+            </ul>
+            @if (FolderMatchCount > folders.Count)
+            {
+                <p class="console-search-empty" role="status">Showing @folders.Count of @FolderMatchCount Folders. Search with more of the name to narrow the list.</p>
+            }
         }
+    </section>
+    <section aria-labelledby="console-search-services">
+        <h3 id="console-search-services">Services @if (!View.SearchPending) { <span>(@View.Tree.SearchMatchCount)</span> }</h3>
         @if (View.SearchPending)
         {
             <p class="console-search-empty" role="status">Searching…</p>
         }
-        else if (results.Count == 0)
+        else if (services.Count == 0)
         {
             <p class="console-search-empty" role="status">No services match this search.</p>
         }
         else
         {
             <ul role="tree" aria-labelledby="console-search-services" class="console-publication-tree" data-publication-tree>
-                @for (var index = 0; index < results.Count; index++)
+                @for (var index = 0; index < services.Count; index++)
                 {
-                    var service = results[index];
-                    <li role="none" @key="service.Key">
-                        <div class="console-tree-row console-search-row" role="treeitem" aria-level="1"
-                             aria-posinset="@(index + 1)" aria-setsize="@View.Tree.SearchMatchCount" tabindex="-1"
-                             aria-selected="@(service.Href == View.SelectedPath ? "true" : "false")"
-                             data-publication-key="@service.Key" data-tree-parent="environment" data-tree-label="@service.Label">
-                            <span class="console-tree-kind" data-kind="Service" aria-hidden="true"></span>
-                            <a href="@Navigation.ToConsoleHref(service.Href!)" tabindex="-1" data-tree-link>
-                                <ConsoleSearchHighlight Text="@service.Label" Query="@View.Tree.Filter" />
-                                <span class="console-search-path"><ConsoleSearchHighlight Text="@(service.ServiceName ?? service.Label)" Query="@View.Tree.Filter" /> · @ConsolePublicationTreeContext.FormatCount(service.ReportedCount, "layer")</span>
-                            </a>
-                        </div>
-                    </li>
+                    var service = services[index];
+                    <ConsoleSearchResultRow @key="service.Key" Key="@service.Key" Href="@(service.Href!)" Icon="service" Label="@service.Label"
+                                            Path="@ServicePath(service)" Position="index + 1" SetSize="View.Tree.SearchMatchCount" />
                 }
             </ul>
         }
         @if (!View.SearchPending && View.Tree.HasMoreSearchResults)
         {
-            <button type="button" class="console-button console-button-secondary" data-search-more @onclick="View.ShowMoreSearch">Show more services</button>
+            <button type="button" class="console-tree-foot-action" data-search-more @onclick="View.ShowMoreSearch">Show more services</button>
         }
     </section>
     <section aria-labelledby="console-search-layers">
-        <h3 id="console-search-layers">Layers</h3>
-        <p class="console-search-empty">Layer search is not available yet.</p>
-    </section>
-    <section aria-labelledby="console-search-styles">
-        <h3 id="console-search-styles">Styles</h3>
-        <p class="console-search-empty">Style search is not available yet.</p>
+        <h3 id="console-search-layers">Layers @if (View.LayerSearch is { IsAllowed: true }) { <span>(@layers.Count)</span> }</h3>
+        @if (View.LayerSearch is null)
+        {
+            <p class="console-search-empty" role="status">Searching…</p>
+        }
+        else if (!View.LayerSearch.IsAllowed)
+        {
+            <OperateSectionStatusPanel Heading="Layers" Status="View.LayerSearch.Status" Message="@View.LayerSearch.Message" />
+        }
+        else if (layers.Count == 0)
+        {
+            <p class="console-search-empty" role="status">No layers match this search.</p>
+        }
+        else
+        {
+            <ul role="tree" aria-labelledby="console-search-layers" class="console-publication-tree" data-publication-tree>
+                @for (var index = 0; index < layers.Count; index++)
+                {
+                    var match = layers[index];
+                    <ConsoleSearchResultRow @key="match.Layer.ResourceId" Key="@("search-layer:" + match.Layer.ResourceId)" Href="@ConsolePublicationTree.LayerHref(match.Layer.ResourceId)"
+                                            Icon="@ConsoleTreeIcon.ForGeometry(match.Layer.GeometryType)" Label="@match.Layer.Name"
+                                            Path="@LayerPath(match)" ServiceToExpand="@match.ServiceName" Position="index + 1" SetSize="layers.Count" />
+                }
+            </ul>
+        }
+        @if (View.LayerSearch is { IsAllowed: true, PartialResult: true })
+        {
+            <p class="console-search-empty" role="status">@View.LayerSearch.Message</p>
+        }
     </section>
     @if (!View.SearchPending)
     {
-        <p class="console-search-summary" role="status">@results.Count of @View.Tree.SearchMatchCount service matches · ↑↓ move · Enter open · Esc back to tree</p>
+        <p class="console-search-summary" role="status">@(FolderMatchCount + View.Tree.SearchMatchCount + layers.Count) matches in @View.Tree.Root.Label · ↑↓ move · Enter open · Esc back to tree</p>
     }
 </div>
 
 @code {
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
 
-    private IReadOnlyList<ConsolePublicationNode> Results => View.Tree.MatchingServices
+    private IEnumerable<ConsolePublicationNode> MatchingFolders => View.Tree.Root.Children
+        .Where(node => node.Kind == ConsolePublicationNodeKind.Folder && node.Href is not null
+            && node.Label.Contains(View.Tree.Filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private int FolderMatchCount => MatchingFolders.Count();
+
+    private IReadOnlyList<ConsolePublicationNode> Folders => MatchingFolders.Take(ConsolePublicationTree.PageSize).ToArray();
+
+    private IReadOnlyList<ConsolePublicationNode> Services => View.Tree.MatchingServices
         .OrderBy(node => node.Label, StringComparer.OrdinalIgnoreCase)
         .Take(View.Tree.SearchLimit).ToArray();
+
+
+    private string FolderPath(ConsolePublicationNode folder) =>
+        folder.PublicName is { } name && name != View.Label(folder) ? $"Folder · {name}" : "Folder";
+
+    private string ServicePath(ConsolePublicationNode service)
+    {
+        var folder = View.Tree.Root.Children.FirstOrDefault(node => node.Children.Contains(service));
+        var name = service.ServiceName ?? service.Label;
+        var location = folder is null ? name : $"{folder.ShortLabel ?? folder.Label} / {name}";
+        return $"{location} · {ConsolePublicationTreeContext.FormatCount(service.ReportedCount, "layer")}";
+    }
+
+    private static string LayerPath(ConsolePublicationLayerMatch match) =>
+        match.ServiceName is null ? match.Layer.GeometryType : $"{match.ServiceName} · {match.Layer.GeometryType}";
 }

@@ -178,6 +178,56 @@ public sealed class ConsolePublicationNavigationSourceTests
         Assert.Contains("partial", read.Message);
     }
 
+    [Fact]
+    public async Task LayerSearchSendsTheQueryToEachConnectionAndKeepsConnectionScopedIdentity()
+    {
+        var (read, path, connection) = await SearchFirstLayerPageAsync(total: 1);
+        Assert.True(read.IsAllowed, read.Message);
+        var match = Assert.Single(read.Value!);
+        Assert.Equal(OperateResourceIdentity.ForPublishedLayer(connection, 9), match.Layer.ResourceId);
+        Assert.Equal("signals", match.ServiceName);
+        Assert.False(read.PartialResult);
+        Assert.EndsWith($"/connections/{connection}/layers/?page=1&pageSize=25&q=signal", path);
+    }
+
+    [Fact]
+    public async Task LayerSearchMarksAConnectionWithMoreMatchesThanOnePagePartial()
+    {
+        var (read, _, _) = await SearchFirstLayerPageAsync(total: 40);
+        Assert.True(read.IsAllowed, read.Message);
+        Assert.True(read.PartialResult);
+        Assert.StartsWith("Showing the first 25", read.Message, StringComparison.Ordinal);
+    }
+
+    private static async Task<(OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>> Read, string Path, string Connection)>
+        SearchFirstLayerPageAsync(int total)
+    {
+        var connection = Guid.NewGuid().ToString("D");
+        using var handler = new NavigationHandler(_ => SuccessfulEnvelope(new
+        {
+            items = new[] { new { storageLayerId = 9, layerName = "signal-controllers", serviceName = "signals", geometryType = "Point" } },
+            page = 1,
+            pageSize = 25,
+            total
+        }));
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var read = await new ServerConsolePublicationNavigationSource(client).SearchLayersAsync("signal", [connection], CancellationToken.None);
+        return (read, Assert.Single(handler.Paths), connection);
+    }
+
+    [Fact]
+    public async Task RefusedLayerSearchNamesLayerSearchNotServiceNavigation()
+    {
+        using var handler = new NavigationHandler(_ => new(HttpStatusCode.Forbidden));
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var read = await new ServerConsolePublicationNavigationSource(client).SearchLayersAsync("signal", [Guid.NewGuid().ToString("D")], CancellationToken.None);
+        Assert.False(read.IsAllowed);
+        Assert.Equal(OperateSectionStatus.Forbidden, read.Status);
+        Assert.StartsWith("Layer search:", read.Message, StringComparison.Ordinal);
+    }
+
     private static HttpResponseMessage SuccessfulEnvelope(object data) => new(HttpStatusCode.OK)
     {
         Content = JsonContent.Create(new { success = true, data })
