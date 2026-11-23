@@ -58,6 +58,9 @@
 
 [data-console-v4="true"] .console-service-layer-type {
     width: 2.5rem;
+}
+
+[data-console-v4="true"] td.console-service-layer-type {
     color: var(--c-accent);
 }
 
