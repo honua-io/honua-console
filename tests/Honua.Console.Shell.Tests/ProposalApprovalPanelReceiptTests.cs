@@ -313,8 +313,10 @@ public sealed class ProposalApprovalPanelReceiptTests
         AssertPromotionReceipt(panel, autonomy);
     }
 
-    [Fact]
-    public async Task SwitchingEnvironmentDuringApprovalKeepsTheRequestedPolicyOnTheOriginalEnvironment()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SwitchingEnvironmentDuringApprovalKeepsTheRequestedPolicyOnTheOriginalEnvironment(bool dispose)
     {
         using var context = new BunitContext();
         var original = new ConsoleEnvironmentProfile { Id = "original", ServerBaseUri = new("https://original.example") };
@@ -331,14 +333,21 @@ public sealed class ProposalApprovalPanelReceiptTests
         var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
         panel.WaitForAssertion(() => Assert.Equal(original, proposals.ApprovalProfile));
         await panel.InvokeAsync(() => profiles.ActivateProfileAsync(alternate.Id));
-        await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
+        if (dispose)
+        {
+            await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
+        }
         await panel.InvokeAsync(() => approval.SetResult());
         await approve;
 
         Assert.Equal(("alert-dispatch-backlog", "AutoApply", "Approved for future runs"),
             Assert.Single(autonomy.PolicyUpdates));
-        Assert.Equal(original, Assert.Single(autonomy.BoundPolicyReads));
-        Assert.Equal(original, autonomy.PolicyWriteProfile);
+        Assert.Equal(dispose ? new[] { original } : new[] { original, original }, autonomy.BoundPolicyReads);
+        Assert.Equal(original, Assert.Single(autonomy.PolicyWriteProfiles));
+        if (!dispose)
+        {
+            AssertPromotionReceipt(panel, autonomy);
+        }
     }
 
     [Theory]
@@ -463,20 +472,23 @@ public sealed class ProposalApprovalPanelReceiptTests
         private string _mode = initialMode;
         private ConsoleEnvironmentProfile? _profile;
 
-        public List<ConsoleEnvironmentProfile> BoundPolicyReads { get; } = [];
-        public ConsoleEnvironmentProfile? PolicyWriteProfile { get; private set; }
+        public List<ConsoleEnvironmentProfile> BoundPolicyReads { get; private init; } = [];
+        public List<ConsoleEnvironmentProfile?> PolicyWriteProfiles { get; private init; } = [];
 
-        public IConsoleOpsAutonomyClient ForEnvironment(ConsoleEnvironmentProfile profile)
-        {
-            _profile = profile;
-            return this;
-        }
+        public IConsoleOpsAutonomyClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+            new FakeInboxAutonomyClient(rule, _mode, PolicyRead)
+            {
+                _profile = profile,
+                BoundPolicyReads = BoundPolicyReads,
+                PolicyWriteProfiles = PolicyWriteProfiles,
+                PolicyUpdates = PolicyUpdates
+            };
 
         public void ObservePolicyMode(string mode) => _mode = mode;
 
         public Task PolicyRead { get; set; } = policyRead;
 
-        public List<(string Rule, string Mode, string Reason)> PolicyUpdates { get; } = [];
+        public List<(string Rule, string Mode, string Reason)> PolicyUpdates { get; private init; } = [];
 
         public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(CancellationToken cancellationToken = default)
         {
@@ -508,7 +520,7 @@ public sealed class ProposalApprovalPanelReceiptTests
             var previous = _mode;
             _mode = mode;
             PolicyUpdates.Add((targetRule, mode, reason));
-            PolicyWriteProfile = _profile;
+            PolicyWriteProfiles.Add(_profile);
             return Task.FromResult(OperateSectionResult<Honua.Console.Contracts.OpsAutonomyPolicyResponse>.Allowed(
                 new Honua.Console.Contracts.OpsAutonomyPolicyResponse
                 {

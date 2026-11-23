@@ -15,6 +15,7 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
         "No active environment profile is selected. Connect an environment to manage ops autonomy.";
 
     private readonly HttpClient _http;
+    private ConsoleEnvironmentProfile? ExpectedProfile { get; init; }
     private readonly IConsoleEnvironmentProfileStore _profiles;
     private readonly IConsoleAccountSessionStore _sessions;
     private readonly string? _adminApiKey;
@@ -43,7 +44,7 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
 
     public IConsoleOpsAutonomyClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
         new HttpConsoleOpsAutonomyClient(_http, new InMemoryConsoleEnvironmentProfileStore([profile]), _sessions,
-            _adminApiKey, _operatorBearerProvider, _credentialMode);
+            _adminApiKey, _operatorBearerProvider, _credentialMode) { ExpectedProfile = profile };
 
     public async Task<OperateSectionResult<OpsAutonomySnapshot>> LoadAsync(
         CancellationToken cancellationToken = default)
@@ -242,6 +243,11 @@ public sealed class HttpConsoleOpsAutonomyClient : IConsoleOpsAutonomyClient
         CancellationToken cancellationToken,
         string? unsupportedMessage = null)
     {
+        if (ExpectedProfile is { } profile)
+        {
+            request.Options.Set(ConsoleServerHttp.ExpectedProfile, profile);
+        }
+
         try
         {
             using var response = await _http

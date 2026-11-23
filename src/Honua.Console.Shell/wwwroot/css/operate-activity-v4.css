@@ -259,7 +259,8 @@
 }
 
 .console-activity-v4 .console-activity-feed-filter {
-    min-width: 12rem;
+    min-width: min(12rem, 100%);
+    max-width: 100%;
 }
 
 .console-activity-v4 .console-activity-feed-table {

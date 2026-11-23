@@ -34,6 +34,20 @@ const assertHeadingSizes = async (page, width) => {
   }
 };
 
+const assertLargeTextFits = async page => {
+  const { filterRight, viewportWidth, scrollWidth } = await page.locator(".console-activity-feed-filter").evaluate(filter => {
+    const root = document.documentElement;
+    const previousSize = root.style.fontSize;
+    try {
+      root.style.fontSize = "32px";
+      return { filterRight: filter.getBoundingClientRect().right, viewportWidth: innerWidth, scrollWidth: root.scrollWidth };
+    } finally {
+      root.style.fontSize = previousSize;
+    }
+  });
+  assert.ok(filterRight <= viewportWidth && scrollWidth <= viewportWidth + 1, "Activity fits at 200% text size on a phone");
+};
+
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
   widths: [1440, 1280, 390],
@@ -53,6 +67,7 @@ await runV4PagePresentation({
     }
     const width = page.viewportSize().width;
     await assertHeadingSizes(page, width);
+    if (width === 390) await assertLargeTextFits(page);
     if (name === "activity-selected") {
       const clipped = await page.locator(".operate-timeline").evaluate(region => {
         const bounds = region.getBoundingClientRect();
