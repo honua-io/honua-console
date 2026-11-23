@@ -105,6 +105,39 @@
     color: var(--c-text-2);
 }
 
+/* v4 layers list (mockup 08): type filter beside the search, preview links in one cell. */
+[data-console-v4="true"] .console-layer-preview-filters {
+    display: flex;
+    flex: 0 1 30rem;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+[data-console-v4="true"] .console-folder-toolbar .console-layer-preview-filters select.console-input {
+    flex: 0 0 10rem;
+    width: 10rem;
+}
+
+[data-console-v4="true"] .console-folder-toolbar .console-layer-preview-filters input.console-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    [data-console-v4="true"] .console-layer-preview-filters {
+        flex: 1 1 100%;
+    }
+}
+
+[data-console-v4="true"] .console-layer-preview-links {
+    white-space: nowrap;
+}
+
+[data-console-v4="true"] .console-layer-preview-links a + a {
+    margin-inline-start: var(--space-3);
+}
+
 /* Home on a server without Folders (mockup 09): a quiet notice, not a warning. */
 [data-console-v4="true"] .console-home-no-folders {
     margin: var(--space-3) 0 0;

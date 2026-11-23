@@ -1,0 +1,66 @@
+@inject NavigationManager Navigation
+
+<div class="console-folder-toolbar">
+    <ConsoleListPager Label="Layer pages" Page="_search.Page" PageSize="PageSize" Total="Matches.Count" Unit="layers" PageChanged="page => _search.Page = page" />
+    <span class="console-layer-preview-filters">
+        <label class="console-visually-hidden" for="console-layer-type">Layer type</label>
+        <select id="console-layer-type" class="console-input" value="@_type" @onchange="ChangeType" data-layer-type-filter>
+            <option value="">All types</option>
+            <option value="point">Point</option>
+            <option value="line">Line</option>
+            <option value="polygon">Polygon</option>
+            <option value="raster">Raster</option>
+        </select>
+        <label class="console-visually-hidden" for="console-layer-search">Search layers</label>
+        <input id="console-layer-search" class="console-input" type="search" placeholder="Search layers" value="@_search.Query" @oninput="_search.Search" data-layer-search />
+    </span>
+</div>
+@if (Matches.Count == 0)
+{
+    <p data-layer-list-empty>No layers match this search.</p>
+}
+else
+{
+    <ConsoleTableRegion Class="console-table-wrap" Label="Published service layers">
+        <table class="console-table console-service-layer-table">
+            <thead>
+                <tr>
+                    <th scope="col" class="console-service-layer-type">Type</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Service</th>
+                    <th scope="col">Dataset</th>
+                    <th scope="col">Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Matches.Skip((_search.Page - 1) * PageSize).Take(PageSize))
+                {
+                    <LayerPreviewRowV4 Service="row.Service" Layer="row.Layer" />
+                }
+            </tbody>
+        </table>
+    </ConsoleTableRegion>
+}
+
+@code {
+    private const int PageSize = 25;
+    [Parameter, EditorRequired] public IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayer Layer)> Rows { get; set; } = [];
+
+    private readonly ConsoleListSearchState _search = new();
+    private string _type = string.Empty;
+
+    private IReadOnlyList<(OperateServiceDetail Service, OperateServiceLayer Layer)> Matches => Rows
+        .Where(row => _type.Length == 0 || ConsoleTreeIcon.ForGeometry(row.Layer.Geometry) == _type)
+        .Where(row => _search.Query.Length == 0
+            || row.Layer.Name.Contains(_search.Query, StringComparison.OrdinalIgnoreCase)
+            || row.Service.DisplayPath.Contains(_search.Query, StringComparison.OrdinalIgnoreCase)
+            || row.Service.DisplayName.Contains(_search.Query, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+
+
+    private void ChangeType(ChangeEventArgs args)
+    {
+        _type = args.Value?.ToString() ?? string.Empty;
+        _search.Page = 1;
+    }
+}

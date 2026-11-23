@@ -195,6 +195,19 @@ public sealed class SharedStyleNavigationTests
         Assert.Empty(source.Writes);
     }
 
+    [Fact]
+    public void V4ListsTheCatalogOnlyOnTheEmptyRouteAndKeepsTheEditor()
+    {
+        using var context = Context(new Source(), Presentation.V4);
+        var page = Render(context, null);
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-style-catalog-empty]")));
+        AssertEmpty(page);
+
+        page.Render(p => p.Add(c => c.StyleId, "A"));
+        Assert.Empty(page.FindAll("[data-style-catalog-summary]"));
+        AssertReviewed(page, "A");
+    }
+
     private static BunitContext Context(Source source, Presentation presentation)
     {
         var context = new BunitContext();
