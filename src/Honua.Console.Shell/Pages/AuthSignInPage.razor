@@ -1,4 +1,5 @@
 @page "/auth/signin"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject IConsoleEnvironmentProfileStore Profiles
 @inject IConsoleAccountSessionStore Sessions
 @inject NavigationManager Navigation

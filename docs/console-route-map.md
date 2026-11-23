@@ -307,7 +307,7 @@ Keys cited by the route map below (all verified in `FeatureCatalog.cs`):
 
 ### 2.5 Anonymous routes
 
-`/auth/signin`, `/auth/callback`, `/auth/signed-out`, `/share`,
+`/auth/signin`, `/auth/callback`, `/auth/signed-out`,
 `/share/public`, `/public`, `/share/public/items/:idOrSlug`,
 `/public/items/:idOrSlug` (only for public open-data service/layer/document
 items per §4.3),
@@ -321,6 +321,11 @@ tier, or `sharing = public`), and `*` (NotFound) are anonymous-capable.
 The Share, Embed, Catalog-item, and public map-viewer routes still
 resolve through `ShareAccess` and `resolveEmbedAuthorization` (§4) —
 anonymous-capable does not mean unauthenticated reads always succeed.
+
+Every other route, including the operator sharing home `/share`, requires
+sign-in, and an anonymous visit redirects to `/auth/signin` with `returnTo`.
+Without a session the Console shell shows only the product name and the page
+itself: no menu, service tree, breadcrumbs or inventory.
 
 The `/maps/:mapId` and `/catalog/:idOrSlug` anonymous cases exist
 because `honua-portal:src/share/snippet.ts:27` emits one of two URLs:
@@ -919,7 +924,7 @@ loaded; Console must not evaluate wildcard entitlement tokens.
 
 | Route | Gates | Empty | Forbidden | Chunk |
 |---|---|---|---|---|
-| `/share` | `anonymous`, Console Share area entry; current slice renders `/share/public` content | empty-share | — | share |
+| `/share` | `auth`, operator Console Share area entry; renders the `/share/public` content | empty-share | — | share |
 | `/share/manage` | `auth` (+ server item read; the `share`/`embed`/`administer` facets gate the per-panel controls); missing-binding when no server base address is configured. Server-bound Share access management on the Console Share access API (honua-server#1215, closed): public/private access-tier change, public-link token mint/revoke + expiration, embed enablement + embed-token mint, dependency-closure preview, and open-data eligibility. Driven by `?itemId=`. | empty-share | missing-binding / missing-permission (server RBAC) / not-found (anonymous-safe) | share |
 | `/share/public` | `anonymous`, `open-data` per item (`isPublicOpenDataSummary`) | empty-share | — | share |
 | `/public` | `anonymous`, compatibility alias for `/share/public` | empty-share | — | share |

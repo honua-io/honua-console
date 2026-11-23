@@ -11,32 +11,50 @@
    reader announcements are distinguishable: "Operate — Honua Console". *@
 <PageTitle>@DocumentTitle</PageTitle>
 
+@* Without a session the Console shows only the product name and the page itself (sign-in or a
+   public surface): no menu, tree, breadcrumbs, inventory or admin API calls. @Body keeps one
+   position in the tree, so a page is not recreated when the session becomes known. *@
 @{ var navigationGroups = VisibleNavigation; }
 
 <CascadingValue Value="_layerContext" IsFixed="true">
+@if (_signedIn)
+{
 <ConsoleCommittedLocation />
 <ConsoleAgentContextBridge />
-<div class="console-shell" data-console-mode="@ModeName"
+}
+<div class="console-shell" data-console-mode="@ModeName" data-console-signed-out="@(_signedIn ? null : "true")"
      data-console-v4="@(WorkspaceServices.GetService<ConsoleV4Options>()?.Enabled == true ? "true" : null)">
     <a class="console-skip-link" href="#console-main">Skip to content</a>
+    @if (_signedIn)
+    {
     <ConsoleTopNavigation Groups="navigationGroups" />
+    }
+    else
+    {
+    <header class="console-topbar"><span class="console-topbar-brand"><strong>@ProductTitle</strong></span><ConsoleAccountControl /></header>
+    }
     <div class="console-service-workspace">
-        <AuthorizeView><Authorized><ConsolePublicationNavigation SelectionChanged="PublicationPathChanged" /></Authorized></AuthorizeView>
+        @if (_signedIn)
+        {
+        <ConsolePublicationNavigation SelectionChanged="PublicationPathChanged" />
+        }
     <div class="console-workspace">
+        @if (_signedIn)
+        {
         <ConsoleBreadcrumbs Groups="navigationGroups" PublicationPath="_publicationPath" />
+        }
         <div class="console-workspace-panes">
     <main id="console-main" class="console-main" tabindex="-1">
-        @if (!ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
+        @if (_signedIn && !ConsolePresentation.IsFocusedRoute(Navigation.ToBaseRelativePath(Navigation.Uri)))
         {
             <p class="console-muted" role="status" data-focused-preview>
                 Preview — this surface is outside the focused 2026.1 inspect, approve, operate and recover client.
             </p>
         }
-        <AuthorizeView>
-            <Authorized>
-                <LicenseExpiryBanner />
-            </Authorized>
-        </AuthorizeView>
+        @if (_signedIn)
+        {
+        <LicenseExpiryBanner />
+        }
         @Body
     </main>
 
@@ -44,7 +62,10 @@
     </div>
     </div>
 
+    @if (_signedIn)
+    {
     <ConsoleNotificationHost />
+    }
 </div>
 
 </CascadingValue>
@@ -78,6 +99,7 @@
     private CancellationTokenSource? _capabilityRefreshCancellation;
     private bool _disposed;
     private AuthenticationStateProvider? _authentication;
+    private bool _signedIn;
     private int _authenticationRevision;
     private IReadOnlyList<ConsolePublicationNode> _publicationPath = [];
 
@@ -93,7 +115,27 @@
     private void AuthenticationChanged(Task<AuthenticationState> state)
     {
         _authenticationRevision++;
+        _ = TrackSignedInAsync(state);
         PublicationAuthorityChanged();
+    }
+
+    // Fail closed: the shell stays signed out until the provider confirms a session.
+    private async Task TrackSignedInAsync(Task<AuthenticationState>? state)
+    {
+        var revision = _authenticationRevision;
+        var signedIn = false;
+        try
+        {
+            signedIn = state is not null && (await state).User.Identity?.IsAuthenticated == true;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or InvalidOperationException)
+        {
+            // An unreadable session is no session.
+        }
+
+        if (_disposed || revision != _authenticationRevision || signedIn == _signedIn) return;
+        _signedIn = signedIn;
+        await InvokeAsync(StateHasChanged);
     }
 
     protected override Task OnInitializedAsync()
@@ -105,6 +147,7 @@
         Capabilities.Changed += OnCapabilitiesChanged;
         _authentication = WorkspaceServices.GetService<AuthenticationStateProvider>();
         if (_authentication is not null) _authentication.AuthenticationStateChanged += AuthenticationChanged;
+        _ = TrackSignedInAsync(_authentication?.GetAuthenticationStateAsync());
         // Start fail-closed: navigation renders immediately while live capability truth is loaded.
         // A slow or unreachable server must not hold the prerendered shell behind HttpClient's long
         // default timeout.
@@ -126,7 +169,7 @@
         using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            // Restored browser credentials must be ready before the privileged manifest request.
+            // Restored browser credentials must be ready before the manifest request.
             if (initialAuthentication is not null) await initialAuthentication.WaitAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             requestCancellation.CancelAfter(TimeSpan.FromSeconds(CapabilityRefreshTimeoutSeconds));

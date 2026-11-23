@@ -1,6 +1,8 @@
 @inject IServiceProvider Services
 @inject NavigationManager ConsoleNavigation
 @page "/not-found"
+@* The not-found page shows no inventory, so it needs no session. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 
 <section class="console-page">
     @if (V4Enabled)
