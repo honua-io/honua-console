@@ -17,6 +17,7 @@ public sealed class LiveManifestBindingTests
     public async Task ActiveProfileSwitch_RetargetsSdkRequestAndUpdatesExistingNavigation()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.AddConsoleNotifications();
         ctx.Services.AddSingleton(new CatalogAdminOptions());
         var profiles = new InMemoryConsoleEnvironmentProfileStore([
