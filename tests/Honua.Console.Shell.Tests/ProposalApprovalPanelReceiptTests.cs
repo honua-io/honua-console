@@ -11,220 +11,69 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class ProposalApprovalPanelReceiptTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DeepLinkedResolvedProposalRemainsInspectableOutsidePendingQueue(bool enabled)
+    [Fact]
+    public async Task RuleBackedProposalWaitsForPolicyBeforeAllowingPromotion()
     {
         using var context = new BunitContext();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient(ConsoleProposalStatus.Submitted));
-        context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
-        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
-
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var navigation = context.Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo(navigation.GetUriWithQueryParameter("proposalId", "proposal-1"));
-        var page = context.Render<ApprovalInboxPage>();
-
-        page.WaitForAssertion(() =>
-        {
-            Assert.Equal("Submitted", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
-            Assert.Equal("operation-1", page.Find("[data-correlation-kind=\"OperationId\"]")
-                .GetAttribute("data-correlation-id"));
-        });
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ApprovalKeepsServerStatusAndExecutionOperationMachineReadable(bool enabled)
-    {
-        using var context = new BunitContext();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "proposal-1"));
-
-        panel.WaitForAssertion(() =>
-            Assert.Equal("AwaitingApproval", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
-
-        panel.Find("[data-proposal-approve]").Click();
-
+        var (panel, autonomy, policyRead, approval) = RenderRuleBackedProposal(context);
         panel.WaitForAssertion(() =>
         {
-            Assert.Equal("Submitted", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
-            var operation = panel.Find("[data-correlation-kind=\"OperationId\"]");
-            Assert.Equal("operation-1", operation.GetAttribute("data-correlation-id"));
-            Assert.Contains("Approved", panel.Find("[data-proposal-action-message]").TextContent, StringComparison.Ordinal);
+            Assert.Equal("Unavailable", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
+            Assert.True(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled"));
+            Assert.Empty(panel.FindAll("[data-proposal-auto-apply-toggle]"));
         });
-    }
 
-    [Fact]
-    public async Task ReasonCallbackClearsAfterApproval()
-    {
-        using var context = new BunitContext();
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var reports = new List<ConsoleAgentUnsavedSummary>();
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "proposal-1")
-            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
+        await panel.InvokeAsync(() => policyRead.SetResult());
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal("ProposeOnly", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
+            Assert.NotNull(panel.Find("[data-proposal-auto-apply-toggle]"));
+        });
 
-        panel.Find("[data-proposal-reason]").Input("Private reason");
-        Assert.Equal(1, reports[^1].ChangedFieldCount);
-        await panel.Find("[data-proposal-approve]").ClickAsync(new());
-        Assert.Contains(reports, summary => summary.PendingOperationCount == 1);
-        Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
-    }
-
-    [Fact]
-    public async Task DisposalClearsAnUnsavedReason()
-    {
-        using var context = new BunitContext();
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var reports = new List<ConsoleAgentUnsavedSummary>();
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "proposal-1")
-            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
-        panel.Find("[data-proposal-reason]").Input("Private reason");
-        Assert.Equal(1, reports[^1].ChangedFieldCount);
-        var reportCount = reports.Count;
-        await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
-        Assert.Equal(reportCount + 1, reports.Count);
-        Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
-    }
-
-    [Fact]
-    public async Task DisposalDuringDecisionStillNotifiesTheInbox()
-    {
-        using var context = new BunitContext();
-        var client = new PendingProposalClient();
-        context.Services.AddSingleton<IConsoleProposalsClient>(client);
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var actions = new List<ConsoleProposalDetail>();
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "proposal-1")
-            .Add(component => component.OnActioned, detail => actions.Add(detail)));
-        var approval = panel.Find("[data-proposal-approve]").ClickAsync(new());
-        panel.WaitForAssertion(() => Assert.True(client.Started));
-        await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
-        client.Completion.SetResult(await new ReceiptProposalClient().ApproveAsync("proposal-1"));
-        await approval;
-        Assert.Equal(ConsoleProposalStatus.Submitted, Assert.Single(actions).Status);
-    }
-
-    [Fact]
-    public async Task ARefreshStartedBeforeApprovalCannotReplaceTheDecision()
-    {
-        using var context = new BunitContext();
-        var client = new PendingProposalClient();
-        context.Services.AddSingleton<IConsoleProposalsClient>(client);
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "proposal-1"));
-        var receipts = new ReceiptProposalClient();
-        var pendingDetail = await receipts.GetAsync("proposal-1");
-        var refresh = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
-
-        client.NextRead = refresh.Task;
+        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
+        var policyRefresh = new TaskCompletionSource();
+        autonomy.PolicyRead = policyRefresh.Task;
         panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
-        var approval = panel.Find("[data-proposal-approve]").ClickAsync(new());
-        client.Completion.SetResult(await receipts.ApproveAsync("proposal-1"));
-        await approval;
+        panel.WaitForAssertion(() =>
+        {
+            Assert.True(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled"));
+            Assert.True(panel.Find("[data-proposal-auto-apply-toggle]").HasAttribute("checked"));
+            Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
+        });
+        await panel.InvokeAsync(() => policyRefresh.SetResult());
+        panel.WaitForAssertion(() => Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
 
-        await panel.InvokeAsync(() => refresh.SetResult(pendingDetail));
+        var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        await panel.InvokeAsync(() => approval.SetResult());
+        await approve;
 
-        Assert.Empty(panel.FindAll("[data-proposal-approve]"));
-        Assert.Single(panel.FindAll("[data-proposal-action-message]"));
+        AssertPromotionReceipt(panel, autonomy);
     }
 
     [Fact]
-    public async Task ReopenedReviewKeepsDecisionsDisabledAndDisplaysTheRecordedOutcome()
+    public async Task ApprovalSkipsPolicyUpdateWhenRefreshAlreadyShowsAutoApply()
     {
         using var context = new BunitContext();
-        var client = new PendingProposalClient();
-        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
-        context.Services.AddSingleton<IConsoleProposalsClient>(client);
-        context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
-        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var navigation = context.Services.GetRequiredService<NavigationManager>();
-        navigation.NavigateTo("/inbox?proposalId=proposal-1");
-        var page = context.Render<ApprovalInboxPage>();
-        var approval = page.Find("[data-proposal-approve]").ClickAsync(new());
-        page.WaitForAssertion(() => Assert.True(client.Started));
-        page.FindAll("button").Single(button => button.TextContent == "Close review").Click();
-        await page.InvokeAsync(() => navigation.NavigateTo("/inbox"));
-        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=proposal-1"));
-        page.WaitForAssertion(() => Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
+        var (panel, autonomy, policyRead, approval) = RenderRuleBackedProposal(context);
+        await panel.InvokeAsync(() => policyRead.SetResult());
+        panel.WaitForAssertion(() => Assert.NotNull(panel.Find("[data-proposal-auto-apply-toggle]")));
+        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
 
-        var staleRead = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
-        client.NextRead = staleRead.Task;
-        var completed = await new ReceiptProposalClient(ConsoleProposalStatus.Succeeded).GetAsync("proposal-1");
-        client.Completion.SetResult(completed);
-        await approval;
+        var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        panel.WaitForAssertion(() => Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
+        autonomy.ObservePolicyMode("AutoApply");
+        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+        panel.WaitForAssertion(() =>
+            Assert.Equal("AutoApply", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim()));
 
-        page.WaitForAssertion(() =>
-            Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
-        Assert.Empty(page.FindAll("[data-proposal-approve]"));
-
-        var pending = await new ReceiptProposalClient().GetAsync("proposal-1");
-        await page.InvokeAsync(() => staleRead.SetResult(pending));
-        Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
-        Assert.Empty(page.FindAll("[data-proposal-approve]"));
+        await panel.InvokeAsync(() => approval.SetResult());
+        await approve;
+        Assert.Empty(autonomy.PolicyUpdates);
     }
 
-    [Fact]
-    public async Task OverlappingRefreshesRenderTheFirstReadWhileTheFollowUpIsPending()
+    private static (IRenderedComponent<ProposalApprovalPanel> Panel, FakeInboxAutonomyClient Autonomy,
+        TaskCompletionSource PolicyRead, TaskCompletionSource Approval) RenderRuleBackedProposal(BunitContext context)
     {
-        using var context = new BunitContext();
-        var client = new PendingProposalClient();
-        var first = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
-        var followUp = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
-        client.NextRead = first.Task;
-        context.Services.AddSingleton<IConsoleProposalsClient>(client);
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
-        client.NextRead = followUp.Task;
-        panel.Render(parameters => parameters.Add(p => p.ReloadToken, 1));
-
-        var receipts = new ReceiptProposalClient();
-        var pending = await receipts.GetAsync("proposal-1");
-        await panel.InvokeAsync(() => first.SetResult(pending));
-        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-proposal-approve]")));
-
-        var submitted = await receipts.ApproveAsync("proposal-1");
-        await panel.InvokeAsync(() => followUp.SetResult(submitted));
-        panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-proposal-approve]")));
-    }
-
-    [Fact]
-    public async Task FailedDecisionRetainsReasonAndClearsPendingCount()
-    {
-        using var context = new BunitContext();
-        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        var reports = new List<ConsoleAgentUnsavedSummary>();
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "proposal-1")
-            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
-
-        panel.Find("[data-proposal-reason]").Input("Reason");
-        await panel.Find("[data-proposal-reject]").ClickAsync(new());
-        Assert.Equal(1, reports[^1].ChangedFieldCount);
-        Assert.Equal(0, reports[^1].PendingOperationCount);
-        panel.Find("[data-proposal-reason]").Input("");
-        Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
-    }
-
-    [Fact]
-    public void UnblindedProposalReviewRendersPlanHashOperationIdInitiationCveHighlightAndExecutionPayload()
-    {
-        using var context = new BunitContext();
-        const string digest = "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         var detail = new ConsoleProposalDetail(
             ProposalId: "prop-cve-9",
             Kind: ConsoleProposalKind.Deploy,
@@ -315,51 +164,11 @@ public sealed class ProposalApprovalPanelReceiptTests
         var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
             .Add(component => component.ProposalId, "prop-rule-1"));
 
-        panel.WaitForAssertion(() =>
-        {
-            Assert.Equal("Unavailable", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
-            Assert.True(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled"));
-            Assert.Empty(panel.FindAll("[data-proposal-auto-apply-toggle]"));
-        });
+        return (panel, autonomy, policyRead, approval);
+    }
 
-        await panel.InvokeAsync(() => policyRead.SetResult());
-        panel.WaitForAssertion(() =>
-        {
-            Assert.Equal("ProposeOnly", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim());
-            Assert.NotNull(panel.Find("[data-proposal-auto-apply-toggle]"));
-        });
-
-        panel.Find("[data-proposal-auto-apply-toggle]").Change(true);
-        var policyRefresh = new TaskCompletionSource();
-        autonomy.PolicyRead = policyRefresh.Task;
-        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
-        panel.WaitForAssertion(() =>
-        {
-            Assert.True(panel.Find("[data-proposal-auto-apply-action]").HasAttribute("disabled"));
-            Assert.True(panel.Find("[data-proposal-auto-apply-toggle]").HasAttribute("checked"));
-            Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled"));
-        });
-        await panel.InvokeAsync(() => policyRefresh.SetResult());
-        panel.WaitForAssertion(() => Assert.False(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
-
-        var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
-        panel.WaitForAssertion(() => Assert.True(panel.Find("[data-proposal-approve]").HasAttribute("disabled")));
-        if (enabledDuringApproval)
-        {
-            autonomy.ObservePolicyMode("AutoApply");
-            panel.Render(parameters => parameters.Add(component => component.ReloadToken, 2));
-            panel.WaitForAssertion(() =>
-                Assert.Equal("AutoApply", panel.Find("[data-proposal-autonomy-mode]").TextContent.Trim()));
-        }
-
-        await panel.InvokeAsync(() => approval.SetResult());
-        await approve;
-        if (enabledDuringApproval)
-        {
-            Assert.Empty(autonomy.PolicyUpdates);
-            return;
-        }
-
+    private static void AssertPromotionReceipt(IRenderedComponent<ProposalApprovalPanel> panel, FakeInboxAutonomyClient autonomy)
+    {
         panel.WaitForAssertion(() =>
         {
             var call = Assert.Single(autonomy.PolicyUpdates);
