@@ -241,3 +241,71 @@
         border-radius: var(--radius-md);
     }
 }
+
+.console-activity-v4 .console-activity-feed-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.console-activity-v4 .console-activity-feed-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.console-activity-v4 .console-activity-feed-filter {
+    min-width: 12rem;
+}
+
+.console-activity-v4 .console-activity-feed-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+}
+
+.console-activity-v4 .console-activity-feed-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.console-activity-v4 .console-activity-feed-table th {
+    padding: var(--space-3) var(--space-4);
+    color: var(--c-text-3);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+}
+
+.console-activity-v4 .console-activity-feed-table td {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--c-rule);
+    color: var(--c-text-2);
+    font-size: var(--text-sm);
+    vertical-align: top;
+    overflow-wrap: break-word;
+}
+
+.console-activity-v4 .console-activity-feed-table time {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.console-activity-v4 .console-activity-feed-actor {
+    display: block;
+    color: var(--c-text);
+}
+
+.console-activity-v4 .console-activity-feed-channel {
+    display: block;
+    font-size: var(--text-xs);
+}

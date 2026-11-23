@@ -19,6 +19,21 @@ const splitWords = page => page.locator(".console-activity-v4").evaluate(scope =
     })
     .map(element => element.textContent.trim()));
 
+const assertWholeWords = async (page, width) => {
+  for (const tableWidth of [1280, 1024, 800, 700]) {
+    await page.setViewportSize({ width: tableWidth, height: 844 });
+    assert.deepEqual(await splitWords(page), [], `Activity tables split words mid-word at ${tableWidth}px`);
+  }
+  await page.setViewportSize({ width, height: 844 });
+};
+
+const assertFeedLeads = async page => {
+  assert.equal(await page.locator("[data-feed-row]").count(), 3);
+  const feed = await page.locator("[data-activity-feed]").boundingBox();
+  const events = await page.locator("#events").boundingBox();
+  assert.ok(feed.y < events.y, "Activity leads with the change list");
+};
+
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
   pageNames: ["activity-selected", "activity-empty"],
@@ -29,6 +44,7 @@ await runV4PagePresentation({
   controls: "#events :is(a[href], input, select, button, summary, [tabindex='0']):not(:disabled):visible",
   inspect: async (page, name) => {
     assert.equal(await page.locator("[data-timeline-row]").count(), name === "activity-selected" ? 2 : 0);
+    if (name === "activity-selected") await assertFeedLeads(page);
     const width = page.viewportSize().width;
     assert.equal(await page.locator("h1").evaluate(element => getComputedStyle(element).fontSize), width === 390 ? "22px" : "28px");
     for (const heading of await page.locator("h2").all()) {
@@ -43,13 +59,7 @@ await runV4PagePresentation({
           .map(cell => cell.dataset.label ?? cell.cellIndex);
       });
       assert.deepEqual(clipped, [], `Activity event columns are hidden at ${width}px`);
-      if (width !== 390) {
-        for (const tableWidth of [1280, 1024, 800, 700]) {
-          await page.setViewportSize({ width: tableWidth, height: 844 });
-          assert.deepEqual(await splitWords(page), [], `Activity tables split words mid-word at ${tableWidth}px`);
-        }
-        await page.setViewportSize({ width, height: 844 });
-      }
+      if (width !== 390) await assertWholeWords(page, width);
       if (width === 390) {
         assert.ok(await page.locator(".operate-timeline").evaluate(region => region.scrollWidth <= region.clientWidth + 0.5),
           "Activity event history scrolls sideways at phone width");

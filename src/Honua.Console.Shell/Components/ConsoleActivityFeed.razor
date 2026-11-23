@@ -1,0 +1,144 @@
+@using System.Globalization
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+<section id="changes" class="operate-section console-activity-feed" aria-labelledby="changes-heading" data-activity-feed>
+    <div class="operate-section-heading">
+        <h2 id="changes-heading">Changes</h2>
+    </div>
+
+    <div class="console-activity-feed-toolbar" role="group" aria-label="Change list controls">
+        <div class="console-activity-feed-pager">
+            <button type="button" class="console-button console-button-secondary" data-feed-newer
+                    disabled="@(_busy || _cursors.Count == 0)" @onclick="NewerAsync">Newer</button>
+            <button type="button" class="console-button console-button-secondary" data-feed-older
+                    disabled="@(_busy || Page?.NextCursor is null)" @onclick="OlderAsync">Older</button>
+            <span class="console-muted" data-feed-range>@RangeText</span>
+        </div>
+        <select class="console-activity-feed-filter" aria-label="Actor" data-feed-actor value="@_actor"
+                @onchange="OnActorChangedAsync" disabled="@_busy">
+                <option value="@ConsoleActivityActorFilter.Any">Any actor</option>
+                <option value="@ConsoleActivityActorFilter.Person">People</option>
+                <option value="@ConsoleActivityActorFilter.Agent">Agents</option>
+                <option value="@ConsoleActivityActorFilter.ApiKey">API keys</option>
+                <option value="@ConsoleActivityActorFilter.System">System</option>
+        </select>
+    </div>
+
+    @if (_result is null)
+    {
+        <OperateSectionStatusPanel Heading="Changes" Loading="true" />
+    }
+    else if (!_result.IsAllowed)
+    {
+        <OperateSectionStatusPanel Heading="Changes" Status="_result.Status" Message="@_result.Message" Detail="@_result.Detail" />
+    }
+    else if (Rows.Count == 0)
+    {
+        <OperateSectionStatusPanel Heading="Changes" Empty="true" EmptyTitle="No changes"
+            EmptyMessage="No change matches this filter on this page of the server's change record." />
+    }
+    else
+    {
+        <ConsoleTableRegion Class="console-activity-feed-scroll" Label="Changes, newest first">
+            <table class="console-activity-feed-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">Actor</th>
+                        <th scope="col">Action</th>
+                        <th scope="col">What</th>
+                        <th scope="col">Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Rows)
+                    {
+                        var actor = ConsoleActivityPresentation.Actor(row);
+                        var href = ConsoleActivityPresentation.ReferenceHref(row);
+                        <tr @key="row.AuditId" data-feed-row="@row.AuditId">
+                            <td><time datetime="@row.Timestamp.ToString("O", CultureInfo.InvariantCulture)">@row.Timestamp.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)</time></td>
+                            <td data-feed-actor-kind="@actor.Kind">
+                                <span class="console-activity-feed-actor">@actor.Name</span>
+                                <span class="console-muted console-activity-feed-channel">@actor.Channel</span>
+                            </td>
+                            <td>
+                                @ConsoleActivityPresentation.Humanize(row.Action)
+                                @if (!ConsoleActivityPresentation.Succeeded(row))
+                                {
+                                    <OperateStatusPill Label="@ConsoleActivityPresentation.Humanize(row.Outcome)" CssClass="console-state-warning" />
+                                }
+                            </td>
+                            <td>@ConsoleActivityPresentation.What(row)</td>
+                            <td>
+                                @if (href is not null)
+                                {
+                                    <a href="@href">@ConsoleActivityPresentation.ReferenceLabel(row)</a>
+                                }
+                                else
+                                {
+                                    <span class="console-muted">Not reported</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
+    }
+</section>
+
+@code {
+    private readonly Stack<string?> _cursors = new();
+    private IConsoleActivityFeedClient Feed => Services.GetService<IConsoleActivityFeedClient>() ?? new UnsupportedConsoleActivityFeedClient();
+    private ConsoleActivityActorFilter _actor = ConsoleActivityActorFilter.Any;
+    private string? _cursor;
+    private OperateSectionResult<ConsoleActivityFeedPage>? _result;
+    private bool _busy;
+
+    private ConsoleActivityFeedPage? Page => _result is { IsAllowed: true } ? _result.Value : null;
+
+    private IReadOnlyList<ObservabilityAuditRecordResponse> Rows =>
+        Page is { } page ? ConsoleActivityPresentation.Visible(page.Items, _actor) : [];
+
+    private string RangeText => Page is null ? string.Empty : ConsoleActivityPresentation.Range(_cursors.Count, Rows.Count);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task OnActorChangedAsync(ChangeEventArgs args)
+    {
+        _actor = Enum.TryParse<ConsoleActivityActorFilter>(args.Value?.ToString(), out var actor) ? actor : ConsoleActivityActorFilter.Any;
+        _cursors.Clear();
+        _cursor = null;
+        await LoadAsync();
+    }
+
+    private async Task OlderAsync()
+    {
+        _cursors.Push(_cursor);
+        _cursor = Page?.NextCursor;
+        await LoadAsync();
+    }
+
+    private async Task NewerAsync()
+    {
+        _cursor = _cursors.Pop();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try
+        {
+            _result = await Feed.ReadAsync(new ConsoleActivityFeedQuery(_actor, _cursor));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

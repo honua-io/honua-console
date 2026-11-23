@@ -13,7 +13,7 @@ namespace Honua.Console.Shell.Services;
 // Base address and bearer token come from the active ConsoleEnvironmentProfile and its account session.
 // One shared HttpClient serves every environment and section: each request builds an absolute URI and
 // attaches its own auth header. Deserialization is source-generated for trim/AOT safety.
-public sealed class HttpConsoleOperateObservabilityClient : IConsoleOperateObservabilityClient
+public sealed partial class HttpConsoleOperateObservabilityClient : IConsoleOperateObservabilityClient, IConsoleActivityFeedClient
 {
     private const int DefaultPageSize = 50;
 

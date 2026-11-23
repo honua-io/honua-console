@@ -22,6 +22,9 @@ internal static class OperateObservabilityRegistrations
                 serviceProvider.GetRequiredService<IConsoleAccountSessionStore>(),
                 adminApiKey,
                 serviceProvider.GetService<ILogger<HttpConsoleOperateObservabilityClient>>()));
+        services.TryAddSingleton<IConsoleActivityFeedClient>(serviceProvider =>
+            serviceProvider.GetRequiredService<IConsoleOperateObservabilityClient>() as IConsoleActivityFeedClient
+            ?? new UnsupportedConsoleActivityFeedClient());
         services.TryAddSingleton<IConsoleGitOpsReleaseClient>(serviceProvider =>
             new HttpConsoleGitOpsReleaseClient(
                 ShellHttpClients.ServerBound(serviceProvider),
