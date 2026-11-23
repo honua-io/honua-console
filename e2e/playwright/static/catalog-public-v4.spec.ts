@@ -80,6 +80,20 @@ for (const screen of screens) {
         body: await page.screenshot({ fullPage: true, animations: 'disabled' }),
         contentType: 'image/png',
       });
+      if (screen.id === '15-public-catalog') {
+        const search = page.getByRole('searchbox', { name: 'Search open data' });
+        const submit = page.getByRole('button', { name: 'Search', exact: true });
+        await search.fill('no matching publication');
+        await submit.click();
+        await expect(page.getByRole('heading', { name: '0 results', exact: true })).toBeVisible();
+        await search.fill('coastal');
+        await submit.click();
+        await expect(page.getByRole('heading', { name: '1 results', exact: true })).toBeVisible();
+        await page.getByRole('button', { name: /^Service.*\(1\)$/ }).click();
+        await page.getByRole('button', { name: /^Remove Service.* filter$/ }).click();
+        await page.getByRole('link', { name: item.title, exact: true }).click();
+        await expect(page.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
+      }
     });
   }
 }
