@@ -72,6 +72,7 @@ for (const screen of screens) {
       if (screen.id === '16-public-service') {
         await expect(page.locator('[data-share-opendata-routes] code')).toHaveText(item.distributions[0].accessUrl);
         await expect(page.getByRole('button', { name: /^Copy:/ })).toBeVisible();
+        await expect(page.locator('[data-share-opendata-downloads] a')).toHaveAttribute('href', item.distributions[0].accessUrl);
         await expect(page.getByText(item.license, { exact: true })).toBeVisible();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
