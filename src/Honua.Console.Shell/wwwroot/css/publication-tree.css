@@ -95,12 +95,13 @@
 [data-console-v4="true"] .console-tree-row[aria-expanded="true"] > [data-icon="folder-open"],
 [data-console-v4="true"] .console-tree-icon:is([data-icon="point"], [data-icon="line"], [data-icon="polygon"], [data-icon="raster"]) { color: var(--c-accent); }
 [data-console-v4="true"] .console-tree-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-inline-start: auto; padding: 0 6px; font-weight: var(--weight-semibold); }
-[data-console-v4="true"] .console-tree-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); flex-shrink: 0; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--c-border); font-size: var(--text-xs); color: var(--c-side-muted); }
+[data-console-v4="true"] .console-tree-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); flex-shrink: 0; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--c-border); font-size: var(--text-xs); color: var(--c-side-muted); }
 [data-console-v4="true"] .console-tree-live { display: inline-flex; align-items: center; gap: 6px; }
 [data-console-v4="true"] .console-tree-live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c-neutral); }
 [data-console-v4="true"] .console-tree-live[data-live="true"]::before { background: var(--c-ok); }
 [data-console-v4="true"] .console-tree-foot-action { padding: 0; border: 0; background: none; color: var(--c-link); font: inherit; cursor: pointer; }
 [data-console-v4="true"] .console-tree-foot-action:last-child { margin-inline-start: auto; }
+[data-console-v4="true"] .console-tree-refresh { display: inline-grid; place-items: center; }
 [data-console-v4="true"] .console-tree-foot-action:hover { text-decoration: underline; }
 .console-shell[data-console-v4="true"] .console-search-results { padding: var(--space-2); }
 .console-shell[data-console-v4="true"] .console-search-results .console-publication-tree { padding: 0; }
@@ -109,7 +110,7 @@
 .console-shell[data-console-v4="true"] .console-search-row .console-tree-icon { color: var(--c-accent); }
 .console-shell[data-console-v4="true"] .console-search-row a { white-space: normal; }
 .console-shell[data-console-v4="true"] .console-search-results mark { background: transparent; color: inherit; font-weight: var(--weight-bold); }
-.console-shell[data-console-v4="true"] .console-search-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--c-side-muted); }
+.console-shell[data-console-v4="true"] .console-search-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--c-side-muted); }
 .console-shell[data-console-v4="true"] .console-search-empty,
 .console-shell[data-console-v4="true"] .console-search-summary { margin: 4px 6px; font-size: var(--text-xs); color: var(--c-side-muted); }
 .console-shell[data-console-v4="true"] .console-search-results [data-search-more] { margin: 4px 6px; }
