@@ -11,6 +11,269 @@ namespace Honua.Console.Shell.Tests;
 
 public sealed class ProposalApprovalPanelReceiptTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeepLinkedResolvedProposalRemainsInspectableOutsidePendingQueue(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient(ConsoleProposalStatus.Submitted));
+        context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
+        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
+
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(navigation.GetUriWithQueryParameter("proposalId", "proposal-1"));
+        var page = context.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal("Submitted", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
+            Assert.Equal("operation-1", page.Find("[data-correlation-kind=\"OperationId\"]")
+                .GetAttribute("data-correlation-id"));
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ApprovalKeepsServerStatusAndExecutionOperationMachineReadable(bool enabled)
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1"));
+
+        panel.WaitForAssertion(() =>
+            Assert.Equal("AwaitingApproval", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
+
+        panel.Find("[data-proposal-approve]").Click();
+
+        panel.WaitForAssertion(() =>
+        {
+            Assert.Equal("Submitted", panel.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
+            var operation = panel.Find("[data-correlation-kind=\"OperationId\"]");
+            Assert.Equal("operation-1", operation.GetAttribute("data-correlation-id"));
+            Assert.Contains("Approved", panel.Find("[data-proposal-action-message]").TextContent, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public async Task ReasonCallbackClearsAfterApproval()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var reports = new List<ConsoleAgentUnsavedSummary>();
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1")
+            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
+
+        panel.Find("[data-proposal-reason]").Input("Private reason");
+        Assert.Equal(1, reports[^1].ChangedFieldCount);
+        await panel.Find("[data-proposal-approve]").ClickAsync(new());
+        Assert.Contains(reports, summary => summary.PendingOperationCount == 1);
+        Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
+    }
+
+    [Fact]
+    public async Task DisposalClearsAnUnsavedReason()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var reports = new List<ConsoleAgentUnsavedSummary>();
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1")
+            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
+        panel.Find("[data-proposal-reason]").Input("Private reason");
+        Assert.Equal(1, reports[^1].ChangedFieldCount);
+        var reportCount = reports.Count;
+        await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
+        Assert.Equal(reportCount + 1, reports.Count);
+        Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
+    }
+
+    [Fact]
+    public async Task DisposalDuringDecisionStillNotifiesTheInbox()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var actions = new List<ConsoleProposalDetail>();
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1")
+            .Add(component => component.OnActioned, detail => actions.Add(detail)));
+        var approval = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        panel.WaitForAssertion(() => Assert.True(client.Started));
+        await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
+        client.Completion.SetResult(await new ReceiptProposalClient().ApproveAsync("proposal-1"));
+        await approval;
+        Assert.Equal(ConsoleProposalStatus.Submitted, Assert.Single(actions).Status);
+    }
+
+    [Fact]
+    public async Task ARefreshStartedBeforeApprovalCannotReplaceTheDecision()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1"));
+        var receipts = new ReceiptProposalClient();
+        var pendingDetail = await receipts.GetAsync("proposal-1");
+        var refresh = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+
+        client.NextRead = refresh.Task;
+        panel.Render(parameters => parameters.Add(component => component.ReloadToken, 1));
+        var approval = panel.Find("[data-proposal-approve]").ClickAsync(new());
+        client.Completion.SetResult(await receipts.ApproveAsync("proposal-1"));
+        await approval;
+
+        await panel.InvokeAsync(() => refresh.SetResult(pendingDetail));
+
+        Assert.Empty(panel.FindAll("[data-proposal-approve]"));
+        Assert.Single(panel.FindAll("[data-proposal-action-message]"));
+    }
+
+    [Fact]
+    public async Task ReopenedReviewKeepsDecisionsDisabledAndDisplaysTheRecordedOutcome()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        context.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.Services.AddSingleton<IConsoleApprovalInboxClient>(new EmptyInboxClient());
+        context.Services.AddSingleton<IConsoleProposalRealtimeClient>(new NoOpRealtimeClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/inbox?proposalId=proposal-1");
+        var page = context.Render<ApprovalInboxPage>();
+        var approval = page.Find("[data-proposal-approve]").ClickAsync(new());
+        page.WaitForAssertion(() => Assert.True(client.Started));
+        page.FindAll("button").Single(button => button.TextContent == "Close review").Click();
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox"));
+        await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=proposal-1"));
+        page.WaitForAssertion(() => Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
+
+        var staleRead = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        client.NextRead = staleRead.Task;
+        var completed = await new ReceiptProposalClient(ConsoleProposalStatus.Succeeded).GetAsync("proposal-1");
+        client.Completion.SetResult(completed);
+        await approval;
+
+        page.WaitForAssertion(() =>
+            Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status")));
+        Assert.Empty(page.FindAll("[data-proposal-approve]"));
+
+        var pending = await new ReceiptProposalClient().GetAsync("proposal-1");
+        await page.InvokeAsync(() => staleRead.SetResult(pending));
+        Assert.Equal("Succeeded", page.Find("[data-proposal-status]").GetAttribute("data-proposal-status"));
+        Assert.Empty(page.FindAll("[data-proposal-approve]"));
+    }
+
+    [Fact]
+    public async Task OverlappingRefreshesRenderTheFirstReadWhileTheFollowUpIsPending()
+    {
+        using var context = new BunitContext();
+        var client = new PendingProposalClient();
+        var first = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        var followUp = new TaskCompletionSource<OperateSectionResult<ConsoleProposalDetail>>();
+        client.NextRead = first.Task;
+        context.Services.AddSingleton<IConsoleProposalsClient>(client);
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters.Add(p => p.ProposalId, "proposal-1"));
+        client.NextRead = followUp.Task;
+        panel.Render(parameters => parameters.Add(p => p.ReloadToken, 1));
+
+        var receipts = new ReceiptProposalClient();
+        var pending = await receipts.GetAsync("proposal-1");
+        await panel.InvokeAsync(() => first.SetResult(pending));
+        panel.WaitForAssertion(() => Assert.Single(panel.FindAll("[data-proposal-approve]")));
+
+        var submitted = await receipts.ApproveAsync("proposal-1");
+        await panel.InvokeAsync(() => followUp.SetResult(submitted));
+        panel.WaitForAssertion(() => Assert.Empty(panel.FindAll("[data-proposal-approve]")));
+    }
+
+    [Fact]
+    public async Task FailedDecisionRetainsReasonAndClearsPendingCount()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IConsoleProposalsClient>(new ReceiptProposalClient());
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var reports = new List<ConsoleAgentUnsavedSummary>();
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "proposal-1")
+            .Add(component => component.UnsavedChanged, summary => reports.Add(summary)));
+
+        panel.Find("[data-proposal-reason]").Input("Reason");
+        await panel.Find("[data-proposal-reject]").ClickAsync(new());
+        Assert.Equal(1, reports[^1].ChangedFieldCount);
+        Assert.Equal(0, reports[^1].PendingOperationCount);
+        panel.Find("[data-proposal-reason]").Input("");
+        Assert.Equal(new ConsoleAgentUnsavedSummary(), reports[^1]);
+    }
+
+    [Fact]
+    public void UnblindedProposalReviewRendersPlanHashOperationIdInitiationCveHighlightAndExecutionPayload()
+    {
+        using var context = new BunitContext();
+        const string digest = "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        var detail = new ConsoleProposalDetail(
+            ProposalId: "prop-cve-9",
+            Kind: ConsoleProposalKind.Deploy,
+            Status: ConsoleProposalStatus.AwaitingApproval,
+            RequestedBy: "support:ticket-42",
+            RequestedByAgent: "honua-support-agent",
+            Summary: "Urgent CVE-2026-99999 image patch",
+            Diff: [$"+ image ghcr.io/honua-io/honua-server{digest}"],
+            DryRun: ["ECS task definition validated"],
+            RiskLevel: ConsoleProposalRisk.High,
+            BlockingReasons: [],
+            Warnings: [],
+            GuardrailTier: "RequiresApproval",
+            ResolvedBy: null,
+            ResolutionReason: null,
+            ExecutionOperationId: null,
+            CreatedAt: DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
+            UpdatedAt: DateTimeOffset.Parse("2026-06-28T10:05:00Z"),
+            ResolvedAt: null)
+        {
+            Version = 3,
+            PlanHash = "sha256:plan-hash-99",
+            OperationId = "deploy.ecs.patch",
+            ActionDiscriminator = "deploy.image.cve_patch",
+            Initiation = "SupportAgent",
+            ExecutionPayload = $$"""{"targetId":"ecs-prod","imageUri":"ghcr.io/honua-io/honua-server{{digest}}"}"""
+        };
+        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail));
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+
+        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
+            .Add(component => component.ProposalId, "prop-cve-9"));
+
+        panel.WaitForAssertion(() =>
+        {
+            var planHash = panel.Find("[data-proposal-plan-hash]").TextContent;
+            Assert.Contains("sha256:plan-hash-99", planHash, StringComparison.Ordinal);
+            Assert.Contains("(v3)", planHash, StringComparison.Ordinal);
+            Assert.DoesNotContain("@detail.Version", planHash, StringComparison.Ordinal);
+            Assert.Equal("deploy.ecs.patch", panel.Find("[data-proposal-operation-id]").TextContent.Trim());
+            Assert.Equal("deploy.image.cve_patch", panel.Find("[data-proposal-action-discriminator]").TextContent.Trim());
+            Assert.Equal("SupportAgent", panel.Find("[data-proposal-initiation]").TextContent.Trim());
+            Assert.Contains("honua-support-agent", panel.Find("[data-proposal-support-initiation]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("CVE-2026-99999", panel.Find("[data-proposal-cve-patch]").TextContent, StringComparison.Ordinal);
+            Assert.Contains(digest, panel.Find("[data-proposal-cve-patch]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("ecs-prod", panel.Find("[data-proposal-execution-payload]").TextContent, StringComparison.Ordinal);
+        });
+    }
+
     [Fact]
     public async Task RuleBackedProposalWaitsForPolicyBeforeAllowingPromotion()
     {
