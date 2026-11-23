@@ -224,7 +224,7 @@ def run_playwright(env, *, playwright_dir=ROOT / 'e2e/playwright', raw_report=IN
             scrub_tree(Path(playwright_dir) / 'test-results', REDACTOR)
 
 
-LOGGED_SERVICES = ('honua', 'console', 'keycloak')
+LOGGED_SERVICES = ('honua', 'compose-manager', 'console', 'keycloak')
 CONTAINER_LOG = ROOT / 'artifacts/studio-customer/agent-reflection-containers.log'
 
 
