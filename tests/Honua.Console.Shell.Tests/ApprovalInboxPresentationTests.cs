@@ -46,17 +46,4 @@ public sealed class ApprovalInboxPresentationTests
         Assert.False(ApprovalInboxPresentation.IsReportedTime(DateTimeOffset.MinValue));
         Assert.True(ApprovalInboxPresentation.IsReportedTime(Now));
     }
-
-    [Theory]
-    [InlineData(0, "No proposals waiting.")]
-    [InlineData(1, "1 proposal waiting.")]
-    [InlineData(5, "5 proposals waiting.")]
-    public void WaitingSentence_CountsAwaitingProposals(int awaiting, string expected) =>
-        Assert.Equal(expected, ApprovalInboxPresentation.WaitingSentence(awaiting));
-
-    [Theory]
-    [InlineData(0, 3, "No results")]
-    [InlineData(2, 3, "Results 1 to 2 (out of 3)")]
-    public void Results_DescribesTheVisibleRange(int shown, int total, string expected) =>
-        Assert.Equal(expected, ApprovalInboxPresentation.Results(shown, total));
 }

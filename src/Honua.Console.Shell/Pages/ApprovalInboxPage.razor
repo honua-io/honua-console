@@ -68,6 +68,7 @@
         </button>
     </div>
 
+    @{ RenderFragment? queue = null; }
     @if (!_loaded)
     {
         <OperateSectionStatusPanel Heading="Approval inbox" Loading="true" />
@@ -148,9 +149,7 @@
             </div>
         }
 
-        var linkedMode = V4Enabled && _linkedRequestId is not null;
-        var linked = LinkedRequest;
-        RenderFragment queue =
+        queue =
             @<div class="approval-inbox-queue">
                 @if (VisibleItems.Count == 0)
                 {
@@ -268,7 +267,12 @@
                     }
                 }
             </div>;
+    }
 
+    @if (queue is not null || _selectedProposalId is not null)
+    {
+        var linkedMode = V4Enabled && _linkedRequestId is not null;
+        var linked = LinkedRequest;
         @if (linked is not null)
         {
             <ApprovalRequestIntro Proposal="@linked" />
@@ -296,7 +300,7 @@
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         DecisionPending="@(IsDecisionPending(proposalId))"
-                        RecordedStatus="@(_recordedStatuses.TryGetValue(proposalId, out var status) ? status : null)"
+                        RecordedDetail="@_recordedDetails.GetValueOrDefault(proposalId)"
                         UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, proposalId, summary))"
                         OnActioned="@(detail => OnProposalActioned(approvalInstance, detail))" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
                     @if (linked is not null)
@@ -360,6 +364,9 @@
     [SupplyParameterFromQuery(Name = "proposalId")]
     public string? ProposalId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "source")]
+    public string? ProposalSource { get; set; }
+
     /// <summary>
     /// The bounded-loading budget for the queue read (console#308). A parameter so component
     /// tests can drive the timeout path deterministically without waiting the full ~5s.
@@ -394,8 +401,8 @@
     private string? _selectedProposalId;
     private object _approvalInstance = new();
     private readonly Dictionary<object, (string ProposalId, ConsoleAgentUnsavedSummary Summary)> _approvalStates = new();
-    private readonly Dictionary<string, ConsoleProposalStatus> _recordedStatuses = new(StringComparer.Ordinal);
-    private string? _routeProposalId;
+    private readonly Dictionary<string, ConsoleProposalDetail> _recordedDetails = new(StringComparer.Ordinal);
+    private (string? Id, string? Source) _routeSelection;
     private string? _linkedRequestId;
     private ConsoleProposalDetail? _selectedDetail;
     private int _detailReloadToken;
@@ -447,8 +454,9 @@
     protected override void OnParametersSet()
     {
         var proposalId = string.IsNullOrWhiteSpace(ProposalId) ? null : ProposalId.Trim();
-        if (string.Equals(proposalId, _routeProposalId, StringComparison.Ordinal)) return;
-        _routeProposalId = proposalId;
+        var route = (proposalId, ProposalSource);
+        if (route == _routeSelection) return;
+        _routeSelection = route;
         _linkedRequestId = string.Equals(proposalId, _selectedProposalId, StringComparison.Ordinal) ? null : proposalId;
         SetSelectedProposal(proposalId);
         _terminalProposalId = null;
@@ -458,7 +466,8 @@
 
     private void ResolveSelectedProposalSource()
     {
-        if (_selectedProposalId is { Length: > 0 } raw
+        if (ProposalSource != "serving"
+            && _selectedProposalId is { Length: > 0 } raw
             && !raw.StartsWith("manager:", StringComparison.Ordinal)
             && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
             && _result.Value.Items.Any(item => string.Equals(item.ProposalId, "manager:" + raw, StringComparison.Ordinal)))
@@ -696,7 +705,11 @@
     {
         if (V4Enabled)
         {
-            Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("proposalId", _selectedProposalId), replace: true);
+            Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+            {
+                ["proposalId"] = _selectedProposalId,
+                ["source"] = null,
+            }), replace: true);
         }
     }
 
@@ -738,7 +751,7 @@
 
         if (!detail.IsAwaitingApproval)
         {
-            _recordedStatuses[detail.ProposalId] = detail.Status;
+            _recordedDetails[detail.ProposalId] = detail;
         }
         if (detail.ProposalId == _selectedProposalId)
         {

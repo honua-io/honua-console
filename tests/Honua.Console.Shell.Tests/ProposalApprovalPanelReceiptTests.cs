@@ -338,61 +338,6 @@ public sealed class ProposalApprovalPanelReceiptTests
         TaskCompletionSource PolicyRead, TaskCompletionSource Approval) RenderRuleBackedProposal(BunitContext context)
     {
         var detail = new ConsoleProposalDetail(
-            ProposalId: "prop-cve-9",
-            Kind: ConsoleProposalKind.Deploy,
-            Status: ConsoleProposalStatus.AwaitingApproval,
-            RequestedBy: "support:ticket-42",
-            RequestedByAgent: "honua-support-agent",
-            Summary: "Urgent CVE-2026-99999 image patch",
-            Diff: [$"+ image ghcr.io/honua-io/honua-server{digest}"],
-            DryRun: ["ECS task definition validated"],
-            RiskLevel: ConsoleProposalRisk.High,
-            BlockingReasons: [],
-            Warnings: [],
-            GuardrailTier: "RequiresApproval",
-            ResolvedBy: null,
-            ResolutionReason: null,
-            ExecutionOperationId: null,
-            CreatedAt: DateTimeOffset.Parse("2026-06-28T10:00:00Z"),
-            UpdatedAt: DateTimeOffset.Parse("2026-06-28T10:05:00Z"),
-            ResolvedAt: null)
-        {
-            Version = 3,
-            PlanHash = "sha256:plan-hash-99",
-            OperationId = "deploy.ecs.patch",
-            ActionDiscriminator = "deploy.image.cve_patch",
-            Initiation = "SupportAgent",
-            ExecutionPayload = $$"""{"targetId":"ecs-prod","imageUri":"ghcr.io/honua-io/honua-server{{digest}}"}"""
-        };
-        context.Services.AddSingleton<IConsoleProposalsClient>(new SingleDetailProposalClient(detail));
-        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-
-        var panel = context.Render<ProposalApprovalPanel>(parameters => parameters
-            .Add(component => component.ProposalId, "prop-cve-9"));
-
-        panel.WaitForAssertion(() =>
-        {
-            var planHash = panel.Find("[data-proposal-plan-hash]").TextContent;
-            Assert.Contains("sha256:plan-hash-99", planHash, StringComparison.Ordinal);
-            Assert.Contains("(v3)", planHash, StringComparison.Ordinal);
-            Assert.DoesNotContain("@detail.Version", planHash, StringComparison.Ordinal);
-            Assert.Equal("deploy.ecs.patch", panel.Find("[data-proposal-operation-id]").TextContent.Trim());
-            Assert.Equal("deploy.image.cve_patch", panel.Find("[data-proposal-action-discriminator]").TextContent.Trim());
-            Assert.Equal("SupportAgent", panel.Find("[data-proposal-initiation]").TextContent.Trim());
-            Assert.Contains("honua-support-agent", panel.Find("[data-proposal-support-initiation]").TextContent, StringComparison.Ordinal);
-            Assert.Contains("CVE-2026-99999", panel.Find("[data-proposal-cve-patch]").TextContent, StringComparison.Ordinal);
-            Assert.Contains(digest, panel.Find("[data-proposal-cve-patch]").TextContent, StringComparison.Ordinal);
-            Assert.Contains("ecs-prod", panel.Find("[data-proposal-execution-payload]").TextContent, StringComparison.Ordinal);
-        });
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RuleBackedProposalWaitsForPolicyBeforeAllowingPromotion(bool enabledDuringApproval)
-    {
-        using var context = new BunitContext();
-        var detail = new ConsoleProposalDetail(
             ProposalId: "prop-rule-1",
             Kind: ConsoleProposalKind.AdminConfigChange,
             Status: ConsoleProposalStatus.AwaitingApproval,

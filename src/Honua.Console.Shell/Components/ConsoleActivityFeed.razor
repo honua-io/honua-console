@@ -70,7 +70,7 @@
                             </td>
                             <td>
                                 @ConsoleActivityPresentation.Humanize(row.Action)
-                                @if (!ConsoleActivityPresentation.Succeeded(row))
+                                @if (ConsoleActivityPresentation.HasWarning(row))
                                 {
                                     <OperateStatusPill Label="@ConsoleActivityPresentation.Humanize(row.Outcome)" CssClass="console-state-warning" />
                                 }
@@ -115,6 +115,7 @@
 
     private async Task OnActorChangedAsync(ChangeEventArgs args)
     {
+        if (_busy) return;
         _actor = Enum.TryParse<ConsoleActivityActorFilter>(args.Value?.ToString(), out var actor) ? actor : ConsoleActivityActorFilter.Any;
         _cursors.Clear();
         _cursor = null;

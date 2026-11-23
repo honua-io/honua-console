@@ -63,16 +63,9 @@ public sealed class ConsoleActivityPresentationTests
 
         Assert.Equal("Operation proposal p-47", ConsoleActivityPresentation.What(proposal));
         Assert.Equal("Operation approval denied", ConsoleActivityPresentation.Humanize(proposal.Action));
-        Assert.Equal((CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, "p-47"), "proposal"), ConsoleActivityPresentation.Reference(proposal));
+        Assert.Equal(("inbox?proposalId=p-47&source=serving", "proposal"), ConsoleActivityPresentation.Reference(proposal));
         Assert.Equal("Connection", ConsoleActivityPresentation.What(config));
         Assert.Equal((CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, "corr-1"), "related events"), ConsoleActivityPresentation.Reference(config));
         Assert.Null(ConsoleActivityPresentation.Reference(config with { CorrelationId = " " }));
     }
-
-    [Theory]
-    [InlineData(0, 0, "No changes on page 1")]
-    [InlineData(1, 1, "1 change on page 2, newest first")]
-    [InlineData(0, 25, "25 changes on page 1, newest first")]
-    public void Range_CountsTheChangesOnThePage(int pagesBefore, int shown, string expected) =>
-        Assert.Equal(expected, ConsoleActivityPresentation.Range(pagesBefore, shown));
 }

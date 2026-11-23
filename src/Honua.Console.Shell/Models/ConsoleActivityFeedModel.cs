@@ -98,13 +98,14 @@ public static class ConsoleActivityPresentation
     public static string What(ObservabilityAuditRecordResponse row) =>
         Clean(row.ResourceId) is { } id ? $"{Humanize(row.ResourceType)} {id}" : Humanize(row.ResourceType);
 
-    public static bool Succeeded(ObservabilityAuditRecordResponse row) =>
-        string.Equals(row.Outcome, "Success", StringComparison.OrdinalIgnoreCase);
+    public static bool HasWarning(ObservabilityAuditRecordResponse row) =>
+        !string.Equals(row.Outcome, "Success", StringComparison.OrdinalIgnoreCase) &&
+        row is not { Action: "operation.rejected", Outcome: "Denied" };
 
     public static (string Href, string Label)? Reference(ObservabilityAuditRecordResponse row) =>
         (row.ResourceType, Clean(row.ResourceId), Clean(row.CorrelationId)) switch
         {
-            (ProposalResource, { } proposal, _) => (CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, proposal), "proposal"),
+            (ProposalResource, { } proposal, _) => (CorrelationIdRoutes.Resolve(CorrelationIdKind.ProposalId, proposal) + "&source=serving", "proposal"),
             (_, _, { } correlation) => (CorrelationIdRoutes.Resolve(CorrelationIdKind.CorrelationId, correlation), "related events"),
             _ => null,
         };

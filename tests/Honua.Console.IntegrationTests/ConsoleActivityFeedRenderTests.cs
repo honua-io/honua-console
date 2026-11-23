@@ -64,7 +64,7 @@ public sealed class ConsoleActivityFeedRenderTests
         Assert.Equal(3, rows.Count);
         Assert.Contains("Claude Desktop", rows[0].TextContent, StringComparison.Ordinal);
         Assert.Contains("Agent · on behalf of kai@example.org", rows[0].TextContent, StringComparison.Ordinal);
-        Assert.Equal("inbox?proposalId=p-47", rows[0].QuerySelector("a")!.GetAttribute("href"));
+        Assert.Equal("inbox?proposalId=p-47&source=serving", rows[0].QuerySelector("a")!.GetAttribute("href"));
         Assert.Equal("key", rows[2].QuerySelector("[data-feed-actor-kind]")!.GetAttribute("data-feed-actor-kind"));
         Assert.Contains("Failure", rows[2].TextContent, StringComparison.Ordinal);
         Assert.Equal("3 changes on page 1, newest first", feed.Find("[data-feed-range]").TextContent);

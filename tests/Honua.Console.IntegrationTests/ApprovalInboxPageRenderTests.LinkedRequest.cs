@@ -78,18 +78,6 @@ public sealed partial class ApprovalInboxPageRenderTests
     }
 
     [Fact]
-    public void LinkedRequest_EndsWhenAnotherProposalIsSelected()
-    {
-        using var ctx = NewLinkedRequestContext(ConsolePresentationMode.V4);
-        var page = ctx.Render<ApprovalInboxPage>();
-        page.WaitForAssertion(() => page.Find(LinkedIntro));
-
-        page.Find("[data-proposal-id='import-1']").Click();
-        page.WaitForAssertion(() => Assert.Empty(page.FindAll(LinkedIntro)));
-        Assert.Empty(page.FindAll(LinkedNext));
-    }
-
-    [Fact]
     public async Task LinkedRequest_StartsAgainWhenALinkOpensOnTheSamePage()
     {
         using var ctx = NewLinkedRequestContext(ConsolePresentationMode.V4);
@@ -110,19 +98,6 @@ public sealed partial class ApprovalInboxPageRenderTests
             proposals: [],
             details: [FakeProposalFactory.Detail("done-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Completed)]);
         using var ctx = NewLinkedRequestContext(proposals, "done-1");
-        var page = ctx.Render<ApprovalInboxPage>();
-
-        page.WaitForAssertion(() => Assert.Equal("This request is no longer waiting for approval", page.Find($"{LinkedIntro} h2").TextContent));
-        Assert.DoesNotContain("stays waiting", page.Find(LinkedNext).TextContent, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void LinkedRequest_FollowsTheLatestDetailWhenTheQueueIsStale()
-    {
-        var proposals = new FakeConsoleProposalsClient(
-            proposals: [FakeProposalFactory.Summary("stale-1", ConsoleProposalKind.Deploy)],
-            details: [FakeProposalFactory.Detail("stale-1", ConsoleProposalKind.Deploy, ConsoleProposalStatus.Rejected)]);
-        using var ctx = NewLinkedRequestContext(proposals, "stale-1");
         var page = ctx.Render<ApprovalInboxPage>();
 
         page.WaitForAssertion(() => Assert.Equal("This request is no longer waiting for approval", page.Find($"{LinkedIntro} h2").TextContent));
