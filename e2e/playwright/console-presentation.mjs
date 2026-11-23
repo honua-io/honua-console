@@ -194,7 +194,7 @@ export async function checkKeyboardControls(page, { controls, sizedControls, min
   assert.equal(visited.size, total, "Every enabled form, link and pager control must be keyboard reachable");
 }
 
-export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, allowScriptModules = false, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
+export async function runV4PagePresentation({ previews, pageNames, title, stylesheet, heading, scope, controls, inspect, widths = [1280, 390], themes = ["light"], allowScriptModules = false, prepareMarkup = markup => `<div class="console-shell" data-console-v4="true">${markup}</div>` }) {
   const pages = new Map(await Promise.all(pageNames.map(async name => {
     const markup = await fs.readFile(path.join(previews, `${name}.html`), "utf8");
     return [name, prepareMarkup(markup)];
@@ -211,10 +211,10 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
     browser = await chromium.launch();
     const context = await browser.newContext();
     for (const name of pages.keys()) {
-      for (const width of [1280, 390]) {
+      for (const { width, theme } of widths.flatMap(width => themes.map(theme => ({ width, theme })))) {
         const page = await context.newPage();
         await inspectV4Presentation(page, {
-          previews, name, width, origin: `http://127.0.0.1:${server.address().port}`,
+          previews, name, width, theme, themeSuffix: themes.length > 1, origin: `http://127.0.0.1:${server.address().port}`,
           stylesheet, heading, scope, controls, inspect,
         });
         await page.close();
@@ -226,15 +226,20 @@ export async function runV4PagePresentation({ previews, pageNames, title, styles
   }
 }
 
-async function inspectV4Presentation(page, { previews, name, width, origin, stylesheet, heading, scope, controls, inspect }) {
+async function inspectV4Presentation(page, { previews, name, width, theme, themeSuffix, origin, stylesheet, heading, scope, controls, inspect }) {
   await page.setViewportSize({ width, height: 844 });
+  await page.emulateMedia({ colorScheme: theme });
   const response = page.waitForResponse(response => response.url().endsWith(`/${stylesheet}`));
   await page.goto(`${origin}/${name}`);
   assert.equal((await response).status(), 200);
+  await page.evaluate(theme => {
+    document.documentElement.dataset.consoleThemeEnabled = "true";
+    document.documentElement.dataset.theme = theme;
+  }, theme);
   await page.evaluate(() => document.fonts.ready);
   assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), typeof heading === "function" ? heading(name) : heading);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}/${width} overflows`);
-  await inspect(page, name);
+  await inspect(page, name, { width, theme });
   const pageControls = typeof controls === "function" ? controls(name) : controls;
   if (pageControls !== null) {
     await checkKeyboardControls(page, { controls: pageControls, sizedControls: "input, select, button, textarea, summary", minimumHeight: 24 });
@@ -245,6 +250,6 @@ async function inspectV4Presentation(page, { previews, name, width, origin, styl
     document.querySelectorAll("[role='region']").forEach(region => { region.scrollLeft = 0; });
     window.scrollTo(0, 0);
   });
-  await page.screenshot({ path: path.join(previews, `${name}-${width}.png`), fullPage: true });
-  console.log(`${name}/${width}: layout, evidence, keyboard focus and axe pass`);
+  await page.screenshot({ path: path.join(previews, `${name}-${width}${themeSuffix ? `-${theme}` : ""}.png`), fullPage: true });
+  console.log(`${name}/${width}/${theme}: layout, evidence, keyboard focus and axe pass`);
 }

@@ -4,6 +4,8 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
+  widths: [1440, 390],
+  themes: ["light", "dark"],
   pageNames: ["activity-selected", "activity-empty"],
   title: "Activity presentation fixture",
   stylesheet: "operate-activity-v4.css",
@@ -30,6 +32,7 @@ await runV4PagePresentation({
         assert.ok(await page.locator(".operate-timeline").evaluate(region => region.scrollWidth <= region.clientWidth + 0.5),
           "Activity event history scrolls sideways at phone width");
       }
+      assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => getComputedStyle(element).textTransform), "none");
       const timeline = page.locator(".operate-table-panel .operate-timeline");
       assert.equal(await timeline.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
       assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => {
