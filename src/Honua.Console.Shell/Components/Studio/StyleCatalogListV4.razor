@@ -1,0 +1,71 @@
+@inject NavigationManager Navigation
+
+<ConsolePageHeading Title="Styles">
+    <p class="console-service-summary" data-style-catalog-summary>@Summary (<code>honua://styles/…</code>), served at <code>/ogc/styles</code>. A style is MapLibre style JSON; GeoServices clients get a cached <code>drawingInfo</code> rendering of it.</p>
+</ConsolePageHeading>
+@if (!Loaded)
+{
+    <p role="status">Reading the style catalog…</p>
+}
+else if (Catalog.Issue is { } issue && !Catalog.HasStyles)
+{
+    <p role="status" data-style-catalog-issue>@(issue.Summary ?? issue.Detail)</p>
+}
+else
+{
+    <div class="console-folder-toolbar">
+        <ConsoleListPager Label="Style pages" Page="_page" PageSize="PageSize" Total="Matches.Count" Unit="styles" PageChanged="page => _page = page" />
+        <label class="console-visually-hidden" for="console-style-search">Search styles</label>
+        <input id="console-style-search" class="console-input" type="search" placeholder="Search styles"
+               value="@_query" @oninput="Search" data-style-search />
+    </div>
+    @if (Matches.Count == 0)
+    {
+        <p data-style-catalog-empty>@(string.IsNullOrWhiteSpace(_query) ? "The style catalog is empty." : "No styles match this search.")</p>
+    }
+    else
+    {
+        <ConsoleTableRegion Label="Styles">
+            <table class="console-table console-folder-table" data-style-catalog>
+                <thead><tr><th scope="col">Style name</th><th scope="col">Title</th></tr></thead>
+                <tbody>
+                    @foreach (var style in Matches.Skip((_page - 1) * PageSize).Take(PageSize))
+                    {
+                        <tr data-style-row="@style.StyleId">
+                            <th scope="row">
+                                <a href="@Navigation.ToConsoleHref($"/studio/styles/{Uri.EscapeDataString(style.StyleId)}")">@style.StyleId</a>
+                                <code class="console-folder-service-path">honua://styles/@style.StyleId</code>
+                            </th>
+                            <td>@(string.IsNullOrWhiteSpace(style.Title) ? "Not set" : style.Title)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </ConsoleTableRegion>
+    }
+}
+
+@code {
+    private const int PageSize = 25;
+    [Parameter, EditorRequired] public StudioMapStyleCatalog Catalog { get; set; } = StudioMapStyleCatalog.Empty;
+    [Parameter] public bool Loaded { get; set; }
+
+    private string _query = string.Empty;
+    private int _page = 1;
+
+    private string Summary => !Loaded ? "The server style catalog"
+        : ConsolePublicationTreeContext.FormatCount(Catalog.Styles.Count, "style") + " in the server style catalog";
+
+    private IReadOnlyList<StudioMapStyleOption> Matches => Catalog.Styles
+        .Where(style => string.IsNullOrWhiteSpace(_query)
+            || style.StyleId.Contains(_query, StringComparison.OrdinalIgnoreCase)
+            || (style.Title?.Contains(_query, StringComparison.OrdinalIgnoreCase) ?? false))
+        .OrderBy(style => style.StyleId, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private void Search(ChangeEventArgs args)
+    {
+        _query = args.Value?.ToString()?.Trim() ?? string.Empty;
+        _page = 1;
+    }
+}
