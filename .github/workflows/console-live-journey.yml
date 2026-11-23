@@ -76,7 +76,7 @@ jobs:
       CI: 'true'
       HONUA_CONSOLE_E2E_OIDC: 'true'
       HONUA_CONSOLE_E2E_LIVE_PORT: '5274'
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -178,7 +178,7 @@ jobs:
     env:
       CI: 'true'
       COMPOSE_PROJECT_NAME: studio-customer
-      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image || vars.HONUA_CONSOLE_PR_SERVER_IMAGE || vars.HONUA_CONSOLE_NIGHTLY_SERVER_IMAGE }}
+      HONUA_CONSOLE_E2E_SERVER_IMAGE: ${{ inputs.server_image }}
       HONUA_CONSOLE_E2E_CONSOLE_IMAGE: ${{ inputs.console_image || 'honua-console-legacy-fixture:customer-pr' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
