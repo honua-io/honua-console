@@ -100,8 +100,11 @@ async function walkJourney(page, { origin, requests, kind, name }) {
   await page.waitForURL(`${origin}${expectedPath}`);
   const authorizeRequests = requests.filter(entry => entry === 'POST /api/v1/admin/auth/providers/entra/authorize-url');
   assert.equal(authorizeRequests.length, kind === 'oidc-legacy' ? 2 : 1);
-  await page.getByText('Fixture Operator').first().waitFor();
-  await page.locator('.console-topnav').waitFor();
+  await page.locator('.console-account-identity[title="Fixture Operator"]').first().waitFor({ state: 'attached' });
+  await page.locator('.console-topnav').waitFor({ state: 'attached' });
+  if (kind === 'oidc') {
+    await page.getByRole('heading', { name: 'Settings', exact: true, level: 1 }).waitFor();
+  }
   assert.equal(await page.locator('[data-console-signed-out]').count(), 0);
   await page.screenshot({ path: `${output}/${name}-signed-in.png`, fullPage: true });
 }
