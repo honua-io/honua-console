@@ -16,8 +16,12 @@ public static class OperateLayerLookup
     // A layer that is absent from a projection whose read failed may still exist, so callers report the failure
     // instead of "not found". A retryable failure wins over a permission failure.
     public static OperateCapabilityState? ReadFailure(this OperateServicesView view) =>
-        view.CapabilityStates.FirstOrDefault(state => state.State == UnavailableState)
-        ?? view.CapabilityStates.FirstOrDefault(state => state.State == MissingPermissionState);
+        view.CapabilityStates.ReadFailure();
+
+    // The same rule for any item read: services, connections and datasets as well as layers.
+    public static OperateCapabilityState? ReadFailure(this IReadOnlyList<OperateCapabilityState> states) =>
+        states.FirstOrDefault(state => state.State == UnavailableState)
+        ?? states.FirstOrDefault(state => state.State == MissingPermissionState);
 
     // A transport failure (no HTTP status) carries a raw client error, so it is reworded; an HTTP failure or an
     // environment change keeps its own detail.

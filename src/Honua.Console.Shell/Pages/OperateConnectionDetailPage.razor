@@ -1,6 +1,7 @@
 @page "/operate/connections/{ConnectionId}"
 @page "/operate/connections/{ConnectionId}/diagnostics"
 @implements IDisposable
+@using Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 @inject IOperateTransitionDataSource OperateData
 @inject IConsoleConnectionCreateOperation ConnectionOps
@@ -10,9 +11,13 @@
 <ConsoleAgentContext Context="@AgentContext" />
 
 <section class="console-page" data-connection-id="@ConnectionId" data-connection-loaded="@(_connection is not null)">
-    @if (_connection is null)
+    @if (_connection is null && _loading)
     {
-        <MissingItemView Kind="connection" AreaLabel="Operate / Connections" />
+        <ConsoleStateView Kind="loading" HeadingLevel="2" Kicker="Operate / Connections" Title="Loading connection" Message="Reading the connection from honua-server." />
+    }
+    else if (_connection is null)
+    {
+        <OperateItemNotFoundOrUnreadable Kind="connection" AreaLabel="Operate / Connections" Failure="@_readFailure" OnRetry="LoadAsync" />
     }
     else
     {
@@ -174,6 +179,7 @@
     private OperateConnectionSummary? _connection;
     private OperateConnectionDiagnostic? _safeDiagnostic;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+    private OperateCapabilityState? _readFailure;
     private ConsoleConnectionTestOutcome? _testOutcome;
     private bool _testing;
 
@@ -190,6 +196,7 @@
             _connection = null;
             _safeDiagnostic = null;
             _states = Array.Empty<OperateCapabilityState>();
+            _readFailure = null;
             _testOutcome = null;
             _testing = false;
         }
@@ -211,6 +218,8 @@
                 connection => string.Equals(connection.Id, connectionId, StringComparison.OrdinalIgnoreCase));
             _safeDiagnostic = _connection?.LastDiagnostic;
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Connections");
+            // A connection missing from a failed read may still exist, so the failure is shown instead of "not found".
+            _readFailure = _connection is null ? _states.ReadFailure() : null;
         }
         finally
         {
