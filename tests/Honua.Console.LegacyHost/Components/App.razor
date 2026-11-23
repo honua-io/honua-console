@@ -68,6 +68,7 @@
 </html>
 
 @code {
-    private bool IsEmbeddedViewer => new Uri(Navigation.Uri).AbsolutePath
-        .StartsWith("/embed/", StringComparison.OrdinalIgnoreCase);
+    private bool IsEmbeddedViewer => new Uri(Navigation.Uri).AbsolutePath is var path
+        && (path.StartsWith("/embed/", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/maps/published/", StringComparison.OrdinalIgnoreCase));
 }
