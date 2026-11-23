@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Layout;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Services;
@@ -101,7 +102,7 @@ public sealed class ConsolePublicationScaleV4Tests
             tree.FindAll("[data-publication-search] h3").Select(heading => heading.TextContent.Trim())));
         Assert.Equal(["signal"], source.LayerQueries);
         Assert.Equal(["connection-one"], source.LayerSearchConnections.Single());
-        Assert.Equal("Folder · 13 services", tree.Find("[data-publication-key='folder:signals'] .console-search-path").TextContent);
+        Assert.Equal("Folder", tree.Find("[data-publication-key='folder:signals'] .console-search-path").TextContent);
         Assert.Equal("Signals / signals-00 · 4 layers", tree.Find("[data-publication-key='service:signals-00'] .console-search-path").TextContent);
         Assert.Equal("point", tree.Find("[data-publication-key='search-layer:connection-one-layer-9'] .console-tree-icon").GetAttribute("data-icon"));
         Assert.Contains("15 matches in Services", tree.Find(".console-search-summary").TextContent);
@@ -136,6 +137,26 @@ public sealed class ConsolePublicationScaleV4Tests
         tree.WaitForAssertion(() => Assert.Contains("Layer search: Forbidden.", tree.Markup));
         Assert.Single(tree.FindAll("[data-publication-key='service:signals-01']"));
         Assert.Equal("Layers", tree.Find("#console-search-layers").TextContent.Trim());
+    }
+
+    [Fact]
+    public void V4RetriedSearchAlsoSearchesLayers()
+    {
+        var source = new PublicationNavigationSource
+        {
+            ServiceSummaries = FolderedServices(),
+            LayerMatches = [new(new("connection-one-layer-9", "signal-controllers", "Point"), "signals-00")]
+        };
+        using var context = V4Context(source);
+        var tree = context.Render<ConsolePublicationNavigation>();
+        tree.WaitForAssertion(() => Assert.Equal(41, tree.FindAll("[role='treeitem']").Count));
+        source.FailNext = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Unavailable, "Catalog unavailable");
+        tree.Find("[data-tree-filter]").Input("signal");
+        tree.WaitForAssertion(() => Assert.Single(tree.FindAll("[data-tree-retry]")));
+        Assert.Empty(source.LayerQueries);
+        tree.Find("[data-tree-retry]").Click();
+        tree.WaitForAssertion(() => Assert.Equal("Layers (1)", tree.Find("#console-search-layers").TextContent.Trim()));
+        Assert.Equal(["signal"], source.LayerQueries);
     }
 
     internal static BunitContext V4Context(PublicationNavigationSource source)

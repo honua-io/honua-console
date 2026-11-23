@@ -52,6 +52,15 @@ public sealed class BrowserSignOutTests
         Assert.False(fixture.Session.IsAuthenticated);
     }
 
+    [Theory]
+    [InlineData("Test operator", "TO")]
+    [InlineData("kai@alder-county.example", "KA")]
+    [InlineData("operator", "OP")]
+    [InlineData("   ", "?")]
+    [InlineData("émile zola", "ÉZ")]
+    public void AvatarInitialsComeFromTheFirstTwoWordsOrTheFirstTwoLetters(string identity, string initials) =>
+        Assert.Equal(initials, ConsoleAccountControl.Initials(identity));
+
     [Fact]
     public async Task FailedLogoutKeepsOperatorStateAndAllowsRetry()
     {

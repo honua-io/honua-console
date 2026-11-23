@@ -53,11 +53,14 @@
     public static string Initials(string identity)
     {
         var words = identity.Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return "?";
         var initials = words.Length >= 2 && !identity.Contains('@', StringComparison.Ordinal)
-            ? $"{words[0][0]}{words[1][0]}"
-            : identity.Trim()[..Math.Min(2, identity.Trim().Length)];
+            ? FirstLetter(words[0]) + FirstLetter(words[1])
+            : FirstLetter(words[0]) + FirstLetter(words[0][FirstLetter(words[0]).Length..]);
         return initials.ToUpperInvariant();
     }
+
+    private static string FirstLetter(string word) => word.Length == 0 ? "" : System.Globalization.StringInfo.GetNextTextElement(word);
     private string? _error;
 
     protected override void OnInitialized() => Navigation.LocationChanged += LocationChanged;

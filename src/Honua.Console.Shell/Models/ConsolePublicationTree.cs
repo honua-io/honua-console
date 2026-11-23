@@ -241,8 +241,10 @@ public sealed class ConsolePublicationTree
             Label = layer.Name,
             Kind = ConsolePublicationNodeKind.Layer,
             GeometryType = layer.GeometryType,
-            Href = $"/operate/layers/{Uri.EscapeDataString(layer.ResourceId)}"
+            Href = LayerHref(layer.ResourceId)
         }).ToList();
+
+    public static string LayerHref(string resourceId) => $"/operate/layers/{Uri.EscapeDataString(resourceId)}";
 
     private static IEnumerable<ConsolePublicationNode>? FindPath(ConsolePublicationNode node, ConsolePublicationNode target)
     {

@@ -144,7 +144,7 @@
 
 /* v4 top bar: environment pill with status dot and the account avatar menu (mockup 01). */
 .console-shell[data-console-v4="true"] .console-environment-link { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--c-text); }
-.console-shell[data-console-v4="true"] .console-environment-link::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c-ok); }
+.console-shell[data-console-v4="true"] .console-environment-link::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c-neutral); }
 .console-account-menu { position: relative; flex: none; }
 .console-account-menu > summary { list-style: none; }
 .console-account-menu > summary::-webkit-details-marker { display: none; }

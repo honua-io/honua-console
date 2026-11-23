@@ -178,6 +178,43 @@ public sealed class ConsolePublicationNavigationSourceTests
         Assert.Contains("partial", read.Message);
     }
 
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(40, true)]
+    public async Task LayerSearchSendsTheQueryPerConnectionAndMarksAFullPagePartial(int total, bool truncated)
+    {
+        var connection = Guid.NewGuid().ToString("D");
+        using var handler = new NavigationHandler(_ => SuccessfulEnvelope(new
+        {
+            items = new[] { new { storageLayerId = 9, layerName = "signal-controllers", serviceName = "signals", geometryType = "Point" } },
+            page = 1,
+            pageSize = 25,
+            total
+        }));
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var read = await new ServerConsolePublicationNavigationSource(client).SearchLayersAsync("signal", [connection], CancellationToken.None);
+        Assert.True(read.IsAllowed, read.Message);
+        var match = Assert.Single(read.Value!);
+        Assert.Equal(OperateResourceIdentity.ForPublishedLayer(connection, 9), match.Layer.ResourceId);
+        Assert.Equal("signals", match.ServiceName);
+        Assert.Equal(truncated, read.PartialResult);
+        Assert.Equal(truncated, read.Message.StartsWith("Showing the first 25", StringComparison.Ordinal));
+        Assert.EndsWith($"/connections/{connection}/layers/?page=1&pageSize=25&q=signal", Assert.Single(handler.Paths));
+    }
+
+    [Fact]
+    public async Task RefusedLayerSearchNamesLayerSearchNotServiceNavigation()
+    {
+        using var handler = new NavigationHandler(_ => new(HttpStatusCode.Forbidden));
+        using var http = new HttpClient(handler);
+        using var client = new HonuaAdminOperateHttpClient(http, new(new Uri("https://fixture.invalid")));
+        var read = await new ServerConsolePublicationNavigationSource(client).SearchLayersAsync("signal", [Guid.NewGuid().ToString("D")], CancellationToken.None);
+        Assert.False(read.IsAllowed);
+        Assert.Equal(OperateSectionStatus.Forbidden, read.Status);
+        Assert.StartsWith("Layer search:", read.Message, StringComparison.Ordinal);
+    }
+
     private static HttpResponseMessage SuccessfulEnvelope(object data) => new(HttpStatusCode.OK)
     {
         Content = JsonContent.Create(new { success = true, data })

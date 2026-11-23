@@ -49,9 +49,9 @@
     public static string ForGeometry(string? geometryType)
     {
         var geometry = geometryType?.ToLowerInvariant() ?? "";
+        if (geometry.Contains("polygon", StringComparison.Ordinal) || geometry.Contains("surface", StringComparison.Ordinal)) return "polygon";
         if (geometry.Contains("point", StringComparison.Ordinal)) return "point";
         if (geometry.Contains("line", StringComparison.Ordinal) || geometry.Contains("curve", StringComparison.Ordinal)) return "line";
-        if (geometry.Contains("polygon", StringComparison.Ordinal) || geometry.Contains("surface", StringComparison.Ordinal)) return "polygon";
         if (geometry.Contains("raster", StringComparison.Ordinal) || geometry.Contains("grid", StringComparison.Ordinal)) return "raster";
         return "layers";
     }

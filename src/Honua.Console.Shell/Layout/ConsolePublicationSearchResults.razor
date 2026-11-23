@@ -6,7 +6,7 @@
 
 <div class="console-tree-branches console-search-results" data-publication-search>
     <section aria-labelledby="console-search-folders">
-        <h3 id="console-search-folders">Folders <span>(@folders.Count)</span></h3>
+        <h3 id="console-search-folders">Folders <span>(@FolderMatchCount)</span></h3>
         @if (folders.Count == 0)
         {
             <p class="console-search-empty">No Folders match.</p>
@@ -17,10 +17,14 @@
                 @for (var index = 0; index < folders.Count; index++)
                 {
                     var folder = folders[index];
-                    <ConsoleSearchResultRow Key="@folder.Key" Href="@(folder.Href!)" Icon="folder" Label="@View.Label(folder)"
-                                            Path="@FolderPath(folder)" Position="index + 1" SetSize="folders.Count" />
+                    <ConsoleSearchResultRow @key="folder.Key" Key="@folder.Key" Href="@(folder.Href!)" Icon="folder" Label="@View.Label(folder)"
+                                            Path="Folder" Position="index + 1" SetSize="folders.Count" />
                 }
             </ul>
+            @if (FolderMatchCount > folders.Count)
+            {
+                <p class="console-search-empty" role="status">Showing @folders.Count of @FolderMatchCount Folders. Search with more of the name to narrow the list.</p>
+            }
         }
     </section>
     <section aria-labelledby="console-search-services">
@@ -39,7 +43,7 @@
                 @for (var index = 0; index < services.Count; index++)
                 {
                     var service = services[index];
-                    <ConsoleSearchResultRow Key="@service.Key" Href="@(service.Href!)" Icon="service" Label="@service.Label"
+                    <ConsoleSearchResultRow @key="service.Key" Key="@service.Key" Href="@(service.Href!)" Icon="service" Label="@service.Label"
                                             Path="@ServicePath(service)" Position="index + 1" SetSize="View.Tree.SearchMatchCount" />
                 }
             </ul>
@@ -69,7 +73,7 @@
                 @for (var index = 0; index < layers.Count; index++)
                 {
                     var match = layers[index];
-                    <ConsoleSearchResultRow Key="@("search-layer:" + match.Layer.ResourceId)" Href="@($"/operate/layers/{Uri.EscapeDataString(match.Layer.ResourceId)}")"
+                    <ConsoleSearchResultRow @key="match.Layer.ResourceId" Key="@("search-layer:" + match.Layer.ResourceId)" Href="@ConsolePublicationTree.LayerHref(match.Layer.ResourceId)"
                                             Icon="@ConsoleTreeIcon.ForGeometry(match.Layer.GeometryType)" Label="@match.Layer.Name"
                                             Path="@LayerPath(match)" ServiceToExpand="@match.ServiceName" Position="index + 1" SetSize="layers.Count" />
                 }
@@ -89,17 +93,18 @@
 @code {
     [CascadingParameter] public ConsolePublicationTreeContext View { get; set; } = default!;
 
-    private IReadOnlyList<ConsolePublicationNode> Folders => View.Tree.Root.Children
+    private IEnumerable<ConsolePublicationNode> MatchingFolders => View.Tree.Root.Children
         .Where(node => node.Kind == ConsolePublicationNodeKind.Folder && node.Href is not null
-            && node.Label.Contains(View.Tree.Filter.Trim(), StringComparison.OrdinalIgnoreCase))
-        .Take(ConsolePublicationTree.PageSize).ToArray();
+            && node.Label.Contains(View.Tree.Filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private int FolderMatchCount => MatchingFolders.Count();
+
+    private IReadOnlyList<ConsolePublicationNode> Folders => MatchingFolders.Take(ConsolePublicationTree.PageSize).ToArray();
 
     private IReadOnlyList<ConsolePublicationNode> Services => View.Tree.MatchingServices
         .OrderBy(node => node.Label, StringComparer.OrdinalIgnoreCase)
         .Take(View.Tree.SearchLimit).ToArray();
 
-    private string FolderPath(ConsolePublicationNode folder) => View.Count(folder) is { } count
-        ? $"Folder · {ConsolePublicationTreeContext.FormatCount(count, "service")}" : "Folder";
 
     private string ServicePath(ConsolePublicationNode service)
     {
