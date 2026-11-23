@@ -36,6 +36,8 @@ const assertFeedLeads = async page => {
 
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
+  widths: [1440, 390],
+  themes: ["light", "dark"],
   pageNames: ["activity-selected", "activity-empty"],
   title: "Activity presentation fixture",
   stylesheet: "operate-activity-v4.css",
@@ -64,16 +66,19 @@ await runV4PagePresentation({
         assert.ok(await page.locator(".operate-timeline").evaluate(region => region.scrollWidth <= region.clientWidth + 0.5),
           "Activity event history scrolls sideways at phone width");
       }
+      const label = page.locator(width === 390 ? ".operate-event-table td[data-label]" : ".operate-event-table th").first();
+      const pseudo = width === 390 ? "::before" : null;
+      assert.equal(await label.evaluate((element, pseudo) => getComputedStyle(element, pseudo).textTransform, pseudo), "none");
       const timeline = page.locator(".operate-table-panel .operate-timeline");
       assert.equal(await timeline.evaluate(element => getComputedStyle(element).borderTopWidth), "0px");
-      assert.equal(await page.locator(".operate-event-table th").first().evaluate(element => {
+      assert.equal(await label.evaluate((element, pseudo) => {
         const probe = document.createElement("span");
         probe.style.color = "var(--c-text-3)";
         element.append(probe);
-        const matches = getComputedStyle(element).color === getComputedStyle(probe).color;
+        const matches = getComputedStyle(element, pseudo).color === getComputedStyle(probe).color;
         probe.remove();
         return matches;
-      }), true, "Activity keeps its quiet table headers");
+      }, pseudo), true, "Activity keeps its quiet table labels");
     }
   },
 });
