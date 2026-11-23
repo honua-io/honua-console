@@ -22,7 +22,6 @@ public static class ConsoleActivityPresentation
 {
     public const int PageSize = 25;
 
-    // Audit event types that record a change; authentication, authorization and export reads are not changes.
     public const string ChangeEventTypes = "AdminAction,ConfigChange,DataDelete";
 
     private const string ProposalResource = "operation_proposal";
@@ -42,7 +41,6 @@ public static class ConsoleActivityPresentation
         return "?" + string.Join('&', parts);
     }
 
-    // Agent attribution takes precedence over the underlying principal type.
     public static IReadOnlyList<ObservabilityAuditRecordResponse> Visible(
         IReadOnlyList<ObservabilityAuditRecordResponse> items, ConsoleActivityActorFilter filter) =>
         filter == ConsoleActivityActorFilter.Any

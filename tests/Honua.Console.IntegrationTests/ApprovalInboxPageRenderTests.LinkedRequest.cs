@@ -87,6 +87,7 @@ public sealed partial class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Empty(page.FindAll(LinkedIntro)));
 
         var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        Assert.Contains("source=serving", navigation.Uri, StringComparison.Ordinal);
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=deploy-1"));
         page.WaitForAssertion(() => Assert.Equal("Claude Desktop is asking you to approve a change", page.Find($"{LinkedIntro} h2").TextContent));
     }

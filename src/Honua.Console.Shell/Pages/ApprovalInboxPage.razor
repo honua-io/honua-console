@@ -182,7 +182,7 @@
                                                         @ref="_rowButtons[item.ProposalId]"
                                                         data-proposal-id="@item.ProposalId"
                                                         data-proposal-source="@item.Source"
-                                                        @onclick="() => Select(item)">
+                                                        disabled="@ReviewDecisionPending" @onclick="() => Select(item)">
                                                     <span class="approval-inbox-row-summary">@item.Proposal.Summary</span>
                                                 </button>
                                                 <span class="console-mono approval-inbox-proposal-id" data-ticket-type="@item.TicketType">@ApprovalTicketPresentation.Label(item.TicketType) · @item.ProposalId</span>
@@ -296,7 +296,7 @@
                 @if (_selectedProposalId is { Length: > 0 } proposalId)
                 {
                     var approvalInstance = _approvalInstance;
-                    <button type="button" class="console-button console-button-secondary" @ref="_closeReviewButton" @onclick="ClearSelection">Close review</button>
+                    <button type="button" class="console-button console-button-secondary" @ref="_closeReviewButton" disabled="@ReviewDecisionPending" @onclick="ClearSelection">Close review</button>
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         DecisionPending="@(IsDecisionPending(proposalId))"
@@ -403,6 +403,7 @@
     private readonly Dictionary<object, (string ProposalId, ConsoleAgentUnsavedSummary Summary)> _approvalStates = new();
     private readonly Dictionary<string, ConsoleProposalDetail> _recordedDetails = new(StringComparer.Ordinal);
     private (string? Id, string? Source) _routeSelection;
+    private bool _selectionIsServing;
     private string? _linkedRequestId;
     private ConsoleProposalDetail? _selectedDetail;
     private int _detailReloadToken;
@@ -453,6 +454,7 @@
         var route = (proposalId, ProposalSource);
         if (route == _routeSelection) return;
         _routeSelection = route;
+        _selectionIsServing = ProposalSource == "serving";
         _linkedRequestId = string.Equals(proposalId, _selectedProposalId, StringComparison.Ordinal) ? null : proposalId;
         SetSelectedProposal(proposalId);
         _terminalProposalId = null;
@@ -462,7 +464,7 @@
 
     private void ResolveSelectedProposalSource()
     {
-        if (ProposalSource != "serving"
+        if (!_selectionIsServing
             && _selectedProposalId is { Length: > 0 } raw
             && !raw.StartsWith("manager:", StringComparison.Ordinal)
             && _result.Value?.Items.Any(item => string.Equals(item.ProposalId, raw, StringComparison.Ordinal)) == false
@@ -645,7 +647,6 @@
     private bool IsSelected(ApprovalInboxItem item) =>
         string.Equals(item.ProposalId, _selectedProposalId, StringComparison.Ordinal);
 
-    // The detail remains available after the server removes a decided proposal from the queue.
     private ConsoleProposalSummary? LinkedRequest => V4Enabled && _linkedRequestId is not null
         ? _selectedDetail?.ToSummary()
         : null;
@@ -654,7 +655,9 @@
 
     private void Select(ApprovalInboxItem item)
     {
+        if (ReviewDecisionPending) return;
         _linkedRequestId = null;
+        _selectionIsServing = item.Source == ConsoleProposalSource.Server;
         SetSelectedProposal(item.ProposalId);
         _terminalProposalId = null;
         _focusReviewPending = true;
@@ -664,6 +667,8 @@
 
     private void ClearSelection()
     {
+        if (ReviewDecisionPending) return;
+        _selectionIsServing = false;
         _linkedRequestId = null;
         _focusRowPendingId = _selectedProposalId;
         _focusReviewPending = false;
@@ -678,6 +683,8 @@
         _selectedDetail = null;
         _approvalInstance = new object();
     }
+
+    private bool ReviewDecisionPending => V4Enabled && _selectedProposalId is { } id && IsDecisionPending(id);
 
     private bool IsDecisionPending(string proposalId) =>
         _approvalStates.Values.Any(state => state.ProposalId == proposalId && state.Summary.PendingOperationCount > 0);
@@ -704,7 +711,7 @@
             Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
             {
                 ["proposalId"] = _selectedProposalId,
-                ["source"] = null,
+                ["source"] = _selectionIsServing ? "serving" : null,
             }), replace: true);
         }
     }

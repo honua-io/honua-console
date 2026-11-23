@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { runV4PagePresentation } from "./console-presentation.mjs";
 
-// Table headers, status chips and plain-word cells keep whole words; long ids and tokens may wrap.
 const splitWords = page => page.locator(".console-activity-v4").evaluate(scope =>
   [...scope.querySelectorAll(".operate-table :is(th, .console-status, td, td > a)")]
     .filter(element => {

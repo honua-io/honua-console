@@ -156,7 +156,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         var page = context.Render<ApprovalInboxPage>();
         var approval = page.Find("[data-proposal-approve]").ClickAsync(new());
         page.WaitForAssertion(() => Assert.True(client.Started));
-        page.FindAll("button").Single(button => button.TextContent == "Close review").Click();
+        Assert.True(page.FindAll("button").Single(button => button.TextContent == "Close review").HasAttribute("disabled"));
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox"));
         await page.InvokeAsync(() => navigation.NavigateTo("/inbox?proposalId=proposal-1"));
         page.WaitForAssertion(() => Assert.True(page.Find("[data-proposal-approve]").HasAttribute("disabled")));
