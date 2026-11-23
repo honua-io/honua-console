@@ -133,17 +133,35 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken));
 
-    public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default)
+    public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default) =>
+        TryParseLayerScope(resourceId) is { } scope
+            ? ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, scope))
+            : GetLayersViewAsync(cancellationToken);
+
+    // One dataset needs only its own connection's layer reads; reading every connection's layers to
+    // resolve a single id is slow on large servers and can trip the admin rate limiter.
+    public async Task<OperateResourcesView> GetResourceViewAsync(string resourceId, CancellationToken cancellationToken = default)
+    {
+        if (TryParseLayerScope(resourceId) is not { } scope)
+        {
+            return await GetResourcesViewAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var view = await BuildDataViewAsync(SettingsRead.Skip, cancellationToken, scope).ConfigureAwait(false);
+        return new OperateResourcesView(view.ResourceEdits, view.Services.CapabilityStates);
+    }
+
+    private static DataViewScope? TryParseLayerScope(string resourceId)
     {
         const string separator = "-layer-";
         var split = resourceId.LastIndexOf(separator, StringComparison.OrdinalIgnoreCase);
         if (split < 0 || !Guid.TryParseExact(resourceId[..split], "D", out var connectionId)
             || !int.TryParse(resourceId[(split + separator.Length)..], NumberStyles.None, CultureInfo.InvariantCulture, out var layerId))
         {
-            return GetLayersViewAsync(cancellationToken);
+            return null;
         }
 
-        return ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, new DataViewScope(connectionId, layerId)));
+        return new DataViewScope(connectionId, layerId);
     }
 
     public async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
@@ -173,7 +191,10 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     {
         using var environment = await ConsoleEnvironmentRead.BeginAsync(_profiles, _client.BaseUri, cancellationToken).ConfigureAwait(false);
         var connectionsTask = LoadConnectionsAsync(cancellationToken);
-        var summariesTask = LoadServiceSummariesAsync(cancellationToken, scope);
+        // Service discovery requires either both scope keys or neither. Read summaries
+        // without a layer scope so legacy service-level publications remain discoverable;
+        // the layer reads below still use only the selected connection.
+        var summariesTask = LoadServiceSummariesAsync(cancellationToken);
         await Task.WhenAll(connectionsTask, summariesTask).ConfigureAwait(false);
         var (connections, connectionStates) = await connectionsTask.ConfigureAwait(false);
         var (summaries, summaryStates) = await summariesTask.ConfigureAwait(false);
@@ -235,7 +256,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         string resourceId,
         CancellationToken cancellationToken = default)
     {
-        var view = await GetResourcesViewAsync(cancellationToken).ConfigureAwait(false);
+        var view = await GetResourceViewAsync(resourceId, cancellationToken).ConfigureAwait(false);
         return view.ResourceEdits.FirstOrDefault(
             resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
     }
@@ -263,11 +284,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     }
 
     private async Task<(Honua.Sdk.Admin.Models.ServiceSummary[] Summaries, List<OperateCapabilityState> States)>
-        LoadServiceSummariesAsync(CancellationToken cancellationToken, DataViewScope? scope = null)
+        LoadServiceSummariesAsync(CancellationToken cancellationToken)
     {
         var states = new List<OperateCapabilityState>();
         var serviceResult = await HonuaAdminCatalogReader.ReadAllAsync(
-            (query, token) => _client.ListServicesAsync(query with { ConnectionId = scope?.ConnectionId, StorageLayerId = scope?.StorageLayerId }, token),
+            (query, token) => _client.ListServicesAsync(query, token),
             page => page.Items,
             page => page.Total,
             cancellationToken).ConfigureAwait(false);
@@ -424,7 +445,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         LayerRead read,
         IReadOnlyList<Honua.Sdk.Admin.Models.ServiceSummary> layerServices)
     {
-        if (read.Scope?.StorageLayerId is null && read.Scope?.ServiceName is null)
+        if (read.Scope?.ServiceName is null)
         {
             return CreateLayerServiceScopes(layerServices);
         }

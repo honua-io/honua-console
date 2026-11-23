@@ -16,8 +16,9 @@ public sealed class OperateLayerStyleOverrideServerTests
     public async Task GetOverrides_ResolvesLayerId_AndLoadsPopupAndDrawingInfo()
     {
         var requests = new List<(HttpMethod Method, string? Path)>();
+        var layers = new FakeLayersSource(1, ResourceId, "e2e_src_fs", "E2E Source");
         var source = new ServerOperateLayerStyleOverrideDataSource(
-            new FakeLayersSource(layerId: 1, resourceId: ResourceId, serviceName: "e2e_src_fs", layerName: "E2E Source"),
+            layers,
             CreateClient(request =>
             {
                 requests.Add((request.Method, request.RequestUri?.AbsolutePath));
@@ -31,6 +32,7 @@ public sealed class OperateLayerStyleOverrideServerTests
 
         var view = await source.GetOverridesAsync(ResourceId);
 
+        Assert.Equal([ResourceId], layers.ScopedReads);
         Assert.Null(view.BindingState);
         Assert.Equal(1, view.LayerId);
         Assert.Equal(ResourceId, view.CanonicalResourceId);
@@ -49,8 +51,9 @@ public sealed class OperateLayerStyleOverrideServerTests
     public async Task SaveOverride_IssuesPutsWithExactServerBodies()
     {
         var bodies = new Dictionary<string, string>(StringComparer.Ordinal);
+        var layers = new FakeLayersSource(1, ResourceId, "e2e_src_fs", "E2E Source");
         var source = new ServerOperateLayerStyleOverrideDataSource(
-            new FakeLayersSource(1, ResourceId, "e2e_src_fs", "E2E Source"),
+            layers,
             CreateClient(request =>
             {
                 var path = request.RequestUri!.AbsolutePath;
@@ -66,6 +69,7 @@ public sealed class OperateLayerStyleOverrideServerTests
 
         var result = await source.SaveOverrideAsync(edit);
 
+        Assert.Equal([ResourceId], layers.ScopedReads);
         Assert.True(result.Succeeded);
         Assert.Null(result.BindingState);
 
@@ -252,12 +256,18 @@ public sealed class OperateLayerStyleOverrideServerTests
         }
     }
 
-    // Minimal live-layers projection: only GetLayersViewAsync is exercised by the data source.
+    // A presentation operation must resolve only the requested layer.
     private sealed class FakeLayersSource(int layerId, string resourceId, string serviceName, string layerName)
         : IOperateTransitionDataSource
     {
-        public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default)
+        public List<string> ScopedReads { get; } = [];
+
+        public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A presentation operation must not read the entire layer catalog.");
+
+        public Task<OperateServicesView> GetLayerViewAsync(string requestedResourceId, CancellationToken cancellationToken = default)
         {
+            ScopedReads.Add(requestedResourceId);
             var layer = new OperateServiceLayer(
                 LayerId: layerId,
                 Name: layerName,

@@ -361,9 +361,6 @@ public sealed partial class OperateTransitionDataSourceTests
             ["/api/v1/admin/services/?page=1&pageSize=100"] = """
                 {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
                 """,
-            [$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={connectionId}&storageLayerId=7"] = """
-                {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"public","description":"Public Service","layerCount":1,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
-                """,
             [$"/api/v1/admin/connections/{connectionId}/layers/?page=1&pageSize=100"] = """
                 {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
@@ -412,9 +409,6 @@ public sealed partial class OperateTransitionDataSourceTests
                 {"success":true,"data":[{"connectionId":"{{connectionA}}","name":"Connection A","host":"a.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"},{"connectionId":"{{connectionB}}","name":"Connection B","host":"b.internal","port":5432,"databaseName":"honua","username":"operator","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy"}]}
                 """,
             ["/api/v1/admin/services/?page=1&pageSize=100"] = """
-                {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":2,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":1,"layerTotal":2}}
-                """,
-            [$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={connectionA}&storageLayerId=7"] = """
                 {"success":true,"data":{"items":[{"serviceName":"planning","description":"Planning Service","layerCount":2,"enabledProtocols":["FeatureServer"]}],"page":1,"pageSize":100,"total":1,"layerTotal":2}}
                 """,
             [$"/api/v1/admin/connections/{connectionA}/layers/?page=1&pageSize=100"] = """

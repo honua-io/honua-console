@@ -34,6 +34,10 @@ public interface IOperateTransitionDataSource
         return new OperateResourcesView(workspace.ResourceEdits, workspace.CapabilityStates);
     }
 
+    // One dataset by id; server-backed sources read only that dataset's connection.
+    Task<OperateResourcesView> GetResourceViewAsync(string resourceId, CancellationToken cancellationToken = default) =>
+        GetResourcesViewAsync(cancellationToken);
+
     async Task<OperateServicesView> GetServicesViewAsync(CancellationToken cancellationToken = default)
     {
         var workspace = await GetWorkspaceAsync(cancellationToken).ConfigureAwait(false);
