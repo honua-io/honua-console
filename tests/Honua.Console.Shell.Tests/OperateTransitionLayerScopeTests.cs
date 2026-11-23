@@ -88,7 +88,7 @@ public sealed class OperateTransitionLayerScopeTests
             Assert.Empty(view.CapabilityStates);
         }
 
-        var layerRead = Assert.Single(handler.Requests.Where(path => path.Contains("/layers/", StringComparison.Ordinal)));
+        var layerRead = Assert.Single(handler.Requests, path => path.Contains("/layers/", StringComparison.Ordinal));
         Assert.Equal($"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100", layerRead);
     }
 
