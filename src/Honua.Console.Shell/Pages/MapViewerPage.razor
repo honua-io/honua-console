@@ -1,4 +1,6 @@
 @page "/maps/{MapId}"
+@* Anonymous-capable public-link viewer (route map 2.5): ShareAccess authorizes every read. *@
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @implements IDisposable
 @inject IConsoleCatalogClient Catalog
 @inject IConsoleCatalogReadContextResolver ReadContexts

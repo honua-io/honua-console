@@ -110,9 +110,9 @@ public sealed class BrowserSessionInvalidationTests
         using var client = ProtectedClient(session, new ResponseHandler(HttpStatusCode.Unauthorized));
         await layout.InvokeAsync(async () => { using var response = await client.GetAsync("services"); });
         layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("[role='tree']")));
-        layout.WaitForAssertion(() => Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent));
+        layout.WaitForAssertion(() => Assert.Empty(layout.FindAll("nav[aria-label='Breadcrumb']")));
         await layout.InvokeAsync(() => publish.InvokeAsync(previousPath));
-        Assert.DoesNotContain("Public", layout.Find("nav[aria-label='Breadcrumb']").TextContent);
+        Assert.Empty(layout.FindAll("nav[aria-label='Breadcrumb']"));
         Assert.False((await authentication.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated);
     }
 
