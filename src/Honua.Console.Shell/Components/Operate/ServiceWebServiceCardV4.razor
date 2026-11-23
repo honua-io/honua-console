@@ -1,0 +1,12 @@
+@if (Endpoint.Url is { } url)
+{
+    <a class="console-service-web-service" href="@url" target="_blank" rel="noopener"><span>@Endpoint.Name</span><small>@url</small></a>
+}
+else
+{
+    <span class="console-service-web-service"><span>@Endpoint.Name</span><small>@Endpoint.Status</small></span>
+}
+
+@code {
+    [Parameter, EditorRequired] public OperateServiceEndpoint Endpoint { get; set; } = default!;
+}

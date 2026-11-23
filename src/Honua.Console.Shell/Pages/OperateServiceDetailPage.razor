@@ -27,28 +27,33 @@
             {
                 <div data-service-detail="@_service.Name">
                     <ConsolePageHeading Title="@_service.DisplayName">
-                        <p><code>@_service.Name</code> · @_service.MetadataOwnership</p>
+                        <p class="console-service-summary" data-service-summary>@ServiceSummary</p>
+                        @if (ServiceDescription is { } description)
+                        {
+                            <p class="console-service-description">@description</p>
+                        }
                     </ConsolePageHeading>
                 </div>
                 <ConsoleTabs Tabs="ServiceTabs" Label="Service settings" @bind-SelectedId="_selectedTab" />
                 <section id="service-layers-panel" role="tabpanel" aria-labelledby="service-layers-tab" hidden="@(_selectedTab != "service-layers-tab")" tabindex="0">
-                    @Layers
+                    <ServiceLayerTableV4 Service="_service" ServicePath="@ServicePath" />
+                    <ServiceWebServicesV4 Service="_service" ChangeProtocols="@(() => OpenTab("service-protocols-tab"))" />
                 </section>
-                <section id="service-protocols-panel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
+                <section id="service-protocols-panel" @ref="_protocolsPanel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
                     @Endpoints
                     @if (_selectedTab == "service-protocols-tab") { @ConfigurationState }
                     @if (_settings.Bound) { @ProtocolEditor }
                 </section>
-                <section id="service-access-panel" role="tabpanel" aria-labelledby="service-access-tab" hidden="@(_selectedTab != "service-access-tab")" tabindex="0">
+                <section id="service-access-panel" @ref="_accessPanel" role="tabpanel" aria-labelledby="service-access-tab" hidden="@(_selectedTab != "service-access-tab")" tabindex="0">
                     @if (_selectedTab == "service-access-tab") { @ConfigurationState }
                     @if (_settings.Bound) { @AccessEditor }
                 </section>
-                <section id="service-limits-panel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
+                <section id="service-limits-panel" @ref="_limitsPanel" role="tabpanel" aria-labelledby="service-limits-tab" hidden="@(_selectedTab != "service-limits-tab")" tabindex="0">
                     @Runtime
                     @if (_selectedTab == "service-limits-tab" && !_settings.Bound) { @ConfigurationState }
                     @if (_settings.Bound) { @RenderingLimits }
                 </section>
-                @Administration
+                @AdministrationV4
             }
             else
             {
@@ -77,13 +82,38 @@
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private string _selectedTab = "service-layers-tab";
-    private static readonly IReadOnlyList<ConsoleTab> ServiceTabs =
+    private IReadOnlyList<ConsoleTab> ServiceTabs =>
     [
-        new("service-layers-tab", "Layers", "service-layers-panel"),
-        new("service-protocols-tab", "Protocols", "service-protocols-panel"),
+        new("service-layers-tab", "Layers", "service-layers-panel") { Count = _service?.LayerCount },
+        new("service-protocols-tab", "Protocols", "service-protocols-panel") { Count = ProtocolsReported ? ProtocolCount : null },
         new("service-access-tab", "Access", "service-access-panel"),
         new("service-limits-tab", "Limits and rendering", "service-limits-panel")
     ];
+
+    private RenderFragment ServiceSummary => @<text>Service <code>@ServicePath</code> · @ConsolePublicationTreeContext.FormatCount(_service!.LayerCount, "layer") · @ProtocolSummary@if (AccessSummary is { } access) { <span data-service-access-summary> · @access</span> }@foreach (var connection in Connections) { <span data-service-connection> · connection <a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connection.Id)}")">@connection.Name</a></span> }</text>;
+
+
+
+    private RenderFragment AdministrationV4 => @<text>
+        <ConsolePanel Title="Administration" HeadingId="service-administration-heading" Class="console-service-administration">
+            <div class="console-action-row">
+                <button type="button" class="console-button console-button-secondary" @onclick="@(() => OpenTab("service-access-tab"))" data-service-admin-access>Access</button>
+                <button type="button" class="console-button console-button-secondary" @onclick="@(() => OpenTab("service-limits-tab"))">Limits and rendering</button>
+                <a class="console-button console-button-secondary" href="@SectionHref("service-metadata-editor")" @onclick="() => FocusSection(_metadataEditor)">Edit metadata</a>
+            </div>
+            <dl class="console-service-kv">
+                <dt>Folder</dt>
+                <dd>@(_service!.FolderName ?? (_service.FolderId is null ? "No Folder" : "Folder name not reported")) · <a href="@SectionHref("service-folder-editor")" @onclick="() => FocusSection(_folderEditor)">Move…</a></dd>
+                <dt>Access</dt>
+                <dd>@AccessDetail</dd>
+                <dt>Render limits</dt>
+                <dd>@RenderLimits</dd>
+                <dt>Connection</dt>
+                <dd>@(Connections.Count == 0 ? "Not reported" : string.Join(", ", Connections.Select(connection => connection.Name)))</dd>
+            </dl>
+        </ConsolePanel>
+        <div class="console-service-admin-editors">@Administration</div>
+    </text>;
 
     private RenderFragment Runtime => @<text>
         @if (V4Enabled)
@@ -171,8 +201,12 @@
         {
             <p class="console-state-warning" role="status" data-folder-reconciliation>@reason</p>
         }
-        <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" />
-        <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
+        <div id="service-folder-editor" tabindex="-1" @ref="_folderEditor">
+            <Honua.Console.Shell.Components.Operate.FolderManagement ServiceName="@ServiceName" CurrentFolderId="@_service!.FolderId" OnSaved="OnParametersSetAsync" UnsavedChanged="@(summary => _folderUnsaved = summary)" />
+        </div>
+        <div id="service-metadata-editor" tabindex="-1" @ref="_metadataEditor">
+            <DiscoveryMetadataEditor Address="@Honua.Console.Contracts.DiscoveryMetadataAddress.ForService(ServiceName)" UnsavedChanged="@(summary => _metadataUnsaved = summary)" />
+        </div>
     </text>;
 
     private RenderFragment Configuration => @<text>
@@ -304,22 +338,13 @@
     </text>;
 
     private RenderFragment Layers => @<text>
-        @if (V4Enabled)
-        {
-            <ConsolePanel Title="Layers" HeadingId="service-layers-heading">
-                @LayersContent
-            </ConsolePanel>
-        }
-        else
-        {
-            <section class="console-section">
-                <div class="console-page-heading">
-                    <p class="console-kicker">Layers</p>
-                    <h2>Layers</h2>
-                </div>
-                @LayersContent
-            </section>
-        }
+        <section class="console-section">
+            <div class="console-page-heading">
+                <p class="console-kicker">Layers</p>
+                <h2>Layers</h2>
+            </div>
+            @LayersContent
+        </section>
     </text>;
 
     private RenderFragment LayersContent => @<text>

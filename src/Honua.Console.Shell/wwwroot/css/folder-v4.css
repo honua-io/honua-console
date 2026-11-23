@@ -104,3 +104,13 @@
     margin: 0;
     color: var(--c-text-2);
 }
+
+/* Home on a server without Folders (mockup 09): a quiet notice, not a warning. */
+[data-console-v4="true"] .console-home-no-folders {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--c-border);
+    border-inline-start: 3px solid var(--c-info, var(--c-accent));
+    border-radius: var(--radius-md);
+    color: var(--c-text-2);
+}

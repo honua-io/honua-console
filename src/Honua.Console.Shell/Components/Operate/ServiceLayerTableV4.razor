@@ -1,0 +1,45 @@
+@inject NavigationManager Navigation
+
+<div class="console-service-list-actions">
+    <a class="console-button console-button-secondary" href="@Navigation.ToConsoleHref("/operate/publishing/quick")" data-service-add-layer>Add a layer</a>
+</div>
+@if (StatusMessage is { } message)
+{
+    <p data-service-layer-status>@message</p>
+}
+@if (Service.Layers.Count > 0)
+{
+    <ConsoleTableRegion Class="console-table-wrap" Label="@($"Layers in {Service.Name}")">
+        <table class="console-table console-service-layer-table">
+            <thead>
+                <tr>
+                    <th scope="col" class="console-service-layer-type">Type</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">SRS</th>
+                    <th scope="col">Metadata</th>
+                    <th scope="col">Enabled</th>
+                    <th scope="col"><span class="console-visually-hidden">Preview</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var layer in Service.Layers)
+                {
+                    <ServiceLayerRowV4 Layer="layer" ServicePath="@ServicePath" />
+                }
+            </tbody>
+        </table>
+    </ConsoleTableRegion>
+}
+
+@code {
+    [Parameter, EditorRequired] public OperateServiceDetail Service { get; set; } = default!;
+    [Parameter, EditorRequired] public string ServicePath { get; set; } = string.Empty;
+
+    private string? StatusMessage =>
+        Service.Layers.Count == 0 && Service.LayerCount > 0
+            ? $"This service reports {ConsolePublicationTreeContext.FormatCount(Service.LayerCount, "layer")}, but their details were not returned."
+        : Service.Layers.Count == 0 ? "This service has no layers yet."
+        : Service.LayerCount > Service.Layers.Count
+            ? $"Showing {Service.Layers.Count} of {ConsolePublicationTreeContext.FormatCount(Service.LayerCount, "layer")}; the others were not returned."
+        : null;
+}

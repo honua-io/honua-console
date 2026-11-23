@@ -82,8 +82,11 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 FolderId = service.FolderId,
                 FolderName = service.FolderName,
                 PublicName = service.PublicName,
+                Description = string.IsNullOrWhiteSpace(service.Description) ? null : service.Description.Trim(),
                 FolderMutationIssues = service.FolderMutationIssues
             };
+            // A failed or partial layer read returns fewer rows than the registry reports; keep the registry's count.
+            if (service.LayerCount > layers.Length) detail = detail with { ReportedLayerCount = service.LayerCount };
             return detail with { Endpoints = publications.ForService(detail.PublicServiceName, protocols, detail.FolderName) };
         }
 
