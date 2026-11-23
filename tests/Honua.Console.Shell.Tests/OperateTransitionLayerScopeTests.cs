@@ -52,6 +52,40 @@ public sealed class OperateTransitionLayerScopeTests
         AssertOnlyLayerServicesRead(handler);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ScopedDetailRetainsPublishedLayerWithoutServiceSummary(bool dataset)
+    {
+        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7");
+        fixtures[$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7"] = EmptyLayerPage;
+        fixtures["/api/v1/admin/connections/"] = $$"""
+            {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
+            """;
+        fixtures[$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = """
+            {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":2}}
+            """;
+        var handler = new RecordingHandler(fixtures);
+        var source = new HonuaServerOperateTransitionDataSource(CreateClient(handler));
+        var resourceId = $"{ConnectionId:D}-layer-7";
+
+        if (dataset)
+        {
+            var view = await source.GetResourceViewAsync(resourceId);
+            Assert.Equal(resourceId, Assert.Single(view.ResourceEdits).ResourceId);
+            Assert.Empty(view.CapabilityStates);
+        }
+        else
+        {
+            var view = await source.GetLayerViewAsync(resourceId);
+            Assert.Equal(resourceId, Assert.Single(Assert.Single(view.Services).Layers).CanonicalResourceId);
+            Assert.Empty(view.CapabilityStates);
+        }
+
+        var layerRead = Assert.Single(handler.Requests.Where(path => path.Contains("/layers/", StringComparison.Ordinal)));
+        Assert.Equal($"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100", layerRead);
+    }
+
     private static void AssertOnlyLayerServicesRead(RecordingHandler handler)
     {
         Assert.Contains(handler.Requests, path => path.EndsWith("serviceName=planning", StringComparison.Ordinal));
