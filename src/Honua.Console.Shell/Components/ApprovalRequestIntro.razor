@@ -1,0 +1,28 @@
+@using Honua.Console.Shell.Models
+<section class="console-panel approval-request-intro" aria-labelledby="approval-request-intro-title" data-approval-request-intro>
+    <h2 id="approval-request-intro-title">@Title</h2>
+    <p class="console-muted">@Message</p>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ConsoleProposalSummary Proposal { get; set; } = default!;
+
+    private bool Waiting => Proposal.IsAwaitingApproval;
+
+    private ApprovalRequester Requester => ApprovalInboxPresentation.Requester(Proposal);
+
+    private bool FromAgent => Requester.Channel.StartsWith("Agent", StringComparison.Ordinal);
+
+    private string Title => (Waiting, FromAgent) switch
+    {
+        (true, true) => $"{Requester.Name} is asking you to approve a change",
+        (true, false) => "A change is waiting for your approval",
+        _ when Proposal.Status == ConsoleProposalStatus.Planned => "This change is being prepared",
+        _ => "This request is no longer waiting for approval",
+    };
+
+    private string Message => Waiting
+        ? "You opened this request from a link. Review the proposed change below. The connected server checks approval permissions before carrying out the change."
+        : "The review below shows the current status of the change.";
+}

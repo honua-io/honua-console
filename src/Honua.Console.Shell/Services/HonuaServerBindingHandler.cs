@@ -25,6 +25,11 @@ public sealed class HonuaServerBindingHandler : DelegatingHandler
         CancellationToken cancellationToken)
     {
         var profile = await _profiles.GetActiveProfileAsync(cancellationToken).ConfigureAwait(false);
+        if (!ConsoleServerHttp.MatchesExpectedProfile(request, profile))
+        {
+            return new HttpResponseMessage(System.Net.HttpStatusCode.Conflict) { RequestMessage = request };
+        }
+
         if (profile is not null)
         {
             RetargetToActiveProfile(request, profile.ServerBaseUri, _startupBaseUri);

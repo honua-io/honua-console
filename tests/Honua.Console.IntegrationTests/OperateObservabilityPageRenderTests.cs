@@ -104,6 +104,7 @@ public sealed partial class OperateObservabilityPageRenderTests
             Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([liveJob]),
             JobDetail = _ => OperateSectionResult<OperateJobRun>.Allowed(liveJob),
         });
+        context.Services.AddSingleton<IConsoleActivityFeedClient>(new FakeActivityFeedClient());
 
         var page = context.Render<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedEventId, selected.EventId));
@@ -120,6 +121,7 @@ public sealed partial class OperateObservabilityPageRenderTests
         var progress = page.Find("#jobs table .operate-progress");
         Assert.Equal("progressbar", progress.GetAttribute("role"));
         Assert.Equal(liveJob.ProgressPercent.ToString(CultureInfo.InvariantCulture), progress.GetAttribute("aria-valuenow"));
+        Assert.Equal(v4Enabled ? 3 : 0, page.FindAll("[data-feed-row]").Count);
         if (v4Enabled) CatalogAdminPreview.Capture("activity-selected", page.Markup);
     }
 
