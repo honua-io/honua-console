@@ -1,4 +1,5 @@
 @page "/operate/layers"
+@using Honua.Console.Shell.Components.Operate
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
@@ -7,10 +8,22 @@
     @if (V4Enabled)
     {
         <ConsolePageHeading Title="Layers">
-            <p>Browse layer geometry, service exposure and canonical resources.</p>
+            <p class="console-service-summary" data-layers-summary>@LayersSummary Open a layer as a map, or export its data.</p>
         </ConsolePageHeading>
         <ConsoleAgentContext Context="@AgentContext" />
-        <ConsolePanel Title="Layers" HeadingId="layers-list-heading">@LayerList</ConsolePanel>
+        <OperateCapabilityStateList States="@_states" />
+        @if (_loading)
+        {
+            <p role="status">Reading layers…</p>
+        }
+        else if (_layers.Count == 0 && _states.Count == 0)
+        {
+            <EmptyState Area="operate" Subject="layers" />
+        }
+        else if (_layers.Count > 0)
+        {
+            <LayerPreviewListV4 Rows="_layers" />
+        }
     }
     else
     {
@@ -25,6 +38,8 @@
 </section>
 
 @code {
+    private string LayersSummary => _loading ? string.Empty
+        : $"{ConsolePublicationTreeContext.FormatCount(_layers.Count, "layer")} across {ConsolePublicationTreeContext.FormatCount(_layers.Select(row => row.Service.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "service")}.";
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleAgentPageContext AgentContext => new()
     {

@@ -40,6 +40,7 @@ public sealed class OperateLayersPageTests
             Assert.Equal("connection-1-layer-42", entity.ResourceId);
             Assert.Equal("/operate/layers/connection-1-layer-42", ConsoleAgentRoutes.ForEntity(entity));
             Assert.Equal(2, row.QuerySelectorAll($"a[href='{mount}operate/layers/connection-1-layer-42']").Length);
+            Assert.Equal("1 layer across 1 service. Open a layer as a map, or export its data.", page.Find("[data-layers-summary]").TextContent);
             if (mount == "/console/") CatalogAdminPreview.Capture("data-layers", page.Markup);
         }
         else Assert.Empty(registry.Current.Entities);

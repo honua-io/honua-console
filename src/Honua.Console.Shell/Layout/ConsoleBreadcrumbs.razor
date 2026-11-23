@@ -5,9 +5,9 @@
 
 <nav class="console-contextbar" aria-label="Breadcrumb">
     <ol>
-        @if (Environment is { } environment)
+        @if (EnvironmentLabel is { } environment)
         {
-            <li><a href="@Navigation.ToConsoleHref("/")" data-crumb-environment><ConsoleTreeIcon Name="globe" />@environment.Label</a></li>
+            <li><a href="@Navigation.ToConsoleHref("/")" data-crumb-environment><ConsoleTreeIcon Name="globe" />@environment</a></li>
         }
         else
         {
@@ -63,8 +63,11 @@
     private bool HasPublicationPath => (Context.Kind is ConsoleNavigationContextKind.Folder or ConsoleNavigationContextKind.Service or ConsoleNavigationContextKind.Layer)
         && PublicationPath.LastOrDefault()?.Href == Context.Path;
     private ConsolePublicationNode? SelectedNode => HasPublicationPath ? PublicationPath[^1] : null;
-    private ConsolePublicationNode? Environment => V4Enabled && HasPublicationPath && PublicationPath[0].Kind == ConsolePublicationNodeKind.Environment
-        ? PublicationPath[0] : null;
+    // Tree pages name the environment through their path; every other v4 page uses the active profile's name.
+    private string? EnvironmentLabel => !V4Enabled ? null
+        : PublicationPath.FirstOrDefault() is { Kind: ConsolePublicationNodeKind.Environment } root ? root.Label : _profileLabel;
+    private string? _profileLabel;
+    private ConsoleEnvironmentSubscription? _environment;
     private ConsolePublicationNode? Folder => HasPublicationPath && SelectedNode?.Kind != ConsolePublicationNodeKind.Folder
         ? PublicationPath.FirstOrDefault(node => node.Kind == ConsolePublicationNodeKind.Folder) : null;
     private ConsolePublicationNode? ParentService => SelectedNode?.Kind == ConsolePublicationNodeKind.Layer
@@ -95,7 +98,28 @@
         return actions.Length > 0 ? actions : [new("/", "Welcome")];
     }
 
-    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        _environment = new ConsoleEnvironmentSubscription(Services.GetService<IConsoleEnvironmentProfileStore>(),
+            Services.GetService<AuthenticationStateProvider>(), () => _ = InvokeAsync(ReadProfileAsync));
+        await ReadProfileAsync();
+    }
+
+    private async Task ReadProfileAsync()
+    {
+        if (Services.GetService<IConsoleEnvironmentProfileStore>() is not { } profiles) return;
+        var read = await ConsoleReadBudget.RunAsync(async token => OperateSectionResult<ConsoleEnvironmentProfile?>.Allowed(await profiles.GetActiveProfileAsync(token)),
+            ConsoleReadBudget.Default, "The active environment could not be read.", CancellationToken.None);
+        _profileLabel = read is { IsAllowed: true, Value.DisplayName: { } name } && !string.IsNullOrWhiteSpace(name) ? name : null;
+        StateHasChanged();
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        _environment?.Dispose();
+    }
 }

@@ -15,9 +15,16 @@
          data-style-authority-binding="@_authorityBinding" data-style-observation-epoch="@_observationEpoch" data-style-dirty="@(_dirty ? "true" : "false")" data-style-pending="@(_loading || _saving ? "true" : "false")">
     @if (V4Enabled)
     {
-        <ConsolePageHeading Title="Styles">
-            <p>Edit a shared catalog style as MapLibre JSON or as a GeoServices renderer. The server converts between them (ADR-0002), so both views stay one style.</p>
-        </ConsolePageHeading>
+        @if (string.IsNullOrWhiteSpace(StyleId))
+        {
+            <StyleCatalogListV4 Catalog="_catalog" Loaded="_catalogLoaded" />
+        }
+        else
+        {
+            <ConsolePageHeading Title="Styles">
+                <p>Edit a shared catalog style as MapLibre JSON or as a GeoServices renderer. The server converts between them (ADR-0002), so both views stay one style.</p>
+            </ConsolePageHeading>
+        }
         <p class="console-state console-state-info" role="note" data-shared-style-scope>Shared catalog scope: saving updates this catalog style everywhere it is used. Use the map draft editor for a change that applies only to one map.</p>
         <ConsolePanel Title="Style" HeadingId="style-editor-heading">@EditorBody</ConsolePanel>
     }
@@ -203,12 +210,6 @@
     private bool _saving;
     private HonuaAdminEndpointIssue? _loadIssue;
     private HonuaOgcStyleSaveResult? _saveResult;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var catalog = await StyleData.GetStyleCatalogAsync(_observations.Token);
-        if (!_disposed) _catalog = catalog;
-    }
 
     protected override async Task OnParametersSetAsync()
     {

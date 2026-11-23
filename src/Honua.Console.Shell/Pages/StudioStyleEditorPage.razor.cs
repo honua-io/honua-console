@@ -14,6 +14,17 @@ public partial class StudioStyleEditorPage
     // v4 renders load and save callouts as notices inside the Style panel; legacy keeps them as nested panels.
     private string CalloutClass => V4Enabled ? "console-state" : "console-panel";
 
+    // The catalog feeds the style picker and, under v4 without a style id, the Styles list.
+    private bool _catalogLoaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var catalog = await StyleData.GetStyleCatalogAsync(_observations.Token);
+        if (_disposed) return;
+        _catalog = catalog;
+        _catalogLoaded = true;
+    }
+
     private sealed record Review(string StyleId, HonuaOgcStyleEncoding Mode, string EntityTag, string ContentHash, string ImpactHash, string Authority, long ObservationEpoch);
 
     private Review? CurrentReview => CanEditShared && _impact is { } impact && _entityTag is { } etag && _authorityBinding is { } authority
