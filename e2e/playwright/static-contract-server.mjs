@@ -120,6 +120,16 @@ async function signInWithPassword({ request, response, crossOrigin, pathname, or
   }
 }
 
+// The admin event stream needs a session. The fixture publishes no events and ends the stream, so
+// the Console falls back to REST refresh as it does when a live server drops the connection.
+function serveEmptyLiveStream(response, authorized) {
+  if (!authorized) {
+    response.writeHead(401).end();
+    return;
+  }
+  response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store" }).end();
+}
+
 function readResource({ request, response, pathname, crossOrigin, authorized, json, capabilities }) {
   if (request.method !== "GET") {
     response.writeHead(405).end();
@@ -128,6 +138,10 @@ function readResource({ request, response, pathname, crossOrigin, authorized, js
   // Capability discovery is public; operator resources below still require a session.
   if (pathname === "/api/v1/capabilities/manifest") {
     json({ schemaVersion: "honua.capability_manifest.v1", capabilities, packages: { families: [] } });
+    return;
+  }
+  if (pathname === "/api/v1/admin/live") {
+    serveEmptyLiveStream(response, authorized);
     return;
   }
   if (pathname === "/api/v1/admin/auth/csrf" && !crossOrigin) {
