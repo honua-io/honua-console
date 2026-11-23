@@ -95,6 +95,33 @@ public sealed class OperateTransitionLayerScopeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task ScopedDetailDoesNotSubstituteAnotherLayerForAMissingLayer(bool dataset)
+    {
+        var handler = new RecordingHandler(Fixtures("/api/v1/admin/services/?page=1&pageSize=100"));
+        var source = new HonuaServerOperateTransitionDataSource(CreateClient(handler));
+        var missingResourceId = $"{ConnectionId:D}-layer-999";
+
+        if (dataset)
+        {
+            var view = await source.GetResourceViewAsync(missingResourceId);
+
+            Assert.Empty(view.ResourceEdits);
+            Assert.Empty(view.CapabilityStates);
+        }
+        else
+        {
+            var view = await source.GetLayerViewAsync(missingResourceId);
+
+            Assert.All(view.Services, service => Assert.Empty(service.Layers));
+            Assert.Empty(view.CapabilityStates);
+        }
+
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ScopedDetailRetainsDefaultAndNamedPublications(bool dataset)
     {
         var fixtures = Fixtures("/api/v1/admin/services/?page=1&pageSize=100");
