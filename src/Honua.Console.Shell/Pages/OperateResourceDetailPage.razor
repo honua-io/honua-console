@@ -1,4 +1,5 @@
 @page "/operate/resources/{ResourceId}"
+@using Honua.Console.Shell.Components.Operate
 @inject IOperateTransitionDataSource OperateData
 @inject IServiceProvider ServiceProvider
 @inject NavigationManager Navigation
@@ -12,7 +13,7 @@
     }
     else if (_resource is null)
     {
-        <MissingItemView Kind="dataset" AreaLabel="Operate / Datasets" />
+        <OperateItemNotFoundOrUnreadable Kind="dataset" AreaLabel="Operate / Datasets" Failure="@_readFailure" OnRetry="RetryAsync" />
     }
     else
     {
@@ -138,10 +139,17 @@
 
     private OperateResourceEditPreview? _resource;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+    private OperateCapabilityState? _readFailure;
 
     private bool _loading;
     private string? _loadedResourceId;
     private int _generation;
+
+    private Task RetryAsync()
+    {
+        _loadedResourceId = null;
+        return OnParametersSetAsync();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -151,6 +159,7 @@
         var generation = ++_generation;
         _resource = null;
         _states = [];
+        _readFailure = null;
         _loading = true;
         try
         {
@@ -159,6 +168,8 @@
             _resource = view.ResourceEdits.FirstOrDefault(
                 resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
             _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Resources", "Layers");
+            // A dataset missing from a failed read may still exist: any of its connection, service or layer reads can fail.
+            _readFailure = _resource is null ? view.CapabilityStates.ReadFailure() : null;
         }
         finally
         {

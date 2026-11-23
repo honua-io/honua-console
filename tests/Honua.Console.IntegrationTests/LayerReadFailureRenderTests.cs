@@ -55,13 +55,13 @@ public sealed class LayerReadFailureRenderTests
         using var ctx = CreateContext(data, ConsoleLayout.V4);
 
         var page = ctx.Render<OperateLayerDetailPage>(p => p.Add(x => x.ResourceId, ResourceId));
-        page.WaitForAssertion(() => page.Find("[data-layer-read-retry]"));
+        page.WaitForAssertion(() => page.Find("[data-item-read-retry]"));
         Assert.DoesNotContain(NotFoundTitle, page.Markup, StringComparison.Ordinal);
 
-        page.Find("[data-layer-read-retry]").Click();
+        page.Find("[data-item-read-retry]").Click();
 
         page.WaitForAssertion(() => Assert.Equal(2, data.Reads));
-        page.WaitForAssertion(() => page.Find("[data-layer-read-retry]"));
+        page.WaitForAssertion(() => page.Find("[data-item-read-retry]"));
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class LayerReadFailureRenderTests
 
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
-        page.WaitForAssertion(() => page.Find("[data-layer-read-retry]"));
+        page.WaitForAssertion(() => page.Find("[data-item-read-retry]"));
         Assert.Contains("HTTP 503", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(OperateLayerLookup.TemporaryFailureMessage, page.Markup, StringComparison.Ordinal);
     }
@@ -85,7 +85,7 @@ public sealed class LayerReadFailureRenderTests
 
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
-        page.WaitForAssertion(() => page.Find("[data-layer-read-retry]"));
+        page.WaitForAssertion(() => page.Find("[data-item-read-retry]"));
         Assert.Contains("The active environment changed.", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(OperateLayerLookup.TemporaryFailureMessage, page.Markup, StringComparison.Ordinal);
     }
@@ -98,7 +98,7 @@ public sealed class LayerReadFailureRenderTests
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(() => Assert.Contains("Permission required", page.Markup, StringComparison.Ordinal));
-        Assert.Empty(page.FindAll("[data-layer-read-retry]"));
+        Assert.Empty(page.FindAll("[data-item-read-retry]"));
         Assert.DoesNotContain(NotFoundTitle, page.Markup, StringComparison.Ordinal);
     }
 
@@ -110,7 +110,7 @@ public sealed class LayerReadFailureRenderTests
         var page = ctx.Render<OperateLayerFilterPage>(p => p.Add(x => x.ResourceId, ResourceId));
 
         page.WaitForAssertion(() => Assert.Contains(NotFoundTitle, page.Markup, StringComparison.Ordinal));
-        Assert.Empty(page.FindAll("[data-layer-read-failure]"));
+        Assert.Empty(page.FindAll("[data-item-read-failure]"));
     }
 
     private static void AssertRetryRecovers<TPage>(ConsoleLayout layout)
@@ -124,15 +124,15 @@ public sealed class LayerReadFailureRenderTests
             builder.AddAttribute(1, nameof(OperateLayerFilterPage.ResourceId), ResourceId);
             builder.CloseComponent();
         });
-        page.WaitForAssertion(() => page.Find("[data-layer-read-retry]"));
+        page.WaitForAssertion(() => page.Find("[data-item-read-retry]"));
         Assert.Contains(OperateLayerLookup.TemporaryFailureMessage, page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(NotFoundTitle, page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("net_http", page.Markup, StringComparison.Ordinal);
 
-        page.Find("[data-layer-read-retry]").Click();
+        page.Find("[data-item-read-retry]").Click();
 
         page.WaitForAssertion(() => Assert.Contains("Parcels", page.Markup, StringComparison.Ordinal));
-        Assert.Empty(page.FindAll("[data-layer-read-failure]"));
+        Assert.Empty(page.FindAll("[data-item-read-failure]"));
     }
 
     private static BunitContext CreateContext(IOperateTransitionDataSource data, ConsoleLayout layout)

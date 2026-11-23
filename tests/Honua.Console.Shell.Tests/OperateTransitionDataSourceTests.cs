@@ -266,7 +266,7 @@ public sealed partial class OperateTransitionDataSourceTests
     }
 
     [Fact]
-    public async Task DetailPagesRenderMissingItemAndCapabilityState()
+    public async Task DetailPagesRenderReadFailureAndCapabilityState()
     {
         var dataSource = new StubOperateTransitionDataSource(new OperateTransitionWorkspace(
             Connections: [],
@@ -322,20 +322,27 @@ public sealed partial class OperateTransitionDataSourceTests
                 ["ResourceId"] = "missing-resource"
             }));
 
-        Assert.Contains("Connection Not Found", connectionHtml, StringComparison.Ordinal);
+        // An unavailable read may hide an existing item, so each detail page reports the failure with Retry
+        // instead of claiming the item is not found, and still lists the capability states.
+        foreach (var (page, notFound) in new[]
+        {
+            (connectionHtml, "Connection Not Found"),
+            (html, "Dataset Not Found"),
+            (serviceHtml, "Service Not Found"),
+            (layerHtml, "Layer Not Found"),
+        })
+        {
+            Assert.DoesNotContain(notFound, page, StringComparison.Ordinal);
+            Assert.Contains("data-item-read-failure=\"Unavailable\"", page, StringComparison.Ordinal);
+            Assert.Contains("data-item-read-retry", page, StringComparison.Ordinal);
+        }
+
         Assert.Contains("Server Capability States", connectionHtml, StringComparison.Ordinal);
         Assert.Contains("GET /api/v1/admin/connections", connectionHtml, StringComparison.Ordinal);
-        Assert.Contains("Dataset Not Found", html, StringComparison.Ordinal);
         Assert.Contains("Server Capability States", html, StringComparison.Ordinal);
         Assert.Contains("GET /api/v1/admin/metadata/resources", html, StringComparison.Ordinal);
-        Assert.Contains("Service Not Found", serviceHtml, StringComparison.Ordinal);
         Assert.Contains("Server Capability States", serviceHtml, StringComparison.Ordinal);
         Assert.Contains("GET /api/v1/admin/services", serviceHtml, StringComparison.Ordinal);
-        // An unavailable layers read may hide an existing layer, so the page reports the failure with Retry
-        // instead of claiming the layer is not found.
-        Assert.DoesNotContain("Layer Not Found", layerHtml, StringComparison.Ordinal);
-        Assert.Contains("data-layer-read-failure=\"Unavailable\"", layerHtml, StringComparison.Ordinal);
-        Assert.Contains("data-layer-read-retry", layerHtml, StringComparison.Ordinal);
     }
 
     [Fact]

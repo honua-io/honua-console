@@ -18,7 +18,7 @@
     }
     else if (_exposures.Count == 0)
     {
-        <LayerNotFoundOrUnreadable Failure="@_readFailure" OnRetry="RetryAsync" />
+        <OperateItemNotFoundOrUnreadable Kind="layer" AreaLabel="Operate / Layers" Failure="@_readFailure" OnRetry="RetryAsync" />
     }
     else
     {

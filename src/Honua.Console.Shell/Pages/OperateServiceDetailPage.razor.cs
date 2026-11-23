@@ -49,6 +49,7 @@ public partial class OperateServiceDetailPage
 
     private OperateServiceDetail? _service;
     private IReadOnlyList<OperateCapabilityState> _states = Array.Empty<OperateCapabilityState>();
+    private OperateCapabilityState? _readFailure;
 
     // Curated fallback protocol set used when the server doesn't enumerate AvailableProtocols. Mirrors
     // honua-server's ServiceProtocols constants (the operator-facing serving protocols).
@@ -81,6 +82,7 @@ public partial class OperateServiceDetailPage
             _serviceGeneration++;
             _service = null;
             _states = [];
+            _readFailure = null;
             _settings = ServiceSettingsView.Unbound(ServiceName, "Loading…");
             _configResult = null;
             _savingProtocols = false;
@@ -102,6 +104,9 @@ public partial class OperateServiceDetailPage
         _service = view.Services.FirstOrDefault(
             service => string.Equals(service.Name, serviceName, StringComparison.OrdinalIgnoreCase));
         _states = OperateCapabilityStateFilters.ForSurface(view.CapabilityStates, "Services", "Layers");
+        // A service missing from a failed read may still exist (services are also found through connection
+        // layers), so the failure is shown instead of "not found".
+        _readFailure = _service is null ? view.CapabilityStates.ReadFailure() : null;
 
         await LoadSettingsAsync(serviceName, generation);
         if (generation == _serviceGeneration && load == _loadGeneration)

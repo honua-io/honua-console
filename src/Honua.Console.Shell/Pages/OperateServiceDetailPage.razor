@@ -1,5 +1,6 @@
 @inject NavigationManager ConsoleNavigation
 @page "/operate/services/{ServiceName}/settings"
+@using Honua.Console.Shell.Components.Operate
 @using Honua.Console.Shell.Models
 @using Honua.Console.Shell.Services
 @inject IOperateTransitionDataSource OperateData
@@ -17,7 +18,7 @@
     }
     else if (_service is null)
     {
-        <MissingItemView Kind="service" AreaLabel="Operate / Services" />
+        <OperateItemNotFoundOrUnreadable Kind="service" AreaLabel="Operate / Services" Failure="@_readFailure" OnRetry="OnParametersSetAsync" />
     }
     else
     {
