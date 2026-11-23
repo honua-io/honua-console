@@ -102,6 +102,22 @@ public sealed class ConsoleFolderContentsTests
     }
 
     [Fact]
+    public async Task PagingDuringAPendingSearchKeepsTheSearch()
+    {
+        using var context = new BunitContext();
+        var source = new NavigationSource { TransportServices = 30, HoldSearch = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        context.Services.AddSingleton<IConsolePublicationNavigationSource>(source);
+        context.Services.AddSingleton<IConsoleFolderClient>(new FolderClient());
+        var page = context.Render<ConsoleFolderContents>(parameters => parameters.Add(component => component.FolderId, "transport"));
+        page.Find("[data-folder-search]").Change("route-2");
+        page.Find("[aria-label='Next page']").Click();
+        page.WaitForAssertion(() => Assert.Equal(("route-2", 2), (source.Reads[^1].NameQuery, source.Reads[^1].Page)));
+        await page.InvokeAsync(() => source.HoldSearch!.SetResult());
+        page.WaitForAssertion(() => Assert.Contains("No services in this Folder match this search.", page.Markup));
+        Assert.Empty(page.FindAll("tbody tr"));
+    }
+
+    [Fact]
     public void PartialOrMismatchedPageIsMarkedIncomplete()
     {
         using var context = new BunitContext();
@@ -252,6 +268,7 @@ public sealed class ConsoleFolderContentsTests
         public bool IgnoreFolder { get; init; }
         public bool MismatchedSecondPage { get; init; }
         public int? TransportServices { get; init; }
+        public TaskCompletionSource? HoldSearch { get; init; }
         public int OtherServicesAfterTransport { get; init; }
         public TaskCompletionSource<OperateSectionResult<HonuaAdminServicePage>> HeldRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -266,19 +283,31 @@ public sealed class ConsoleFolderContentsTests
         {
             Reads.Add(query);
             if ((HoldFirstRead && Reads.Count == 1) || Reads.Count == HoldReadNumber) return HeldRead.Task;
+            if (HoldSearch is { } hold && query.NameQuery is not null && query.Page == 1) return ReadAfterAsync(hold.Task, query);
             if (Status is { } status && (StatusPage is null || StatusPage == query.Page)) return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Denied(status, "Access denied"));
+            return Task.FromResult(Page(query));
+        }
+
+        private OperateSectionResult<HonuaAdminServicePage> Page(HonuaAdminCatalogQuery query)
+        {
             var matches = Catalog.Where(service => IgnoreFolder || service.FolderId == query.FolderId)
                 .Where(service => query.NameQuery is null || service.ServiceName.Contains(query.NameQuery, StringComparison.OrdinalIgnoreCase)).ToArray();
             var items = matches.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToArray();
             var page = query.Page == 2 && MismatchedSecondPage ? 1 : query.Page;
-            return Task.FromResult(OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
+            return OperateSectionResult<HonuaAdminServicePage>.Allowed(new()
             {
                 Items = items,
                 Page = page,
                 PageSize = query.PageSize,
                 Total = matches.Length,
                 LayerTotal = matches.Sum(service => service.LayerCount)
-            }));
+            });
+        }
+
+        private async Task<OperateSectionResult<HonuaAdminServicePage>> ReadAfterAsync(Task gate, HonuaAdminCatalogQuery query)
+        {
+            await gate;
+            return Page(query);
         }
 
         public Task<OperateSectionResult<IReadOnlyList<string>>> ReadConnectionsAsync(CancellationToken cancellationToken) => throw new InvalidOperationException();

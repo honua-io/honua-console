@@ -41,7 +41,7 @@ else
             }
             @if (_rows.Count == 0)
             {
-                <p role="status">@(_query.NameQuery is null ? "This Folder has no services." : "No services in this Folder match this search.")</p>
+                <p role="status">@EmptyMessage</p>
             }
             else
             {
@@ -85,6 +85,7 @@ else
     private OperateSectionResult<ConsoleFolderCatalog> _folders = OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Missing, "Folders are not available.");
     private OperateSectionResult<HonuaAdminServicePage> _services = OperateSectionResult<HonuaAdminServicePage>.Denied(OperateSectionStatus.Missing, "Services are not available.");
     private HonuaAdminCatalogQuery _query;
+    private HonuaAdminCatalogQuery _requested;
     private Folder? _folder;
     private bool _loading = true;
     private bool _busy;
@@ -101,6 +102,8 @@ else
     private string IncompleteMessage => _serverIgnoresFolder
         ? "This server does not filter services by Folder. Only this Folder's services on this page of the catalog are shown."
         : "This page of services is incomplete. Retry to read it again.";
+    private string EmptyMessage => Incomplete ? "No services from this Folder on this page."
+        : _query.NameQuery is null ? "This Folder has no services." : "No services in this Folder match this search.";
     private string Summary => _services.IsAllowed && _totals is { } totals
         ? $" · {ConsolePublicationTreeContext.FormatCount(totals.Services, "service")} · {ConsolePublicationTreeContext.FormatCount(totals.Layers, "layer")}"
         : string.Empty;
@@ -125,18 +128,19 @@ else
         _loading = false;
     }
 
-    private Task ReadPageAsync(int page) => ReadAsync(_query with { Page = page });
+    private Task ReadPageAsync(int page) => ReadAsync(_requested with { Page = page });
 
     private Task SearchAsync(ChangeEventArgs args)
     {
         var search = args.Value?.ToString()?.Trim();
-        return ReadAsync(_query with { Page = 1, NameQuery = string.IsNullOrEmpty(search) ? null : search });
+        return ReadAsync(_requested with { Page = 1, NameQuery = string.IsNullOrEmpty(search) ? null : search });
     }
 
     private async Task ReadAsync(HonuaAdminCatalogQuery query)
     {
         if (_disposed) return;
         var generation = ++_readGeneration;
+        _requested = query;
         _busy = true;
         var client = Services.GetService<IConsolePublicationNavigationSource>() ?? new UnsupportedConsolePublicationNavigationSource();
         var result = await ConsoleReadBudget.RunAsync(token => client.ReadServicesAsync(query, token), LoadBudget, "The service catalog did not respond in time.", _lifetime.Token);
