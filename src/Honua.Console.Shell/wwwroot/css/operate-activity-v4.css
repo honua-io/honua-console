@@ -143,6 +143,33 @@
     margin-top: var(--space-8);
 }
 
+/* Long correlation ids wrap at every width. Above phone width, table headers, status chips and
+   plain words keep whole words: anywhere-wrapping from the detail grid let columns shrink mid-word. */
+.console-activity-v4 .correlation-id-chip {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.console-activity-v4 .correlation-id-chip .console-mono {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (min-width: 641px) {
+    .console-activity-v4 .operate-table td {
+        overflow-wrap: break-word;
+    }
+
+    .console-activity-v4 .operate-table:not(.operate-event-table) td:first-child a {
+        overflow-wrap: anywhere;
+    }
+
+    .console-activity-v4 .operate-table :is(th, .console-status) {
+        overflow-wrap: normal;
+        white-space: nowrap;
+    }
+}
+
 @media (max-width: 640px) {
     .console-activity-v4 .console-definition-list {
         grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
@@ -211,13 +238,6 @@
     }
 
     .console-activity-v4 .correlation-id-chip {
-        max-width: 100%;
-        min-width: 0;
         border-radius: var(--radius-md);
-    }
-
-    .console-activity-v4 .correlation-id-chip .console-mono {
-        min-width: 0;
-        overflow-wrap: anywhere;
     }
 }

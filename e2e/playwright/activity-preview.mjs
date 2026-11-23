@@ -2,6 +2,23 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { runV4PagePresentation } from "./console-presentation.mjs";
 
+// Table headers, status chips and plain-word cells keep whole words; long ids and tokens may wrap.
+const splitWords = page => page.locator(".console-activity-v4").evaluate(scope =>
+  [...scope.querySelectorAll(".operate-table :is(th, .console-status, td, td > a)")]
+    .filter(element => {
+      const text = element.textContent.trim();
+      if (!/^[A-Za-z][A-Za-z.]*$/.test(text)) return false;
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const tops = new Set();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) tops.add(Math.round(rect.top));
+      }
+      return tops.size > 1;
+    })
+    .map(element => element.textContent.trim()));
+
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
   pageNames: ["activity-selected", "activity-empty"],
@@ -26,6 +43,13 @@ await runV4PagePresentation({
           .map(cell => cell.dataset.label ?? cell.cellIndex);
       });
       assert.deepEqual(clipped, [], `Activity event columns are hidden at ${width}px`);
+      if (width !== 390) {
+        for (const tableWidth of [1280, 1024, 800, 700]) {
+          await page.setViewportSize({ width: tableWidth, height: 844 });
+          assert.deepEqual(await splitWords(page), [], `Activity tables split words mid-word at ${tableWidth}px`);
+        }
+        await page.setViewportSize({ width, height: 844 });
+      }
       if (width === 390) {
         assert.ok(await page.locator(".operate-timeline").evaluate(region => region.scrollWidth <= region.clientWidth + 0.5),
           "Activity event history scrolls sideways at phone width");
