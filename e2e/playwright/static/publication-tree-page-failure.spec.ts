@@ -15,7 +15,7 @@ function servicePage(page: number, pageSize: number) {
 test('v4 tree keeps loaded services when a later service page fails, and retries the rest', async ({ page }, testInfo) => {
   const fixture = await startReflowFixture(page, { v4Enabled: true });
   let failSecondPage = true;
-  await page.route('**/api/v1/admin/services?*', async route => {
+  await page.route(url => url.pathname === '/api/v1/admin/services', async route => {
     const query = new URL(route.request().url()).searchParams;
     const pageNumber = Number(query.get('page') ?? '1');
     if (pageNumber === 2 && failSecondPage) {

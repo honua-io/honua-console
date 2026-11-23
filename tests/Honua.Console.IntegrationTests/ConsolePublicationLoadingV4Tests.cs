@@ -45,7 +45,7 @@ public sealed class ConsolePublicationLoadingV4Tests
         var source = new PublicationNavigationSource
         {
             ServiceSummaries = FolderedServices(),
-            LayerMatches = [new(new("connection-one-layer-9", "road-centerlines", "LineString"), "folder-00-00")]
+            LayerMatches = [new(new("connection-one-layer-9", "folder-00-centerlines", "LineString"), "folder-00-00")]
         };
         source.OnServiceRead = () => { if (source.ServiceReads is 2 or 5) source.HoldCount = 1; };
         using var context = V4Context(source);
