@@ -1,3 +1,4 @@
+using Bunit;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Models;
 using Microsoft.Extensions.DependencyInjection;
