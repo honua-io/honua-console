@@ -1,9 +1,11 @@
+@using Honua.Console.Shell.Models
+
 <section class="approval-request-next" aria-labelledby="approval-request-next-title" data-approval-request-next>
     <h2 id="approval-request-next-title">What happens next</h2>
     <ol>
-        <li>Your decision is recorded in Activity, with you as the approver.</li>
+        <li>@AuditMessage</li>
         <li>The requester can check this proposal for the decision and execution status.</li>
-        @if (Waiting)
+        @if (Proposal.IsAwaitingApproval)
         {
             <li>If you do nothing, the proposal stays waiting in Approvals.</li>
         }
@@ -14,8 +16,12 @@
 </section>
 
 @code {
-    [Parameter]
-    public bool Waiting { get; set; }
+    [Parameter, EditorRequired]
+    public ConsoleProposalSummary Proposal { get; set; } = default!;
+
+    private string AuditMessage => Proposal.Source == ConsoleProposalSource.DevOps
+        ? "The Manager records the approval decision."
+        : "The serving server records the approval decision in Activity.";
 
     [Parameter, EditorRequired]
     public EventCallback OnShowAll { get; set; }

@@ -291,10 +291,10 @@
                     <ProposalApprovalPanel @key="approvalInstance" ProposalId="@proposalId"
                         ReloadToken="_detailReloadToken"
                         UnsavedChanged="@(summary => OnApprovalUnsavedChanged(approvalInstance, summary))"
-                        OnActioned="OnProposalActioned" OnDetailLoaded="OnDetailLoaded" />
+                        OnActioned="OnProposalActioned" OnDetailLoaded="@(detail => OnDetailLoaded(approvalInstance, detail))" />
                     @if (linked is not null)
                     {
-                        <ApprovalRequestNextSteps Waiting="@linked.IsAwaitingApproval" OnShowAll="ShowAllApprovals" />
+                        <ApprovalRequestNextSteps Proposal="linked" OnShowAll="ShowAllApprovals" />
                     }
                 }
                 else
@@ -634,7 +634,7 @@
 
     // The detail remains available after the server removes a decided proposal from the queue.
     private ConsoleProposalSummary? LinkedRequest => V4Enabled && _linkedRequestId is not null
-        ? _selectedDetail?.ToSummary() ?? _result.Value?.Items.FirstOrDefault(IsSelected)?.Proposal
+        ? _selectedDetail?.ToSummary()
         : null;
 
     private void ShowAllApprovals() => _linkedRequestId = null;
@@ -712,18 +712,22 @@
         }
     }
 
-    private void OnDetailLoaded(ConsoleProposalDetail detail)
+    private void OnDetailLoaded(object instance, ConsoleProposalDetail? detail)
     {
-        if (detail.ProposalId == _selectedProposalId)
+        if (ReferenceEquals(instance, _approvalInstance))
         {
-            _terminalProposalId = detail.IsTerminal ? detail.ProposalId : null;
+            _terminalProposalId = detail?.IsTerminal == true ? detail.ProposalId : null;
             _selectedDetail = detail;
         }
     }
 
     private async Task OnProposalActioned(ConsoleProposalDetail detail)
     {
-        OnDetailLoaded(detail);
+        if (detail.ProposalId == _selectedProposalId)
+        {
+            OnDetailLoaded(_approvalInstance, detail);
+        }
+
         // After an approve / reject, refresh the queue so a now-resolved proposal drops out of
         // the pending set.
         await RefreshAsync();

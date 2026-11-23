@@ -60,11 +60,19 @@ public static class ConsoleActivityPresentation
 
     public static ConsoleActivityActor Actor(ObservabilityAuditRecordResponse row)
     {
-        var principal = Clean(row.Actor) ?? "Not reported";
+        var actor = Clean(row.Actor);
         if (Clean(row.ActorAgent) is { } agent)
         {
-            return new(agent, row.ActorType == "ApiKey" ? "Agent · API key" : $"Agent · on behalf of {principal}", "agent");
+            var channel = row.ActorType switch
+            {
+                "ApiKey" => "Agent · API key",
+                "UserId" when actor is not null && !string.Equals(actor, agent, StringComparison.OrdinalIgnoreCase) =>
+                    $"Agent · on behalf of {actor}",
+                _ => "Agent",
+            };
+            return new(agent, channel, "agent");
         }
+        var principal = actor ?? "Not reported";
         return ClassifyActor(row) switch
         {
             ConsoleActivityActorFilter.ApiKey => new("API key", principal, "key"),

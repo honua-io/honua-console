@@ -135,4 +135,20 @@ public sealed partial class ApprovalInboxPageRenderTests
         page.WaitForAssertion(() => Assert.Equal("false", page.Find(LinkedIntro).GetAttribute("data-request-waiting")));
         Assert.DoesNotContain("stays waiting", page.Find(LinkedNext).TextContent, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void LinkedRequest_DoesNotUseTheQueueWhenDetailIsMissing()
+    {
+        var proposals = new FakeConsoleProposalsClient(
+            proposals: [FakeProposalFactory.Summary("missing-1", ConsoleProposalKind.Deploy)]);
+        using var ctx = NewContext(proposals, registerServices: context =>
+            context.Services.AddSingleton(new ConsoleV4Options { Enabled = true }));
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/inbox?proposalId=missing-1");
+
+        var page = ctx.Render<ApprovalInboxPage>();
+
+        page.WaitForAssertion(() => Assert.Contains("Proposal not found.", page.Markup, StringComparison.Ordinal));
+        Assert.Empty(page.FindAll(LinkedIntro));
+        Assert.Empty(page.FindAll(LinkedNext));
+    }
 }

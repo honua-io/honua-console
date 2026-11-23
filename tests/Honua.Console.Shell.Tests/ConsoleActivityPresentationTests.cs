@@ -21,6 +21,8 @@ public sealed class ConsoleActivityPresentationTests
     [Theory]
     [InlineData("UserId", "Claude Desktop", "Claude Desktop | Agent · on behalf of kai@example.org | agent")]
     [InlineData("ApiKey", "catalog-curator", "catalog-curator | Agent · API key | agent")]
+    [InlineData("UserId", "kai@example.org", "kai@example.org | Agent | agent")]
+    [InlineData("System", "catalog-curator", "catalog-curator | Agent | agent")]
     [InlineData("UserId", null, "kai@example.org | Person | person")]
     [InlineData("ApiKey", " ", "API key | kai@example.org | key")]
     [InlineData("System", null, "kai@example.org | System | system")]

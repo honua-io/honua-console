@@ -20,10 +20,11 @@
     {
         (true, true) => $"{Requester.Name} is asking you to approve a change",
         (true, false) => "A change is waiting for your approval",
+        _ when Proposal.Status == ConsoleProposalStatus.Planned => "This change is being prepared",
         _ => "This request is no longer waiting for approval",
     };
 
     private string Message => Waiting
         ? "You opened this request from a link. Review the proposed change below. The connected server checks approval permissions before carrying out the change."
-        : "A decision has been made. The review below shows where the change stands now.";
+        : "The review below shows the current status of the change.";
 }

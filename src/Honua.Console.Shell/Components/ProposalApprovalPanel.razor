@@ -370,7 +370,7 @@ else
     public EventCallback<ConsoleProposalDetail> OnActioned { get; set; }
 
     [Parameter]
-    public EventCallback<ConsoleProposalDetail> OnDetailLoaded { get; set; }
+    public EventCallback<ConsoleProposalDetail?> OnDetailLoaded { get; set; }
 
     [Parameter]
     public EventCallback<ConsoleAgentUnsavedSummary> UnsavedChanged { get; set; }
@@ -454,10 +454,7 @@ else
         await LoadAutonomyRulePolicyAsync();
         if (_disposed) return;
         await ReportUnsavedAsync();
-        if (result.IsAllowed && result.Value is { } detail)
-        {
-            await OnDetailLoaded.InvokeAsync(detail);
-        }
+        await OnDetailLoaded.InvokeAsync(_detail);
     }
 
     private async Task LoadAutonomyRulePolicyAsync()
