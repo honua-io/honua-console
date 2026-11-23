@@ -160,14 +160,11 @@ function readResource({ request, response, pathname, crossOrigin, authorized, js
     response.writeHead(401).end();
     return;
   }
-  readAuthorizedResource({ response, pathname, json });
+  if (pathname === "/api/v1/admin/live") serveEmptyLiveStream(response);
+  else readAuthorizedResource({ response, pathname, json });
 }
 
 function readAuthorizedResource({ response, pathname, json }) {
-  if (pathname === "/api/v1/admin/live") {
-    serveEmptyLiveStream(response);
-    return;
-  }
   switch (pathname) {
     case "/api/v1/studio/session":
       json({ success: true, data: {
