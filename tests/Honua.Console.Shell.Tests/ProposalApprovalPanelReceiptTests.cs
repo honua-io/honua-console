@@ -313,10 +313,13 @@ public sealed class ProposalApprovalPanelReceiptTests
         AssertPromotionReceipt(panel, autonomy);
     }
 
+    public enum ApprovalPanelState { Mounted, Disposed }
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SwitchingEnvironmentDuringApprovalKeepsTheRequestedPolicyOnTheOriginalEnvironment(bool dispose)
+    [InlineData(ApprovalPanelState.Mounted)]
+    [InlineData(ApprovalPanelState.Disposed)]
+    public async Task SwitchingEnvironmentDuringApprovalKeepsTheRequestedPolicyOnTheOriginalEnvironment(
+        ApprovalPanelState panelState)
     {
         using var context = new BunitContext();
         var original = new ConsoleEnvironmentProfile { Id = "original", ServerBaseUri = new("https://original.example") };
@@ -333,7 +336,7 @@ public sealed class ProposalApprovalPanelReceiptTests
         var approve = panel.Find("[data-proposal-approve]").ClickAsync(new());
         panel.WaitForAssertion(() => Assert.Equal(original, proposals.ApprovalProfile));
         await panel.InvokeAsync(() => profiles.ActivateProfileAsync(alternate.Id));
-        if (dispose)
+        if (panelState == ApprovalPanelState.Disposed)
         {
             await panel.InvokeAsync(() => panel.Instance.DisposeAsync().AsTask());
         }
@@ -342,9 +345,10 @@ public sealed class ProposalApprovalPanelReceiptTests
 
         Assert.Equal(("alert-dispatch-backlog", "AutoApply", "Approved for future runs"),
             Assert.Single(autonomy.PolicyUpdates));
-        Assert.Equal(dispose ? new[] { original } : new[] { original, original }, autonomy.BoundPolicyReads);
+        Assert.Equal(panelState == ApprovalPanelState.Disposed ? new[] { original } : new[] { original, original },
+            autonomy.BoundPolicyReads);
         Assert.Equal(original, Assert.Single(autonomy.PolicyWriteProfiles));
-        if (!dispose)
+        if (panelState == ApprovalPanelState.Mounted)
         {
             AssertPromotionReceipt(panel, autonomy);
         }
