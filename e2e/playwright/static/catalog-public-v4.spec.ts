@@ -41,6 +41,21 @@ const screens = [
   { id: '18-catalog-template-editor', path: catalog + '/coastal/templates/flood' },
 ];
 
+test.beforeEach(async ({ page }) => {
+  await page.route(`${origin}/api/v1/capabilities/manifest`, route => route.fulfill({
+    json: {
+      schemaVersion: 'honua.capability_manifest.v1',
+      capabilities: [{
+        id: 'console.content.persistent',
+        lifecycle: 'Implemented',
+        optInRequired: false,
+        available: true,
+        supported: true,
+      }],
+    },
+  }));
+});
+
 for (const screen of screens) {
   for (const theme of ['light', 'dark'] as const) {
     test(`${screen.id} renders in ${theme}`, async ({ page, context }, testInfo) => {
@@ -48,18 +63,6 @@ for (const screen of screens) {
       if (!screen.heading) {
         await context.addCookies([{ name: 'console-fixture-session', value: 'issued', url: origin }]);
       }
-      await page.route(`${origin}/api/v1/capabilities/manifest`, route => route.fulfill({
-        json: {
-          schemaVersion: 'honua.capability_manifest.v1',
-          capabilities: [{
-            id: 'console.content.persistent',
-            lifecycle: 'Implemented',
-            optInRequired: false,
-            available: true,
-            supported: true,
-          }],
-        },
-      }));
       await page.route(`${origin}/api/v1/open-data/datasets**`, async route => {
         const path = new URL(route.request().url()).pathname;
         const publication = publications.find(entry => path.endsWith('/' + entry.itemId));
@@ -130,7 +133,7 @@ for (const screen of screens) {
 
 test('public catalog explains when the result set is incomplete', async ({ page }) => {
   const requestedCursors: (string | null)[] = [];
-  await page.route(`${origin}/api/v1/open-data/datasets?**`, async route => {
+  await page.route(url => url.origin === origin && url.pathname === '/api/v1/open-data/datasets', async route => {
     const cursor = new URL(route.request().url()).searchParams.get('cursor');
     requestedCursors.push(cursor);
     const pageNumber = Number(cursor ?? '1');
