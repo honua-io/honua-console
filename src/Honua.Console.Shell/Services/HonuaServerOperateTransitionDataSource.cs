@@ -133,17 +133,35 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
     public Task<OperateServicesView> GetLayersViewAsync(CancellationToken cancellationToken = default) =>
         ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken));
 
-    public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default)
+    public Task<OperateServicesView> GetLayerViewAsync(string resourceId, CancellationToken cancellationToken = default) =>
+        TryParseLayerScope(resourceId) is { } scope
+            ? ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, scope))
+            : GetLayersViewAsync(cancellationToken);
+
+    // One dataset needs only its own connection's layer reads; reading every connection's layers to
+    // resolve a single id is slow on large servers and can trip the admin rate limiter.
+    public async Task<OperateResourcesView> GetResourceViewAsync(string resourceId, CancellationToken cancellationToken = default)
+    {
+        if (TryParseLayerScope(resourceId) is not { } scope)
+        {
+            return await GetResourcesViewAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var view = await BuildDataViewAsync(SettingsRead.Skip, cancellationToken, scope).ConfigureAwait(false);
+        return new OperateResourcesView(view.ResourceEdits, view.Services.CapabilityStates);
+    }
+
+    private static DataViewScope? TryParseLayerScope(string resourceId)
     {
         const string separator = "-layer-";
         var split = resourceId.LastIndexOf(separator, StringComparison.OrdinalIgnoreCase);
         if (split < 0 || !Guid.TryParseExact(resourceId[..split], "D", out var connectionId)
             || !int.TryParse(resourceId[(split + separator.Length)..], NumberStyles.None, CultureInfo.InvariantCulture, out var layerId))
         {
-            return GetLayersViewAsync(cancellationToken);
+            return null;
         }
 
-        return ServicesOf(BuildDataViewAsync(SettingsRead.Skip, cancellationToken, new DataViewScope(connectionId, layerId)));
+        return new DataViewScope(connectionId, layerId);
     }
 
     public async Task<OperateSettingsView> GetSettingsViewAsync(CancellationToken cancellationToken = default)
@@ -235,7 +253,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource : IOperateTra
         string resourceId,
         CancellationToken cancellationToken = default)
     {
-        var view = await GetResourcesViewAsync(cancellationToken).ConfigureAwait(false);
+        var view = await GetResourceViewAsync(resourceId, cancellationToken).ConfigureAwait(false);
         return view.ResourceEdits.FirstOrDefault(
             resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
     }

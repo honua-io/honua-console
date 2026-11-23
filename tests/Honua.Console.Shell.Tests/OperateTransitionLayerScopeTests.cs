@@ -8,6 +8,7 @@ namespace Honua.Console.Shell.Tests;
 public sealed class OperateTransitionLayerScopeTests
 {
     private static readonly Guid ConnectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid OtherConnectionId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
     public async Task WorkspaceSkipsLayerReadsForServicesWithoutLayers()
@@ -30,6 +31,24 @@ public sealed class OperateTransitionLayerScopeTests
             .GetLayerViewAsync($"{ConnectionId:D}-layer-7");
 
         Assert.Contains(view.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Fact]
+    public async Task SingleResourceViewReadsOnlyItsOwnConnectionLayers()
+    {
+        var fixtures = Fixtures($"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7");
+        fixtures["/api/v1/admin/connections/"] = $$"""
+            {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
+            """;
+        var handler = new RecordingHandler(fixtures);
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
+            .GetResourceViewAsync($"{ConnectionId:D}-layer-7");
+
+        var resource = Assert.Single(view.ResourceEdits);
+        Assert.Equal($"{ConnectionId:D}-layer-7", resource.ResourceId);
+        Assert.DoesNotContain(handler.Requests, path => path.Contains($"{OtherConnectionId:D}/layers", StringComparison.Ordinal));
         AssertOnlyLayerServicesRead(handler);
     }
 

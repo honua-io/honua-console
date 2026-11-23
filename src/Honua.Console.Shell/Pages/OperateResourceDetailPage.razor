@@ -163,7 +163,7 @@
         _loading = true;
         try
         {
-            var view = await OperateData.GetResourcesViewAsync();
+            var view = await OperateData.GetResourceViewAsync(resourceId);
             if (generation != _generation) return;
             _resource = view.ResourceEdits.FirstOrDefault(
                 resource => string.Equals(resource.ResourceId, resourceId, StringComparison.OrdinalIgnoreCase));
