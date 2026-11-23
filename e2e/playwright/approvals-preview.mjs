@@ -4,6 +4,8 @@ import { runV4PagePresentation } from "./console-presentation.mjs";
 
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_APPROVALS_PREVIEW_DIR ?? "artifacts/approvals-preview"),
+  widths: [1440, 390],
+  themes: ["light", "dark"],
   pageNames: ["approvals-selected", "approvals-forbidden"],
   title: "Approvals presentation fixture",
   stylesheet: "approval-inbox-v4.css",
@@ -13,6 +15,8 @@ await runV4PagePresentation({
   async inspect(page, name) {
     assert.equal(await page.locator("tbody [data-proposal-id]").count(), 1);
     assert.ok(await page.locator("[data-live-state]").isVisible());
+    assert.equal(await page.locator("tbody td").first().evaluate(element => getComputedStyle(element).paddingTop), "12px");
+    assert.equal(await page.locator("thead th").first().evaluate(element => getComputedStyle(element).textTransform), "none");
     if (name === "approvals-forbidden") {
       assert.ok((await page.locator("section.approval-inbox-page").textContent()).includes("requires the 'approve' permission"));
     } else {
