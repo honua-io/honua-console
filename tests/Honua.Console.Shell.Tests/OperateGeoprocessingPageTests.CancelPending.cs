@@ -57,6 +57,42 @@ public sealed partial class OperateGeoprocessingPageTests
         Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnavailableCancellationCanBeRetriedWithExplicitConfirmation(bool v4Enabled)
+    {
+        const string unavailable = "Job control service is temporarily unavailable.";
+        const string acknowledged = "Job cancellation requested.";
+        using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule("./_content/Honua.Console.Shell/console-confirm-dialog.js").Mode = JSRuntimeMode.Loose;
+        var client = new StubGeoprocessingClient
+        {
+            Detail = OperateSectionResult<OperateJobRun>.Allowed(Job("gp-run", "Running", "Executing", 40, "analyst.live")),
+            Diagnostics = OperateSectionResult<OperateJobDiagnosticsView>.Allowed(Projection("gp-run", cancel: true, phase: "executing")),
+            CancelResult = OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, unavailable)
+        };
+        ctx.Services.AddSingleton<IConsoleOperateObservabilityClient>(client);
+        ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = v4Enabled });
+
+        var page = ctx.Render<OperateGeoprocessingPage>(p => p.Add(x => x.SelectedJobRunId, "gp-run"));
+        page.FindAll("button").Single(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal)).Click();
+        page.Find("[data-console-confirm-accept]").Click();
+
+        Assert.Equal("gp-run", Assert.Single(client.CancelCalls));
+        Assert.Equal(unavailable, page.Find(".operate-deploy-action-message.console-state-danger").TextContent);
+
+        client.CancelResult = OperateSectionResult<OperateJobControlOutcome>.Allowed(
+            new OperateJobControlOutcome("gp-run", "cancel", "Running", acknowledged, "corr-2"));
+        page.FindAll("button").Single(b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal)).Click();
+        Assert.Single(client.CancelCalls);
+        page.Find("[data-console-confirm-accept]").Click();
+
+        Assert.Equal(["gp-run", "gp-run"], client.CancelCalls);
+        Assert.Equal(acknowledged, page.Find(".operate-deploy-action-message.console-state-success").TextContent);
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Cancel job", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void CancelIsOfferedAgainAfterTheCancelledJobRunsAgain()
     {

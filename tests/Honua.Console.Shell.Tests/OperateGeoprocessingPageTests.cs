@@ -741,7 +741,7 @@ public sealed partial class OperateGeoprocessingPageTests
 
         public OperateSectionResult<OperateJobRun>? DetailAfterControl { get; set; }
 
-        public OperateSectionResult<OperateJobControlOutcome> CancelResult { get; init; } =
+        public OperateSectionResult<OperateJobControlOutcome> CancelResult { get; set; } =
             OperateSectionResult<OperateJobControlOutcome>.Denied(OperateSectionStatus.Unavailable, "n/a");
 
         public OperateSectionResult<OperateJobControlOutcome> RetryResult { get; init; } =
