@@ -333,6 +333,56 @@ test('refocusing Processes keeps the last successfully attached Workspace packag
  assert.deepEqual(selected,[null,processTask(prepared),processTask(followed),processTask(followed)]);
 });
 
+test('Workspace polling reloads Processes only when the selected package version changes',async()=>{
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
+ const attachments=[];
+ const page=processPage({workspace,attachWorkspaceTask:async reference=>{
+  attachments.push({...reference});
+  return true;
+ }});
+ await page.mount();
+
+ const original={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const revised={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ for(const reference of [original,original,revised,revised]){
+  workspace.context={task:processTask(reference)};
+  await page.followTask(workspace.context.task);
+ }
+
+ assert.deepEqual(attachments,[original,revised]);
+});
+
+test('returning to a previously followed package restores it after a superseded read',async()=>{
+ const started=deferred();
+ const pending=deferred();
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
+ const original={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const revised={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ let displayed;
+ const page=processPage({workspace,attachWorkspaceTask:async reference=>{
+  if(reference.version===revised.version){
+   started.resolve();
+   await pending.promise;
+  }
+  displayed={...reference};
+  return true;
+ }});
+ await page.mount();
+ const follow=reference=>{
+  workspace.context={task:processTask(reference)};
+  return page.followTask(workspace.context.task);
+ };
+
+ await follow(original);
+ const superseded=follow(revised);
+ await started.promise;
+ const restored=follow(original);
+ pending.resolve();
+ await Promise.all([superseded,restored]);
+
+ assert.deepEqual(displayed,original);
+});
+
 test('opening Processes restores the selected Workspace package',async()=>{
  const reference={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
  const task=processTask(reference);

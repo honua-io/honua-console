@@ -375,9 +375,17 @@ window.addEventListener('honua-workspace-process-task',event=>{
     if(!view?.host.isConnected || view.mode==='custom' || workspace?.capturing || workspace?.agentSession?.busy) return;
     followEditor(view,workspace,task,()=>processView===view && view.host.isConnected && view.mode==='builtin',
         async current=>{
-            const reference={packageId:task.id,version:task.revision,contentHash:task.contentHash};
-            if(current() && await view.builtin.attachWorkspaceTask(reference) && current()) {
-                view.builtinIdentity=reference;
+            if (!current()) return;
+            const attached = view.followedBuiltinIdentity;
+            if (attached && attached === view.builtinIdentity && attached.packageId === task.id
+                && attached.version === task.revision && attached.contentHash === task.contentHash) return;
+
+            const reference = { packageId: task.id, version: task.revision, contentHash: task.contentHash };
+            // A superseded read can still finish in the editor, so forget its previous attachment before reading.
+            view.followedBuiltinIdentity = undefined;
+            if (await view.builtin.attachWorkspaceTask(reference) && current()) {
+                view.builtinIdentity = reference;
+                view.followedBuiltinIdentity = reference;
             }
         },
         error=>{const status=view.host.querySelector('[data-processes-status]');if(status) status.textContent=error.message;});
