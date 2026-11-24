@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import { expect } from "@playwright/test";
 import { runV4PagePresentation } from "./console-presentation.mjs";
 
 const splitWords = page => page.locator(".console-activity-v4").evaluate(scope =>
@@ -71,13 +72,14 @@ const assertChangesKeyboardScroll = async (page, width) => {
         await page.waitForFunction(() => document.activeElement.scrollLeft > 0);
       }
       await page.keyboard.press("Tab");
-      assert.ok(await reference.evaluate(element => {
+      assert.ok(await reference.evaluate(element => element === document.activeElement),
+        `The first change reference receives focus at ${width}px and ${fontSize}`);
+      await expect.poll(() => reference.evaluate(element => {
         const tableRegion = element.closest("[role='region']");
         const linkBounds = element.getBoundingClientRect();
         const regionBounds = tableRegion.getBoundingClientRect();
-        return element === document.activeElement && linkBounds.left >= regionBounds.left - 1 &&
-          linkBounds.right <= regionBounds.right + 1;
-      }), `The first change reference receives focus and fits in the table region at ${fontSize}`);
+        return Math.ceil(Math.max(regionBounds.left - linkBounds.left, linkBounds.right - regionBounds.right, 0));
+      }), { message: `The focused reference fits in the Changes region at ${width}px and ${fontSize}` }).toBeLessThanOrEqual(1);
       assert.ok(await page.locator("html").evaluate(root => root.scrollWidth <= innerWidth + 1),
         `The Changes table does not cause page overflow at ${fontSize}`);
     } finally {
