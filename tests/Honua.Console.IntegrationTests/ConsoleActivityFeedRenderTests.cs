@@ -104,6 +104,27 @@ public sealed class ConsoleActivityFeedRenderTests
     }
 
     [Fact]
+    public void ChangingActorOnAnOlderPageStartsTheFilteredFeedAtPageOne()
+    {
+        var client = new FakeActivityFeedClient
+        {
+            Respond = query => OperateSectionResult<ConsoleActivityFeedPage>.Allowed(
+                new(FakeActivityFeedClient.Sample, query.Cursor is null ? "next-1" : null)),
+        };
+        using var context = NewContext(client);
+        var feed = context.Render<ConsoleActivityFeed>();
+        feed.Find("[data-feed-older]").Click();
+        Assert.Equal("next-1", client.Queries[^1].Cursor);
+
+        feed.Find("[data-feed-actor]").Change(nameof(ConsoleActivityActorFilter.Agent));
+
+        Assert.Equal(new ConsoleActivityFeedQuery(ConsoleActivityActorFilter.Agent, Cursor: null), client.Queries[^1]);
+        Assert.True(feed.Find("[data-feed-newer]").HasAttribute("disabled"));
+        Assert.Equal("1 change on page 1, newest first", feed.Find("[data-feed-range]").TextContent);
+        Assert.Equal("3", Assert.Single(feed.FindAll("[data-feed-row]")).GetAttribute("data-feed-row"));
+    }
+
+    [Fact]
     public void Feed_ShowsTheSharedStatusWhenTheServerRefusesOrIsMissing()
     {
         using var forbidden = NewContext(new FakeActivityFeedClient
