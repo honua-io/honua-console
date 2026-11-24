@@ -69,7 +69,7 @@ test('API key creation sends browser-entered expiry in UTC', async ({ page }) =>
   try {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
-    const createUrl = '**/api/v1/admin/api-keys';
+    const createUrl = /\/api\/v1\/admin\/api-keys\/?$/;
     await page.route(createUrl, async route => {
       if (route.request().method() === 'POST') {
         await route.fulfill({ status: 503, json: { success: false } });
@@ -82,7 +82,7 @@ test('API key creation sends browser-entered expiry in UTC', async ({ page }) =>
     await page.locator('#api-key-permissions').fill('admin:read');
     await page.getByLabel('Expiry (UTC)').fill('2027-01-15T14:30');
     const submitted = page.waitForResponse(response =>
-      response.url().endsWith('/api/v1/admin/api-keys') && response.request().method() === 'POST');
+      createUrl.test(response.url()) && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Create key' }).click();
 
     expect((await submitted).request().postDataJSON()).toMatchObject({
