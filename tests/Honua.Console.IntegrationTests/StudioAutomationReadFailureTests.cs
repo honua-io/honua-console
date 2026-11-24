@@ -1,3 +1,4 @@
+using System.Net;
 using Bunit;
 using Honua.Console.Shell.Components;
 using Honua.Console.Shell.Models;
@@ -150,6 +151,49 @@ public sealed class StudioAutomationReadFailureTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task FailedRestorePreservesHistoryUntilConfirmedRetry(bool v4)
+    {
+        var client = new FailingReadClient("restore");
+        var draft = (await client.OpenEditorAsync(InMemoryCollectAutomationClient.SeedDraftId)).Draft!;
+        await client.SaveVersionAsync(draft, "Second version");
+        var originalHistory = await client.ReadSavedHistoryAsync(draft.ContentItemId);
+        using var context = CreateContext(new ConsoleV4Options { Enabled = v4 }, client);
+        var confirmation = context.JSInterop.Setup<bool>("confirm", _ => true);
+        confirmation.SetResult(true);
+        var page = context.Render<StudioAutomationVersionsPage>(p => p.Add(v => v.DraftId, InMemoryCollectAutomationClient.SeedDraftId));
+
+        await page.FindAll("button").First(b => b.TextContent.Trim() == "Restore")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("Restore failed", page.Find("[data-automation-error]").TextContent);
+            Assert.Empty(page.FindAll("[data-automation-restore='committed']"));
+            Assert.Equal(2, page.FindAll(".automation-version-item").Count);
+        });
+        Assert.Equal(1, client.RestoreAttempts);
+        Assert.Equal(0, client.RestoreCount);
+        var failedHistory = await client.ReadSavedHistoryAsync(draft.ContentItemId);
+        Assert.Equal(originalHistory.Versions.Select(v => v.VersionId), failedHistory.Versions.Select(v => v.VersionId));
+
+        await page.FindAll("button").First(b => b.TextContent.Trim() == "Restore")
+            .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Empty(page.FindAll("[data-automation-error]"));
+            Assert.Single(page.FindAll("[data-automation-restore='committed']"));
+            Assert.Equal(3, page.FindAll(".automation-version-item").Count);
+        });
+        Assert.Equal(2, confirmation.Invocations.Count);
+        Assert.Equal(2, client.RestoreAttempts);
+        Assert.Equal(1, client.RestoreCount);
+        Assert.Equal(3, (await client.ReadSavedHistoryAsync(draft.ContentItemId)).Versions.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task SuccessfulRestoreRemainsCommittedWhenHistoryRefreshFails(bool v4)
     {
         var client = new FailingReadClient("after-restore");
@@ -211,6 +255,7 @@ public sealed class StudioAutomationReadFailureTests
     {
         private readonly InMemoryCollectAutomationClient _inner = InMemoryCollectAutomationClient.CreateSeeded();
         private readonly TaskCompletionSource _pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int RestoreAttempts { get; private set; }
         public int RestoreCount { get; private set; }
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -258,6 +303,12 @@ public sealed class StudioAutomationReadFailureTests
 
         public async Task<CollectAutomationRestoreResult> RestoreVersionAsync(string contentItemId, string versionId, CancellationToken cancellationToken = default)
         {
+            RestoreAttempts++;
+            if (failure == "restore" && RestoreAttempts == 1)
+            {
+                throw new HttpRequestException("Restore service unavailable.", null, HttpStatusCode.ServiceUnavailable);
+            }
+
             var result = await _inner.RestoreVersionAsync(contentItemId, versionId, cancellationToken);
             RestoreCount++;
             return result;
