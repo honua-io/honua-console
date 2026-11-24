@@ -115,6 +115,7 @@ for (const screen of screens) {
       await page.getByRole('button', { name: /^Service.*\(2\)$/ }).click();
       await page.getByRole('button', { name: /^Remove Service.* filter$/ }).click();
       await page.getByRole('link', { name: item.title, exact: true }).press('Enter');
+      await expect(page).toHaveURL(/\/console\/share\/public\/items\/coastal-flood-service$/);
       await expect(page.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
     }
   });

@@ -54,7 +54,7 @@
             {
                 <article class="public-catalog-card" @key="item.Id">
                     <span class="console-status console-state-neutral">@CatalogContentTypes.LabelFor(item.Type)</span>
-                    <h3><a href="@Navigation.ToConsoleHref($"/public/items/{Uri.EscapeDataString(item.Id)}")">@item.Title</a></h3>
+                    <h3><a href="@Navigation.ToConsoleHref($"/share/public/items/{Uri.EscapeDataString(item.Id)}")">@item.Title</a></h3>
                     <p class="public-catalog-summary">@item.Summary</p>
                     @if (item.Modified > DateTimeOffset.UnixEpoch)
                     {

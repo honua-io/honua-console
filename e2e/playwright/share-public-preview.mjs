@@ -13,14 +13,14 @@ await runV4PagePresentation({
   controls: name => name.endsWith("-v4") ? "main a[href]:visible" : null,
   inspect: async (page, name) => {
     const enabled = name.endsWith("-v4");
-    assert.equal(await page.locator(".share-opendata-download-name").count(), 2);
-    assert.deepEqual(await page.locator(".share-opendata-download-name").allTextContents(),
-      enabled ? ["GeoServices feature service", "OGC API Features"] : ["GeoServices:FeatureService", "OGC:API:Features"]);
     const route = "/share/public/items/coastal-flood-service";
     assert.equal(await page.locator("[data-share-opendata-routes] code").textContent(),
       enabled ? `http://localhost${route}` : route);
     assert.equal(await page.locator(".console-panel .console-panel").count(), 0);
     if (enabled) {
+      const downloads = page.locator("[data-share-opendata-downloads]");
+      assert.match(await downloads.textContent(), /No download links are published/);
+      assert.equal(await downloads.locator("a").count(), 0);
       assert.deepEqual(await page.locator("h2").allTextContents(), ["Download", "Public routes", "Usage", "Details"]);
       assert.equal(await page.locator(".share-opendata-back").getAttribute("href"), "/share/public");
       assert.match(await page.locator(".public-item-meta").textContent(), /resilience-team/);
@@ -37,6 +37,9 @@ await runV4PagePresentation({
         ruler.remove();
         return Math.abs(parseFloat(getComputedStyle(element).maxWidth) - expected) < 0.1;
       }));
+    } else {
+      assert.deepEqual(await page.locator(".share-opendata-download-name").allTextContents(),
+        ["GeoServices:FeatureService", "OGC:API:Features"]);
     }
   },
 });
