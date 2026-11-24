@@ -74,6 +74,33 @@ public sealed class ConsoleReleaseWitnessClientTests
     }
 
     [Fact]
+    public async Task ObserveRereadsAllEvidenceAfterAuditVerificationIsUnavailable()
+    {
+        const string verifyPath = "/api/v1/admin/observability/audit/verify";
+        var auditAvailable = false;
+        var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath == verifyPath && !auditAvailable
+                ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                : WitnessReply(request, "/share/map-1"));
+        var client = CreateClient(handler);
+        var request = new ConsoleReleaseWitnessRequest("map", "item-1", "version-1", "sha256-content", "proposal-1");
+
+        var unavailable = await client.ObserveAsync(request);
+
+        Assert.Equal(OperateSectionStatus.Unavailable, unavailable.Status);
+        Assert.Null(unavailable.Value);
+        var firstRead = handler.Requests.Select(sent => sent.RequestUri!.AbsolutePath).ToArray();
+        Assert.Equal(verifyPath, firstRead[^1]);
+
+        auditAvailable = true;
+        var recovered = await client.ObserveAsync(request);
+
+        Assert.True(recovered.IsAllowed, recovered.Message);
+        Assert.Equal("operation-1", recovered.Value!.AuditExecutionOperationId);
+        Assert.Equal(firstRead, handler.Requests.Skip(firstRead.Length).Select(sent => sent.RequestUri!.AbsolutePath));
+    }
+
+    [Fact]
     public async Task ObserveRefusesAuditWithoutIndependentStructuredOperationIdentity()
     {
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
