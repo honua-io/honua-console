@@ -250,3 +250,44 @@ test('the latest Processes preparation stays selected when the earlier response 
  const task=processTask(current);
  assert.deepEqual(selected,[null,task,task]);
 });
+
+test('retrying a failed Processes preparation selects the successful result',async()=>{
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(task)};
+ const prepared={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const failure=new Error('Process preparation service unavailable');
+ let attempts=0;
+ const {slots}=await fixture({workspace,prepare:async()=>{
+  if(++attempts===1) throw failure;
+  return prepared;
+ }});
+ const [builtin]=slots.builtin.children;
+
+ await assert.rejects(builtin.client.prepare(),error=>error===failure);
+ assert.deepEqual(selected,[null]);
+
+ assert.equal(await builtin.client.prepare(),prepared);
+ assert.deepEqual(selected,[null,processTask(prepared)]);
+});
+
+test('a preparation from a closed Processes page leaves the reopened selection intact',async()=>{
+ const pending=deferred();
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(task)};
+ const previous={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const current={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const responses=[pending.promise,current];
+ const page=processPage({workspace,prepare:()=>responses.shift()});
+ await page.mount();
+ const [abandoned]=page.active.slots.builtin.children;
+ const earlier=abandoned.client.prepare();
+
+ const reopened=page.reopen();
+ await page.mount();
+ const [builtin]=reopened.slots.builtin.children;
+ assert.equal(await builtin.client.prepare(),current);
+ pending.resolve(previous);
+ assert.equal(await earlier,previous);
+
+ assert.deepEqual(selected,[null,null,processTask(current)]);
+});
