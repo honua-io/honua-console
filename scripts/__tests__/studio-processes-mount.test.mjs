@@ -11,6 +11,7 @@ const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/stud
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
 
 const localTask=source.slice(source.indexOf('function localProcessTask('),source.indexOf("window.addEventListener('honua-workspace-local-process-task'"));
+const prepareContext=source.slice(source.indexOf('function processContextPreparation()'),source.indexOf("window.addEventListener('honua-workspace-process-task'"));
 const followProcess=source.slice(source.indexOf("window.addEventListener('honua-workspace-process-task'"),source.indexOf('function localProcessTask('));
 
 function processHost() {
@@ -28,7 +29,7 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
  const assets=bundleReady.then(()=>({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}));
  const navigations=[];
  const windowListeners=new Map();
- const context=vm.createContext({assets,
+ const context=vm.createContext({assets,location:{pathname:'/studio/processes'},
   document:{querySelector:()=>active.host,createElement:()=>({
    listeners:new Map(),
    attachWorkspaceTask,
@@ -41,6 +42,7 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
  // The fixture supplies the bundle without a production dynamic import.
  vm.runInContext(localTask,context);
  vm.runInContext(mount,context);
+ vm.runInContext(prepareContext,context);
  vm.runInContext(followProcess,context);
  return {
   get active(){return active;},
@@ -347,6 +349,37 @@ test('opening Processes restores the selected Workspace package',async()=>{
  builtin.listeners.get('focusin')();
  assert.deepEqual(attachments,[reference]);
  assert.deepEqual(selected,[task,task]);
+});
+
+test('Processes prepares the editor package when it matches the reviewed Workspace selection',async()=>{
+ const reference={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const reviewed=processTask(reference);
+ const workspace={session:{principalId:'actor',environmentId:'default'},context:{task:reviewed},
+  select:async()=>{}};
+ const {slots}=await fixture({workspace,attachWorkspaceTask:async()=>true});
+ const [builtin]=slots.builtin.children;
+ builtin.prepareWorkspaceTask=async()=>reference;
+
+ assert.deepEqual(await workspace.prepareContextProvider()(),reviewed);
+
+ builtin.prepareWorkspaceTask=async()=>({...reference,version:3,contentHash:'c'.repeat(64)});
+ await assert.rejects(workspace.prepareContextProvider()(),/Prepare and review the current Processes package/);
+});
+
+test('switching editors during Processes submission preparation requires review of the current view',async()=>{
+ const reference={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const workspace={session:{principalId:'actor',environmentId:'default'},context:{task:processTask(reference)},
+  select:async()=>{}};
+ const {slots}=await fixture({native:false,workspace,attachWorkspaceTask:async()=>true});
+ const [builtin]=slots.builtin.children;
+ const pending=deferred();
+ builtin.prepareWorkspaceTask=()=>pending.promise;
+
+ const submission=workspace.prepareContextProvider()();
+ slots.custom.child.listeners.get('focusin')();
+ pending.resolve(reference);
+
+ await assert.rejects(submission,/The process view changed while submitting/);
 });
 
 test('a superseded Workspace package read stays unselected if the latest attachment is rejected',async()=>{
