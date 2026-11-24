@@ -50,6 +50,19 @@
                     <button type="button" @onclick="() => FilterFormat(_format)">Remove @ConsoleDownloadFormatLabels.Display(_format) filter</button>
                 }
             </div>
+            @if (Items.Count == 0)
+            {
+                <ConsoleStateView HeadingLevel="3" Kind="empty" Kicker="Empty share"
+                                  Title="No public open-data items"
+                                  Message="Publish a service, layer, or document as public open data to expose it here."
+                                  ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+            }
+            else if (results.Length == 0)
+            {
+                <ConsoleStateView HeadingLevel="3" Kind="empty" Kicker="No matches"
+                                  Title="No matching public items"
+                                  Message="Try a different search or remove a filter." />
+            }
             @foreach (var item in results.Skip(_page * PageSize).Take(PageSize))
             {
                 <article class="public-catalog-card" @key="item.Id">
