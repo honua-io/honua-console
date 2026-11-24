@@ -227,3 +227,26 @@ test('editing a process keeps an earlier preparation out of the workspace select
  assert.equal(await builtin.client.prepare(),current);
  assert.deepEqual(selected.at(-1),processTask(current));
 });
+
+test('the latest Processes preparation stays selected when the earlier response arrives last',async()=>{
+ const first=deferred();
+ const second=deferred();
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(task)};
+ const previous={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const current={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const responses=[first.promise,second.promise];
+ const {slots}=await fixture({workspace,prepare:()=>responses.shift()});
+ const [builtin]=slots.builtin.children;
+
+ const earlier=builtin.client.prepare();
+ const latest=builtin.client.prepare();
+ second.resolve(current);
+ assert.equal(await latest,current);
+ first.resolve(previous);
+ assert.equal(await earlier,previous);
+ builtin.listeners.get('focusin')();
+
+ const task=processTask(current);
+ assert.deepEqual(selected,[null,task,task]);
+});
