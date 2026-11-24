@@ -354,6 +354,29 @@ test('Workspace polling keeps a package restored on mount until its identity cha
  assert.deepEqual(attachments,[original,revised,changedContent]);
 });
 
+test('Processes stays open and restores a saved package after a transient read failure',async()=>{
+ const saved=processTask({packageId:'buffer',version:1,contentHash:'a'.repeat(64)});
+ const workspace={session:{principalId:'actor',environmentId:'default'},context:{task:saved},select:async()=>{}};
+ const failure='The saved process package is temporarily unavailable.';
+ let attempts=0;
+ const page=processPage({workspace,attachWorkspaceTask:async()=>{
+  if(++attempts===1) throw new Error(failure);
+  return true;
+ }});
+
+ await page.mount();
+
+ const {slots,status}=page.active;
+ assert.equal(slots.builtin.children.length,1);
+ assert.equal(status.textContent,failure);
+
+ await page.followTask(saved);
+ await page.followTask(saved);
+
+ assert.equal(attempts,2);
+ assert.equal(status.textContent,'Connected to default');
+});
+
 test('returning to a previously followed package restores it after a superseded read',async()=>{
  const started=deferred();
  const pending=deferred();

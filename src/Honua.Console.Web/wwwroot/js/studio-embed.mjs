@@ -217,7 +217,11 @@ async function mountProcesses() {
                 const task=workspace.context.task;
                 const current=captureWorkspaceFollow(workspace,task,()=>processView===view && host.isConnected && view.mode==='builtin');
                 const reference = { packageId: task.id, version: task.revision, contentHash: task.contentHash };
-                if(await builtin.attachWorkspaceTask(reference) && current()) {
+                const attached = await builtin.attachWorkspaceTask(reference).catch(error => {
+                    if (current()) view.packageReadError = error.message;
+                    return false;
+                });
+                if (attached && current()) {
                     view.builtinIdentity = reference;
                     view.followedBuiltinIdentity = reference;
                     await workspace.select([],task);
@@ -282,7 +286,7 @@ async function mountProcesses() {
                 window.Blazor?.navigateTo(consoleHref('/studio'));
             } catch (error) { status.textContent = error.message; }
         });
-        status.textContent = `Connected to ${session.environmentName}`;
+        status.textContent = view.packageReadError ?? `Connected to ${view.session.environmentName}`;
     } catch (error) { status.textContent = error.message; }
 }
 new MutationObserver(mountProcesses).observe(document.body, { childList: true, subtree: true });
@@ -388,9 +392,17 @@ window.addEventListener('honua-workspace-process-task',event=>{
             if (await view.builtin.attachWorkspaceTask(reference) && current()) {
                 view.builtinIdentity = reference;
                 view.followedBuiltinIdentity = reference;
+                const status = view.host.querySelector('[data-processes-status]');
+                if (status && status.textContent === view.packageReadError)
+                    status.textContent = `Connected to ${view.session.environmentName}`;
+                view.packageReadError = undefined;
             }
         },
-        error=>{const status=view.host.querySelector('[data-processes-status]');if(status) status.textContent=error.message;});
+        error=>{
+            view.packageReadError = error.message;
+            const status = view.host.querySelector('[data-processes-status]');
+            if (status) status.textContent = view.packageReadError;
+        });
 });
 
 function localProcessTask(value) {
