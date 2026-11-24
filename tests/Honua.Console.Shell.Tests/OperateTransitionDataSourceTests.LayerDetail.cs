@@ -14,8 +14,11 @@ public sealed partial class OperateTransitionDataSourceTests
             ["/api/v1/admin/connections/"] = $$$"""
                 {"success":true,"data":[{"connectionId":"{{{connection}}}","name":"Selected","host":"db","databaseName":"honua","provider":"PostgreSQL/PostGIS"},{"connectionId":"22222222-2222-2222-2222-222222222222","name":"Unrelated","host":"other","databaseName":"other","provider":"PostgreSQL/PostGIS"}]}
                 """,
-            [$"/api/v1/admin/services/?page=1&pageSize=100&connectionId={connection}&storageLayerId=7"] = """
+            ["/api/v1/admin/services/?page=1&pageSize=100"] = """
                 {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1},{"serviceName":"public","layerCount":1}],"page":1,"pageSize":100,"total":2,"layerTotal":2}}
+                """,
+            [$"/api/v1/admin/connections/{connection}/layers/?page=1&pageSize=100"] = """
+                {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}
                 """,
         };
         foreach (var service in new[] { "planning", "public" })

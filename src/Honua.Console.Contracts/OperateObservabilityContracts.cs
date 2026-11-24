@@ -334,6 +334,8 @@ public sealed record ObservabilityAuditRecordResponse
 
     public string ActorType { get; init; } = string.Empty;
 
+    public string? ActorAgent { get; init; }
+
     public string ResourceType { get; init; } = string.Empty;
 
     public string? ResourceId { get; init; }

@@ -8,11 +8,12 @@ namespace Honua.Console.Shell.Tests;
 public sealed class OperateTransitionLayerScopeTests
 {
     private static readonly Guid ConnectionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid OtherConnectionId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
     public async Task WorkspaceSkipsLayerReadsForServicesWithoutLayers()
     {
-        var handler = new RecordingHandler(Fixtures("/api/v1/admin/services/?page=1&pageSize=100"));
+        var handler = new RecordingHandler(Fixtures());
 
         var workspace = await new HonuaServerOperateTransitionDataSource(CreateClient(handler)).GetWorkspaceAsync();
 
@@ -21,16 +22,143 @@ public sealed class OperateTransitionLayerScopeTests
     }
 
     [Fact]
-    public async Task SingleLayerViewSkipsLayerReadsForServicesWithoutLayers()
+    public async Task SingleLayerViewRetainsLegacyPublicationWithoutStorageBinding()
     {
-        var handler = new RecordingHandler(Fixtures(
-            $"/api/v1/admin/services/?page=1&pageSize=100&connectionId={ConnectionId:D}&storageLayerId=7"));
+        var handler = new RecordingHandler(Fixtures());
 
         var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
             .GetLayerViewAsync($"{ConnectionId:D}-layer-7");
 
         Assert.Contains(view.Services, service => service.Layers.Any(layer => layer.Name == "Console Parcels"));
         AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Fact]
+    public async Task SingleResourceViewReadsOnlyItsOwnConnectionLayers()
+    {
+        var fixtures = Fixtures();
+        fixtures["/api/v1/admin/connections/"] = TwoConnections;
+        var handler = new RecordingHandler(fixtures);
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
+            .GetResourceViewAsync($"{ConnectionId:D}-layer-7");
+
+        var resource = Assert.Single(view.ResourceEdits);
+        Assert.Equal($"{ConnectionId:D}-layer-7", resource.ResourceId);
+        Assert.DoesNotContain(handler.Requests, path => path.Contains($"{OtherConnectionId:D}/layers", StringComparison.Ordinal));
+        AssertOnlyLayerServicesRead(handler);
+        Assert.DoesNotContain(handler.Requests, path => path.StartsWith("/api/v1/admin/services/", StringComparison.Ordinal)
+            && (path.Contains("connectionId=", StringComparison.Ordinal) || path.Contains("storageLayerId=", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task DatasetDetailRetainsPublishedLayerWithoutServiceSummary()
+    {
+        var handler = WithoutServiceSummary();
+        var resourceId = $"{ConnectionId:D}-layer-7";
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler)).GetResourceViewAsync(resourceId);
+
+        var resource = Assert.Single(view.ResourceEdits);
+        Assert.Equal(resourceId, resource.ResourceId);
+        Assert.Equal(new[] { "default" }, resource.BlastRadius.Services);
+        Assert.Empty(view.CapabilityStates);
+        AssertOnlyDefaultLayersRead(handler);
+    }
+
+    [Fact]
+    public async Task LayerDetailRetainsPublishedLayerWithoutServiceSummary()
+    {
+        var handler = WithoutServiceSummary();
+        var resourceId = $"{ConnectionId:D}-layer-7";
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler)).GetLayerViewAsync(resourceId);
+
+        var service = Assert.Single(view.Services);
+        Assert.Equal("default", service.Name);
+        Assert.Equal(resourceId, Assert.Single(service.Layers).CanonicalResourceId);
+        Assert.Empty(view.CapabilityStates);
+        AssertOnlyDefaultLayersRead(handler);
+    }
+
+    [Fact]
+    public async Task DatasetDetailDoesNotSubstituteAnotherLayerForAMissingLayer()
+    {
+        var handler = new RecordingHandler(Fixtures());
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
+            .GetResourceViewAsync($"{ConnectionId:D}-layer-999");
+
+        Assert.Empty(view.ResourceEdits);
+        Assert.Empty(view.CapabilityStates);
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Fact]
+    public async Task LayerDetailDoesNotSubstituteAnotherLayerForAMissingLayer()
+    {
+        var handler = new RecordingHandler(Fixtures());
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler))
+            .GetLayerViewAsync($"{ConnectionId:D}-layer-999");
+
+        Assert.All(view.Services, service => Assert.Empty(service.Layers));
+        Assert.Empty(view.CapabilityStates);
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Fact]
+    public async Task DatasetDetailRetainsDefaultAndNamedPublications()
+    {
+        var handler = WithDefaultLayers();
+        var resourceId = $"{ConnectionId:D}-layer-7";
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler)).GetResourceViewAsync(resourceId);
+
+        var resource = Assert.Single(view.ResourceEdits);
+        Assert.Equal(resourceId, resource.ResourceId);
+        Assert.Equal(new[] { "default", "planning" }, resource.BlastRadius.Services);
+        Assert.Empty(view.CapabilityStates);
+        Assert.Equal(2, handler.Requests.Count(path => path.Contains("/layers/", StringComparison.Ordinal)));
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    [Fact]
+    public async Task LayerDetailRetainsDefaultAndNamedPublications()
+    {
+        var handler = WithDefaultLayers();
+        var resourceId = $"{ConnectionId:D}-layer-7";
+
+        var view = await new HonuaServerOperateTransitionDataSource(CreateClient(handler)).GetLayerViewAsync(resourceId);
+
+        var publishingServices = view.Services.Where(service => service.Layers.Count > 0).ToArray();
+        Assert.Equal(new[] { "default", "planning" }, publishingServices.Select(service => service.Name).OrderBy(name => name));
+        Assert.All(publishingServices, service => Assert.Equal(resourceId, Assert.Single(service.Layers).CanonicalResourceId));
+        Assert.Empty(view.CapabilityStates);
+        Assert.Equal(2, handler.Requests.Count(path => path.Contains("/layers/", StringComparison.Ordinal)));
+        AssertOnlyLayerServicesRead(handler);
+    }
+
+    private static RecordingHandler WithoutServiceSummary()
+    {
+        var fixtures = Fixtures();
+        fixtures[ServicesPath] = EmptyLayerPage;
+        fixtures["/api/v1/admin/connections/"] = TwoConnections;
+        fixtures[DefaultLayersPath] = DefaultLayerPage;
+        return new RecordingHandler(fixtures);
+    }
+
+    private static RecordingHandler WithDefaultLayers()
+    {
+        var fixtures = Fixtures();
+        fixtures[DefaultLayersPath] = DefaultLayerPage;
+        return new RecordingHandler(fixtures);
+    }
+
+    private static void AssertOnlyDefaultLayersRead(RecordingHandler handler)
+    {
+        var layerRead = Assert.Single(handler.Requests, path => path.Contains("/layers/", StringComparison.Ordinal));
+        Assert.Equal(DefaultLayersPath, layerRead);
     }
 
     private static void AssertOnlyLayerServicesRead(RecordingHandler handler)
@@ -43,19 +171,29 @@ public sealed class OperateTransitionLayerScopeTests
         new HttpClient(handler) { BaseAddress = new Uri("https://server.example") },
         new HonuaAdminOperateClientOptions(new Uri("https://server.example"), "test-api-key"));
 
-    private static Dictionary<string, string> Fixtures(string servicesPath) => new(StringComparer.Ordinal)
+    private static Dictionary<string, string> Fixtures() => new(StringComparer.Ordinal)
     {
         ["/api/v1/admin/connections/"] = $$"""
             {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
             """,
-        [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100"] = EmptyLayerPage,
+        [DefaultLayersPath] = EmptyLayerPage,
         [$"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100&serviceName=planning"] = """
             {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"planning"}],"page":1,"pageSize":100,"total":1}}
             """,
-        [servicesPath] = """
+        [ServicesPath] = """
             {"success":true,"data":{"items":[{"serviceName":"planning","layerCount":1,"enabledProtocols":["FeatureServer"]},{"serviceName":"geoprocessing","layerCount":0,"enabledProtocols":["GeoprocessingServer"]}],"page":1,"pageSize":100,"total":2}}
             """,
     };
+
+    private const string ServicesPath = "/api/v1/admin/services/?page=1&pageSize=100";
+    private static readonly string DefaultLayersPath = $"/api/v1/admin/connections/{ConnectionId}/layers/?page=1&pageSize=100";
+    private static readonly string TwoConnections = $$"""
+        {"success":true,"data":[{"connectionId":"{{ConnectionId}}","name":"Live PostGIS","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"},{"connectionId":"{{OtherConnectionId}}","name":"Archive","provider":"PostgreSQL/PostGIS","isActive":true,"healthStatus":"Healthy","storageType":"managed"}]}
+        """;
+
+    private const string DefaultLayerPage = """
+        {"success":true,"data":{"items":[{"storageLayerId":7,"layerName":"Console Parcels","geometryType":"Polygon","enabled":true,"serviceName":"default"},{"storageLayerId":8,"layerName":"Console Roads","geometryType":"Line","enabled":true,"serviceName":"default"}],"page":1,"pageSize":100,"total":2}}
+        """;
 
     private const string EmptyLayerPage = """
         {"success":true,"data":{"items":[],"page":1,"pageSize":100,"total":0}}

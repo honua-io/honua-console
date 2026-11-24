@@ -12,8 +12,11 @@ await runV4PagePresentation({
   controls: ".console-page a[href]:visible",
   inspect: async page => {
     const row = page.locator("[data-layer-id='42'][data-service-id='cadastre']");
-    assert.equal(await row.locator(".console-name-identifier").evaluate(element => getComputedStyle(element).display), "grid");
+    assert.equal((await row.locator("th[scope='row'] > a").textContent()).trim(), "Parcels");
+    assert.equal((await row.locator(".console-service-layer-path").textContent()).trim(), "cadastre/Parcels");
     assert.equal(await row.locator("a[href='/console/operate/layers/connection-1-layer-42']").count(), 2);
     assert.equal(await row.locator("a[href='/console/operate/services/cadastre/settings']").count(), 1);
+    assert.equal(await row.getByRole("link", { name: "Map of Parcels", exact: true }).count(), 1);
+    assert.equal(await row.getByRole("link", { name: "Export Parcels", exact: true }).count(), 1);
   },
 });

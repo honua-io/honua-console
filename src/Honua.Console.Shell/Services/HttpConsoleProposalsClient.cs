@@ -15,6 +15,7 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         "No active environment profile is selected. Connect an environment to review approvals.";
 
     private readonly HttpClient _http;
+    private ConsoleEnvironmentProfile? ExpectedProfile { get; init; }
     private readonly IConsoleEnvironmentProfileStore _profileStore;
     private readonly IConsoleAccountSessionStore _sessionStore;
     private readonly string? _adminApiKey;
@@ -41,6 +42,14 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
                 TimeProvider.System);
         _credentialMode = credentialMode;
     }
+
+    public IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+        new HttpConsoleProposalsClient(_http, new InMemoryConsoleEnvironmentProfileStore([profile]), _sessionStore,
+            _adminApiKey, _operatorBearerProvider, _credentialMode)
+        {
+            _resourceBaseUri = this._resourceBaseUri,
+            ExpectedProfile = profile
+        };
 
     // A management approval reads and posts on the manager origin. Other calls stay on the profile.
     internal void UseResourceBase(Uri resourceBaseUri) => _resourceBaseUri = resourceBaseUri;
@@ -320,6 +329,11 @@ public sealed class HttpConsoleProposalsClient : IConsoleProposalsClient
         Func<HttpStatusCode, string> fallbackMessage,
         CancellationToken cancellationToken)
     {
+        if (ExpectedProfile is { } profile)
+        {
+            request.Options.Set(ConsoleServerHttp.ExpectedProfile, profile);
+        }
+
         try
         {
             using var response = await _http

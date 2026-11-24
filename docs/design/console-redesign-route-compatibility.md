@@ -56,11 +56,11 @@ Page names in the tables are under `src/Honua.Console.Shell/Pages/` unless noted
 
 | Route family | Phase 0–1 disposition | Identity / query / history acceptance |
 |---|---|---|
-| `/maps/{MapId}` | Keep content-map viewer (`MapViewerPage`) | Content ID; authorized anonymous `?token=` reads retained; never an editor |
+| `/maps/{MapId}` | Keep content-map viewer (`MapViewerPage`) | Sign in and return to the requested map by content ID |
 | `/maps/new?from=...` | Keep `MapDraftPage`; Studio’s capability-gated “Map from catalog” menu opens `/catalog` to choose a real source | Authenticated catalog-source hydration and continuation unchanged |
 | `/maps/published/{**route}` | Keep Web publication endpoint and `PublishedMapDocument` | Studio publication route, independently rendered; no operator chrome/auth substitution |
 | `/embed/maps/{MapId}` | Keep shellless viewer | Frozen path; eligible reads stay 200; bearer only in `#embedToken=`; query token rejection retained |
-| `/catalog/{IdOrSlug}` | Keep detail | Preserve filters, tab, validated public-link token behavior; signed-in read takes precedence |
+| `/catalog/{IdOrSlug}` | Keep detail | Sign in and return to the requested detail with the selected tab |
 | `/share/public`, `/public`, both `/.../items/{IdOrSlug}` aliases | Keep collection/detail aliases | Frozen eligible item paths remain 200; no redesign redirects; public open-data eligibility unchanged |
 | `/studio`, `/studio/proof`, `/studio/drafts`, `/studio/apps/{ItemId}/preview` | Keep `StudioPage` aliases | Preserve source/item/revision query and Studio lifecycle; no blanket `/studio/*` redirect |
 | `/studio/processes`, `/studio/styles*`, `/studio/automations*`, `/studio/workflows/{DraftId}`, `/studio/form`, `/studio/report` | Keep current owners | Processes and live authoring remain distinct; no builder resurrection |

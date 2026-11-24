@@ -177,7 +177,7 @@
         @if (V4Enabled)
         {
             <h1>Activity</h1>
-            <p>Changes, alerts, and operational evidence from the connected Honua server.</p>
+            <p>Every change on the connected Honua server, newest first, with who made it: a person, an agent and the person it acts for, an API key or the system. Alerts and operational evidence follow.</p>
         }
         else
         {
@@ -190,7 +190,11 @@
         }
     </div>
 
-    @if (!V4Enabled)
+    @if (V4Enabled)
+    {
+        <ConsoleActivityFeed />
+    }
+    else
     {
         @FleetSections
     }

@@ -31,12 +31,16 @@
 .console-activity-v4 .activity-sync-notice {
     margin: 0;
     padding: var(--space-3) var(--space-4);
-    border-left: 3px solid var(--c-info);
-    color: var(--c-text-2);
+    border: 1px solid var(--c-border);
+    border-inline-start: 3px solid var(--c-info);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-panel);
+    color: var(--c-text);
     font-size: var(--text-sm);
 }
 
-.console-activity-v4 .console-panel {
+.console-activity-v4 :is(.console-panel, .console-activity-feed-scroll) {
     border: 1px solid var(--c-border);
     border-radius: var(--radius-lg);
     background: var(--c-surface);
@@ -99,6 +103,7 @@
     color: var(--c-text-3);
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
+    text-transform: none;
 }
 
 .console-activity-v4 .operate-table td {
@@ -141,6 +146,31 @@
 .console-activity-v4 .operate-section-nav {
     position: static;
     margin-top: var(--space-8);
+}
+
+.console-activity-v4 .correlation-id-chip {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.console-activity-v4 .correlation-id-chip .console-mono {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (min-width: 641px) {
+    .console-activity-v4 .operate-table td {
+        overflow-wrap: break-word;
+    }
+
+    .console-activity-v4 .operate-table:not(.operate-event-table, .console-activity-feed-table) td:first-child a {
+        overflow-wrap: anywhere;
+    }
+
+    .console-activity-v4 .operate-table :is(th, .console-status) {
+        overflow-wrap: normal;
+        white-space: nowrap;
+    }
 }
 
 @media (max-width: 640px) {
@@ -207,17 +237,55 @@
         color: var(--c-text-3);
         font-size: var(--text-xs);
         font-weight: var(--weight-medium);
-        text-transform: uppercase;
+        text-transform: none;
     }
 
     .console-activity-v4 .correlation-id-chip {
-        max-width: 100%;
-        min-width: 0;
         border-radius: var(--radius-md);
     }
+}
 
-    .console-activity-v4 .correlation-id-chip .console-mono {
-        min-width: 0;
-        overflow-wrap: anywhere;
-    }
+.console-activity-v4 :is(.console-activity-feed-toolbar, .console-activity-feed-pager) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.console-activity-v4 .console-activity-feed-toolbar {
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.console-activity-v4 .console-activity-feed-filter {
+    min-width: min(12rem, 100%);
+    max-width: 100%;
+}
+
+.console-activity-v4 .console-activity-feed-table {
+    min-width: 0;
+}
+
+.console-activity-v4 .console-activity-feed-table th {
+    border-top: 0;
+}
+
+.console-activity-v4 .console-activity-feed-table td {
+    color: var(--c-text-2);
+}
+
+.console-activity-v4 .console-activity-feed-table time {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.console-activity-v4 .console-activity-feed-actor {
+    display: block;
+    color: var(--c-text);
+}
+
+.console-activity-v4 .console-activity-feed-channel {
+    display: block;
+    font-size: var(--text-xs);
 }

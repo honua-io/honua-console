@@ -1,0 +1,22 @@
+@inject NavigationManager Navigation
+
+<tr data-layer-id="@Layer.LayerId" data-service-id="@Service.Name">
+    <td class="console-service-layer-type" title="@Layer.Geometry"><ConsoleTreeIcon Name="@ConsoleTreeIcon.ForGeometry(Layer.Geometry)" /><span class="console-visually-hidden">@Layer.Geometry</span></td>
+    <th scope="row">
+        <a href="@LayerHref">@Layer.Name</a>
+        <code class="console-service-layer-path">@($"{Service.DisplayPath}/{Layer.Name}")</code>
+    </th>
+    <td><a href="@Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForService(Service.Name)))">@Service.DisplayName</a></td>
+    <td><a href="@Navigation.ToConsoleHref($"/operate/resources/{Uri.EscapeDataString(Layer.CanonicalResourceId)}")">@Layer.CanonicalResourceName</a></td>
+    <td class="console-layer-preview-links">
+        <a href="@LayerHref" aria-label="@($"Map of {Layer.Name}")">Map</a>
+        <a href="@Navigation.ToConsoleHref(ExportPresentation.NewExportRoute(Service.Name, Layer.LayerId, Layer.Name))" aria-label="@($"Export {Layer.Name}")">Export</a>
+    </td>
+</tr>
+
+@code {
+    [Parameter, EditorRequired] public OperateServiceDetail Service { get; set; } = default!;
+    [Parameter, EditorRequired] public OperateServiceLayer Layer { get; set; } = default!;
+
+    private string LayerHref => Navigation.ToConsoleHref(ConsoleAgentRoutes.ForEntity(ConsoleAgentEntity.ForLayer(Layer)));
+}

@@ -66,6 +66,11 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         ArgumentException.ThrowIfNullOrWhiteSpace(idOrSlug);
         ArgumentNullException.ThrowIfNull(context);
 
+        if (context.Anonymous)
+        {
+            return CatalogItemReadResult.Denied(CatalogReadStatus.Unavailable, "Sign in to open this catalog item.");
+        }
+
         var result = await _client.GetAsync(idOrSlug, cancellationToken).ConfigureAwait(false);
         if (result.Data is null)
         {
@@ -79,7 +84,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
                 "This link is unavailable or no longer grants access.");
         }
 
-        return CatalogItemReadResult.Allowed(ConsoleContentMapper.ToDetail(result.Data), context.Anonymous);
+        return CatalogItemReadResult.Allowed(ConsoleContentMapper.ToDetail(result.Data));
     }
 
     // Public pages read the server's anonymous open-data routes, never the admin content routes:
@@ -143,6 +148,11 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         ArgumentException.ThrowIfNullOrWhiteSpace(mapId);
         ArgumentNullException.ThrowIfNull(context);
 
+        if (context.Anonymous)
+        {
+            return MapReadResult.Denied(CatalogReadStatus.Unavailable, "Sign in to open this saved map.");
+        }
+
         var result = await _client.GetAsync(mapId, cancellationToken).ConfigureAwait(false);
         if (result.Data is null)
         {
@@ -163,7 +173,7 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
                 "This map link is unavailable or no longer grants access.");
         }
 
-        return MapReadResult.Allowed(ConsoleContentMapper.ToMap(result.Data), context.Anonymous);
+        return MapReadResult.Allowed(ConsoleContentMapper.ToMap(result.Data));
     }
 
     public async Task<MapReadResult> GetDraftMapAsync(

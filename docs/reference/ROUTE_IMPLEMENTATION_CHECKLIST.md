@@ -115,7 +115,7 @@ without first updating the map should be sent back (route map §14).
 
 - Enforce the gate declared in Step 1. Read session/permission state
   through the shared seam, not raw claims inline (charter §3).
-- For anonymous-capable routes (Share, Embed, Catalog item, Maps viewer),
+- For anonymous-capable routes such as public Share and Embed,
   resolve the read context first and render
   `<ConsoleStateView Kind="unavailable">` for anonymous denials so
   upgrade copy and protected titles are not leaked (route map §7, §13 Q5).

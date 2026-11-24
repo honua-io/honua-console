@@ -10,6 +10,13 @@ public sealed class DualConsoleProposalsClient(
 {
     private const string ManagerPrefix = "manager:";
 
+    public IConsoleProposalsClient ForEnvironment(ConsoleEnvironmentProfile profile) =>
+        new DualConsoleProposalsClient(serving.ForEnvironment(profile), manager.ForEnvironment(profile),
+            new InMemoryConsoleEnvironmentProfileStore([profile]), endpoint);
+
+    internal static bool IsManagerProposal(string proposalId) =>
+        proposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal);
+
     private async Task<bool?> HasSeparateManager(CancellationToken cancellationToken)
     {
         if (endpoint is null) return false;
@@ -36,7 +43,7 @@ public sealed class DualConsoleProposalsClient(
             return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
                 OperateSectionStatus.Unavailable, "Neither serving nor management proposal source is available.");
         var servingItems = servingResult.IsAllowed ? servingResult.Value ?? [] : [];
-        if (servingItems.Any(item => item.ProposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal)))
+        if (servingItems.Any(item => IsManagerProposal(item.ProposalId)))
             return OperateSectionResult<IReadOnlyList<ConsoleProposalSummary>>.Denied(
                 OperateSectionStatus.Unavailable, "A proposal identifier conflicts with the management namespace.");
         var items = servingItems.Concat((managerResult.IsAllowed ? managerResult.Value ?? [] : []).Select(item => item with
@@ -85,7 +92,7 @@ public sealed class DualConsoleProposalsClient(
         var separate = await HasSeparateManager(cancellationToken).ConfigureAwait(false);
         if (separate is null) return OperateSectionResult<ConsoleProposalDetail>.Denied(
             OperateSectionStatus.Unavailable, "The management endpoint is not bound to this environment.");
-        var isManager = proposalId.StartsWith(ManagerPrefix, StringComparison.Ordinal);
+        var isManager = IsManagerProposal(proposalId);
         if (isManager && separate != true) return OperateSectionResult<ConsoleProposalDetail>.Denied(
             OperateSectionStatus.Unavailable, "The original management endpoint is unavailable.");
         var id = isManager ? proposalId[ManagerPrefix.Length..] : proposalId;

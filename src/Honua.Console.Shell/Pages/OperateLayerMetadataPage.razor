@@ -149,7 +149,7 @@
         var attempt = PublicationContext?.BeginRead(resourceId);
         try
         {
-            var view = await OperateData.GetLayersViewAsync();
+            var view = await OperateData.GetLayerViewAsync(resourceId);
             if (generation != _generation) return;
             _exposures = view.FindExposures(resourceId);
             if (_exposures.Count == 0) _readFailure = view.ReadFailure();
