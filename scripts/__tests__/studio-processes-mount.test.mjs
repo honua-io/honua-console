@@ -5,11 +5,13 @@ import vm from 'node:vm';
 import {connectStudioHost} from '../../src/Honua.Console.Web/wwwroot/js/studio-bundle.mjs';
 import {StudioSignInRequired} from '../../src/Honua.Console.Web/wwwroot/js/studio-session.mjs';
 import {processTask} from '../../src/Honua.Console.Web/wwwroot/js/workflow-task.mjs';
+import {queueWorkspaceFollow} from '../../src/Honua.Console.Web/wwwroot/js/workspace-follow.mjs';
 
 const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
 
 const localTask=source.slice(source.indexOf('function localProcessTask('),source.indexOf("window.addEventListener('honua-workspace-local-process-task'"));
+const followProcess=source.slice(source.indexOf("window.addEventListener('honua-workspace-process-task'"),source.indexOf('function localProcessTask('));
 
 function processHost() {
  const slots={builtin:{children:[],append(child){this.children.push(child);}},custom:{append(child){this.child=child;},hidden:false}};
@@ -25,22 +27,29 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
  class Workspace {prepare(...args){return prepare(...args);}}
  const assets=bundleReady.then(()=>({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}));
  const navigations=[];
+ const windowListeners=new Map();
  const context=vm.createContext({assets,
   document:{querySelector:()=>active.host,createElement:()=>({
    listeners:new Map(),
    addEventListener(name,handler){this.listeners.set(name,handler);},
   })},
-  window:{honuaAgentWorkspace:workspace,Blazor:{navigateTo:path=>navigations.push(path)}},consoleHref:path=>path,
+  window:{honuaAgentWorkspace:workspace,Blazor:{navigateTo:path=>navigations.push(path)},
+   addEventListener:(name,handler)=>windowListeners.set(name,handler)},consoleHref:path=>path,
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
-  connectStudioHost,processTask,processView:undefined,StudioSignInRequired});
+  connectStudioHost,processTask,processView:undefined,StudioSignInRequired,followEditor:queueWorkspaceFollow});
  // The fixture supplies the bundle without a production dynamic import.
  vm.runInContext(localTask,context);
  vm.runInContext(mount,context);
+ vm.runInContext(followProcess,context);
  return {
   get active(){return active;},
   get currentHost(){return context.processView?.host;},
   navigations,
   mount:()=>vm.runInContext('mountProcesses()',context),
+  followTask(task){
+   windowListeners.get('honua-workspace-process-task')({detail:task});
+   return context.processView.workspaceFollowQueue;
+  },
   reopen(){
    active.host.isConnected=false;
    active=processHost();
@@ -296,6 +305,29 @@ test('the latest Processes preparation stays selected when the earlier response 
 
  const task=processTask(current);
  assert.deepEqual(selected,[null,task,task]);
+});
+
+test('refocusing Processes keeps the last successfully attached Workspace package version',async()=>{
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(task)};
+ const prepared={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const followed={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const rejected={packageId:'buffer',version:3,contentHash:'c'.repeat(64)};
+ const page=processPage({workspace,prepare:()=>prepared});
+ await page.mount();
+ const [builtin]=page.active.slots.builtin.children;
+ await builtin.client.prepare();
+
+ builtin.attachWorkspaceTask=async reference=>reference.version===followed.version;
+ workspace.context={task:processTask(followed)};
+ await page.followTask(workspace.context.task);
+ builtin.listeners.get('focusin')();
+
+ workspace.context={task:processTask(rejected)};
+ await page.followTask(workspace.context.task);
+ builtin.listeners.get('focusin')();
+
+ assert.deepEqual(selected,[null,processTask(prepared),processTask(followed),processTask(followed)]);
 });
 
 test('switching to a local process keeps it selected while built-in preparation completes',async()=>{

@@ -374,7 +374,12 @@ window.addEventListener('honua-workspace-process-task',event=>{
     const view=processView,workspace=window.honuaAgentWorkspace,task=event.detail;
     if(!view?.host.isConnected || view.mode==='custom' || workspace?.capturing || workspace?.agentSession?.busy) return;
     followEditor(view,workspace,task,()=>processView===view && view.host.isConnected && view.mode==='builtin',
-        async current=>{if(current()) await view.builtin.attachWorkspaceTask({packageId:task.id,version:task.revision,contentHash:task.contentHash});},
+        async current=>{
+            const reference={packageId:task.id,version:task.revision,contentHash:task.contentHash};
+            if(current() && await view.builtin.attachWorkspaceTask(reference) && current()) {
+                view.builtinIdentity=reference;
+            }
+        },
         error=>{const status=view.host.querySelector('[data-processes-status]');if(status) status.textContent=error.message;});
 });
 
