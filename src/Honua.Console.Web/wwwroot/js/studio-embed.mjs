@@ -216,8 +216,10 @@ async function mountProcesses() {
             if(workspace.context?.task?.kind === 'workflow-package') {
                 const task=workspace.context.task;
                 const current=captureWorkspaceFollow(workspace,task,()=>processView===view && host.isConnected && view.mode==='builtin');
-                if(await builtin.attachWorkspaceTask({packageId:task.id,version:task.revision,contentHash:task.contentHash}) && current()) {
-                    view.builtinIdentity={packageId:task.id,version:task.revision,contentHash:task.contentHash};
+                const reference = { packageId: task.id, version: task.revision, contentHash: task.contentHash };
+                if(await builtin.attachWorkspaceTask(reference) && current()) {
+                    view.builtinIdentity = reference;
+                    view.followedBuiltinIdentity = reference;
                     await workspace.select([],task);
                 }
             } else if(localProcesses && workspace.context?.task?.kind === 'local-process-workspace') {

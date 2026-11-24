@@ -333,8 +333,12 @@ test('refocusing Processes keeps the last successfully attached Workspace packag
  assert.deepEqual(selected,[null,processTask(prepared),processTask(followed),processTask(followed)]);
 });
 
-test('Workspace polling reloads Processes only when the selected package version changes',async()=>{
- const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
+test('Workspace polling keeps a package restored on mount until its identity changes',async()=>{
+ const original={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const revised={...original,version:2};
+ const changedContent={...revised,contentHash:'b'.repeat(64)};
+ const workspace={session:{principalId:'actor',environmentId:'default'},context:{task:processTask(original)},
+  select:async()=>{}};
  const attachments=[];
  const page=processPage({workspace,attachWorkspaceTask:async reference=>{
   attachments.push({...reference});
@@ -342,14 +346,12 @@ test('Workspace polling reloads Processes only when the selected package version
  }});
  await page.mount();
 
- const original={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
- const revised={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
- for(const reference of [original,original,revised,revised]){
+ for(const reference of [original,original,revised,revised,changedContent,changedContent]){
   workspace.context={task:processTask(reference)};
   await page.followTask(workspace.context.task);
  }
 
- assert.deepEqual(attachments,[original,revised]);
+ assert.deepEqual(attachments,[original,revised,changedContent]);
 });
 
 test('returning to a previously followed package restores it after a superseded read',async()=>{
