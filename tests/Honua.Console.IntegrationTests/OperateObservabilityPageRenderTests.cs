@@ -104,7 +104,17 @@ public sealed partial class OperateObservabilityPageRenderTests
             Jobs = OperateSectionResult<IReadOnlyList<OperateJobRun>>.Allowed([liveJob]),
             JobDetail = _ => OperateSectionResult<OperateJobRun>.Allowed(liveJob),
         });
-        context.Services.AddSingleton<IConsoleActivityFeedClient>(new FakeActivityFeedClient());
+        var changes = FakeActivityFeedClient.Sample;
+        var attributedChange = changes[0] with
+        {
+            Actor = "regional-planning-and-geospatial-operations@example.org",
+            ActorAgent = "Regional Planning and Geospatial Operations Assistant",
+        };
+        context.Services.AddSingleton<IConsoleActivityFeedClient>(new FakeActivityFeedClient
+        {
+            Respond = _ => OperateSectionResult<ConsoleActivityFeedPage>.Allowed(
+                new([attributedChange, .. changes.Skip(1)], NextCursor: null)),
+        });
 
         var page = context.Render<OperateObservabilityPage>(parameters =>
             parameters.Add(p => p.SelectedEventId, selected.EventId));

@@ -48,6 +48,45 @@ const assertLargeTextFits = async page => {
   assert.ok(filterRight <= viewportWidth && scrollWidth <= viewportWidth + 1, "Activity fits at 200% text size on a phone");
 };
 
+const assertChangesKeyboardScroll = async (page, width) => {
+  const filter = page.getByRole("combobox", { name: "Actor", exact: true });
+  const region = page.getByRole("region", { name: "Changes, newest first" });
+  const agent = region.locator("[data-feed-actor-kind='agent']");
+  const reference = region.getByRole("link").first();
+  assert.equal(await agent.locator(".console-activity-feed-actor").textContent(),
+    "Regional Planning and Geospatial Operations Assistant");
+  assert.equal(await agent.locator(".console-activity-feed-channel").textContent(),
+    "Agent · on behalf of regional-planning-and-geospatial-operations@example.org");
+
+  for (const fontSize of ["16px", "32px"]) {
+    await page.locator("html").evaluate((root, size) => { root.style.fontSize = size; }, fontSize);
+    try {
+      await filter.focus();
+      await page.keyboard.press("Tab");
+      assert.ok(await region.evaluate(element => element === document.activeElement));
+      const overflows = await region.evaluate(element => element.scrollWidth > element.clientWidth);
+      if (width === 390) assert.ok(overflows, "The phone fixture exercises horizontal keyboard scrolling");
+      if (overflows) {
+        await page.keyboard.press("ArrowRight");
+        await page.waitForFunction(() => document.activeElement.scrollLeft > 0);
+      }
+      await page.keyboard.press("Tab");
+      assert.ok(await reference.evaluate(element => {
+        const tableRegion = element.closest("[role='region']");
+        const linkBounds = element.getBoundingClientRect();
+        const regionBounds = tableRegion.getBoundingClientRect();
+        return element === document.activeElement && linkBounds.left >= regionBounds.left - 1 &&
+          linkBounds.right <= regionBounds.right + 1;
+      }), `The first change reference receives focus and fits in the table region at ${fontSize}`);
+      assert.ok(await page.locator("html").evaluate(root => root.scrollWidth <= innerWidth + 1),
+        `The Changes table does not cause page overflow at ${fontSize}`);
+    } finally {
+      await page.locator("html").evaluate(root => { root.style.fontSize = ""; });
+      await region.evaluate(element => { element.scrollLeft = 0; });
+    }
+  }
+};
+
 await runV4PagePresentation({
   previews: path.resolve(process.env.HONUA_ACTIVITY_PREVIEW_DIR ?? "artifacts/activity-preview"),
   widths: [1440, 1280, 390],
@@ -77,6 +116,7 @@ await runV4PagePresentation({
       });
       assert.deepEqual(clipped, [], `Activity event columns are hidden at ${width}px`);
       if (width !== 390) await assertWholeWords(page, width);
+      if (width === 1280 || width === 390) await assertChangesKeyboardScroll(page, width);
       if (width === 390) {
         assert.ok(await page.locator(".operate-timeline").evaluate(region => region.scrollWidth <= region.clientWidth + 0.5),
           "Activity event history scrolls sideways at phone width");
