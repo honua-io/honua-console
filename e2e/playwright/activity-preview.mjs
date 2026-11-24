@@ -68,8 +68,15 @@ const assertChangesKeyboardScroll = async (page, width) => {
       const overflows = await region.evaluate(element => element.scrollWidth > element.clientWidth);
       if (width === 390) assert.ok(overflows, "The phone fixture exercises horizontal keyboard scrolling");
       if (overflows) {
+        await region.evaluate(element => {
+          delete element.dataset.keyboardScrollEnded;
+          element.addEventListener("scrollend", () => { element.dataset.keyboardScrollEnded = "true"; }, { once: true });
+        });
         await page.keyboard.press("ArrowRight");
-        await page.waitForFunction(() => document.activeElement.scrollLeft > 0);
+        await page.waitForFunction(() => {
+          const element = document.activeElement;
+          return element.dataset.keyboardScrollEnded === "true" && element.scrollLeft > 0;
+        }, undefined, { timeout: 3000 });
       }
       await page.keyboard.press("Tab");
       assert.ok(await reference.evaluate(element => element === document.activeElement),
