@@ -36,7 +36,7 @@ function acceptOrigin({ request, response, allowedOrigin }) {
   return true;
 }
 
-async function authorizeOidc({ request, response, allowedOrigin, pending, json }) {
+async function authorizeOidc({ request, response, allowedOrigin, pending, oidcReturnPaths, json }) {
   if (request.headers["x-honua-csrf"] !== "anonymous-csrf") {
     response.writeHead(403).end();
     return;
@@ -45,7 +45,7 @@ async function authorizeOidc({ request, response, allowedOrigin, pending, json }
   for await (const chunk of request) body += chunk;
   let returnTo;
   try { returnTo = JSON.parse(body).returnTo ?? "/console/"; } catch { /* Deny invalid input. */ }
-  if (!["/console/", "/console/operate/connections"].includes(returnTo)) {
+  if (!oidcReturnPaths.includes(returnTo)) {
     response.writeHead(400).end();
     return;
   }
@@ -206,10 +206,13 @@ export const alertingCapability = {
   id: "alerts.geofence", lifecycle: "Implemented", optInRequired: false, available: true, supported: true,
 };
 
-export function createContractApi({ allowedOrigin, crossOrigin = false, oidc = false, capabilities = [] }) {
+export function createContractApi({
+  allowedOrigin, crossOrigin = false, oidc = false, capabilities = [],
+  oidcReturnPaths = ["/console/", "/console/operate/connections"],
+}) {
   const pending = new Map();
   return async (request, response) => {
-    const context = { request, response, allowedOrigin, crossOrigin, oidc, pending, capabilities };
+    const context = { request, response, allowedOrigin, crossOrigin, oidc, pending, capabilities, oidcReturnPaths };
     if (!acceptOrigin(context)) return;
     context.origin = request.headers.origin;
     context.pathname = new URL(request.url, "http://localhost").pathname.replace(/\/$/, "");

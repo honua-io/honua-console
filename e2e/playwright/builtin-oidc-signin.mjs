@@ -8,10 +8,12 @@ import { createContractApi } from './static-contract-server.mjs';
 // privileged requests. Not installed-server acceptance.
 const { chromium } = await import(process.env.HONUA_PLAYWRIGHT_MODULE ?? 'playwright');
 const output = process.env.HONUA_BUILTIN_OIDC_OUTPUT ?? 'artifacts/builtin-oidc-signin';
+const settingsRoute = '/operate/settings';
+const homePath = '/console/';
 await fs.mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.HONUA_CHROMIUM_PATH
   ? { executablePath: process.env.HONUA_CHROMIUM_PATH, args: ['--no-sandbox'] } : {}) });
-const cases = ['oidc', 'password'].flatMap(server => [false, true].flatMap(v4 =>
+const cases = ['oidc', 'oidc-legacy', 'password'].flatMap(server => [false, true].flatMap(v4 =>
   [1280, 390].map(width => ({ server, v4, width }))));
 const results = [];
 try {
@@ -55,7 +57,11 @@ async function startFixture(kind, v4) {
       },
     });
   const origin = `http://127.0.0.1:${server.address().port}`;
-  api = createContractApi({ allowedOrigin: origin, oidc: kind === 'oidc' });
+  api = createContractApi({
+    allowedOrigin: origin,
+    oidc: kind !== 'password',
+    oidcReturnPaths: kind === 'oidc' ? [homePath, `/console${settingsRoute}`] : undefined,
+  });
   const close = async () => {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
@@ -66,8 +72,9 @@ async function startFixture(kind, v4) {
 async function walkJourney(page, { origin, requests, kind, name }) {
   // Signed out, a protected route goes straight to sign-in: no menu, tree or inventory, and no API
   // request beyond the auth endpoints and the public capability manifest.
-  await page.goto(`${origin}/console/operate/connections`);
-  await page.waitForURL(`${origin}/console/auth/signin?returnTo=%2Foperate%2Fconnections`);
+  const requestedRoute = kind === 'password' ? '/operate/connections' : settingsRoute;
+  await page.goto(`${origin}/console${requestedRoute}`);
+  await page.waitForURL(`${origin}/console/auth/signin?returnTo=${encodeURIComponent(requestedRoute)}`);
   await page.locator('input[type=password]').waitFor();
   await page.locator('[data-console-signed-out]').waitFor();
   for (const selector of ['.console-topnav', '[data-publication-navigation]', '.console-contextbar', '[data-console-signin]']) {
@@ -89,9 +96,15 @@ async function walkJourney(page, { origin, requests, kind, name }) {
   await provider.waitFor();
   await page.screenshot({ path: `${output}/${name}-signin.png`, fullPage: true });
   await provider.click();
-  await page.waitForURL(`${origin}/console/operate/connections`);
-  await page.getByText('Fixture Operator').first().waitFor();
-  await page.locator('.console-topnav').waitFor();
+  const expectedPath = kind === 'oidc-legacy' ? homePath : `/console${settingsRoute}`;
+  await page.waitForURL(`${origin}${expectedPath}`);
+  const authorizeRequests = requests.filter(entry => entry === 'POST /api/v1/admin/auth/providers/entra/authorize-url');
+  assert.equal(authorizeRequests.length, kind === 'oidc-legacy' ? 2 : 1);
+  await page.locator('.console-account-identity[title="Fixture Operator"]').first().waitFor({ state: 'attached' });
+  await page.locator('.console-topnav').waitFor({ state: 'attached' });
+  if (kind === 'oidc') {
+    await page.getByRole('heading', { name: 'Settings', exact: true, level: 1 }).waitFor();
+  }
   assert.equal(await page.locator('[data-console-signed-out]').count(), 0);
   await page.screenshot({ path: `${output}/${name}-signed-in.png`, fullPage: true });
 }
