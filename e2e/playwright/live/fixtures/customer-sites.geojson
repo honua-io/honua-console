@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "West site", "category": "west", "population": 10, "rating": 1.5 },
+      "geometry": { "type": "Point", "coordinates": [-1, 0] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "East site", "category": "east", "population": 20, "rating": 2.5 },
+      "geometry": { "type": "Point", "coordinates": [1, 0] }
+    }
+  ]
+}
