@@ -44,6 +44,36 @@ public sealed class ConsoleReleaseWitnessClientTests
     }
 
     [Fact]
+    public async Task ObserveRejectsADifferentActiveContentHashBeforeReadingAudit()
+    {
+        var handler = new RecordingHandler(request => WitnessReply(request, "/share/map-1"));
+        var client = CreateClient(handler);
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-prior-content", "proposal-1"));
+
+        Assert.False(result.IsAllowed);
+        Assert.Null(result.Value);
+        Assert.Equal("The active publication version does not match the exact Studio item/version/content hash.", result.Message);
+        Assert.DoesNotContain(handler.Requests, request =>
+            request.RequestUri!.AbsolutePath.StartsWith("/api/v1/admin/observability/audit", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ObserveWithholdsEvidenceWhenTheAuditChainDoesNotVerify()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath == "/api/v1/admin/observability/audit/verify"
+            ? Json("""{"verified":false}""")
+            : WitnessReply(request, "/share/map-1"));
+        var client = CreateClient(handler);
+
+        var result = await client.ObserveAsync(new("map", "item-1", "version-1", "sha256-content", "proposal-1"));
+
+        Assert.False(result.IsAllowed);
+        Assert.Null(result.Value);
+        Assert.Equal("The candidate audit chain did not verify.", result.Message);
+    }
+
+    [Fact]
     public async Task ObserveRefusesAuditWithoutIndependentStructuredOperationIdentity()
     {
         var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
