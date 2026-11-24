@@ -243,13 +243,20 @@ async function mountProcesses() {
             if(host.isConnected && processView===view && view.mode==='custom' && !workspace?.capturing) workspace?.select([],event.detail ? localProcessTask(event.detail) : null).catch(error=>{status.textContent=error.message;});
         });
         builtin.addEventListener('focusin',()=>{view.mode='builtin';workspace?.select([],view.builtinIdentity ? processTask(view.builtinIdentity) : null).catch(error=>{status.textContent=error.message;});});
-        builtin.addEventListener('input',()=>{view.builtinIdentity=undefined;workspace?.select(undefined,null).catch(()=>{});});
+        let preparationRevision=0;
+        builtin.addEventListener('input',()=>{
+            preparationRevision++;
+            view.builtinIdentity=undefined;
+            workspace?.select(undefined,null).catch(()=>{});
+        });
         const prepare=builtin.client.prepare.bind(builtin.client);
         builtin.client.prepare=async(...args)=>{
+            const revision=++preparationRevision;
             const actual=await prepare(...args);
             const task=processTask(actual);
+            if(revision!==preparationRevision || processView!==view || !host.isConnected) return actual;
             view.builtinIdentity=actual;
-            if(host.isConnected && view.mode==='builtin') workspace?.select([],task).catch(error=>{status.textContent=error.message;});
+            if(view.mode==='builtin') workspace?.select([],task).catch(error=>{status.textContent=error.message;});
             return actual;
         };
         host.querySelector('[data-processes-builtin]').append(builtin);

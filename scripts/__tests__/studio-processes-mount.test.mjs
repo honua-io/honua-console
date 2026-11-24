@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {connectStudioHost} from '../../src/Honua.Console.Web/wwwroot/js/studio-bundle.mjs';
+import {processTask} from '../../src/Honua.Console.Web/wwwroot/js/workflow-task.mjs';
 
 const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
@@ -14,11 +15,11 @@ function processHost() {
  return {host,slots,status};
 }
 
-function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session,bundleReady=Promise.resolve()}={}) {
+function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session,bundleReady=Promise.resolve(),prepare=()=>{}}={}) {
  let active=processHost();
  const session={principalId:'actor',environmentId:'default',environmentName:'default',
   ...(native ? {transport:{assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}}} : {})};
- class Workspace {prepare() {}}
+ class Workspace {prepare(...args){return prepare(...args);}}
  const assets=bundleReady.then(()=>({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}));
  const navigations=[];
  const context=vm.createContext({assets,
@@ -28,7 +29,7 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
   })},
   window:{honuaAgentWorkspace:workspace,Blazor:{navigateTo:path=>navigations.push(path)}},consoleHref:path=>path,
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
-  connectStudioHost,processView:undefined,StudioSignInRequired:Error});
+  connectStudioHost,processTask,processView:undefined,StudioSignInRequired:Error});
  // The fixture supplies the bundle without a production dynamic import.
  vm.runInContext(mount,context);
  return {
@@ -204,4 +205,25 @@ test('a session read from a closed Processes page cannot replace the reopened vi
  assert.equal(page.currentHost,reopened.host);
  assert.equal(abandoned.slots.builtin.children.length,0);
  assert.equal(reopened.slots.builtin.children.length,1);
+});
+
+test('editing a process keeps an earlier preparation out of the workspace selection',async()=>{
+ const pending=deferred();
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(task)};
+ const previous={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const current={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ let preparations=0;
+ const {slots}=await fixture({workspace,prepare:()=>++preparations===1 ? pending.promise : current});
+ const [builtin]=slots.builtin.children;
+
+ const stale=builtin.client.prepare();
+ builtin.listeners.get('input')();
+ pending.resolve(previous);
+ assert.equal(await stale,previous);
+ builtin.listeners.get('focusin')();
+ assert.deepEqual(selected,[null,null,null]);
+
+ assert.equal(await builtin.client.prepare(),current);
+ assert.deepEqual(selected.at(-1),processTask(current));
 });
