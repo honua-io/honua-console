@@ -63,3 +63,35 @@ for (const v4Enabled of [false, true]) {
     }
   });
 }
+
+test('API key creation sends browser-entered expiry in UTC', async ({ page }) => {
+  const { server, mutations } = await settingsFixture({ v4Enabled: true });
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
+    const createUrl = '**/api/v1/admin/api-keys';
+    await page.route(createUrl, async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({ status: 503, json: { success: false } });
+      } else {
+        await route.continue();
+      }
+    });
+    await page.goto(`http://127.0.0.1:${address.port}/console/operate/settings/api-keys`);
+    await page.locator('#api-key-name').fill('Reporting app');
+    await page.locator('#api-key-permissions').fill('admin:read');
+    await page.getByLabel('Expiry (UTC)').fill('2027-01-15T14:30');
+    const submitted = page.waitForResponse(response =>
+      response.url().endsWith('/api/v1/admin/api-keys') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Create key' }).click();
+
+    expect((await submitted).request().postDataJSON()).toMatchObject({
+      name: 'Reporting app',
+      permissions: ['admin:read'],
+      expiresAt: '2027-01-15T14:30:00+00:00',
+    });
+    expect(mutations).toEqual([]);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
