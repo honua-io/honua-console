@@ -298,6 +298,26 @@ test('retrying a failed Processes preparation selects the successful result',asy
  assert.deepEqual(selected,[null,processTask(prepared)]);
 });
 
+test('an incomplete Processes preparation preserves the last verified selection until retry succeeds',async()=>{
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(task)};
+ const previous={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const incomplete={packageId:'buffer',contentHash:'b'.repeat(64)};
+ const current={...incomplete,version:2};
+ const responses=[previous,incomplete,current];
+ const {slots}=await fixture({workspace,prepare:()=>responses.shift()});
+ const [builtin]=slots.builtin.children;
+
+ await builtin.client.prepare();
+ await assert.rejects(builtin.client.prepare(),{message:'Processes returned no verified immutable package identity.'});
+ assert.deepEqual(selected,[null,processTask(previous)]);
+
+ builtin.listeners.get('focusin')();
+ assert.deepEqual(selected.at(-1),processTask(previous));
+ assert.equal(await builtin.client.prepare(),current);
+ assert.deepEqual(selected.at(-1),processTask(current));
+});
+
 test('a preparation from a closed Processes page leaves the reopened selection intact',async()=>{
  const pending=deferred();
  const selected=[];
