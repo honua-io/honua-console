@@ -14,16 +14,17 @@ function processHost() {
  return {host,slots,status};
 }
 
-function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session}={}) {
+function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session,bundleReady=Promise.resolve()}={}) {
  let active=processHost();
  const session={principalId:'actor',environmentId:'default',environmentName:'default',
   ...(native ? {transport:{assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}}} : {})};
  class Workspace {prepare() {}}
- const context=vm.createContext({assets:Promise.resolve({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}),
+ const assets=bundleReady.then(()=>({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}));
+ const context=vm.createContext({assets,
   document:{querySelector:()=>active.host,createElement:()=>({addEventListener(){}})},window:{honuaAgentWorkspace:workspace},
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
   connectStudioHost,processView:undefined,StudioSignInRequired:Error});
- // The resolved asset promise avoids the production dynamic import in this isolated DOM.
+ // The fixture supplies the bundle without a production dynamic import.
  vm.runInContext(mount,context);
  return {
   get active(){return active;},
@@ -66,6 +67,27 @@ function deferred() {
  const promise=new Promise(complete=>{resolve=complete;});
  return {promise,resolve};
 }
+
+test('closing Processes while the bundle loads skips the abandoned session read',async()=>{
+ const bundle=deferred();
+ let reads=0;
+ const page=processPage({bundleReady:bundle.promise,readSession:async session=>{
+  reads++;
+  return session;
+ }});
+ const abandoned=page.active;
+ const oldMount=page.mount();
+ const reopened=page.reopen();
+ const newMount=page.mount();
+
+ bundle.resolve();
+ await Promise.all([oldMount,newMount]);
+
+ assert.equal(reads,1);
+ assert.equal(abandoned.slots.builtin.children.length,0);
+ assert.equal(reopened.slots.builtin.children.length,1);
+ assert.equal(reopened.status.textContent,'Connected to default');
+});
 
 test('reopening Processes during setup mounts only the current host',async()=>{
  const started=deferred();

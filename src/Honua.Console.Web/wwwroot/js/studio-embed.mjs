@@ -179,7 +179,9 @@ async function mountProcesses() {
     const status = host.querySelector('[data-processes-status]');
     try {
         assets ||= loadStudioBundle();
-        const module = await assets; module.registerAllStudioElements();
+        const module = await assets;
+        if (!host.isConnected) return;
+        module.registerAllStudioElements();
         const session = await readStudioSession().catch(error => {
             throw error instanceof StudioSignInRequired ? new Error('Sign in to Honua to open Processes.') : error;
         });
