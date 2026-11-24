@@ -162,6 +162,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     const seen: Array<{ dataset: string; connectionId: string; storageLayerId: number; geometryType: string }> = [];
     await exerciseAgentPublication({
       serverUrl, proposerKey: serverProposer, verifierKey: serverApprover, expectedActor: serverActor, approve,
+      catalogConnectionName: connectionName,
       datasets: [
         { format: 'geojson', name: `agent_regions_${suffix}`, data: readFileSync(new URL('customer-regions.geojson', fixture), 'utf8'), geometryType: 'Polygon', fields },
         { format: 'geojson', name: `agent_sites_${suffix}`, data: readFileSync(new URL('customer-sites.geojson', fixture), 'utf8'), geometryType: 'Point', fields },
