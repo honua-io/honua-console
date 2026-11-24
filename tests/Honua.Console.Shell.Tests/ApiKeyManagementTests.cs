@@ -115,6 +115,27 @@ public sealed class ApiKeyManagementTests
     }
 
     [Fact]
+    public async Task DuplicateSubmitWhileCreationIsPendingSendsOneRequest()
+    {
+        using var fixture = new Fixture();
+        var completion = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Handler.Pending = completion.Task;
+        var page = fixture.Context.Render<OperateApiKeysPage>();
+        page.Find("#api-key-name").Change("Reporting app");
+        page.Find("#api-key-permissions").Change("admin:read");
+
+        var submit = page.Find("form").SubmitAsync();
+        page.WaitForAssertion(() => Assert.Equal(1, fixture.Handler.Mutations));
+        Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
+        await page.Find("form").SubmitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+        completion.SetResult(ApiHandler.Json(new { success = true, data = new { apiKey = Fixture.Key, key = "one-time-secret" } }));
+        await submit;
+        Assert.Equal(1, fixture.Handler.Mutations);
+        Assert.Equal("one-time-secret", page.Find("#api-key-secret").GetAttribute("value"));
+    }
+
+    [Fact]
     public async Task EnvironmentChangeDuringCreateDiscardsTheSecretAndRequiresRefresh()
     {
         using var fixture = new Fixture();
