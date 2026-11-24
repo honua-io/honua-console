@@ -98,6 +98,47 @@ public sealed class ApiKeyManagementTests
         page.WaitForAssertion(() => Assert.Contains("revoked", page.Markup));
     }
 
+    [Fact]
+    public void UnavailableRevocationRequiresSuccessfulRefreshBeforeExplicitRetry()
+    {
+        using var fixture = new Fixture();
+        fixture.Handler.HasKey = true;
+        var page = fixture.Context.Render<OperateApiKeysPage>();
+        const string revokeButton = "button[aria-label='Revoke Reporting app']";
+        const string confirmButton = "[data-console-confirm-accept]";
+        const string keyStatus = "tbody tr td:nth-child(4)";
+
+        page.Find(revokeButton).Click();
+        fixture.Handler.Status = HttpStatusCode.ServiceUnavailable;
+        page.Find(confirmButton).Click();
+
+        page.WaitForAssertion(() => Assert.Contains("HTTP 503", page.Markup));
+        Assert.Equal("active", page.Find(keyStatus).TextContent);
+        Assert.True(page.Find(revokeButton).HasAttribute("disabled"));
+        Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
+        Assert.Equal(1, fixture.Handler.Mutations);
+
+        page.FindAll("button").Single(button => button.TextContent == "Refresh keys").Click();
+
+        page.WaitForAssertion(() => Assert.Equal(OperateSectionStatus.Unavailable,
+            page.FindComponent<OperateSectionStatusPanel>().Instance.Status));
+        Assert.Empty(page.FindAll(revokeButton));
+        Assert.Empty(page.FindAll("form"));
+
+        fixture.Handler.Status = HttpStatusCode.OK;
+        page.FindAll("button").Single(button => button.TextContent == "Refresh keys").Click();
+
+        page.WaitForAssertion(() => Assert.False(page.Find(revokeButton).HasAttribute("disabled")));
+        Assert.Equal("active", page.Find(keyStatus).TextContent);
+        Assert.Equal(1, fixture.Handler.Mutations);
+        page.Find(revokeButton).Click();
+        page.Find(confirmButton).Click();
+
+        page.WaitForAssertion(() => Assert.Equal("revoked", page.Find(keyStatus).TextContent));
+        Assert.True(page.Find(revokeButton).HasAttribute("disabled"));
+        Assert.Equal(2, fixture.Handler.Mutations);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, OperateSectionStatus.Forbidden)]
     [InlineData(HttpStatusCode.ServiceUnavailable, OperateSectionStatus.Unavailable)]
