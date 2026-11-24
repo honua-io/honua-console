@@ -280,6 +280,10 @@
     font-variant-numeric: tabular-nums;
 }
 
+.console-activity-v4 .console-activity-feed-table [data-feed-actor-kind] {
+    overflow-wrap: anywhere;
+}
+
 .console-activity-v4 .console-activity-feed-actor {
     display: block;
     color: var(--c-text);
