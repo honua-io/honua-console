@@ -159,7 +159,7 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     const suffix = randomBytes(5).toString('hex');
     const fixture = new URL('../fixtures/', import.meta.url);
     const fields = { name: 'esriFieldTypeString', population: 'esriFieldTypeBigInteger', rating: 'esriFieldTypeDouble' };
-    const seen: Array<{ dataset: string; layerId: number; geometryType: string }> = [];
+    const seen: Array<{ dataset: string; connectionId: string; storageLayerId: number; geometryType: string }> = [];
     await exerciseAgentPublication({
       serverUrl, proposerKey: serverProposer, verifierKey: serverApprover, expectedActor: serverActor, approve,
       datasets: [
@@ -178,15 +178,22 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
         await go('/operate/services');
         await expect(page.locator('body')).toContainText(record.dataset, { timeout: 30_000 });
         await go('/operate/layers');
-        const row = page.locator(`tr[data-service-id="${record.dataset}"][data-layer-id="${record.layerId}"]`);
-        await expect(row).toContainText(record.dataset, { timeout: 30_000 });
+        // The Layers page uses a connection-scoped canonical resource ID in the detail URL.
+        const resourceId = `${record.connectionId.toLowerCase()}-layer-${record.storageLayerId}`;
+        const detailLink = page.locator(`a[href$="/operate/layers/${resourceId}"]:not([aria-label])`);
+        const row = page.getByRole('region', { name: 'Published service layers', exact: true })
+          .locator(`tr[data-service-id="${record.dataset}"][data-layer-id="${record.storageLayerId}"]`)
+          .filter({ has: detailLink, visible: true });
+        const link = row.locator(detailLink);
+        await expect(link).toBeVisible({ timeout: 30_000 });
+        await expect(row).toContainText(record.dataset);
         const isPoint = record.geometryType === 'esriGeometryPoint';
         const geometry = isPoint ? 'point' : 'polygon';
         await expect(row).toContainText(isPoint ? /\bPoint\b/i : /\b(?:Multi)?Polygon\b/i);
         if (isPoint) await expect(row).not.toContainText(/multipoint/i);
         await scrollForMilestone(row);
         await captureMilestone(page, info, `07-published-${geometry}-layers-geometry`);
-        const detailPath = await row.locator('a').first().getAttribute('href');
+        const detailPath = await link.getAttribute('href');
         expect(detailPath, 'the published layer must link to its detail').toBeTruthy();
         await go(detailPath!);
         for (const [name, type] of Object.entries({ name: 'String', population: 'BigInteger', rating: 'Double' }))
