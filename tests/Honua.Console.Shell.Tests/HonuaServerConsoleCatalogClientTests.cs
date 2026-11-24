@@ -184,15 +184,20 @@ public sealed class HonuaServerConsoleCatalogClientTests
     }
 
     [Fact]
-    public async Task GetCatalogItem_AnonymousReadOfOrganizationItem_IsUnavailable()
+    public async Task OperatorDetailReads_RequireSignInBeforeSendingRequests()
     {
-        var handler = new RecordingHandler(_ => Envelope(Item("org-1", "internal", "dashboard", "organization", actions: ["view"])));
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("Operator reads require sign-in."));
         var catalog = CreateCatalog(handler);
+        var context = CatalogReadContext.AnonymousPublicLink(token: null);
 
-        var item = await catalog.GetCatalogItemAsync("org-1", CatalogReadContext.AnonymousPublicLink(token: null));
+        var item = await catalog.GetCatalogItemAsync("catalog-item", context);
+        var map = await catalog.GetMapAsync("saved-map", context);
 
         Assert.Equal(CatalogReadStatus.Unavailable, item.Status);
         Assert.Null(item.Item);
+        Assert.Equal(CatalogReadStatus.Unavailable, map.Status);
+        Assert.Null(map.Map);
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -420,6 +425,28 @@ public sealed class HonuaServerConsoleCatalogClientTests
         Assert.Equal(["service", "layer"], result.Items.Select(item => item.Type).ToArray());
         Assert.All(handler.Requests, request => Assert.Equal("/api/v1/open-data/datasets", request.RequestUri!.AbsolutePath));
         Assert.All(handler.Requests, request => Assert.False(request.Headers.Contains("X-API-Key")));
+    }
+
+    [Fact]
+    public async Task ListOpenDataItems_ReportsRemainingItemsAtPageLimit()
+    {
+        var page = 0;
+        var handler = new RecordingHandler(_ =>
+        {
+            page++;
+            return Envelope(new HonuaOpenDataDatasetList
+            {
+                Items = [Entry($"svc-{page}", "service")],
+                NextCursor = $"page-{page + 1}"
+            });
+        });
+
+        var result = await CreateCatalog(handler).ListOpenDataItemsAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.HasMoreItems);
+        Assert.Equal(4, result.Items.Count);
+        Assert.Equal(4, handler.Requests.Count);
     }
 
     private static HonuaOpenDataDatasetEntry Entry(string id, string itemType) =>

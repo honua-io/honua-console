@@ -1,0 +1,145 @@
+@inject NavigationManager Navigation
+
+<section class="public-catalog" aria-label="Open data catalog" data-public-catalog>
+    <header class="public-catalog-brand">Open data catalog</header>
+    <div class="public-catalog-hero">
+        <h1>Explore open data</h1>
+        <p>Browse @Items.Count public items.</p>
+        @if (HasMoreItems)
+        {
+            <p>Search and filters cover only the items shown here. The server has more public items.</p>
+        }
+        <form role="search" @onsubmit="Search" @onsubmit:preventDefault>
+            <label class="console-visually-hidden" for="public-catalog-search">Search open data</label>
+            <input id="public-catalog-search" class="console-input" type="search" @bind="_query" @bind:event="oninput" />
+            <button type="submit" class="console-button console-button-primary">Search</button>
+        </form>
+    </div>
+    <div class="public-catalog-grid">
+        <aside aria-label="Filters">
+            <h2>Kind</h2>
+            @foreach (var kind in Items.GroupBy(item => item.Type).OrderBy(group => group.Key, StringComparer.Ordinal))
+            {
+                <button type="button" aria-pressed="@(_kind == kind.Key ? "true" : "false")" @onclick="() => FilterKind(kind.Key)">
+                    @CatalogContentTypes.LabelFor(kind.Key) (@kind.Count())
+                </button>
+            }
+            <h2>Connect with</h2>
+            @foreach (var format in Items.SelectMany(item => item.Formats).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                <button type="button" aria-pressed="@(SameFormat(_format, format) ? "true" : "false")" @onclick="() => FilterFormat(format)">
+                    @ConsoleDownloadFormatLabels.Display(format)
+                </button>
+            }
+        </aside>
+        <section aria-label="Search results">
+            @{
+                var results = Results();
+            }
+            <div class="public-catalog-toolbar">
+                <h2 aria-live="polite">@results.Length results</h2>
+                <label>Sort <select @bind="_sort" @bind:after="ResetPage"><option value="recent">Recently updated</option><option value="title">Title</option></select></label>
+            </div>
+            <div class="console-chip-row">
+                @if (_kind is not null)
+                {
+                    <button type="button" @onclick="() => FilterKind(_kind)">Remove @CatalogContentTypes.LabelFor(_kind) filter</button>
+                }
+                @if (_format is not null)
+                {
+                    <button type="button" @onclick="() => FilterFormat(_format)">Remove @ConsoleDownloadFormatLabels.Display(_format) filter</button>
+                }
+            </div>
+            @if (Items.Count == 0)
+            {
+                <ConsoleStateView HeadingLevel="3" Kind="empty" Kicker="Empty share"
+                                  Title="No public open-data items"
+                                  Message="Publish a service, layer, or document as public open data to expose it here."
+                                  ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+            }
+            else if (results.Length == 0)
+            {
+                <ConsoleStateView HeadingLevel="3" Kind="empty" Kicker="No matches"
+                                  Title="No matching public items"
+                                  Message="Try a different search or remove a filter." />
+            }
+            @foreach (var item in results.Skip(_page * PageSize).Take(PageSize))
+            {
+                <article class="public-catalog-card" @key="item.Id">
+                    <span class="console-status console-state-neutral">@CatalogContentTypes.LabelFor(item.Type)</span>
+                    <h3><a href="@Navigation.ToConsoleHref($"/share/public/items/{Uri.EscapeDataString(item.Id)}")">@item.Title</a></h3>
+                    <p class="public-catalog-summary">@item.Summary</p>
+                    @if (item.Modified > DateTimeOffset.UnixEpoch)
+                    {
+                        <p class="console-muted">Updated @item.Modified.ToString("d", System.Globalization.CultureInfo.CurrentCulture)</p>
+                    }
+                    <div class="console-chip-row">
+                        @foreach (var tag in item.Tags)
+                        {
+                            <span>@tag</span>
+                        }
+                    </div>
+                </article>
+            }
+            @if (results.Length > PageSize)
+            {
+                <nav aria-label="Results pages" class="public-catalog-toolbar">
+                    <button type="button" disabled="@(_page == 0)" @onclick="() => _page--">Previous</button>
+                    <span>Page @(_page + 1) of @((results.Length - 1) / PageSize + 1)</span>
+                    <button type="button" disabled="@((_page + 1) * PageSize >= results.Length)" @onclick="() => _page++">Next</button>
+                </nav>
+            }
+        </section>
+    </div>
+    <footer class="public-catalog-footer">Powered by Honua · Open data</footer>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ConsoleContentSummary> Items { get; set; } = [];
+    [Parameter] public bool HasMoreItems { get; set; }
+
+    private const int PageSize = 12;
+    private string _query = string.Empty;
+    private string _search = string.Empty;
+    private string _sort = "recent";
+    private string? _kind;
+    private string? _format;
+    private int _page;
+
+    private ConsoleContentSummary[] Results()
+    {
+        var matching = Items.Where(item => (_kind is null || item.Type == _kind)
+            && (_format is null || item.Formats.Any(format => SameFormat(_format, format)))
+            && (Matches(item.Title) || Matches(item.Summary) || item.Tags.Any(Matches)));
+        return (_sort == "title"
+            ? matching.OrderBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            : matching.OrderByDescending(item => item.Modified))
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private bool Matches(string value) => value.Contains(_search, StringComparison.OrdinalIgnoreCase);
+
+    private static bool SameFormat(string? left, string? right) =>
+        string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+
+    private void Search()
+    {
+        _search = _query.Trim();
+        ResetPage();
+    }
+
+    private void FilterKind(string? kind)
+    {
+        _kind = _kind == kind ? null : kind;
+        ResetPage();
+    }
+
+    private void FilterFormat(string? format)
+    {
+        _format = SameFormat(_format, format) ? null : format;
+        ResetPage();
+    }
+
+    private void ResetPage() => _page = 0;
+}

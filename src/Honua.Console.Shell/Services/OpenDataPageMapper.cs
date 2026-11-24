@@ -34,9 +34,13 @@ internal static class OpenDataPageMapper
     {
         Summary = ToSummary(page, itemType: null),
         Description = page.Description ?? string.Empty,
+        License = page.License,
         Publications = [.. page.Distributions
             .Where(static distribution => IsWebUrl(distribution.AccessUrl))
-            .Select(static distribution => new ConsoleContentPublication(distribution.AccessUrl, CatalogSharingTiers.Public, Embeddable: false, "published"))]
+            .Select(static distribution => new ConsoleContentPublication(distribution.AccessUrl, CatalogSharingTiers.Public, Embeddable: false, "published")
+            {
+                Format = distribution.Format ?? distribution.MediaType
+            })]
     };
 
     // Distribution URLs are server data shown on a public page; only plain web links are rendered.

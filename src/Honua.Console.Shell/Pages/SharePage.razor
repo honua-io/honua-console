@@ -9,6 +9,12 @@
 @inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
+@if (V4Enabled && !OperatorView && !_missingBinding && _failureMessage is null && _items is not null)
+{
+    <PublicCatalogView Items="_items" HasMoreItems="_hasMoreItems" />
+}
+else
+{
 <section class="console-page share-home">
     @if (V4Enabled)
     {
@@ -23,6 +29,11 @@
             <h1>Share</h1>
             <p>Everything this server publishes to the outside world — public links, embeds, open-data pages, and exports.</p>
         </div>
+    }
+
+    @if (_hasMoreItems)
+    {
+        <p>The server has more public items than this page can show.</p>
     }
 
     @if (_missingBinding)
@@ -132,6 +143,7 @@
         </ConsoleTableRegion>
     }
 </section>
+}
 </CatalogAvailabilityGate>
 
 @code {
@@ -140,10 +152,13 @@
         + "catalog/content metadata projection from honua-server. The merged runtime never renders seeded "
         + "or demo share content (Console Patterns Charter section 11).";
 
+    [Parameter] public bool OperatorView { get; set; }
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private IReadOnlyList<ConsoleContentSummary>? _items;
     private bool _missingBinding;
+    private bool _hasMoreItems;
     private string? _failureMessage;
     private int _openDataCount;
     private int _formatCount;
@@ -159,6 +174,7 @@
 
         // The server lists only items an anonymous reader may open, so every row here is live open data.
         var result = await Catalog.ListOpenDataItemsAsync();
+        _hasMoreItems = result.HasMoreItems;
         _failureMessage = result.Succeeded ? null : result.FailureMessage;
         var items = result.Items
             .Where(item => string.Equals(item.Type, "service", StringComparison.Ordinal)
