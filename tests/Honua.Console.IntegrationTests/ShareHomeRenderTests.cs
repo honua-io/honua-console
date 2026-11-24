@@ -36,7 +36,7 @@ public sealed class ShareHomeRenderTests
         RegisterCatalog(ctx, handler);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
 
-        var page = ctx.Render<SharePage>();
+        var page = ctx.Render<ShareHomePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("data-share-home-table", page.Markup, StringComparison.Ordinal),
@@ -78,7 +78,7 @@ public sealed class ShareHomeRenderTests
 
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
 
-        var page = ctx.Render<SharePage>();
+        var page = ctx.Render<ShareHomePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Public items could not load", page.Markup, StringComparison.Ordinal),
@@ -102,7 +102,7 @@ public sealed class ShareHomeRenderTests
 
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
 
-        var page = ctx.Render<SharePage>();
+        var page = ctx.Render<ShareHomePage>();
 
         page.WaitForAssertion(
             () => Assert.Contains("Share is not bound to honua-server", page.Markup, StringComparison.Ordinal),

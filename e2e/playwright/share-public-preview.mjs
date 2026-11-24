@@ -13,23 +13,23 @@ await runV4PagePresentation({
   controls: name => name.endsWith("-v4") ? "main a[href]:visible" : null,
   inspect: async (page, name) => {
     const enabled = name.endsWith("-v4");
-    assert.equal(await page.locator(".console-page-heading-v4").count(), enabled ? 1 : 0);
-    assert.equal(await page.locator(".share-opendata-download-name").count(), 2);
-    assert.deepEqual(await page.locator(".share-opendata-download-name").allTextContents(),
-      enabled ? ["GeoServices feature service", "OGC API Features"] : ["GeoServices:FeatureService", "OGC:API:Features"]);
-    assert.equal(await page.locator("[data-share-opendata-routes] code").textContent(), "/share/public/items/coastal-flood-service");
-    assert.match(await page.locator("[data-share-opendata-footer]").textContent(), /resilience-team/);
-    assert.equal(await page.locator("button,input,select,textarea").count(), 0);
+    const route = "/share/public/items/coastal-flood-service";
+    assert.equal(await page.locator("[data-share-opendata-routes] code").textContent(),
+      enabled ? `http://localhost${route}` : route);
     assert.equal(await page.locator(".console-panel .console-panel").count(), 0);
     if (enabled) {
-      assert.deepEqual(await page.locator("h2").allTextContents(), ["Download", "Routes"]);
+      const downloads = page.locator("[data-share-opendata-downloads]");
+      assert.match(await downloads.textContent(), /No download links are published/);
+      assert.equal(await downloads.locator("a").count(), 0);
+      assert.deepEqual(await page.locator("h2").allTextContents(), ["Download", "Public routes", "Usage", "Details"]);
       assert.equal(await page.locator(".share-opendata-back").getAttribute("href"), "/share/public");
-      assert.equal(await page.locator(".console-page-heading-v4 p").textContent(), "Open data · Services");
-      assert.deepEqual(await page.locator(".console-chip-row span").allTextContents(), ["#flood", "#open-data", "#coastal"]);
+      assert.match(await page.locator(".public-item-meta").textContent(), /resilience-team/);
+      assert.deepEqual(await page.locator(".public-item-tags li").allTextContents(), ["#flood", "#open-data", "#coastal"]);
+      assert.equal(await page.locator("button[data-console-copy]").count(), 1);
       const intro = page.locator(".share-opendata-intro");
       assert.ok(await intro.evaluate(element => {
         const ruler = element.cloneNode(false);
-        ruler.style.width = "75ch";
+        ruler.style.width = "72ch";
         ruler.style.maxWidth = "none";
         ruler.style.position = "absolute";
         element.after(ruler);
@@ -37,6 +37,9 @@ await runV4PagePresentation({
         ruler.remove();
         return Math.abs(parseFloat(getComputedStyle(element).maxWidth) - expected) < 0.1;
       }));
+    } else {
+      assert.deepEqual(await page.locator(".share-opendata-download-name").allTextContents(),
+        ["GeoServices:FeatureService", "OGC:API:Features"]);
     }
   },
 });
