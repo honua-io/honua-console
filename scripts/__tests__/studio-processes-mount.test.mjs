@@ -8,7 +8,7 @@ const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/stud
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
 
 function processHost() {
- const slots={builtin:{children:[],append(child){this.children.push(child);}},custom:{append(){},hidden:false}};
+ const slots={builtin:{children:[],append(child){this.children.push(child);}},custom:{append(child){this.child=child;},hidden:false}};
  const status={textContent:''};
  const host={dataset:{},isConnected:true,querySelector:selector=>selector==='[data-processes-status]' ? status : slots[selector.includes('builtin') ? 'builtin' : 'custom']};
  return {host,slots,status};
@@ -20,8 +20,13 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
   ...(native ? {transport:{assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}}} : {})};
  class Workspace {prepare() {}}
  const assets=bundleReady.then(()=>({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}));
+ const navigations=[];
  const context=vm.createContext({assets,
-  document:{querySelector:()=>active.host,createElement:()=>({addEventListener(){}})},window:{honuaAgentWorkspace:workspace},
+  document:{querySelector:()=>active.host,createElement:()=>({
+   listeners:new Map(),
+   addEventListener(name,handler){this.listeners.set(name,handler);},
+  })},
+  window:{honuaAgentWorkspace:workspace,Blazor:{navigateTo:path=>navigations.push(path)}},consoleHref:path=>path,
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
   connectStudioHost,processView:undefined,StudioSignInRequired:Error});
  // The fixture supplies the bundle without a production dynamic import.
@@ -29,6 +34,7 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
  return {
   get active(){return active;},
   get currentHost(){return context.processView?.host;},
+  navigations,
   mount:()=>vm.runInContext('mountProcesses()',context),
   reopen(){
    active.host.isConnected=false;
@@ -50,6 +56,58 @@ test('native Processes mounts without a legacy workspace session',async()=>{
  assert.equal(slots.custom.hidden,true);
  assert.equal(status.textContent,'Connected to default');
 });
+
+test('adding a published layer from the active Processes page opens Studio',async()=>{
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
+ const added=[];
+ const page=processPage({native:false,workspace,openStudio:async()=>({
+  async addPublishedLayer(layer){added.push(layer);return {ok:true};},
+ })});
+ await page.mount();
+
+ const layer={layerId:1,serviceName:'rivers'};
+ await page.active.slots.custom.child.listeners.get('honua-processes-layer-ready')({detail:{layer}});
+
+ assert.deepEqual(added,[layer]);
+ assert.deepEqual(page.navigations,['/studio']);
+});
+
+for(const phase of ['editor setup','adding the layer']){
+ test(`leaving Processes during ${phase} keeps the current page`,async()=>{
+  const started=deferred();
+  const pending=deferred();
+  const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
+  let openings=0;
+  let additions=0;
+  const app={async addPublishedLayer(){
+   additions++;
+   if(phase==='adding the layer'){
+    started.resolve();
+    await pending.promise;
+   }
+   return {ok:true};
+  }};
+  const page=processPage({native:false,workspace,openStudio:async()=>{
+   if(++openings===2 && phase==='editor setup'){
+    started.resolve();
+    await pending.promise;
+   }
+   return app;
+  }});
+  await page.mount();
+  const addToMap=page.active.slots.custom.child.listeners.get('honua-processes-layer-ready');
+  const handoff=addToMap({detail:{layer:{layerId:1,serviceName:'rivers'}}});
+  await started.promise;
+  const current=page.reopen();
+  await page.mount();
+  pending.resolve();
+  await handoff;
+
+  assert.equal(page.currentHost,current.host);
+  assert.equal(additions,phase==='adding the layer' ? 1 : 0);
+  assert.deepEqual(page.navigations,[]);
+ });
+}
 test('native Processes refuses to mount after its Console capture changes',async()=>{
  const {slots,status}=await fixture({current:false});
  assert.equal(slots.builtin.children.length,0);

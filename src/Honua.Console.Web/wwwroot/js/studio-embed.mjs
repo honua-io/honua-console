@@ -256,13 +256,17 @@ async function mountProcesses() {
         const customSlot = host.querySelector('[data-processes-custom]');
         if(localProcesses) customSlot.append(custom); else customSlot.hidden = true;
         custom.addEventListener('honua-processes-layer-ready', async event => {
+            const isCurrentView = () => host.isConnected && processView === view
+                && window.honuaAgentWorkspace?.session?.environmentId === session.environmentId;
             try {
-                if(!host.isConnected || window.honuaAgentWorkspace?.session?.environmentId !== session.environmentId) return;
+                if(!isCurrentView()) return;
                 const layer = event.detail?.layer;
                 if (!Number.isInteger(layer?.layerId) || typeof layer.serviceName !== 'string')
                     throw new Error('The operation returned no verified published layer identity.');
                 const app = await studioElement(session);
+                if(!isCurrentView()) return;
                 const outcome = await app.addPublishedLayer(layer);
+                if(!isCurrentView()) return;
                 if (!outcome.ok) throw new Error(outcome.reason || 'The published layer could not be added to the map.');
                 element = app;
                 window.Blazor?.navigateTo(consoleHref('/studio'));
