@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {connectStudioHost} from '../../src/Honua.Console.Web/wwwroot/js/studio-bundle.mjs';
+import {StudioSignInRequired} from '../../src/Honua.Console.Web/wwwroot/js/studio-session.mjs';
 import {processTask} from '../../src/Honua.Console.Web/wwwroot/js/workflow-task.mjs';
 
 const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
@@ -31,7 +32,7 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
   })},
   window:{honuaAgentWorkspace:workspace,Blazor:{navigateTo:path=>navigations.push(path)}},consoleHref:path=>path,
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
-  connectStudioHost,processTask,processView:undefined,StudioSignInRequired:Error});
+  connectStudioHost,processTask,processView:undefined,StudioSignInRequired});
  // The fixture supplies the bundle without a production dynamic import.
  vm.runInContext(localTask,context);
  vm.runInContext(mount,context);
@@ -61,6 +62,26 @@ test('native Processes mounts without a legacy workspace session',async()=>{
  assert.equal(status.textContent,'Connected to default');
 });
 
+test('reopening Processes recovers from an unavailable session service',async()=>{
+ let reads=0;
+ const page=processPage({readSession:async session=>{
+  if(++reads===1) throw new Error('The Studio session request failed with 503.');
+  return session;
+ }});
+ await page.mount();
+ const failed=page.active;
+ assert.equal(failed.slots.builtin.children.length,0);
+ assert.equal(failed.status.textContent,'The Studio session request failed with 503.');
+
+ const reopened=page.reopen();
+ await page.mount();
+
+ assert.equal(reads,2);
+ assert.equal(page.currentHost,reopened.host);
+ assert.equal(reopened.slots.builtin.children.length,1);
+ assert.equal(reopened.status.textContent,'Connected to default');
+});
+
 test('adding a published layer from the active Processes page opens Studio',async()=>{
  const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
  const added=[];
@@ -73,6 +94,29 @@ test('adding a published layer from the active Processes page opens Studio',asyn
  await page.active.slots.custom.child.listeners.get('honua-processes-layer-ready')({detail:{layer}});
 
  assert.deepEqual(added,[layer]);
+ assert.deepEqual(page.navigations,['/studio']);
+});
+
+test('retrying a failed published layer handoff opens Studio after success',async()=>{
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async()=>{}};
+ const additions=[];
+ const page=processPage({native:false,workspace,openStudio:async()=>({
+  async addPublishedLayer(layer){
+   additions.push(layer);
+   return additions.length===1 ? {ok:false,reason:'The map service is unavailable.'} : {ok:true};
+  },
+ })});
+ await page.mount();
+ const {slots,status}=page.active;
+ const addToMap=slots.custom.child.listeners.get('honua-processes-layer-ready');
+ const detail={layer:{layerId:1,serviceName:'rivers'}};
+
+ await addToMap({detail});
+ assert.equal(status.textContent,'The map service is unavailable.');
+ assert.deepEqual(page.navigations,[]);
+
+ await addToMap({detail});
+ assert.deepEqual(additions,[detail.layer,detail.layer]);
  assert.deepEqual(page.navigations,['/studio']);
 });
 
