@@ -123,12 +123,16 @@ async function mount() {
     try {
         assets ||= loadStudioBundle();
         const module = await assets;
+        if (!host.isConnected) return;
         module.registerAllStudioElements();
-        session = await readStudioSession();
-        element = await studioElement(session);
-        element.currentPath = location.pathname;
-        host.querySelector('[data-studio-mount]').append(element);
-        const createApp=element;
+        const studioSession = await readStudioSession();
+        if (!host.isConnected) return;
+        const createApp = await studioElement(studioSession);
+        if (!host.isConnected) return;
+        session = studioSession;
+        element = createApp;
+        createApp.currentPath = location.pathname;
+        host.querySelector('[data-studio-mount]').append(createApp);
         createApp.workspaceDraftCreate?.dispose();
         createApp.workspaceDraftCreate = mountStudioDraftCreate({ app:createApp, host });
         createApp.workspaceSavedMaps?.dispose();
@@ -139,22 +143,26 @@ async function mount() {
         createApp.workspaceStyleControls = mountStudioStyleControls({ app:createApp, host, status });
         createApp.workspaceLayerPicker?.dispose();
         createApp.workspaceLayerPicker = mountStudioLayerPicker({ app:createApp, host, status });
-        const task = element.workspace?.context?.task;
+        const task = createApp.workspace?.context?.task;
         const draft = task?.kind === 'studio-composition' ? {draftId:task.id}
-            : !task ? element.workspace?.agentSession?.sdkSession?.draft : undefined;
-        if (draft?.draftId) await element.attachWorkspaceDraft(draft.draftId);
-        else if(element.workspaceDraftIdentity) {
-            await element.prepareWorkspaceTurn();
-            await element.refreshWorkspaceDraft();
-            const visible=element.workspaceDraftIdentity;
-            await element.workspace.select(undefined,{kind:'studio-composition',id:visible.draftId,revision:visible.generation,packageKey:visible.packageKey});
+            : !task ? createApp.workspace?.agentSession?.sdkSession?.draft : undefined;
+        if (draft?.draftId) await createApp.attachWorkspaceDraft(draft.draftId);
+        else if(createApp.workspaceDraftIdentity) {
+            await createApp.prepareWorkspaceTurn();
+            if (!host.isConnected) return;
+            await createApp.refreshWorkspaceDraft();
+            if (!host.isConnected) return;
+            const visible=createApp.workspaceDraftIdentity;
+            await createApp.workspace.select(undefined,{kind:'studio-composition',id:visible.draftId,revision:visible.generation,packageKey:visible.packageKey});
         }
-        status.textContent = `Connected to ${session.environmentName}`;
+        if (!host.isConnected) return;
+        status.textContent = `Connected to ${studioSession.environmentName}`;
         if (!document.querySelector('link[data-studio-style]')) {
             const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = new URL('../_studio/style.css', import.meta.url).href;
             link.dataset.studioStyle = 'true'; document.head.append(link);
         }
     } catch (error) {
+        if (!host.isConnected) return;
         status.textContent = error instanceof StudioSignInRequired
             ? 'Sign in to Honua to open Studio.'
             : 'Studio could not load. Reload the page; if it keeps failing, ask your administrator to check the Studio assets.';
