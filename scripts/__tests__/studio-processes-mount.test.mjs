@@ -8,6 +8,8 @@ import {processTask} from '../../src/Honua.Console.Web/wwwroot/js/workflow-task.
 const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
 
+const localTask=source.slice(source.indexOf('function localProcessTask('),source.indexOf("window.addEventListener('honua-workspace-local-process-task'"));
+
 function processHost() {
  const slots={builtin:{children:[],append(child){this.children.push(child);}},custom:{append(child){this.child=child;},hidden:false}};
  const status={textContent:''};
@@ -31,6 +33,7 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
   connectStudioHost,processTask,processView:undefined,StudioSignInRequired:Error});
  // The fixture supplies the bundle without a production dynamic import.
+ vm.runInContext(localTask,context);
  vm.runInContext(mount,context);
  return {
   get active(){return active;},
@@ -249,6 +252,31 @@ test('the latest Processes preparation stays selected when the earlier response 
 
  const task=processTask(current);
  assert.deepEqual(selected,[null,task,task]);
+});
+
+test('switching to a local process keeps it selected while built-in preparation completes',async()=>{
+ const pending=deferred();
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(_,task)=>selected.push(structuredClone(task))};
+ const builtInIdentity={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const localIdentity={projectId:'b'.repeat(32),revision:1,sourceDigest:'c'.repeat(64)};
+ const localSelection={kind:'local-process-workspace',id:localIdentity.projectId,revision:1,contentHash:localIdentity.sourceDigest};
+ const {slots}=await fixture({native:false,workspace,prepare:()=>pending.promise});
+ const [builtin]=slots.builtin.children;
+ const custom=slots.custom.child;
+
+ const preparation=builtin.client.prepare();
+ custom.listeners.get('focusin')();
+ custom.listeners.get('honua-local-process-task-change')({detail:localIdentity});
+ assert.deepEqual(selected,[null,null,localSelection]);
+
+ pending.resolve(builtInIdentity);
+ assert.equal(await preparation,builtInIdentity);
+ assert.deepEqual(selected,[null,null,localSelection]);
+
+ builtin.listeners.get('focusin')();
+ custom.listeners.get('focusin')();
+ assert.deepEqual(selected,[null,null,localSelection,processTask(builtInIdentity),localSelection]);
 });
 
 test('retrying a failed Processes preparation selects the successful result',async()=>{
