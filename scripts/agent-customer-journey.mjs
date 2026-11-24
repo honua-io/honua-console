@@ -101,6 +101,25 @@ export function importSummary(imported) {
     errorMessage: imported?.errorMessage ?? null, missing, warnings: imported?.warnings ?? [] });
 }
 
+async function resolveConsoleLayer(serverUrl, verifierKey, { imported, serviceName }) {
+  // The pinned server returns the registered name from ingest. Console routes use the GUID.
+  const connections = await api(serverUrl, verifierKey, '/api/v1/admin/connections/');
+  const registered = connections.data?.filter(connection =>
+    connection.name === imported.connectionId || connection.connectionId === imported.connectionId) ?? [];
+  const connectionId = registered[0]?.connectionId;
+  if (registered.length !== 1 || !connectionId)
+    throw new Error(`Imported ${serviceName} does not resolve to one registered connection`);
+  const layerQuery = new URLSearchParams({ serviceName });
+  const layersPath = `/api/v1/admin/connections/${encodeURIComponent(connectionId)}/layers/`;
+  const inventory = await api(serverUrl, verifierKey, `${layersPath}?${layerQuery}`);
+  const matches = inventory.data?.items?.filter(item =>
+    item.serviceName === serviceName && item.schema === imported.schema && item.table === imported.table) ?? [];
+  const storageLayerId = matches[0]?.storageLayerId ?? matches[0]?.layerId;
+  if (matches.length !== 1 || !Number.isInteger(storageLayerId))
+    throw new Error(`Published ${serviceName} does not resolve to one stored layer for its imported table`);
+  return { connectionId, storageLayerId };
+}
+
 /** Ingest and publish through MCP, then validate the resulting server metadata. */
 export async function exerciseAgentPublication({ serverUrl, proposerKey, verifierKey, expectedActor, datasets, observe, approve }) {
   if (!expectedActor) throw new Error('The server MCP actor identity is required');
@@ -137,13 +156,18 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
     if (layer.geometryType !== `esriGeometry${dataset.geometryType}`) throw new Error(`Published ${dataset.format} has the wrong geometry type`);
     for (const [field, type] of Object.entries(dataset.fields))
       if (!layer.fields?.some(item => item.name === field && item.type === type)) throw new Error(`Published ${dataset.format} is missing typed field ${field}`);
+    const { connectionId, storageLayerId } = await resolveConsoleLayer(serverUrl, verifierKey, { imported, serviceName: dataset.name });
     if (!result.operationInstanceId) throw new Error('Publication did not report its operation identity');
     const auditQuery = new URLSearchParams({ resourceType: 'operation_instance', resourceId: result.operationInstanceId, pageSize: '100' });
     const audit = await poll(() => api(serverUrl, verifierKey, `/api/v1/admin/observability/audit?${auditQuery}`),
       value => value.items?.some(item => item.action === 'operation.completed'));
     if (!audit.items.some(item => item.action === 'operation.completed' && item.actor === expectedActor))
       throw new Error('Published operation audit does not identify the MCP actor');
-    const record = { dataset: dataset.name, format: dataset.format, layerId: id, geometryType: layer.geometryType, fields: layer.fields, actorOperationId: result.operationInstanceId, actor: expectedActor };
+    const record = {
+      dataset: dataset.name, format: dataset.format, connectionId,
+      layerId: id, storageLayerId, geometryType: layer.geometryType, fields: layer.fields,
+      actorOperationId: result.operationInstanceId, actor: expectedActor,
+    };
     await observe('published', record);
     output.push(record);
   }
