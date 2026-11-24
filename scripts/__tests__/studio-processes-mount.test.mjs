@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {connectStudioHost} from '../../src/Honua.Console.Web/wwwroot/js/studio-bundle.mjs';
 import {StudioSignInRequired} from '../../src/Honua.Console.Web/wwwroot/js/studio-session.mjs';
 import {processTask} from '../../src/Honua.Console.Web/wwwroot/js/workflow-task.mjs';
-import {queueWorkspaceFollow} from '../../src/Honua.Console.Web/wwwroot/js/workspace-follow.mjs';
+import {captureWorkspaceFollow,queueWorkspaceFollow} from '../../src/Honua.Console.Web/wwwroot/js/workspace-follow.mjs';
 
 const source=await readFile(new URL('../../src/Honua.Console.Web/wwwroot/js/studio-embed.mjs',import.meta.url),'utf8');
 const mount=source.slice(source.indexOf('async function mountProcesses()'),source.indexOf('new MutationObserver(mountProcesses)')).replaceAll('import.meta.url',JSON.stringify('https://console.example/js/studio-embed.mjs'));
@@ -20,7 +20,7 @@ function processHost() {
  return {host,slots,status};
 }
 
-function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session,bundleReady=Promise.resolve(),prepare=()=>{}}={}) {
+function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session,bundleReady=Promise.resolve(),prepare=()=>{},attachWorkspaceTask}={}) {
  let active=processHost();
  const session={principalId:'actor',environmentId:'default',environmentName:'default',
   ...(native ? {transport:{assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}}} : {})};
@@ -31,12 +31,13 @@ function processPage({native=true,current=true,workspace,openStudio=async()=>({}
  const context=vm.createContext({assets,
   document:{querySelector:()=>active.host,createElement:()=>({
    listeners:new Map(),
+   attachWorkspaceTask,
    addEventListener(name,handler){this.listeners.set(name,handler);},
   })},
   window:{honuaAgentWorkspace:workspace,Blazor:{navigateTo:path=>navigations.push(path)},
    addEventListener:(name,handler)=>windowListeners.set(name,handler)},consoleHref:path=>path,
   readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
-  connectStudioHost,processTask,processView:undefined,StudioSignInRequired,followEditor:queueWorkspaceFollow});
+  connectStudioHost,processTask,processView:undefined,StudioSignInRequired,captureWorkspaceFollow,followEditor:queueWorkspaceFollow});
  // The fixture supplies the bundle without a production dynamic import.
  vm.runInContext(localTask,context);
  vm.runInContext(mount,context);
@@ -328,6 +329,60 @@ test('refocusing Processes keeps the last successfully attached Workspace packag
  builtin.listeners.get('focusin')();
 
  assert.deepEqual(selected,[null,processTask(prepared),processTask(followed),processTask(followed)]);
+});
+
+test('opening Processes restores the selected Workspace package',async()=>{
+ const reference={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const task=processTask(reference);
+ const attachments=[];
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},context:{task},
+  select:async(_,selection)=>selected.push(selection)};
+ const {slots,status}=await fixture({workspace,attachWorkspaceTask:async candidate=>{
+  attachments.push({...candidate});
+  return true;
+ }});
+ const [builtin]=slots.builtin.children;
+ assert.equal(status.textContent,'Connected to default');
+ builtin.listeners.get('focusin')();
+ assert.deepEqual(attachments,[reference]);
+ assert.deepEqual(selected,[task,task]);
+});
+
+test('a superseded Workspace package read stays unselected if the latest attachment is rejected',async()=>{
+ const firstReadStarted=deferred();
+ const firstRead=deferred();
+ const latestReadStarted=deferred();
+ const selected=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},contextGeneration:0,
+  select:async(_,task)=>selected.push(task)};
+ const previous={packageId:'buffer',version:1,contentHash:'a'.repeat(64)};
+ const latest={packageId:'buffer',version:2,contentHash:'b'.repeat(64)};
+ const page=processPage({workspace});
+ await page.mount();
+ const [builtin]=page.active.slots.builtin.children;
+ builtin.attachWorkspaceTask=async reference=>{
+  if(reference.version===previous.version) {
+   firstReadStarted.resolve({...reference});
+   return firstRead.promise;
+  }
+  latestReadStarted.resolve({...reference});
+  return false;
+ };
+
+ workspace.context={task:processTask(previous)};
+ workspace.contextGeneration++;
+ const firstFollow=page.followTask(workspace.context.task);
+ assert.deepEqual(await firstReadStarted.promise,previous);
+ workspace.context={task:processTask(latest)};
+ workspace.contextGeneration++;
+ const latestFollow=page.followTask(workspace.context.task);
+ firstRead.resolve(true);
+ await firstFollow;
+ assert.deepEqual(await latestReadStarted.promise,latest);
+ await latestFollow;
+ builtin.listeners.get('focusin')();
+ assert.deepEqual(selected,[null,null]);
 });
 
 test('switching to a local process keeps it selected while built-in preparation completes',async()=>{
