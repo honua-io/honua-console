@@ -27,8 +27,3 @@ public sealed record ConsoleContentDetail
     // False means no usage source was bound, so the catalog must show missing-binding rather than an empty consumer list.
     public bool UsageBound { get; init; }
 }
-
-public sealed record ConsoleContentPublication(string Route, string Visibility, bool Embeddable, string Status)
-{
-    public string? Format { get; init; }
-}

@@ -340,6 +340,8 @@ public sealed record ConsoleContentLineageLink(string Direction, string ItemId, 
 
 public sealed record ConsoleContentBinding(string Name, string Kind, string Target, string Status);
 
+public sealed partial record ConsoleContentPublication(string Route, string Visibility, bool Embeddable, string Status);
+
 public sealed record ConsoleContentPermission(string Principal, string Role, string Source);
 
 public sealed record ConsoleContentActivity(DateTimeOffset OccurredAt, string Actor, string Event);
