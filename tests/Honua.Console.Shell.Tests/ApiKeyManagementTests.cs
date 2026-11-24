@@ -59,7 +59,7 @@ public sealed class ApiKeyManagementTests
         var page = fixture.Context.Render<OperateApiKeysPage>();
         page.Find("#api-key-name").Change("  Reporting app  ");
         page.Find("#api-key-permissions").Change(" admin:read, , services:read, ");
-        page.Find("#api-key-expiry").Change("2027-01-15T14:30");
+        page.Find("#api-key-expiry").Change("2027-01-15T14:30:00");
 
         page.Find("form").Submit();
 

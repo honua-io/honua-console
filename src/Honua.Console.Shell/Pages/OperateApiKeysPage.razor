@@ -58,7 +58,7 @@
                 <p>Grant only the permissions the application needs. Separate permissions with commas. An empty expiry means the key does not expire.</p>
                 <p><label for="api-key-name">Name</label><input id="api-key-name" class="console-input" @bind="_name" required maxlength="120" disabled="@_busy" autocomplete="off" /></p>
                 <p><label for="api-key-permissions">Permissions</label><input id="api-key-permissions" class="console-input" @bind="_permissions" required disabled="@_busy" placeholder="admin:read" autocomplete="off" /></p>
-                <p><label for="api-key-expiry">Expiry (UTC)</label><input id="api-key-expiry" class="console-input" type="datetime-local" @bind="_expiry" @bind:format="yyyy-MM-ddTHH:mm" disabled="@_busy" /></p>
+                <p><label for="api-key-expiry">Expiry (UTC)</label><input id="api-key-expiry" class="console-input" type="datetime-local" @bind="_expiry" disabled="@_busy" /></p>
                 <button type="submit" class="console-button" disabled="@(_busy || _needsRefresh || _secret is not null)">Create key</button>
             </form>
         </ConsolePanel>
