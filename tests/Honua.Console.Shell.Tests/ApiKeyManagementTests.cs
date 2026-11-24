@@ -35,6 +35,43 @@ public sealed class ApiKeyManagementTests
         V4PagePreview.Capture("api-keys-list", page.Markup);
     }
 
+    [Theory]
+    [InlineData("   ", "services:read")]
+    [InlineData("Reporting app", " ,  , ")]
+    public void BlankNameOrPermissionsShowsValidationWithoutCreatingAKey(string name, string permissions)
+    {
+        using var fixture = new Fixture();
+        var page = fixture.Context.Render<OperateApiKeysPage>();
+        page.Find("#api-key-name").Change(name);
+        page.Find("#api-key-permissions").Change(permissions);
+
+        page.Find("form").Submit();
+
+        Assert.Contains("Enter a name and at least one permission.", page.Markup);
+        Assert.Equal(0, fixture.Handler.Mutations);
+        Assert.False(page.Find("button[type=submit]").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void CreateTrimsFormValuesAndSendsTheEnteredExpiryAsUtc()
+    {
+        using var fixture = new Fixture();
+        var page = fixture.Context.Render<OperateApiKeysPage>();
+        page.Find("#api-key-name").Change("  Reporting app  ");
+        page.Find("#api-key-permissions").Change(" admin:read, , services:read, ");
+        page.Find("#api-key-expiry").Change("2027-01-15T14:30");
+
+        page.Find("form").Submit();
+
+        page.WaitForAssertion(() => Assert.Equal("one-time-secret", page.Find("#api-key-secret").GetAttribute("value")));
+        using var body = JsonDocument.Parse(fixture.Handler.Body!);
+        Assert.Equal("Reporting app", body.RootElement.GetProperty("name").GetString());
+        Assert.Equal(["admin:read", "services:read"], body.RootElement.GetProperty("permissions").EnumerateArray().Select(permission => permission.GetString()));
+        var expiry = body.RootElement.GetProperty("expiresAt").GetDateTimeOffset();
+        Assert.Equal(TimeSpan.Zero, expiry.Offset);
+        Assert.Equal(new DateTimeOffset(2027, 1, 15, 14, 30, 0, TimeSpan.Zero), expiry);
+    }
+
     [Fact]
     public void PopulatedListExposesNamedColumnHeaders()
     {
