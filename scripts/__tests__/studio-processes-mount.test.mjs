@@ -14,19 +14,20 @@ function processHost() {
  return {host,slots,status};
 }
 
-function processPage({native=true,current=true,workspace,openStudio=async()=>({})}={}) {
+function processPage({native=true,current=true,workspace,openStudio=async()=>({}),readSession=async session=>session}={}) {
  let active=processHost();
  const session={principalId:'actor',environmentId:'default',environmentName:'default',
   ...(native ? {transport:{assertCurrent:async()=>{if(!current) throw new Error('Console session changed');}}} : {})};
  class Workspace {prepare() {}}
  const context=vm.createContext({assets:Promise.resolve({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}),
   document:{querySelector:()=>active.host,createElement:()=>({addEventListener(){}})},window:{honuaAgentWorkspace:workspace},
-  readStudioSession:async()=>session,studioElement:openStudio,capturedProcessFetch:()=>()=>{},
+  readStudioSession:()=>readSession(session),studioElement:openStudio,capturedProcessFetch:()=>()=>{},
   connectStudioHost,processView:undefined,StudioSignInRequired:Error});
  // The resolved asset promise avoids the production dynamic import in this isolated DOM.
  vm.runInContext(mount,context);
  return {
   get active(){return active;},
+  get currentHost(){return context.processView?.host;},
   mount:()=>vm.runInContext('mountProcesses()',context),
   reopen(){
    active.host.isConnected=false;
@@ -69,8 +70,10 @@ function deferred() {
 test('reopening Processes during setup mounts only the current host',async()=>{
  const started=deferred();
  const delayedStudio=deferred();
+ const selections=[];
+ const workspace={session:{principalId:'actor',environmentId:'default'},select:async(...args)=>selections.push(args)};
  let openings=0;
- const page=processPage({openStudio:()=>{
+ const page=processPage({workspace,openStudio:()=>{
   openings++;
   if(openings===1){
    started.resolve();
@@ -94,4 +97,31 @@ test('reopening Processes during setup mounts only the current host',async()=>{
  assert.equal(reopened.slots.builtin.children.length,1);
  assert.equal(reopened.slots.custom.hidden,true);
  assert.equal(reopened.status.textContent,'Connected to default');
+ assert.equal(page.currentHost,reopened.host);
+ assert.equal(selections.length,1);
+});
+
+test('a session read from a closed Processes page cannot replace the reopened view',async()=>{
+ const started=deferred();
+ const delayedSession=deferred();
+ let reads=0;
+ const page=processPage({readSession:async session=>{
+  if(++reads===1){
+   started.resolve();
+   await delayedSession.promise;
+  }
+  return session;
+ }});
+ const abandoned=page.active;
+ const oldMount=page.mount();
+ await started.promise;
+
+ const reopened=page.reopen();
+ await page.mount();
+ delayedSession.resolve();
+ await oldMount;
+
+ assert.equal(page.currentHost,reopened.host);
+ assert.equal(abandoned.slots.builtin.children.length,0);
+ assert.equal(reopened.slots.builtin.children.length,1);
 });

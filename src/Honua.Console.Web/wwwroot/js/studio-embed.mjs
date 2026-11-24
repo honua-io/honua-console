@@ -175,6 +175,7 @@ async function mountProcesses() {
         const session = await readStudioSession().catch(error => {
             throw error instanceof StudioSignInRequired ? new Error('Sign in to Honua to open Processes.') : error;
         });
+        if (!host.isConnected) return;
         let view;
         const options = { environmentId: session.environmentId, csrfToken: session.csrfToken, principalId:session.principalId,
             fetchImpl:capturedProcessFetch(session,{current:()=>view?.session || session}) };
@@ -186,6 +187,7 @@ async function mountProcesses() {
         // Local Python/.NET processes require the Console host.
         const localProcesses = !session.transport;
         const sourceApp=await studioElement(session);
+        if (processView !== view || !host.isConnected) return;
         const pickerApp=async()=>{
             const renewed=await readStudioSession().catch(()=>{throw new Error('Sign in again before choosing a process source.');});
             if(processView!==view || !host.isConnected || view.mode!=='builtin' || !sameCookieAuthority(session,renewed))
