@@ -244,10 +244,11 @@ async function mountProcesses() {
         });
         builtin.addEventListener('focusin',()=>{view.mode='builtin';workspace?.select([],view.builtinIdentity ? processTask(view.builtinIdentity) : null).catch(error=>{status.textContent=error.message;});});
         let preparationRevision=0;
-        builtin.addEventListener('input',()=>{
+        builtin.addEventListener('honua-process-graph-change',()=>{
+            if(!host.isConnected || processView!==view) return;
             preparationRevision++;
             view.builtinIdentity=undefined;
-            workspace?.select(undefined,null).catch(()=>{});
+            if(view.mode==='builtin') workspace?.select(undefined,null).catch(()=>{});
         });
         const prepare=builtin.client.prepare.bind(builtin.client);
         builtin.client.prepare=async(...args)=>{

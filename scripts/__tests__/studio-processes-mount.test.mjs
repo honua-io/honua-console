@@ -265,7 +265,7 @@ test('editing a process keeps an earlier preparation out of the workspace select
  const [builtin]=slots.builtin.children;
 
  const stale=builtin.client.prepare();
- builtin.listeners.get('input')();
+ builtin.listeners.get('honua-process-graph-change')();
  pending.resolve(previous);
  assert.equal(await stale,previous);
  builtin.listeners.get('focusin')();
@@ -321,6 +321,11 @@ test('switching to a local process keeps it selected while built-in preparation 
  builtin.listeners.get('focusin')();
  custom.listeners.get('focusin')();
  assert.deepEqual(selected,[null,null,localSelection,processTask(builtInIdentity),localSelection]);
+
+ builtin.listeners.get('honua-process-graph-change')();
+ assert.deepEqual(selected.at(-1),localSelection);
+ builtin.listeners.get('focusin')();
+ assert.equal(selected.at(-1),null);
 });
 
 test('retrying a failed Processes preparation selects the successful result',async()=>{
