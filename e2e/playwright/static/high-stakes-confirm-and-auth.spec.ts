@@ -82,11 +82,13 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
           success: true,
           data: {
             apiKey: {
-              id: 'key-new',
+              id: '11111111-1111-4111-8111-111111111111',
               name: 'CI Deploy',
               keyPrefix: 'hn_live_new',
               permissions: ['admin:read'],
               status: 'active',
+              createdAt: '2026-11-24T01:00:00Z',
+              updatedAt: '2026-11-24T01:00:00Z',
             },
             key: 'hn_live_secret_value_12345',
           },

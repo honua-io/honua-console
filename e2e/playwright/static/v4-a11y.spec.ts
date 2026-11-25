@@ -7,11 +7,13 @@ const origin = 'http://127.0.0.1:5185';
 
 const a11yFixtures = {
   apiKeys: [{
-    id: 'key-1',
+    id: '22222222-2222-4222-8222-222222222222',
     name: 'Field Collector',
     keyPrefix: 'hn_live_abc',
     permissions: ['features:read'],
     status: 'active',
+    createdAt: '2026-11-24T01:00:00Z',
+    updatedAt: '2026-11-24T01:00:00Z',
     expiresAt: null,
     revokedAt: null,
   }],
