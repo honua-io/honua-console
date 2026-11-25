@@ -3,14 +3,26 @@ import { signInWithFixturePassword } from './fixture-sign-in';
 
 const origin = 'http://127.0.0.1:5185';
 
-function serviceSettingsPayload(allowAnonymousWrite: boolean) {
+function serviceSettingsReadOnly() {
   return {
     success: true,
     data: {
       serviceName: 'roads',
       enabledProtocols: ['FeatureServer'],
       availableProtocols: ['FeatureServer', 'OgcFeatures'],
-      accessPolicy: { allowAnonymous: false, allowAnonymousWrite, allowedRoles: [], allowedWriteRoles: [] },
+      accessPolicy: { allowAnonymous: false, allowAnonymousWrite: false, allowedRoles: [], allowedWriteRoles: [] },
+    },
+  };
+}
+
+function serviceSettingsAnonymousWrite() {
+  return {
+    success: true,
+    data: {
+      serviceName: 'roads',
+      enabledProtocols: ['FeatureServer'],
+      availableProtocols: ['FeatureServer', 'OgcFeatures'],
+      accessPolicy: { allowAnonymous: false, allowAnonymousWrite: true, allowedRoles: [], allowedWriteRoles: [] },
     },
   };
 }
@@ -52,30 +64,34 @@ function createdApiKeyPayload() {
   };
 }
 
-async function handleServiceRoute(route: Route, state: { accessPutCount: number }) {
-  const { pathname } = new URL(route.request().url());
-  if (pathname.endsWith('/access-policy') && route.request().method() === 'PUT') {
-    state.accessPutCount++;
-    await route.fulfill({ json: serviceSettingsPayload(true) });
-    return;
+class HighStakesApiFixture {
+  accessPutCount = 0;
+
+  async attach(page: Page) {
+    await page.route(`${origin}/api/v1/admin/services**`, route => this.handleService(route));
+    await page.route(`${origin}/api/v1/admin/api-keys**`, route => route.fulfill(
+      route.request().method() === 'POST'
+        ? { status: 201, json: createdApiKeyPayload() }
+        : { json: { success: true, data: [] } },
+    ));
   }
-  if (pathname.endsWith('/settings')) {
-    await route.fulfill({ json: serviceSettingsPayload(false) });
-    return;
+
+  private async handleService(route: Route) {
+    const { pathname } = new URL(route.request().url());
+    if (pathname.endsWith('/access-policy') && route.request().method() === 'PUT') {
+      this.accessPutCount++;
+      await route.fulfill({ json: serviceSettingsAnonymousWrite() });
+      return;
+    }
+    if (pathname.endsWith('/settings')) {
+      await route.fulfill({ json: serviceSettingsReadOnly() });
+      return;
+    }
+    await route.fulfill({ json: serviceListPayload() });
   }
-  await route.fulfill({ json: serviceListPayload() });
 }
 
-async function registerHighStakesRoutes(page: Page, state: { accessPutCount: number }) {
-  await page.route(`${origin}/api/v1/admin/services**`, route => handleServiceRoute(route, state));
-  await page.route(`${origin}/api/v1/admin/api-keys**`, route => route.fulfill(
-    route.request().method() === 'POST'
-      ? { status: 201, json: createdApiKeyPayload() }
-      : { json: { success: true, data: [] } },
-  ));
-}
-
-async function verifyAnonymousWriteConfirmation(page: Page, state: { accessPutCount: number }) {
+async function verifyAnonymousWriteConfirmation(page: Page, api: HighStakesApiFixture) {
   await signInWithFixturePassword(page, origin, '/operate/services/roads/settings?tab=access');
   await page.waitForURL(url => url.pathname === '/console/operate/services/roads/settings');
   await page.locator('#service-access-tab').click();
@@ -90,11 +106,11 @@ async function verifyAnonymousWriteConfirmation(page: Page, state: { accessPutCo
   await expect(dialog).toContainText('Allow anonymous write access?');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  expect(state.accessPutCount).toBe(0);
+  expect(api.accessPutCount).toBe(0);
 
   await page.locator('[data-save-access]').click();
   await page.locator('[data-console-confirm-accept]').click();
-  await expect.poll(() => state.accessPutCount).toBe(1);
+  await expect.poll(() => api.accessPutCount).toBe(1);
 }
 
 async function verifyApiKeyCopyReveal(page: Page) {
@@ -124,8 +140,8 @@ test('anonymous /environments/new avoids redirect loops and /console/catalog pre
 
 test('high-stakes anonymous write requires confirmation and API key secret offers one-click copy', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile', 'Mutation confirmation flow runs once in desktop project');
-  const state = { accessPutCount: 0 };
-  await registerHighStakesRoutes(page, state);
-  await verifyAnonymousWriteConfirmation(page, state);
+  const api = new HighStakesApiFixture();
+  await api.attach(page);
+  await verifyAnonymousWriteConfirmation(page, api);
   await verifyApiKeyCopyReveal(page);
 });
