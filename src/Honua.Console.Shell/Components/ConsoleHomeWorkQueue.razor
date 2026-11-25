@@ -154,6 +154,16 @@
 
     private Task RefreshInboxAsync() => _refreshGate.RunAsync(ReadInboxCoreAsync);
 
+    private Task ReconcileInboxAsync() => _refreshGate.RunAsync(() =>
+    {
+        if (!_disposed)
+        {
+            _inboxLoaded = false;
+            StateHasChanged();
+        }
+        return ReadInboxCoreAsync();
+    });
+
     private async Task ReadInboxCoreAsync()
     {
         if (_disposed) return;
@@ -188,7 +198,7 @@
 
     private Task OnRefreshRequiredAsync() => InvokeAsync(async () =>
     {
-        await RefreshInboxAsync();
+        await ReconcileInboxAsync();
         if (_disposed || !_inbox.IsAllowed || _inbox.PartialResult)
             throw new InvalidOperationException("The approval projection could not be reconciled.");
         StateHasChanged();

@@ -28,7 +28,7 @@ test('agent proposal and health SSE events update the open Console view in place
             'Cache-Control': 'no-store',
             Connection: 'keep-alive',
           });
-          res.write(': connected\n\n');
+          res.write('event: status\nid: admin:1\ndata: {"state":"connected"}\n\n');
           sseClients.push({ topic: topics, res });
           req.on('close', () => {
             const idx = sseClients.findIndex(entry => entry.res === res);
@@ -50,7 +50,7 @@ test('agent proposal and health SSE events update the open Console view in place
           res.end(JSON.stringify({ proposals }));
           return;
         }
-        if (pathname === '/api/v1/admin/ops/health' && req.method === 'GET') {
+        if (pathname.endsWith('/ops-health') && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             overallStatus: healthStatus,
@@ -65,7 +65,7 @@ test('agent proposal and health SSE events update the open Console view in place
           }));
           return;
         }
-        if (pathname === '/api/v1/admin/ops/health/history' && req.method === 'GET') {
+        if (pathname.endsWith('/ops-health/history') && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ from: '2026-11-24T01:00:00Z', to: '2026-11-24T02:00:00Z', resolution: '1m', perReplica: false, latencySeries: [], vitalsPoints: [] }));
           return;
@@ -92,7 +92,7 @@ test('agent proposal and health SSE events update the open Console view in place
       generatedAt: '2026-11-24T02:01:00Z',
     });
     for (const client of sseClients.filter(entry => entry.topic.includes('proposals'))) {
-      client.res.write(`event: ProposalPending\ndata: ${payload}\n\n`);
+      client.res.write(`event: ProposalPending\nid: admin:2\ndata: ${payload}\n\n`);
     }
 
     await expect(page.locator('[data-awaiting-count]')).toContainText('1');
@@ -115,7 +115,7 @@ test('agent proposal and health SSE events update the open Console view in place
       managedTargets: [],
     });
     for (const client of sseClients.filter(entry => entry.topic.includes('ops-health'))) {
-      client.res.write(`event: OpsHealthSnapshot\ndata: ${healthEvent}\n\n`);
+      client.res.write(`event: OpsHealthSnapshot\nid: admin:2\ndata: ${healthEvent}\n\n`);
     }
 
     await expect(page.getByText('Slow replica')).toBeVisible();

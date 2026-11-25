@@ -40,7 +40,7 @@ async function mockPopulatedRoutes(page: Page) {
       },
     },
   }));
-  await page.route(`${origin}/api/v1/admin/ops/health`, route => route.fulfill({
+  await page.route(`${origin}/api/v1/admin/observability/ops-health`, route => route.fulfill({
     json: {
       overallStatus: 'healthy',
       generatedAt: '2026-11-24T01:05:00Z',
@@ -53,7 +53,7 @@ async function mockPopulatedRoutes(page: Page) {
       managedTargets: [],
     },
   }));
-  await page.route(`${origin}/api/v1/admin/ops/health/history**`, route => route.fulfill({
+  await page.route(`${origin}/api/v1/admin/observability/ops-health/history**`, route => route.fulfill({
     json: { from: '2026-11-24T00:05:00Z', to: '2026-11-24T01:05:00Z', resolution: '1m', perReplica: false, latencySeries: [], vitalsPoints: [] },
   }));
   await page.route(`${origin}/api/v1/admin/exports**`, route => route.fulfill({

@@ -25,9 +25,19 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
 
   await page.route(`${origin}/api/v1/admin/services**`, async route => {
     const url = new URL(route.request().url());
-    if (url.pathname.endsWith('/settings/access') && route.request().method() === 'PUT') {
+    if (url.pathname.endsWith('/access-policy') && route.request().method() === 'PUT') {
       accessPutCount++;
-      await route.fulfill({ json: { success: true, data: { allowAnonymous: true, allowAnonymousWrite: true, allowedRoles: [], allowedWriteRoles: [] } } });
+      await route.fulfill({
+        json: {
+          success: true,
+          data: {
+            serviceName: 'roads',
+            enabledProtocols: ['FeatureServer'],
+            availableProtocols: ['FeatureServer', 'OgcFeatures'],
+            accessPolicy: { allowAnonymous: false, allowAnonymousWrite: true, allowedRoles: [], allowedWriteRoles: [] },
+          },
+        },
+      });
       return;
     }
     if (url.pathname.endsWith('/settings')) {
@@ -38,10 +48,7 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
             serviceName: 'roads',
             enabledProtocols: ['FeatureServer'],
             availableProtocols: ['FeatureServer', 'OgcFeatures'],
-            allowAnonymous: false,
-            allowAnonymousWrite: false,
-            allowedRoles: [],
-            allowedWriteRoles: [],
+            accessPolicy: { allowAnonymous: false, allowAnonymousWrite: false, allowedRoles: [], allowedWriteRoles: [] },
           },
         },
       });
@@ -75,12 +82,14 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
         json: {
           success: true,
           data: {
-            id: 'key-new',
-            name: 'CI Deploy',
-            keyPrefix: 'hn_live_new',
-            rawKey: 'hn_live_secret_value_12345',
-            permissions: ['admin:read'],
-            status: 'active',
+            apiKey: {
+              id: 'key-new',
+              name: 'CI Deploy',
+              keyPrefix: 'hn_live_new',
+              permissions: ['admin:read'],
+              status: 'active',
+            },
+            key: 'hn_live_secret_value_12345',
           },
         },
       });
@@ -92,6 +101,10 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
   await signInWithFixturePassword(page, origin, '/operate/services/roads/settings?tab=access');
   await page.waitForURL(url => url.pathname === '/console/operate/services/roads/settings');
 
+  const accessTab = page.locator('#service-access-tab');
+  if (await accessTab.isVisible()) {
+    await accessTab.click();
+  }
   const writeCheckbox = page.locator('[data-allow-anonymous-write]');
   await expect(writeCheckbox).toBeVisible();
   await writeCheckbox.check();
