@@ -30,6 +30,7 @@ public sealed class ConsoleRouteAuthorizationAuditTests
     internal static readonly IReadOnlySet<string> InAppAnonymousRouteTemplates = new HashSet<string>(StringComparer.Ordinal)
     {
         "/auth/signin",
+        "/environments/new",
         "/not-found",
     };
 

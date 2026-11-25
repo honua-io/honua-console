@@ -428,7 +428,7 @@ public sealed class ResourceFirstPublishFlowTests
     }
 
     private static void ContinueFrom(IRenderedComponent<DataToPublishFlow> cut, string step) =>
-        cut.Find($"[data-step-body=\"{step}\"] button.console-button").Click();
+        cut.Find($"[data-step-body=\"{step}\"] button.console-button:not(.console-button-secondary)").Click();
 
     private static void AssertRealApplyResults(IRenderedComponent<DataToPublishFlow> cut)
     {

@@ -132,10 +132,49 @@ test('an API-key refusal that changes the proposal fails the control', async () 
 });
 
 test('an unpublishable import names the missing fields and the server warning', () => {
-  const summary = JSON.parse(importSummary({ success: true, table: 't', geometryColumn: 'geometry', primaryKey: 'id',
+  const summary = JSON.parse(importSummary({ success: true, schema: 'public', table: 't', geometryColumn: 'geometry', primaryKey: 'id',
     warnings: ['No unique registered secure connection could be resolved'], data: 'secret,row' }));
   assert.deepEqual(summary.missing, ['connectionId']);
   assert.equal(summary.success, true);
   assert.match(summary.warnings[0], /No unique registered/);
   assert.equal(JSON.stringify(summary).includes('secret,row'), false);
+});
+
+test('publication resolves the configured catalog connection when ingest reports ambiguity', async () => {
+  const original = globalThis.fetch;
+  const publishReached = new Error('publish reached');
+  const connectionId = 'dcb1e5e7-489b-4363-97f0-16be8d93c4ff';
+  globalThis.fetch = async (url, init) => {
+    if (url.pathname === '/api/v1/admin/connections/') {
+      return Response.json({ data: [
+        { name: 'alias', connectionId: '34816fae-ccf6-43eb-bbca-3c831531a2c8' },
+        { name: 'catalog', connectionId },
+      ] });
+    }
+    assert.equal(url.pathname, '/mcp');
+    const { id, method, params } = JSON.parse(init.body);
+    if (method === 'initialize') {
+      return Response.json({ id, result: {} }, { headers: { 'mcp-session-id': 'test-session' } });
+    }
+    if (params.name === 'honua_ingest_dataset') {
+      return Response.json({ id, result: { structuredContent: {
+        success: true, connectionId: null, schema: 'public', table: 'sites', geometryColumn: 'geom', primaryKey: 'id',
+      } } });
+    }
+    assert.equal(params.name, 'honua_publish_service');
+    assert.equal(params.arguments.connectionId, connectionId);
+    throw publishReached;
+  };
+  try {
+    const journey = {
+      serverUrl: 'https://server.example', proposerKey: 'proposer', verifierKey: 'verifier',
+      expectedActor: 'actor', approve: async () => {},
+      datasets: [{ format: 'geojson', name: 'sites', data: '{}', geometryType: 'Point' }],
+    };
+    await assert.rejects(exerciseAgentPublication(journey), /did not return a publishable table/);
+    await assert.rejects(exerciseAgentPublication({ ...journey, catalogConnectionName: 'missing' }), /does not resolve/);
+    await assert.rejects(exerciseAgentPublication({ ...journey, catalogConnectionName: 'catalog' }), publishReached);
+  } finally {
+    globalThis.fetch = original;
+  }
 });

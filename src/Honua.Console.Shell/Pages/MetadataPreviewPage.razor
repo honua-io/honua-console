@@ -8,6 +8,12 @@
 @inject IMetadataPreviewSource Metadata
 @inject IServiceProvider ServiceProvider
 
+@if (!Options.Enabled)
+{
+    <NotFoundPage />
+    return;
+}
+
 <section class="@(V4Enabled ? "console-page metadata-preview console-viewer-v4" : "console-page metadata-preview")">
     @if (V4Enabled)
     {

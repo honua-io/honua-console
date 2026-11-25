@@ -28,22 +28,92 @@
     else
     {
         var item = _result.Item;
-        <article class="@(V4Enabled ? "share-opendata-landing share-opendata-v4" : "console-panel share-opendata-landing")" data-share-opendata-landing>
-            @if (V4Enabled)
-            {
-                <a class="share-opendata-back" href="@Navigation.ToConsoleHref("/share/public")">Back to open data</a>
-                <ConsolePageHeading Title="@item.Summary.Title">
-                    <p class="console-muted">Open data · @CatalogContentTypes.LabelFor(item.Summary.Type)</p>
-                </ConsolePageHeading>
-                <div class="console-chip-row">
-                    @foreach (var tag in item.Summary.Tags)
+        @if (V4Enabled)
+        {
+            var summary = item.Summary;
+            var viewer = ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: false)
+                .FirstOrDefault(action => action.Id == "viewer");
+            <article class="share-opendata-landing share-opendata-v4" data-share-opendata-landing>
+                <nav aria-label="Breadcrumb">
+                    <a class="share-opendata-back" href="@Navigation.ToConsoleHref("/share/public")">Open-data catalog</a>
+                    <span aria-hidden="true"> / </span>
+                    <span aria-current="page">@summary.Title</span>
+                </nav>
+                @if (!string.IsNullOrWhiteSpace(summary.Type))
+                {
+                    <span class="console-status console-state-info">@CatalogContentTypes.LabelFor(summary.Type)</span>
+                }
+                <h1>@summary.Title</h1>
+                <div class="public-item-meta console-muted">
+                    @if (summary.Modified > DateTimeOffset.UnixEpoch)
                     {
-                        <span>#@tag</span>
+                        <span>Updated <time datetime="@summary.Modified.ToString("O")">@summary.Modified.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</time></span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(summary.Owner))
+                    {
+                        <span>Published by @summary.Owner</span>
                     }
                 </div>
-            }
-            else
-            {
+                <p class="share-opendata-intro console-muted">@item.Description</p>
+                @if (viewer is not null)
+                {
+                    <a class="console-button console-button-primary" href="@Navigation.ToConsoleHref(viewer.Href)">@viewer.Label</a>
+                }
+
+                <div class="public-item-grid">
+                    <div>
+                        <div data-share-opendata-downloads>
+                            <ConsolePanel Title="Download" HeadingId="public-download-heading">
+                                @PublicDownloads(item)
+                            </ConsolePanel>
+                        </div>
+                        @if (item.Publications.Length > 0)
+                        {
+                            <div data-share-opendata-routes>
+                                <ConsolePanel Title="Public routes" HeadingId="public-routes-heading">
+                                    <ul class="public-item-routes">
+                                        @foreach (var publication in item.Publications)
+                                        {
+                                            var route = PublicRoute(publication.Route);
+                                            <li>
+                                                <code class="console-inline-code" title="@route">@route</code>
+                                                <ConsoleCopyButton Text="@route" />
+                                            </li>
+                                        }
+                                    </ul>
+                                </ConsolePanel>
+                            </div>
+                        }
+                    </div>
+                    <aside aria-label="Item information">
+                        <ConsolePanel Title="Usage" HeadingId="public-usage-heading">
+                            <p class="console-muted">@(string.IsNullOrWhiteSpace(item.License) ? "Notice of usage terms is unavailable for this item." : item.License)</p>
+                        </ConsolePanel>
+                        <ConsolePanel Title="Details" HeadingId="public-details-heading">
+                            @if (summary.Tags.Length > 0)
+                            {
+                                <ul class="console-chip-row public-item-tags" aria-label="Tags">
+                                    @foreach (var tag in summary.Tags)
+                                    {
+                                        <li>#@tag</li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <p class="console-muted">No tags published.</p>
+                            }
+                        </ConsolePanel>
+                    </aside>
+                </div>
+                <footer class="share-opendata-footer" data-share-opendata-footer>
+                    <p class="console-muted share-opendata-poweredby">Powered by Honua · public open data</p>
+                </footer>
+            </article>
+        }
+        else
+        {
+            <article class="console-panel share-opendata-landing" data-share-opendata-landing>
                 <header class="share-opendata-hero">
                     <p class="console-kicker">Open-data page <span class="console-crumb-sep">/</span> @CatalogContentTypes.LabelFor(item.Summary.Type)</p>
                     <h1>@item.Summary.Title</h1>
@@ -56,28 +126,7 @@
                         }
                     </div>
                 </header>
-            }
-
-            <p class="share-opendata-intro">@item.Description</p>
-
-            @if (V4Enabled)
-            {
-                <div data-share-opendata-downloads>
-                    <ConsolePanel Title="Download" HeadingId="public-download-heading">
-                        @DownloadContent(item)
-                    </ConsolePanel>
-                </div>
-                @if (item.Publications.Any())
-                {
-                    <div data-share-opendata-routes>
-                        <ConsolePanel Title="Routes" HeadingId="public-routes-heading">
-                            @RoutesContent(item)
-                        </ConsolePanel>
-                    </div>
-                }
-            }
-            else
-            {
+                <p class="share-opendata-intro">@item.Description</p>
                 <section class="share-opendata-downloads" data-share-opendata-downloads>
                     <p class="console-kicker">Download</p>
                     @DownloadContent(item)
@@ -89,22 +138,20 @@
                         @RoutesContent(item)
                     </section>
                 }
-            }
-
-            <footer class="share-opendata-footer" data-share-opendata-footer>
-                <p class="console-muted">Owner: @item.Summary.Owner</p>
-                <p class="console-muted share-opendata-poweredby">Powered by Honua · public open-data</p>
-            </footer>
-        </article>
+                <footer class="share-opendata-footer" data-share-opendata-footer>
+                    <p class="console-muted">Owner: @item.Summary.Owner</p>
+                    <p class="console-muted share-opendata-poweredby">Powered by Honua · public open-data</p>
+                </footer>
+            </article>
+        }
     }
 </section>
 </CatalogAvailabilityGate>
 
 @code {
     internal const string MissingBindingMessage =
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
-        + "open-data projection from honua-server. The merged runtime never renders seeded open-data content "
-        + "(Console Patterns Charter section 11).";
+        "This open-data item is temporarily unavailable because this portal is not connected to a data server. "
+        + "Please try again later or contact the site administrator.";
 
     [Parameter]
     public string IdOrSlug { get; set; } = string.Empty;
@@ -112,7 +159,24 @@
     private CatalogItemReadResult? _result;
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
-    private RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
+    private static RenderFragment PublicDownloads(ConsoleContentDetail item) => @<text>
+        @{ var downloads = item.Publications.Where(publication => !string.IsNullOrWhiteSpace(publication.Format)).ToArray(); }
+        @if (downloads.Length == 0)
+        {
+            <p class="console-muted">No download links are published for this item.</p>
+        }
+        else
+        {
+            <ul class="share-opendata-download-list">
+                @foreach (var download in downloads)
+                {
+                    <li><a href="@download.Route">@ConsoleDownloadFormatLabels.Display(download.Format!)</a></li>
+                }
+            </ul>
+        }
+    </text>;
+
+    private static RenderFragment DownloadContent(ConsoleContentDetail item) => @<text>
                 @if (!item.Summary.Formats.Any())
                 {
                     <p class="console-muted">No downloadable formats are published for this item.</p>
@@ -123,7 +187,7 @@
                         @foreach (var format in item.Summary.Formats)
                         {
                             <li>
-                                <span class="share-opendata-download-name">@(V4Enabled ? ConsoleDownloadFormatLabels.Display(format) : format)</span>
+                                <span class="share-opendata-download-name">@format</span>
                                 <span class="console-muted">download ↓</span>
                             </li>
                         }
@@ -140,6 +204,11 @@
                         }
                     </dl>
     </text>;
+
+    private string PublicRoute(string route) =>
+        route.StartsWith("/", StringComparison.Ordinal) && !route.StartsWith("//", StringComparison.Ordinal)
+            ? Navigation.ToAbsoluteUri(Navigation.ToConsoleHref(route)).AbsoluteUri
+            : route;
 
     protected override async Task OnParametersSetAsync()
     {

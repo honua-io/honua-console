@@ -81,7 +81,7 @@ internal static class OperateObservabilityRegistrations
                 adminApiKey));
         services.TryAddScoped<IConsoleDeployOperationRealtimeClient>(serviceProvider =>
             new SseConsoleDeployOperationRealtimeClient(
-                ShellHttpClients.ServerBoundStream(serviceProvider),
+                ShellHttpClients.ManagerBoundStream(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetService<IConsoleAuthorityBindingValidator>(),
                 serviceProvider.GetRequiredService<ILogger<SseConsoleDeployOperationRealtimeClient>>()));
@@ -134,7 +134,7 @@ internal static class OperateObservabilityRegistrations
             new OpsHealthDataSource(serviceProvider.GetRequiredService<IConsoleOpsHealthClient>()));
         services.TryAddScoped<IConsoleOpsHealthRealtimeClient>(serviceProvider =>
             new SseConsoleOpsHealthRealtimeClient(
-                ShellHttpClients.ServerBoundStream(serviceProvider),
+                ShellHttpClients.ManagerBoundStream(serviceProvider),
                 serviceProvider.GetRequiredService<IConsoleEnvironmentProfileStore>(),
                 serviceProvider.GetService<IConsoleAuthorityBindingValidator>(),
                 serviceProvider.GetRequiredService<ILogger<SseConsoleOpsHealthRealtimeClient>>()));

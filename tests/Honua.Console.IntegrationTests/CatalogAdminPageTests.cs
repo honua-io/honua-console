@@ -20,10 +20,10 @@ public sealed class CatalogAdminPageTests
         context.Services.AddSingleton(new CatalogAdminOptions());
         context.Services.AddSingleton(new ConsoleV4Options { Enabled = enabled });
         var page = context.Render<CatalogAdminPage>();
-        Assert.Contains("Catalogs are not enabled", page.Markup);
+        Assert.Contains(enabled ? "Page not found" : "Page Not Found", page.Markup);
+        Assert.DoesNotContain("Catalogs are not enabled", page.Markup);
         Assert.DoesNotContain("Open data", page.Markup);
         Assert.Equal(0, source.Reads);
-        Assert.Single(page.FindAll(".console-state-disabled"));
     }
 
     [Theory]

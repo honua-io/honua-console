@@ -191,6 +191,7 @@ public sealed class ConsoleNotificationTests : ConsoleComponentTestBase
 
         var toast = cut.Find("[data-console-toast]");
         Assert.Equal("success", toast.GetAttribute("data-toast-level"));
+        Assert.Equal("status", toast.GetAttribute("role"));
         Assert.Contains("Role deleted.", toast.TextContent);
     }
 
@@ -207,6 +208,7 @@ public sealed class ConsoleNotificationTests : ConsoleComponentTestBase
 
         var toast = cut.Find("[data-console-toast]");
         Assert.Equal("error", toast.GetAttribute("data-toast-level"));
+        Assert.Equal("alert", toast.GetAttribute("role"));
         Assert.Contains("Couldn't delete role: forbidden.", toast.TextContent);
     }
 

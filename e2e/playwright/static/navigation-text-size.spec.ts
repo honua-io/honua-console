@@ -180,7 +180,7 @@ for (const rootSize of [16, 32]) {
   }
 }
 
-for (const width of [390, 1101, 1280, 1376, 1377, 1440]) {
+for (const width of [390, 1024, 1101, 1120, 1121, 1280, 1440]) {
   for (const increasedSpacing of [false, true]) {
     test(`header controls stay apart at ${width}px with ${increasedSpacing ? 'increased' : 'default'} spacing`, async ({ page }) => {
       const close = await startSignedInConsole(page);
@@ -193,7 +193,7 @@ for (const width of [390, 1101, 1280, 1376, 1377, 1440]) {
         const closed = await topBarBoxes(page);
         expect(closed, 'header controls').toMatchObject({ overlaps: [], outside: [] });
         expect(closed.scrollWidth).toBeLessThanOrEqual(closed.innerWidth + 1);
-        await expect(toggle).toBeVisible({ visible: width <= 1376 });
+        await expect(toggle).toBeVisible({ visible: width <= 1120 });
         if (await toggle.isVisible()) await toggle.press('Enter');
         const settings = page.locator('[data-navigation-menu="Settings"] > summary');
         await settings.press('Enter');

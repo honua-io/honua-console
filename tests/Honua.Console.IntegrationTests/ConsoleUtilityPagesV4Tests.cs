@@ -31,7 +31,7 @@ public sealed class ConsoleUtilityPagesV4Tests
         var page = context.Render<NotFoundPage>();
         Assert.Equal(enabled ? "Page not found" : "Page Not Found", page.Find("h1").TextContent);
         Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
-        Assert.Contains("requested Console route is not registered", page.Markup);
+        Assert.Contains("couldn't find that page", page.Markup);
         Assert.Equal("/", page.Find("a").GetAttribute("href"));
         Assert.Equal("Return Home", page.Find("a").TextContent);
         Capture(page.Markup, "missing", enabled);

@@ -1,3 +1,4 @@
+using System.Net;
 using Honua.Console.Shell.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -9,6 +10,8 @@ public sealed class BrowserOidcAuthentication(
     BrowserAuthenticationStateProvider authentication,
     NavigationManager navigation) : IConsoleOidcAuthentication
 {
+    private const string HomeReturnPath = "/console/";
+
     // Built-in password sign-in does not exclude providers: the server's /auth/config decides which it lists.
     public bool IsAvailable => api.UsesCookieSession;
 
@@ -22,17 +25,22 @@ public sealed class BrowserOidcAuthentication(
     {
         RequireAvailable();
         var mountedReturnTo = navigation.ToConsoleHref(returnTo);
-        if (mountedReturnTo is not ("/console/" or "/console/operate/connections"))
-        {
-            mountedReturnTo = "/console/";
-        }
         var providers = await GetProvidersAsync(cancellationToken);
         if (!providers.Any(provider => provider.Key == providerKey))
         {
             throw new InvalidOperationException("The identity provider is unavailable.");
         }
         await authentication.PrepareCookieRequestAsync(cancellationToken);
-        return await api.CreateAuthorizeUrlAsync(providerKey, mountedReturnTo, cancellationToken);
+        try
+        {
+            return await api.CreateAuthorizeUrlAsync(providerKey, mountedReturnTo, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.BadRequest
+            && mountedReturnTo != HomeReturnPath)
+        {
+            // Older servers reject deep return paths before starting the sign-in attempt.
+            return await api.CreateAuthorizeUrlAsync(providerKey, HomeReturnPath, cancellationToken);
+        }
     }
 
     private void RequireAvailable()
