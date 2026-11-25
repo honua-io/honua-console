@@ -7,6 +7,12 @@
 @inject CatalogAdminOptions Options
 @inject ICatalogAdminSource Catalogs
 
+@if (!Options.Enabled)
+{
+    <NotFoundPage />
+    return;
+}
+
 <section class="console-page catalog-admin">
     @if (V4Enabled)
     {

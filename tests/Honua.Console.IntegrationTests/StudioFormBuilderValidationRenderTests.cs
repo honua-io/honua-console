@@ -40,8 +40,7 @@ public sealed class StudioFormBuilderValidationRenderTests
         page.WaitForAssertion(
             () => Assert.Contains("Field ids must be unique", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
-        // The field-id row (a FieldStateRow) carries aria-invalid + the invalid styling hook.
-        Assert.Contains("aria-invalid=\"true\"", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-field-invalid=\"true\"", page.Markup, StringComparison.Ordinal);
         Assert.Contains("console-field-state--invalid", page.Markup, StringComparison.Ordinal);
     }
 

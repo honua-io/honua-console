@@ -70,7 +70,7 @@ public sealed class ConsoleSystemPagesV4Tests
                 Assert.Contains("Production", page.Markup);
                 Assert.Contains("https://production.example/", page.Markup);
                 Assert.Equal("Continue", page.Find("button[type='submit']").TextContent);
-                Assert.Equal("/", page.Find("a").GetAttribute("href"));
+                Assert.Equal("/environments/new", page.Find("a").GetAttribute("href"));
                 break;
         }
         CatalogAdminPreview.Capture($"system-{name}-{(enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{page.Markup}</div>");

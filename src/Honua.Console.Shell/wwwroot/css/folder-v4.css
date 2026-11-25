@@ -71,7 +71,6 @@
     display: inline-flex;
     border: 1px solid var(--c-border);
     border-radius: var(--radius-md);
-    overflow: hidden;
 }
 
 [data-console-v4="true"] .console-list-pager-buttons button {
@@ -86,8 +85,20 @@
     cursor: pointer;
 }
 
+[data-console-v4="true"] .console-list-pager-buttons button:first-child {
+    border-start-start-radius: calc(var(--radius-md) - 1px);
+    border-end-start-radius: calc(var(--radius-md) - 1px);
+}
+
 [data-console-v4="true"] .console-list-pager-buttons button:last-child {
     border-inline-end: 0;
+    border-start-end-radius: calc(var(--radius-md) - 1px);
+    border-end-end-radius: calc(var(--radius-md) - 1px);
+}
+
+[data-console-v4="true"] .console-list-pager-buttons button:focus-visible {
+    position: relative;
+    z-index: 1;
 }
 
 [data-console-v4="true"] .console-list-pager-buttons button[aria-current="page"] {

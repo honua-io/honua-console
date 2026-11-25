@@ -36,7 +36,8 @@ public sealed class BrowserSignInPageTests
         var submission = page.Find("form").SubmitAsync();
         page.WaitForAssertion(() => Assert.True(page.Find("button").HasAttribute("disabled")));
         Assert.Equal("operator-password", authentication.Password);
-        Assert.Equal("/console/operate/connections", page.Find("a").GetAttribute("href"));
+        Assert.Equal("/console/environments/new", page.Find("a").GetAttribute("href"));
+        Assert.Contains("/operate/connections", page.Find("dl").TextContent, StringComparison.Ordinal);
         authentication.Completion.SetResult();
         await submission;
         Assert.Equal("http://localhost/console/operate/connections", context.Services.GetRequiredService<NavigationManager>().Uri);
@@ -161,7 +162,8 @@ public sealed class BrowserSignInPageTests
         var navigation = context.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/console/auth/signin?returnTo=" + Uri.EscapeDataString(returnTo));
         var passwordPage = context.Render<AuthSignInPage>();
-        Assert.Equal("/console/", passwordPage.Find("a").GetAttribute("href"));
+        Assert.Equal("/console/environments/new", passwordPage.Find("a").GetAttribute("href"));
+        Assert.Equal("/", passwordPage.FindAll("dl dd").Last().TextContent.Trim());
         passwordPage.Dispose();
 
         await using var oidcContext = CreateContext();

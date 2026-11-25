@@ -113,7 +113,7 @@
             <ConsoleTableRegion Label="Things table">
 <table class="console-table" data-sensorthings-things-table>
                 <thead>
-                    <tr><th>@IotIdLabel</th><th>Name</th><th>Description</th></tr>
+                    <tr><th scope="col">@IotIdLabel</th><th scope="col">Name</th><th scope="col">Description</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var thing in _things.Value.Value)
@@ -156,7 +156,7 @@
             <ConsoleTableRegion Label="Datastreams table">
 <table class="console-table" data-sensorthings-datastreams-table>
                 <thead>
-                    <tr><th>@IotIdLabel</th><th>Name</th><th>Unit</th><th>Observations</th></tr>
+                    <tr><th scope="col">@IotIdLabel</th><th scope="col">Name</th><th scope="col">Unit</th><th scope="col">Observations</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var datastream in _datastreams.Value.Value)
@@ -208,7 +208,7 @@
                         <ConsoleTableRegion Label="Observations table">
 <table class="console-table" data-sensorthings-observations-table>
                             <thead>
-                                <tr><th>Phenomenon time</th><th>Result @series.UnitSymbol</th></tr>
+                                <tr><th scope="col">Phenomenon time</th><th scope="col">Result @series.UnitSymbol</th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var point in series.Points)

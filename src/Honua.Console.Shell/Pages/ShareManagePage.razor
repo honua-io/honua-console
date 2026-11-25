@@ -125,9 +125,9 @@
                         <table class="console-table">
                             <thead>
                                 <tr>
-                                    <th>Dependency</th>
-                                    <th>Type</th>
-                                    <th>Reason</th>
+                                    <th scope="col">Dependency</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Reason</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -265,11 +265,11 @@
                                 <table class="console-table">
                                     <thead>
                                         <tr>
-                                            <th>Token id</th>
-                                            <th>Created</th>
-                                            <th>Expires</th>
-                                            <th>Status</th>
-                                            <th><span class="console-visually-hidden">Actions</span></th>
+                                            <th scope="col">Token id</th>
+                                            <th scope="col">Created</th>
+                                            <th scope="col">Expires</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col"><span class="console-visually-hidden">Actions</span></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -286,7 +286,7 @@
                                                         <button class="console-button console-button-ghost"
                                                                 type="button"
                                                                 disabled="@_busy"
-                                                                @onclick="() => RevokePublicLink(share.ItemId, token.TokenId)">
+                                                                @onclick="() => RequestRevokePublicLink(share.ItemId, token.TokenId)">
                                                             Revoke
                                                         </button>
                                                     }
@@ -297,6 +297,7 @@
                                 </table>
                             </ConsoleTableRegion>
                         }
+                        <ConsoleConfirmDialog @ref="_revokeConfirm" />
                     </article>
                 }
 
@@ -708,6 +709,7 @@
     private bool _loading;
     private bool _busy;
     private bool _attempted;
+    private ConsoleConfirmDialog? _revokeConfirm;
     private string? _lastQueryItemId;
     private string? _selectedItemId;
     private long _selectionRevision;
@@ -917,6 +919,27 @@
         {
             _dirty.MarkClean();
         }
+    }
+
+    private Task RequestRevokePublicLink(string itemId, string tokenId)
+    {
+        if (_busy)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_revokeConfirm is not null)
+        {
+            _revokeConfirm.Open(
+                "Revoke public link token?",
+                () => RevokePublicLink(itemId, tokenId),
+                body: $"External visitors and embeds using token {tokenId} will immediately lose access.",
+                confirmLabel: "Revoke token",
+                cancelLabel: "Keep active");
+            return Task.CompletedTask;
+        }
+
+        return RevokePublicLink(itemId, tokenId);
     }
 
     private Task RevokePublicLink(string itemId, string tokenId) =>

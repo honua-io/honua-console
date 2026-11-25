@@ -136,7 +136,7 @@
                 <ConsoleTableRegion Class="console-table-wrap" Label="Layer fields">
                     <table class="console-table">
                         <thead>
-                            <tr><th>Field</th><th>Type</th><th>Alias</th><th>Hidden</th><th>Domain</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
+                            <tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Alias</th><th scope="col">Hidden</th><th scope="col">Domain</th><th scope="col">@(V4Enabled ? "Actions" : "Action")</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var layerField in _fields.Fields)

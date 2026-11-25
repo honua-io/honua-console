@@ -52,10 +52,9 @@
             </div>
             @if (Items.Count == 0)
             {
-                <ConsoleStateView HeadingLevel="3" Kind="empty" Kicker="Empty share"
+                <ConsoleStateView HeadingLevel="3" Kind="empty" Kicker="Open data"
                                   Title="No public open-data items"
-                                  Message="Publish a service, layer, or document as public open data to expose it here."
-                                  ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+                                  Message="Publish a service, layer, or document as public open data to expose it here." />
             }
             else if (results.Length == 0)
             {

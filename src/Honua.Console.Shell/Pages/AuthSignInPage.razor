@@ -42,7 +42,7 @@
                     <p class="console-kicker">@_profile.EnvironmentKind</p>
                     <h2>@_profile.DisplayName</h2>
                 </div>
-                <span class="console-status">@_profile.Account.AuthMode</span>
+                <span class="console-status">@AuthModeLabel(_profile.Account.AuthMode)</span>
             </div>
 
             <dl class="console-definition-list">
@@ -91,7 +91,14 @@
                 {
                     <div class="console-detail-actions">
                         <button class="console-button" type="submit" disabled="@_signingIn">@(_signingIn ? "Signing in…" : "Continue")</button>
-                        <a class="console-button-link" href="@Navigation.ToConsoleHref(_returnTo)">Cancel</a>
+                        @if (IsAnonymousDestination(_returnTo))
+                        {
+                            <a class="console-button-link" href="@Navigation.ToConsoleHref(_returnTo)">Cancel</a>
+                        }
+                        else
+                        {
+                            <a class="console-button-link" href="@Navigation.ToConsoleHref("/environments/new")">Switch environment</a>
+                        }
                     </div>
                 }
             </form>
@@ -235,10 +242,24 @@
         }
     }
 
+    private static string AuthModeLabel(ConsoleAccountAuthMode mode) => mode switch
+    {
+        ConsoleAccountAuthMode.AccountRbac => "Account sign-in",
+        ConsoleAccountAuthMode.Anonymous => "Anonymous",
+        _ => mode.ToString()
+    };
+
     private static string AccountLabel(ConsoleEnvironmentProfile profile) =>
         string.IsNullOrWhiteSpace(profile.Account.DisplayName)
             ? profile.Account.AccountId
             : profile.Account.DisplayName;
+
+    private static bool IsAnonymousDestination(string route) =>
+        route.Equals("/public", StringComparison.OrdinalIgnoreCase)
+        || route.StartsWith("/public/", StringComparison.OrdinalIgnoreCase)
+        || route.Equals("/share/public", StringComparison.OrdinalIgnoreCase)
+        || route.StartsWith("/share/public/", StringComparison.OrdinalIgnoreCase)
+        || route.Equals("/environments/new", StringComparison.OrdinalIgnoreCase);
 
     private string SanitizeReturnTo(string? value)
     {

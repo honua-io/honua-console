@@ -66,12 +66,13 @@
 
 <div class="console-field-state console-field-state--@StateSlug @(HasErrors ? "console-field-state--invalid" : null)"
      data-field-state="@StateSlug"
-     aria-invalid="@(HasErrors ? "true" : null)">
+     data-field-invalid="@(HasErrors ? "true" : null)">
     <span class="console-field-state__icon" aria-hidden="true">@Icon</span>
     @* When a control is slotted, a <label> wraps both the label text and the control so the visible
        label is the control's accessible name and clicking it focuses the field (the implicit-label
        association the plain studio-form-label <label> previously provided). `display: contents` keeps
-       the label-text / value cells placed directly in the row's grid. Read-only states (no control)
+       the label-text / value cells placed directly in the row's grid. Interactive discovered actions
+       stay outside the <label> so buttons are never nested inside a label. Read-only states (no control)
        render a plain block so we never emit a label that points at nothing. *@
     @if (ChildContent is not null)
     {
@@ -85,9 +86,14 @@
             </span>
             <span class="console-field-state__value">
                 @ChildContent
-                @RenderDiscoveredActions
             </span>
         </label>
+        @if (State == FieldState.Discovered && (OnOverride.HasDelegate || OnRevert.HasDelegate))
+        {
+            <span class="console-field-state__actions">
+                @RenderDiscoveredActions
+            </span>
+        }
     }
     else
     {

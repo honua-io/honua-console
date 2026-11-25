@@ -32,8 +32,10 @@ public static class ConsoleNavigation
     [
         new("Data", [Data, new("/operate/services", "Services"), new("/operate/layers", "Layers"),
             new("/operate/connections", "Connections"), new("/operate/exports", "Exports"), AddData,
-            new("/catalog", "Catalog") { RequiredArea = "catalog" }, new("/share/public", "Share") { RequiredArea = "share" }]),
-        new("Protocols", [new("/operate/catalogs", "Discovery catalogs") { FullModeOnly = true }]),
+            new("/operate/catalogs", "Discovery endpoints") { FullModeOnly = true },
+            new("/catalog", "Catalog") { RequiredArea = "catalog" },
+            new("/share/public", "Share") { RequiredArea = "share" },
+            new("/share/manage", "Open Data access") { FullModeOnly = true, RequiredArea = "share" }]),
         new("Studio", [Studio, new("/catalog", "Map from catalog") { FullModeOnly = true, RequiredArea = "catalog" }, new("/studio/processes", "Processes"),
             new("/studio/form", "Forms") { FullModeOnly = true }, new("/studio/report", "Reports") { FullModeOnly = true }]),
         new("Operate", [new("/operate", "Dashboard"), new("/inbox", "Approvals"), Health,
@@ -42,7 +44,8 @@ public static class ConsoleNavigation
             new("/operate/deploy", "Deploy"), new("/operate/releases", "Releases")]),
         new("Access", [new("/operate/access/members", "Users") { FullModeOnly = true },
             new("/operate/access", "Roles") { FullModeOnly = true }]),
-        new("Settings", [new("/operate/settings", "Server settings") { FullModeOnly = true }])
+        new("Settings", [new("/operate/settings", "Server settings") { FullModeOnly = true },
+            new("/operate/settings/api-keys", "API keys") { FullModeOnly = true }])
     ];
 
     private static IReadOnlyList<ConsoleNavigationGroup> CatalogAdminGroups { get; } = CreateCatalogAdministrationGroups();
@@ -70,14 +73,15 @@ public static class ConsoleNavigation
     private static IReadOnlyList<ConsoleNavigationGroup> CreateCatalogAdministrationGroups()
     {
         var discovery = Groups.SelectMany(group => group.Destinations).Single(entry => entry.Path == "/operate/catalogs");
+        var openDataAccess = Groups.SelectMany(group => group.Destinations).Single(entry => entry.Path == "/share/manage");
         var groups = new List<ConsoleNavigationGroup>();
         foreach (var group in Groups)
         {
             if (group.Name == "Operate")
                 groups.Add(new("Catalogs", [new("/catalogs", "Catalogs"), new("/metadata/fields", "Metadata fields"),
                     discovery with { Label = "Discovery endpoints" },
-                    new("/share/manage", "Open Data access") { FullModeOnly = true, RequiredArea = "share" }]));
-            var destinations = group.Destinations.Where(entry => entry.Path != discovery.Path)
+                    openDataAccess]));
+            var destinations = group.Destinations.Where(entry => entry.Path != discovery.Path && entry.Path != openDataAccess.Path)
                 .Select(entry => entry.Path == "/catalog"
                     ? entry with { Label = group.Name == "Studio" ? "Map from Content" : "Content" }
                     : entry).ToArray();

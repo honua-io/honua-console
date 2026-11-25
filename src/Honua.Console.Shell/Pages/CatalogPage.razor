@@ -33,7 +33,7 @@
         RenderFragment CatalogContent = @<text>
     @if (_accessResolved && !_requiresAuthentication)
     {
-        <form class="@(V4Enabled ? "console-filter-bar console-filter-bar-quiet" : "console-filter-bar")" method="get" action="/catalog">
+        <form class="@(V4Enabled ? "console-filter-bar console-filter-bar-quiet" : "console-filter-bar")" method="get" action="@Navigation.ToConsoleHref("/catalog")">
             <label>
                 <span>Search</span>
                 <input name="q" value="@_search.Query" placeholder="Search title, summary, or tag" />

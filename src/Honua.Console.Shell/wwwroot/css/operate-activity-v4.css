@@ -88,7 +88,8 @@
 
 .console-activity-v4 .operate-table-panel {
     min-width: 0;
-    overflow: hidden;
+    overflow: clip;
+    overflow-clip-margin: 4px;
     padding: 0;
 }
 

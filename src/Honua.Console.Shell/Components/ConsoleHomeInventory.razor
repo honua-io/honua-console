@@ -22,7 +22,15 @@
                 <div><dt>@(_services.PartialResult ? "Layers in returned sources" : "Layers")</dt><dd data-home-layer-count>@LayerCount</dd></div>
             </dl>
         </div>
-        @if (NoFolders)
+        @if (NoServices)
+        {
+            <div class="console-action-row" data-home-empty-onboarding>
+                <a class="console-button-link" href="@ConsoleNavigation.ToConsoleHref("/operate/data/new")">Add data</a>
+                <a class="console-button-link console-button-secondary" href="@ConsoleNavigation.ToConsoleHref("/operate/connections/new")">Add connection</a>
+                <a class="console-button-link console-button-secondary" href="@ConsoleNavigation.ToConsoleHref("/operate/settings/api-keys")">API keys</a>
+            </div>
+        }
+        else if (NoFolders)
         {
             <p role="note" class="console-home-no-folders" data-home-no-folders>This server has no Folders yet. Services are listed at the root; the tree, breadcrumbs and search work the same way.</p>
         }
@@ -57,8 +65,9 @@
 
     private string FolderCount => _folders.IsAllowed && _folders.Value is { } catalog
         ? catalog.ActiveFolders.Count().ToString("N0") : "Not available";
+    private bool NoServices => _services is { IsAllowed: true, PartialResult: false, Value.Total: 0 };
     // Only a complete, successful Folder read can say there are none.
-    private bool NoFolders => _folders is { IsAllowed: true, PartialResult: false, Value: { } catalog } && !catalog.ActiveFolders.Any();
+    private bool NoFolders => !NoServices && _folders is { IsAllowed: true, PartialResult: false, Value: { } catalog } && !catalog.ActiveFolders.Any();
     private string LayerCount => _services.IsAllowed && _services.Value is { } page
         ? page.LayerTotal.ToString("N0") : "Not available";
 

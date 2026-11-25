@@ -25,7 +25,11 @@
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_states" OnRetry="LoadAsync" />
 
-    @if (_connections.Count == 0 && _states.Count == 0)
+    @if (_loading)
+    {
+        <OperateSectionStatusPanel Heading="Data connections" Loading="true" />
+    }
+    else if (_connections.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="connections" ActionHref="@Navigation.ToConsoleHref("/operate/connections/new")" ActionText="Add Connection" />
     }
@@ -63,12 +67,12 @@
             <table class="console-table">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Provider</th>
-                        <th>Target</th>
-                        <th>Status</th>
-                        <th>Last tested</th>
-                        <th>Diagnostics</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Provider</th>
+                        <th scope="col">Target</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Last tested</th>
+                        <th scope="col">Diagnostics</th>
                     </tr>
                 </thead>
                 <tbody>

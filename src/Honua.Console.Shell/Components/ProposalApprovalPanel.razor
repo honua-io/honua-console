@@ -24,17 +24,14 @@
         <div class="console-panel-heading">
             <div>
                 <p class="console-kicker">@ConsoleProposalPresentation.CardKicker(detail.Kind)</p>
-                <h3 id="proposal-approval-heading">
-                    <span class="console-mono">@detail.ProposalId</span>
-                </h3>
+                <h3 id="proposal-approval-heading">@detail.Summary</h3>
+                <p class="console-muted console-mono proposal-approval-id">@detail.ProposalId</p>
             </div>
             <span class="console-status @ConsoleProposalPresentation.StatusClass(detail.Status)"
                   data-proposal-status="@detail.Status">
                 @ConsoleProposalPresentation.StatusLabel(detail.Status)
             </span>
         </div>
-
-        <p class="proposal-approval-summary">@detail.Summary</p>
 
         @if (supportInitiated)
         {
@@ -85,37 +82,6 @@
                     @ConsoleProposalPresentation.RiskLabel(detail.RiskLevel)
                 </span>
             </dd>
-            @if (!string.IsNullOrWhiteSpace(detail.PlanHash))
-            {
-                <dt>Plan hash</dt>
-                <dd class="console-mono" data-proposal-plan-hash>
-                    @detail.PlanHash
-                    @if (detail.Version > 0)
-                    {
-                        <span class="console-muted"> (v@(detail.Version))</span>
-                    }
-                </dd>
-            }
-            @if (!string.IsNullOrWhiteSpace(detail.OperationId))
-            {
-                <dt>Operation ID</dt>
-                <dd class="console-mono" data-proposal-operation-id>@detail.OperationId</dd>
-            }
-            @if (!string.IsNullOrWhiteSpace(detail.ActionDiscriminator))
-            {
-                <dt>Action discriminator</dt>
-                <dd class="console-mono" data-proposal-action-discriminator>@detail.ActionDiscriminator</dd>
-            }
-            @if (!string.IsNullOrWhiteSpace(detail.Initiation))
-            {
-                <dt>Initiation</dt>
-                <dd data-proposal-initiation>@detail.Initiation</dd>
-            }
-            @if (!string.IsNullOrWhiteSpace(detail.AutonomyRule))
-            {
-                <dt>Autonomy rule</dt>
-                <dd class="console-mono" data-proposal-autonomy-rule>@detail.AutonomyRule</dd>
-            }
             @if (!string.IsNullOrWhiteSpace(detail.RequestedBy))
             {
                 <dt>Requested by</dt>
@@ -125,11 +91,6 @@
             {
                 <dt>Agent</dt>
                 <dd class="console-mono">@detail.RequestedByAgent</dd>
-            }
-            @if (!string.IsNullOrWhiteSpace(detail.GuardrailTier))
-            {
-                <dt>Guardrail tier</dt>
-                <dd>@detail.GuardrailTier</dd>
             }
             @if (!string.IsNullOrWhiteSpace(detail.ResolvedBy))
             {
@@ -147,6 +108,67 @@
                 <dd><CorrelationIdChip Value="@detail.ExecutionOperationId" Kind="CorrelationIdKind.OperationId" /></dd>
             }
         </dl>
+
+        @if (!string.IsNullOrWhiteSpace(detail.PlanHash)
+            || !string.IsNullOrWhiteSpace(detail.OperationId)
+            || !string.IsNullOrWhiteSpace(detail.ActionDiscriminator)
+            || !string.IsNullOrWhiteSpace(detail.Initiation)
+            || !string.IsNullOrWhiteSpace(detail.AutonomyRule)
+            || !string.IsNullOrWhiteSpace(detail.GuardrailTier)
+            || !string.IsNullOrWhiteSpace(detail.ExecutionPayload))
+        {
+            <details class="console-connection-details proposal-approval-technical" data-proposal-technical-details>
+                <summary>Technical details</summary>
+                <dl class="console-definition-list proposal-approval-facts">
+                    @if (!string.IsNullOrWhiteSpace(detail.PlanHash))
+                    {
+                        <dt>Plan hash</dt>
+                        <dd class="console-mono" data-proposal-plan-hash>
+                            @detail.PlanHash
+                            @if (detail.Version > 0)
+                            {
+                                <span class="console-muted"> (v@(detail.Version))</span>
+                            }
+                        </dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.OperationId))
+                    {
+                        <dt>Operation ID</dt>
+                        <dd class="console-mono" data-proposal-operation-id>@detail.OperationId</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.ActionDiscriminator))
+                    {
+                        <dt>Action discriminator</dt>
+                        <dd class="console-mono" data-proposal-action-discriminator>@detail.ActionDiscriminator</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.Initiation))
+                    {
+                        <dt>Initiation</dt>
+                        <dd data-proposal-initiation>@detail.Initiation</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.AutonomyRule))
+                    {
+                        <dt>Autonomy rule</dt>
+                        <dd class="console-mono" data-proposal-autonomy-rule>@detail.AutonomyRule</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.GuardrailTier))
+                    {
+                        <dt>Guardrail tier</dt>
+                        <dd>@detail.GuardrailTier</dd>
+                    }
+                </dl>
+                @if (!string.IsNullOrWhiteSpace(detail.ExecutionPayload))
+                {
+                    <div class="proposal-approval-payload" data-proposal-execution-payload>
+                        <h4>Execution payload</h4>
+                        <p class="console-muted">
+                            Exact server-sealed parameters bound to this proposal; verify before authorizing.
+                        </p>
+                        <pre class="console-code-block"><code class="console-mono">@detail.ExecutionPayload</code></pre>
+                    </div>
+                }
+            </details>
+        }
 
         @if (detail.BlockingReasons.Count > 0)
         {
@@ -194,17 +216,6 @@
                         <li>@line</li>
                     }
                 </ul>
-            </div>
-        }
-
-        @if (!string.IsNullOrWhiteSpace(detail.ExecutionPayload))
-        {
-            <div class="proposal-approval-payload" data-proposal-execution-payload>
-                <h4>Execution payload</h4>
-                <p class="console-muted">
-                    Exact server-sealed parameters bound to this proposal; verify before authorizing.
-                </p>
-                <pre class="console-code-block"><code class="console-mono">@detail.ExecutionPayload</code></pre>
             </div>
         }
 
@@ -355,6 +366,7 @@
         <p class="proposal-approval-governed console-state-danger">
             Governed operation &middot; routed through the server's approval gate; recorded in the audit log.
         </p>
+        <ConsoleConfirmDialog @ref="_policyConfirm" />
     </section>
 }
 
@@ -389,6 +401,7 @@
     private bool _killSwitchEnabled;
     private bool _promoteRuleOnApprove;
     private bool _policyBusy;
+    private ConsoleConfirmDialog? _policyConfirm;
     private string? _policyMessage;
     private string _policyMessageClass = string.Empty;
     private PolicyAuditTrailReceipt? _policyAuditReceipt;
@@ -643,6 +656,17 @@
         var reason = string.IsNullOrWhiteSpace(_reason)
             ? $"Updated rule {rule} to {nextMode} from approval inbox proposal {ProposalId}"
             : _reason.Trim();
+        if (nextMode == "AutoApply" && _policyConfirm is not null)
+        {
+            _policyConfirm.Open(
+                $"Promote {rule} to AutoApply?",
+                () => ApplyPolicyModeAsync(_autonomyClient, rule, nextMode, reason),
+                body: $"Future matching proposals for {rule} will execute automatically without human approval, subject to bounded defaults.",
+                confirmLabel: "Enable AutoApply",
+                cancelLabel: "Keep propose-only");
+            return Task.CompletedTask;
+        }
+
         return ApplyPolicyModeAsync(_autonomyClient, rule, nextMode, reason);
     }
 

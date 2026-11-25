@@ -35,7 +35,8 @@ for (const route of routes) {
     await expect(page).toHaveURL(`${origin}/console/auth/signin?returnTo=${encodeURIComponent(route)}`);
     await expect(page.getByRole('heading', { level: 1, name: 'Sign in', exact: true })).toBeVisible();
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Cancel', exact: true })).toHaveAttribute('href', `/console${route}`);
+    await expect(page.getByRole('link', { name: 'Switch environment', exact: true })).toHaveAttribute('href', '/console/environments/new');
+    await expect(page.locator('dl')).toContainText(route);
     await expect(page.getByText(/Temporarily unavailable|not bound|cannot reach the Honua API/i)).toHaveCount(0);
     await expect(page.locator('#blazor-error-ui')).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

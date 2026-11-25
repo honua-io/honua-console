@@ -37,7 +37,10 @@
             }
         </ol>
 
-        <button type="button" class="console-button console-button-secondary" data-workspace-open>Ask in the conversation</button>
+        @if (ConversationEnabled)
+        {
+            <button type="button" class="console-button console-button-secondary" data-workspace-open>Ask in the conversation</button>
+        }
     </div>
 
     @if (_missingBinding is { } binding)
@@ -95,7 +98,7 @@
                     <a href="@Nav.ToConsoleHref("/operate/publishing/quick")">publish a table</a> into it.
                 </p>
                 <div class="console-action-row">
-                    <button type="button" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => GoToStep(FlowStep.AddData)">Back</button>
                     <button type="button" class="console-button" disabled="@(_flow.EnabledProtocols.Count == 0)" @onclick="() => GoToStep(FlowStep.Style)">Continue to style →</button>
                 </div>
             </text>)
@@ -125,7 +128,7 @@
                     <p><a class="console-link" href="@Nav.ToConsoleLinkHref(StyleEditorHref)">Edit this shared catalog style →</a></p>
                 }
                 <div class="console-action-row">
-                    <button type="button" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
+                    <button type="button" class="console-button console-button-secondary" @onclick="() => GoToStep(FlowStep.Publish)">Back</button>
                     <button type="button" class="console-button" @onclick="() => GoToStep(FlowStep.GoLive)">Continue to go live →</button>
                 </div>
             </text>)
@@ -139,8 +142,11 @@
 
 @code {
     [Parameter] public string? InitialSource { get; set; }
+    [Parameter] public string? InitialResource { get; set; }
+    [Parameter] public string? InitialStep { get; set; }
 
     private bool V4Enabled => ServiceProvider.GetService<ConsoleV4Options>()?.Enabled == true;
+    private bool ConversationEnabled => ServiceProvider.GetService<ConsoleConversationOptions>()?.Enabled ?? true;
 
     private sealed record StepFrame(string? LegacyKicker, string? LegacyTitle, string V4Title);
 
@@ -190,6 +196,16 @@
 
         _intakeLoaded = connectionsView.CapabilityStates.Count == 0 && _layers.CapabilityStates.Count == 0;
         if (!_intakeLoaded) _missingBinding = "The data sources could not be read. Review your connection or sign in again before choosing data.";
+
+        if (!string.IsNullOrWhiteSpace(InitialResource))
+        {
+            _flow.Source.Mode = AddDataMode.ExistingResource;
+            _flow.Source.Reference = InitialResource.Trim();
+            if (string.Equals(InitialStep, "publish", StringComparison.OrdinalIgnoreCase))
+            {
+                ContinueToPublish();
+            }
+        }
 
         var styleCatalog = await StyleData.GetStyleCatalogAsync();
         _styles = styleCatalog.Styles;
