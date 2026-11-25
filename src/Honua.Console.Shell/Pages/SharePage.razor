@@ -53,7 +53,7 @@ else
     }
     else if (_items.Count == 0)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Empty share" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Open data" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="@(OperatorView ? "/operate/publishing" : null)" ActionLabel="@(OperatorView ? "Open Publishing" : null)" />
     }
     else
     {

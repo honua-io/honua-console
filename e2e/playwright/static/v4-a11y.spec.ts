@@ -98,19 +98,25 @@ const primaryRoutes = [
   { name: 'Discovery endpoints', path: '/operate/catalogs' },
 ];
 
-test('shipping WASM primary v4 routes have zero critical or serious axe violations', async ({ page }) => {
+test('shipping WASM primary v4 routes have zero critical or serious axe violations in light and dark themes', async ({ page }) => {
   await mockPopulatedConsoleApis(page);
   await signInWithFixturePassword(page, origin, '/');
   await page.waitForURL(url => url.pathname === '/console/');
 
-  for (const route of primaryRoutes) {
-    await page.goto(`${origin}/console${route.path}`);
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-      .analyze();
-    const severe = results.violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
-    expect(severe, `axe violations on ${route.name} (${route.path})`).toEqual([]);
+  for (const theme of ['light', 'dark'] as const) {
+    if (theme === 'dark') {
+      await page.locator('[data-console-theme-toggle]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    }
+    for (const route of primaryRoutes) {
+      await page.goto(`${origin}/console${route.path}`);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze();
+      const severe = results.violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
+      expect(severe, `axe violations on ${route.name} (${route.path}) [${theme}]`).toEqual([]);
+    }
   }
 });
 

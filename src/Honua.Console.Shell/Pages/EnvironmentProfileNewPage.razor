@@ -86,9 +86,12 @@
 </section>
 
 @code {
+    [SupplyParameterFromQuery(Name = "returnTo")]
+    public string? ReturnTo { get; set; }
+
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private string _displayName = string.Empty;
-    private string _serverBaseUri = "https://";
+    private string _serverBaseUri = string.Empty;
     private string _environmentKind = "production";
     private string _accountId = string.Empty;
     private string _authMode = nameof(ConsoleAccountAuthMode.AccountRbac);
@@ -148,7 +151,10 @@
         _dirty.MarkClean();
 
         await Profiles.ActivateProfileAsync(profileId);
-        Nav.NavigateTo(Nav.ToConsoleHref("/auth/signin"));
+        var signInPath = string.IsNullOrWhiteSpace(ReturnTo)
+            ? "/auth/signin"
+            : $"/auth/signin?returnTo={Uri.EscapeDataString(ReturnTo)}";
+        Nav.NavigateTo(Nav.ToConsoleHref(signInPath));
     }
 
     private async Task<string> ResolveUniqueIdAsync(string candidate)

@@ -48,8 +48,16 @@
     else
     {
         <div class="console-page-heading">
-            <h1>Start with your data. Keep the conversation.</h1>
-            <p>Connect Honua, add a dataset, and build a map. Work through the forms or ask in the shared conversation.</p>
+            @if (ConversationEnabled)
+            {
+                <h1>Start with your data. Keep the conversation.</h1>
+                <p>Connect Honua, add a dataset, and build a map. Work through the forms or ask in the shared conversation.</p>
+            }
+            else
+            {
+                <h1>Connect your spatial server and publish.</h1>
+                <p>Connect a Honua server, register data sources, and expose OGC and GeoServices endpoints.</p>
+            }
         </div>
         <ConsoleHomeSetup />
         @if (!_environment.IsAllowed)
@@ -83,6 +91,7 @@
     private bool _disposed;
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private bool ConversationEnabled => Services.GetService<ConsoleConversationOptions>()?.Enabled ?? true;
 
     private static RenderFragment EnvironmentDescription(ConsoleEnvironmentProfile profile) => @<text>
         <p data-home-environment><strong>@profile.DisplayName</strong> · @profile.ServerBaseUri.GetLeftPart(UriPartial.Authority)</p>

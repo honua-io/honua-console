@@ -65,7 +65,7 @@ else
         </section>
     }
     <div class="console-action-row">
-        <button type="button" disabled="@_busy" @onclick="OnBack">Back</button>
+        <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="OnBack">Back</button>
         <button type="button" class="console-button" data-go-live-apply disabled="@(_busy || Flow.EnabledProtocols.Count == 0)" @onclick="ApplyAsync">
             @(_busy ? "Publishing…" : "Apply & publish")
         </button>

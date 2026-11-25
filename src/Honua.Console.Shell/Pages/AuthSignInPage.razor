@@ -42,7 +42,7 @@
                     <p class="console-kicker">@_profile.EnvironmentKind</p>
                     <h2>@_profile.DisplayName</h2>
                 </div>
-                <span class="console-status">@_profile.Account.AuthMode</span>
+                <span class="console-status">@AuthModeLabel(_profile.Account.AuthMode)</span>
             </div>
 
             <dl class="console-definition-list">
@@ -241,6 +241,13 @@
             _signingIn = false;
         }
     }
+
+    private static string AuthModeLabel(ConsoleAccountAuthMode mode) => mode switch
+    {
+        ConsoleAccountAuthMode.AccountRbac => "Account sign-in",
+        ConsoleAccountAuthMode.Anonymous => "Anonymous",
+        _ => mode.ToString()
+    };
 
     private static string AccountLabel(ConsoleEnvironmentProfile profile) =>
         string.IsNullOrWhiteSpace(profile.Account.DisplayName)

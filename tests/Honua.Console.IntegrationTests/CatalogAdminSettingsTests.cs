@@ -109,7 +109,7 @@ public sealed class CatalogAdminSettingsTests
         var page = context.Render<CatalogSettingsPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
         Assert.Equal(0, ((SettingsSource)context.Services.GetRequiredService<ICatalogAdminSource>()).Reads);
         Assert.Empty(page.FindAll(".catalog-settings"));
-        Assert.Contains("not enabled", page.Markup);
+        Assert.Contains("Page Not Found", page.Markup);
     }
 
     private static CatalogAdminSettings Settings() => new("open", "Open", "public")

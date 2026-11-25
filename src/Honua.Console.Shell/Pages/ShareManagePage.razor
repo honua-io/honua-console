@@ -286,7 +286,7 @@
                                                         <button class="console-button console-button-ghost"
                                                                 type="button"
                                                                 disabled="@_busy"
-                                                                @onclick="() => RevokePublicLink(share.ItemId, token.TokenId)">
+                                                                @onclick="() => RequestRevokePublicLink(share.ItemId, token.TokenId)">
                                                             Revoke
                                                         </button>
                                                     }
@@ -297,6 +297,7 @@
                                 </table>
                             </ConsoleTableRegion>
                         }
+                        <ConsoleConfirmDialog @ref="_revokeConfirm" />
                     </article>
                 }
 
@@ -708,6 +709,7 @@
     private bool _loading;
     private bool _busy;
     private bool _attempted;
+    private ConsoleConfirmDialog? _revokeConfirm;
     private string? _lastQueryItemId;
     private string? _selectedItemId;
     private long _selectionRevision;
@@ -917,6 +919,27 @@
         {
             _dirty.MarkClean();
         }
+    }
+
+    private Task RequestRevokePublicLink(string itemId, string tokenId)
+    {
+        if (_busy)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_revokeConfirm is not null)
+        {
+            _revokeConfirm.Open(
+                "Revoke public link token?",
+                () => RevokePublicLink(itemId, tokenId),
+                body: $"External visitors and embeds using token {tokenId} will immediately lose access.",
+                confirmLabel: "Revoke token",
+                cancelLabel: "Keep active");
+            return Task.CompletedTask;
+        }
+
+        return RevokePublicLink(itemId, tokenId);
     }
 
     private Task RevokePublicLink(string itemId, string tokenId) =>

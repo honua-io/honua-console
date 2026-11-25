@@ -77,7 +77,7 @@ public sealed class CatalogAdminAuthoringTests
         context.Services.AddSingleton(new CatalogAdminOptions());
         var page = context.Render<CatalogTemplatesPage>(parameters => parameters.Add(p => p.CatalogId, "open"));
         Assert.Empty(source.Requests);
-        Assert.Contains("not enabled", page.Markup);
+        Assert.Contains("Page Not Found", page.Markup);
         Assert.Empty(page.FindAll(".catalog-templates, textarea"));
     }
 

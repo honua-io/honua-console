@@ -437,7 +437,7 @@
                 {
                     <OperateSectionStatusPanel Heading="Trend charts" Status="OperateSectionStatus.Unsupported"
                         Message="Trend charts aren't available on this server version yet; the at-a-glance snapshot above stays live."
-                        Detail="The connected server does not expose the ops-health history route (GET /api/v1/admin/observability/ops-health/history, honua-server PR #2576)." />
+                        Detail="The connected server does not expose the ops-health history route (GET /api/v1/admin/observability/ops-health/history)." />
                 }
                 else
                 {
@@ -464,7 +464,7 @@
                                 {
                                     <a class="console-chip correlation-id-chip" data-trend-breach-chip
                                        href="@ConsoleNavigation.ToConsoleHref("/operate/copilot")" data-health-drilldown="serving-latency-trend"
-                                       title="Investigate this SLO breach in Copilot Findings">
+                                       title="Investigate this SLO breach in Findings">
                                         SLO breach
                                     </a>
                                 }

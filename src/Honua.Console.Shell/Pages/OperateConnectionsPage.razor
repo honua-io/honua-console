@@ -25,7 +25,11 @@
 
     <ConsoleConnectionNotice Heading="Could not read data connections" States="_states" OnRetry="LoadAsync" />
 
-    @if (_connections.Count == 0 && _states.Count == 0)
+    @if (_loading)
+    {
+        <OperateSectionStatusPanel Heading="Data connections" Loading="true" />
+    }
+    else if (_connections.Count == 0 && _states.Count == 0)
     {
         <EmptyState Area="operate" Subject="connections" ActionHref="@Navigation.ToConsoleHref("/operate/connections/new")" ActionText="Add Connection" />
     }
