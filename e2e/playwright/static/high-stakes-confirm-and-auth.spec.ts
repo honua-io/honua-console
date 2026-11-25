@@ -101,10 +101,7 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
   await signInWithFixturePassword(page, origin, '/operate/services/roads/settings?tab=access');
   await page.waitForURL(url => url.pathname === '/console/operate/services/roads/settings');
 
-  const accessTab = page.locator('#service-access-tab');
-  if (await accessTab.isVisible()) {
-    await accessTab.click();
-  }
+  await page.locator('#service-access-tab').click();
   const writeCheckbox = page.locator('[data-allow-anonymous-write]');
   await expect(writeCheckbox).toBeVisible();
   await writeCheckbox.check();

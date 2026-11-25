@@ -1474,7 +1474,7 @@ p {
     height: 34px;
     border: 1px solid var(--honua-border);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     color: var(--honua-text);
     font: inherit;
     font-weight: 900;
@@ -2241,7 +2241,7 @@ p {
 }
 
 .operate-table th {
-    background: #f0f5f3;
+    background: var(--honua-surface-strong);
     color: var(--honua-muted);
     font-size: 0.8rem;
     text-transform: uppercase;
@@ -2285,7 +2285,7 @@ p {
     min-height: 38px;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     color: var(--honua-text);
     font: inherit;
     padding: 0 10px;
@@ -2465,7 +2465,7 @@ p {
     min-width: 0;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     color: var(--honua-text);
     font: inherit;
 }
@@ -2879,7 +2879,7 @@ p {
     padding: 10px 12px;
     border: 1.5px solid var(--honua-text);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     text-align: center;
     font-size: 0.85rem;
 }
@@ -2932,7 +2932,7 @@ p {
     padding: 10px 12px;
     border: 1.5px solid var(--honua-text);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     text-align: center;
     font-size: 0.85rem;
 }
@@ -4114,7 +4114,7 @@ p {
     padding: 10px;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
 }
 
 .workflow-edge-failure {
@@ -4995,7 +4995,7 @@ p {
     border: 1px solid var(--honua-border);
     border-left-width: 4px;
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
 }
 
 .workflow-run-row {
@@ -5887,7 +5887,7 @@ p {
     place-items: center;
     border: 1px solid var(--honua-text);
     border-radius: 4px;
-    background: #fff;
+    background: var(--honua-surface, #ffffff);
     font-weight: 700;
     cursor: pointer;
 }
@@ -5984,7 +5984,7 @@ p {
     width: 220px;
     border: 1.2px solid var(--honua-text);
     border-radius: 6px;
-    background: #fff;
+    background: var(--honua-surface, #ffffff);
     box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
     font-size: 0.7rem;
 }
