@@ -14,7 +14,7 @@ const overflowFixtures = {
     createdAt: '2026-11-24T00:15:00Z',
   },
   service: {
-    name: 'regional-transport-infrastructure-roads-v2',
+    serviceName: 'regional-transport-infrastructure-roads-v2',
     enabledProtocols: ['FeatureServer', 'OgcFeatures', 'Wms', 'OGC-API-Tiles'],
     layerCount: 8,
     allowAnonymous: true,

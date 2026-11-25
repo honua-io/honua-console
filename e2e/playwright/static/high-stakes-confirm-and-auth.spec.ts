@@ -59,12 +59,11 @@ test('high-stakes anonymous write requires confirmation and API key secret offer
         success: true,
         data: {
           items: [{
-            name: 'roads',
+            serviceName: 'roads',
             folderId: null,
             enabledProtocols: ['FeatureServer'],
             layerCount: 1,
             allowAnonymous: false,
-            layers: [{ layerId: 0, name: 'Roads', geometry: 'LineString', canonicalResourceId: 'res-1', canonicalResourceName: 'Roads' }],
           }],
           page: 1,
           pageSize: 100,

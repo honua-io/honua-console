@@ -11,7 +11,7 @@ export interface PopulatedConsoleApiOverrides {
 
 function defaultService(overrides?: Record<string, unknown>) {
   return {
-    name: 'transport-roads',
+    serviceName: 'transport-roads',
     folderId: null,
     enabledProtocols: ['FeatureServer', 'OgcFeatures'],
     layerCount: 2,
