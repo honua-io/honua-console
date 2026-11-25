@@ -28,7 +28,10 @@
             <ConsolePanel Title="Save your API key" HeadingId="api-key-secret-heading">
                 <p>This secret is shown once. Save it securely before dismissing it.</p>
                 <label for="api-key-secret">New API key</label>
-                <input id="api-key-secret" class="console-input" type="text" readonly value="@_secret" autocomplete="off" spellcheck="false" />
+                <div class="console-action-row">
+                    <input id="api-key-secret" class="console-input" type="text" readonly value="@_secret" autocomplete="off" spellcheck="false" />
+                    <ConsoleCopyButton Text="@_secret" Label="Copy key" />
+                </div>
                 <button type="button" class="console-button" @onclick="DismissSecret">I saved the key</button>
             </ConsolePanel>
         }

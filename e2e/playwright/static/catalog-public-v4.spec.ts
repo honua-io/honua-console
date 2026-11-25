@@ -69,7 +69,7 @@ for (const screen of screens) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.goto(origin + screen.path);
     await expect(page.getByRole('heading', {
-      name: screen.heading ?? 'Catalogs are not enabled',
+      name: screen.heading ?? 'Page not found',
       exact: true,
     })).toBeVisible();
     if (screen.id === '15-public-catalog') {

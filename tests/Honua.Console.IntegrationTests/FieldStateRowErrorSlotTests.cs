@@ -28,11 +28,12 @@ public sealed class FieldStateRowErrorSlotTests
         var row = cut.Find(".console-field-state");
         Assert.DoesNotContain("console-field-state--invalid", row.ClassName, StringComparison.Ordinal);
         Assert.Null(row.GetAttribute("aria-invalid"));
+        Assert.Null(row.GetAttribute("data-field-invalid"));
         Assert.Empty(cut.FindAll(".console-field-state__error"));
     }
 
     [Fact]
-    public void WithErrors_RendersInlineMessageAndAriaInvalid()
+    public void WithErrors_RendersInlineMessageAndInvalidStateWithoutInvalidDivAria()
     {
         using var ctx = new Bunit.BunitContext();
 
@@ -49,7 +50,8 @@ public sealed class FieldStateRowErrorSlotTests
 
         var row = cut.Find(".console-field-state");
         Assert.Contains("console-field-state--invalid", row.ClassName, StringComparison.Ordinal);
-        Assert.Equal("true", row.GetAttribute("aria-invalid"));
+        Assert.Null(row.GetAttribute("aria-invalid"));
+        Assert.Equal("true", row.GetAttribute("data-field-invalid"));
 
         var error = cut.Find(".console-field-state__error");
         Assert.Contains("minX must be <= maxX", error.TextContent, StringComparison.Ordinal);
@@ -110,7 +112,8 @@ public sealed class FieldStateRowErrorSlotTests
 
         var row = cut.Find(".console-field-state");
         Assert.Contains("console-field-state--invalid", row.ClassName, StringComparison.Ordinal);
-        Assert.Equal("true", row.GetAttribute("aria-invalid"));
+        Assert.Null(row.GetAttribute("aria-invalid"));
+        Assert.Equal("true", row.GetAttribute("data-field-invalid"));
         // No messages because no Errors were supplied.
         Assert.Empty(cut.FindAll(".console-field-state__error"));
     }

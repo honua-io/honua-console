@@ -49,17 +49,20 @@
            <text>Choose an environment</text>
        }</a>
     <ConsoleThemeToggle />
-    <button type="button" class="console-conversation-toggle" data-conversation-toggle aria-controls="console-conversation-drawer" aria-expanded="false" aria-label="@(V4Enabled ? "Conversation" : null)">
-        @if (V4Enabled)
-        {
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2V11.5a10 10 0 0 1 20 0Z" /></svg>
-        }
-        else
-        {
-            <text>Conversation</text>
-        }
-    </button>
-    <a class="console-help-link" href="@Navigation.ToConsoleHref("/support")" aria-label="@(V4Enabled ? "Help" : null)">
+    @if (ConversationEnabled)
+    {
+        <button type="button" class="console-conversation-toggle" data-conversation-toggle aria-controls="console-conversation-drawer" aria-expanded="false" aria-label="@(V4Enabled ? "Conversation" : null)" title="@(V4Enabled ? "Conversation" : null)">
+            @if (V4Enabled)
+            {
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2V11.5a10 10 0 0 1 20 0Z" /></svg>
+            }
+            else
+            {
+                <text>Conversation</text>
+            }
+        </button>
+    }
+    <a class="console-help-link" href="@Navigation.ToConsoleHref("/support")" aria-label="@(V4Enabled ? "Help" : null)" title="@(V4Enabled ? "Help" : null)">
         @if (V4Enabled)
         {
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v1" /></svg>
@@ -77,6 +80,7 @@
 
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private bool ConversationEnabled => Services.GetService<ConsoleConversationOptions>()?.Enabled ?? true;
     private string? _environmentName;
     private IConsoleEnvironmentProfileStore? _profiles;
 

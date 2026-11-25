@@ -181,7 +181,7 @@ public sealed class ConsoleNavigationRenderTests
     [InlineData(true, "/catalogs", "Catalogs")]
     [InlineData(true, "/operate/catalogs", "Discovery endpoints")]
     [InlineData(false, "/catalog", "Catalog")]
-    [InlineData(false, "/operate/catalogs", "Discovery catalogs")]
+    [InlineData(false, "/operate/catalogs", "Discovery endpoints")]
     public void ContextAndRecentLabelsUseTheActiveNavigation(bool enabled, string path, string label)
     {
         using var context = CreateContext();
@@ -231,16 +231,18 @@ public sealed class ConsoleNavigationRenderTests
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Studio:EmbedJsStudio"] = "true" }).Build());
         var navigation = context.Render<ConsoleLayout>();
-        Assert.Equal(["Data", "Protocols", "Studio", "Operate", "Access", "Settings"],
+        Assert.Equal(["Data", "Studio", "Operate", "Access", "Settings"],
             navigation.FindAll(".console-topnav [data-navigation-menu]").Select(element => element.GetAttribute("data-navigation-menu")));
         Assert.Equal("/studio/processes", navigation.Find("a[href='/studio/processes']").GetAttribute("href"));
         Assert.Equal(["/studio", "/studio/processes", "/studio/form", "/studio/report"],
             navigation.FindAll("[data-navigation-menu='Studio'] a").Select(element => element.GetAttribute("href")));
         Assert.Empty(navigation.FindAll("a[href='/studio'] small, a[href='/studio/processes'] small"));
-        Assert.Single(navigation.FindAll("[data-navigation-menu='Protocols'] a"));
+        Assert.Empty(navigation.FindAll("[data-navigation-menu='Protocols']"));
         Assert.True(navigation.Find("[data-tree-filter]").HasAttribute("disabled"));
         Assert.Empty(navigation.FindAll("[data-navigation-menu='Studio'] a[href='/maps/new']"));
-        Assert.Equal("/operate/catalogs", navigation.Find("[data-navigation-menu='Protocols'] a").GetAttribute("href"));
+        Assert.Equal("/operate/catalogs", navigation.Find("[data-navigation-menu='Data'] a[href='/operate/catalogs']").GetAttribute("href"));
+        Assert.Equal(["/operate/settings", "/operate/settings/api-keys"],
+            navigation.FindAll("[data-navigation-menu='Settings'] a").Select(element => element.GetAttribute("href")));
         Assert.Empty(navigation.FindAll("a[href='/operate/license'], a[href='/operate/server-info']"));
         CatalogAdminPreview.Capture("navigation", navigation.Find(".console-topbar").OuterHtml);
     }

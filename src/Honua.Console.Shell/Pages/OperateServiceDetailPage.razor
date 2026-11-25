@@ -143,10 +143,10 @@
             <table class="console-table">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Value</th>
-                        <th>Apply scope</th>
-                        <th>Restart</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Value</th>
+                        <th scope="col">Apply scope</th>
+                        <th scope="col">Restart</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -323,10 +323,11 @@
         </label>
         <div class="console-action-row">
             <button class="console-button" type="button" disabled="@(_savingProtocols || _savingAccess)"
-                    @onclick="SaveAccessAsync" data-save-access>
+                    @onclick="RequestSaveAccessAsync" data-save-access>
                 @(_savingAccess ? "Saving…" : "Save access policy")
             </button>
         </div>
+        <ConsoleConfirmDialog @ref="_accessConfirm" />
     </text>;
 
     private RenderFragment RenderingLimits => @<text>
@@ -352,10 +353,10 @@
             <table class="console-table">
                 <thead>
                     <tr>
-                        <th>Layer ID</th>
-                        <th>Name</th>
-                        <th>Geometry</th>
-                        <th>Canonical metadata owner</th>
+                        <th scope="col">Layer ID</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Geometry</th>
+                        <th scope="col">Canonical metadata owner</th>
                     </tr>
                 </thead>
                 <tbody>

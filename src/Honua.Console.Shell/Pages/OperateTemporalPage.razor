@@ -177,14 +177,14 @@
                     <table class="console-table" aria-label="Temporal source capabilities">
                         <thead>
                             <tr>
-                                <th>Source</th>
-                                <th>Layer</th>
-                                <th>History mode</th>
-                                <th>Sync</th>
-                                <th>Rollback</th>
-                                <th>Conflict review</th>
-                                <th>Retention</th>
-                                <th>@(V4Enabled ? "Actions" : null)</th>
+                                <th scope="col">Source</th>
+                                <th scope="col">Layer</th>
+                                <th scope="col">History mode</th>
+                                <th scope="col">Sync</th>
+                                <th scope="col">Rollback</th>
+                                <th scope="col">Conflict review</th>
+                                <th scope="col">Retention</th>
+                                <th scope="col">@(V4Enabled ? "Actions" : null)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -681,7 +681,7 @@
                     <ConsoleTableRegion Label="Sample feature changes">
                         <table class="console-table" aria-label="Sample feature changes">
                             <thead>
-                                <tr><th>Feature</th><th>Change</th><th>Geometry</th><th>Fields</th><th>Actor</th></tr>
+                                <tr><th scope="col">Feature</th><th scope="col">Change</th><th scope="col">Geometry</th><th scope="col">Fields</th><th scope="col">Actor</th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var change in _diff.SampleFeatureChanges)
@@ -906,7 +906,7 @@
                 <ConsoleTableRegion Label="Replicas">
                     <table class="console-table" aria-label="Replicas">
                         <thead>
-                            <tr><th>Replica</th><th>Owner</th><th>Device</th><th>Base checkpoint</th><th>Sync gen</th><th>Status</th><th>Needs review</th><th>@(V4Enabled ? "Actions" : null)</th></tr>
+                            <tr><th scope="col">Replica</th><th scope="col">Owner</th><th scope="col">Device</th><th scope="col">Base checkpoint</th><th scope="col">Sync gen</th><th scope="col">Status</th><th scope="col">Needs review</th><th scope="col">@(V4Enabled ? "Actions" : null)</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var replica in _replicas)
@@ -1022,7 +1022,7 @@
                         {
                             <ConsoleTableRegion Label="Field conflicts">
                                 <table class="console-table operate-temporal-threeway-table" aria-label="Field conflicts">
-                                    <thead><tr><th>Field</th><th>Base</th><th>Client</th><th>Server</th></tr></thead>
+                                    <thead><tr><th scope="col">Field</th><th scope="col">Base</th><th scope="col">Client</th><th scope="col">Server</th></tr></thead>
                                     <tbody>
                                         @foreach (var field in conflict.FieldConflicts)
                                         {

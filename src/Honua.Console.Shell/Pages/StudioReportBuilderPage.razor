@@ -229,7 +229,7 @@
                                     {
                                         <div class="console-table-wrap">
                                             <table class="console-table">
-                                                <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                                                <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
                                                 <tbody>
                                                     <tr><td>binding</td><td>@(string.IsNullOrWhiteSpace(panel.BindingAlias) ? "—" : panel.BindingAlias)</td></tr>
                                                 </tbody>
@@ -275,7 +275,7 @@
                         @if (selectedPanel is { } sel)
                         {
                             <div class="studio-report-inspector-head">
-                                <h3>Embedded · @sel.Kind</h3>
+                                <h2>Embedded · @sel.Kind</h2>
                                 <p class="console-muted">@PanelLabel(sel)</p>
                             </div>
                             <div class="studio-report-inspector-body">
@@ -461,14 +461,14 @@
                             <table class="console-table">
                                 <thead>
                                     <tr>
-                                        <th>Revision</th>
-                                        <th>Version id</th>
-                                        <th>Title</th>
-                                        <th>Dependencies</th>
-                                        <th>Active</th>
-                                        <th>Published by</th>
-                                        <th>Published</th>
-                                        <th>Pin</th>
+                                        <th scope="col">Revision</th>
+                                        <th scope="col">Version id</th>
+                                        <th scope="col">Title</th>
+                                        <th scope="col">Dependencies</th>
+                                        <th scope="col">Active</th>
+                                        <th scope="col">Published by</th>
+                                        <th scope="col">Published</th>
+                                        <th scope="col">Pin</th>
                                     </tr>
                                 </thead>
                                 <tbody>

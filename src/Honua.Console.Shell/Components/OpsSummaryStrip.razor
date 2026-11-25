@@ -47,7 +47,7 @@
         </strong>
     </a>
 
-    <span class="ops-summary-liveness @(RealtimeConnected ? "is-live" : null)" data-summary-liveness
+    <span class="ops-summary-liveness @(RealtimeConnected ? "is-live" : null)" role="status" aria-live="polite" data-summary-liveness
           data-fallback-engaged="@FallbackEngaged">
         @(RealtimeConnected ? "Approvals live" : "Approvals: manual refresh")
         @if (_healthGeneratedAt is { } generated)

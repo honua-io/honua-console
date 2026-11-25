@@ -11,14 +11,14 @@
     </div>
     @if (RealtimeConnected)
     {
-        <span class="approval-inbox-live is-live" data-home-live-state="live"
+        <span class="approval-inbox-live is-live" role="status" aria-live="polite" data-home-live-state="live"
               data-fallback-engaged="@FallbackEngaged">
             Live
         </span>
     }
     else
     {
-        <span class="approval-inbox-live approval-inbox-paused" data-home-live-state="paused"
+        <span class="approval-inbox-live approval-inbox-paused" role="status" aria-live="polite" data-home-live-state="paused"
               data-fallback-engaged="@FallbackEngaged">
             Updates paused — last refreshed
             <span data-home-inbox-paused-since>@ConsoleFreshness.LastRefreshedShort(_lastInboxSuccessUtc)</span>
@@ -103,6 +103,7 @@
     private readonly CancellationTokenSource _lifetime = new();
     private bool _disposed;
     private bool _inboxLoaded;
+    private bool _hasLoadedOnce;
     private bool _inboxBusy;
     private readonly ConsoleRefreshCoalescer _refreshGate = new();
     private OperateSectionResult<ApprovalInboxSnapshot> _inbox =
@@ -157,8 +158,11 @@
     {
         if (_disposed) return;
         _inboxBusy = true;
-        _inboxLoaded = false;
-        StateHasChanged();
+        if (!_hasLoadedOnce)
+        {
+            _inboxLoaded = false;
+            StateHasChanged();
+        }
         try
         {
             var inbox = await ConsoleReadBudget.RunAsync(
@@ -177,6 +181,7 @@
         {
             _inboxBusy = false;
             _inboxLoaded = true;
+            _hasLoadedOnce = true;
             if (!_disposed) StateHasChanged();
         }
     }
