@@ -9,6 +9,12 @@
 @inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
+@if (V4Enabled && !OperatorView && !_missingBinding && _failureMessage is null && _items is not null)
+{
+    <PublicCatalogView Items="_items" HasMoreItems="_hasMoreItems" />
+}
+else
+{
 <section class="console-page share-home">
     @if (V4Enabled)
     {
@@ -23,6 +29,11 @@
             <h1>Share</h1>
             <p>Everything this server publishes to the outside world — public links, embeds, open-data pages, and exports.</p>
         </div>
+    }
+
+    @if (_hasMoreItems)
+    {
+        <p>The server has more public items than this page can show.</p>
     }
 
     @if (_missingBinding)
@@ -42,7 +53,7 @@
     }
     else if (_items.Count == 0)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Empty share" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="/operate/publishing" ActionLabel="Open Publishing" />
+        <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Open data" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="@(OperatorView ? "/operate/publishing" : null)" ActionLabel="@(OperatorView ? "Open Publishing" : null)" />
     }
     else
     {
@@ -132,18 +143,21 @@
         </ConsoleTableRegion>
     }
 </section>
+}
 </CatalogAvailabilityGate>
 
 @code {
     internal const string MissingBindingMessage =
-        "Configure Honua:Server:BaseUrl or HONUA_SERVER_BASE_URL so Console can bind the server-owned "
-        + "catalog/content metadata projection from honua-server. The merged runtime never renders seeded "
-        + "or demo share content (Console Patterns Charter section 11).";
+        "Open data is temporarily unavailable because this portal is not connected to a data server. "
+        + "Please try again later or contact the site administrator.";
+
+    [Parameter] public bool OperatorView { get; set; }
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
     private IReadOnlyList<ConsoleContentSummary>? _items;
     private bool _missingBinding;
+    private bool _hasMoreItems;
     private string? _failureMessage;
     private int _openDataCount;
     private int _formatCount;
@@ -159,6 +173,7 @@
 
         // The server lists only items an anonymous reader may open, so every row here is live open data.
         var result = await Catalog.ListOpenDataItemsAsync();
+        _hasMoreItems = result.HasMoreItems;
         _failureMessage = result.Succeeded ? null : result.FailureMessage;
         var items = result.Items
             .Where(item => string.Equals(item.Type, "service", StringComparison.Ordinal)

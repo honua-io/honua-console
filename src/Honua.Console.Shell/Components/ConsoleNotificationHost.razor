@@ -15,7 +15,7 @@
     @foreach (var toast in _toasts)
     {
         <div class="console-toast @LevelClass(toast.Level)"
-             role="alert"
+             role="@(toast.Level is ConsoleNotificationLevel.Error or ConsoleNotificationLevel.Warning ? "alert" : "status")"
              aria-atomic="true"
              data-console-toast
              data-toast-level="@toast.Level.ToString().ToLowerInvariant()"

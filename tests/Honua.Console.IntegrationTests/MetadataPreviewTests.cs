@@ -25,7 +25,8 @@ public sealed class MetadataPreviewTests
         context.Services.AddSingleton(new CatalogAdminOptions());
         context.Services.AddSingleton<IMetadataPreviewSource>(source);
         var page = context.Render<MetadataPreviewPage>();
-        Assert.Contains("Metadata preview is disabled", page.Markup);
+        Assert.Contains("Page Not Found", page.Markup);
+        Assert.DoesNotContain("href=\"/catalogs\"", page.Markup);
         Assert.Empty(source.Requests);
     }
 

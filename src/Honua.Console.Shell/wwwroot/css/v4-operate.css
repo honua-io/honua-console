@@ -56,6 +56,12 @@
     line-height: var(--leading-normal);
 }
 
+.console-shell[data-console-v4="true"] .proposal-approval-id {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
+    color: var(--c-text-3);
+}
+
 .console-shell[data-console-v4="true"] .proposal-approval-panel h3 {
     margin-block: var(--space-1) 0;
 }

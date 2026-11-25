@@ -1,6 +1,8 @@
 name: Shipping Console live replay
 
 on:
+  schedule:
+    - cron: '30 6 * * *'
   workflow_dispatch:
     inputs:
       server_image:
@@ -41,6 +43,34 @@ jobs:
       CI: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Resolve latest verified nightly inputs for scheduled runs
+        if: github.event_name == 'schedule'
+        id: resolve_nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/static-bundle.yml/runs?branch=trunk&status=success&per_page=1" --jq '.workflow_runs[0].id')"
+          test -n "$run_id" && test "$run_id" != "null"
+          mkdir -p scheduled-bundle
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name console-static-release --dir scheduled-bundle
+          receipt="$(ls scheduled-bundle/honua-console-*.zip.json | head -n 1)"
+          bundle_sha="$(jq -r .sha256 "$receipt")"
+          manifest_json="$(gh api repos/honua-io/honua-release/contents/platform-manifest.yaml -H 'Accept: application/vnd.github.raw')"
+          python3 - "$manifest_json" "$run_id" "$bundle_sha" <<'PY' >> "$GITHUB_ENV"
+          import re, sys
+          manifest, run_id, bundle_sha = sys.argv[1], sys.argv[2], sys.argv[3]
+          server_block = manifest.split('  honua-server:', 1)[1].split('\n  honua-console:', 1)[0]
+          sha_m = re.search(r'^\s+sha:\s*"([a-f0-9]{40})"', server_block, re.M)
+          digest_m = re.search(r'^\s+digest:\s*"(sha256:[a-f0-9]{64})"', server_block, re.M)
+          assert sha_m and digest_m, "Missing pinned honua-server sha or digest in platform-manifest.yaml"
+          image = f"ghcr.io/honua-io/honua-server@{digest_m.group(1)}"
+          print(f"SERVER_SOURCE_SHA={sha_m.group(1)}")
+          print(f"SERVER_IMAGE={image}")
+          print(f"EXECUTOR_IMAGE={image}")
+          print(f"CONSOLE_RUN_ID={run_id}")
+          print(f"CONSOLE_BUNDLE_SHA256={bundle_sha}")
+          PY
+          rm -rf scheduled-bundle
       - name: Validate immutable inputs and bundle source run
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,12 +103,12 @@ jobs:
           git cat-file -e "$SERVER_SOURCE_SHA^{commit}"
           git merge-base --is-ancestor "$SERVER_SOURCE_SHA" HEAD
           git checkout --detach "$SERVER_SOURCE_SHA"
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: console-static-release
-          path: static-release
-          run-id: ${{ inputs.console_run_id }}
-          github-token: ${{ github.token }}
+      - name: Download selected static release bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p static-release
+          gh run download "$CONSOLE_RUN_ID" --repo "$GITHUB_REPOSITORY" --name console-static-release --dir static-release
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20.x

@@ -74,6 +74,7 @@ public partial class OperateServiceDetailPage
     private string _allowedWriteRoles = string.Empty;
     private bool _savingProtocols;
     private bool _savingAccess;
+    private Honua.Console.Shell.Components.ConsoleConfirmDialog? _accessConfirm;
     private ServiceConfigurationResult? _configResult;
     private string? _loadedServiceName;
     private int _serviceGeneration;
@@ -227,6 +228,27 @@ public partial class OperateServiceDetailPage
                 }
             },
             failureMessage: "Couldn't save protocols");
+    }
+
+    private Task RequestSaveAccessAsync()
+    {
+        if (_savingProtocols || _savingAccess)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_allowAnonymousWrite && !_settings.AllowAnonymousWrite && _accessConfirm is not null)
+        {
+            _accessConfirm.Open(
+                "Allow anonymous write access?",
+                SaveAccessAsync,
+                body: $"Unauthenticated visitors will be able to add, modify, or delete features in {ServiceName}. Confirm only if this service is intentionally open for public writes.",
+                confirmLabel: "Allow anonymous write",
+                cancelLabel: "Cancel");
+            return Task.CompletedTask;
+        }
+
+        return SaveAccessAsync();
     }
 
     private Task SaveAccessAsync()

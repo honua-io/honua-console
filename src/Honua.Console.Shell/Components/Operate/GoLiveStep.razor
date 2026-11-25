@@ -65,7 +65,7 @@ else
         </section>
     }
     <div class="console-action-row">
-        <button type="button" disabled="@_busy" @onclick="OnBack">Back</button>
+        <button type="button" class="console-button console-button-secondary" disabled="@_busy" @onclick="OnBack">Back</button>
         <button type="button" class="console-button" data-go-live-apply disabled="@(_busy || Flow.EnabledProtocols.Count == 0)" @onclick="ApplyAsync">
             @(_busy ? "Publishing…" : "Apply & publish")
         </button>
@@ -75,7 +75,7 @@ else
     [Parameter, EditorRequired] public DataToPublishFlowState Flow { get; set; } = default!;
 
     private RenderFragment PlannedRoutes => @<table class="console-table" data-route-preview>
-        <thead><tr><th>Protocol</th><th>Route</th></tr></thead>
+        <thead><tr><th scope="col">Protocol</th><th scope="col">Route</th></tr></thead>
         <tbody>
             @foreach (var plan in Flow.PlannedPublications)
             {
@@ -85,7 +85,7 @@ else
     </table>;
 
     private RenderFragment PublishResults => @<table class="console-table">
-        <thead><tr><th>Protocol</th><th>State</th><th>Route or detail</th></tr></thead>
+        <thead><tr><th scope="col">Protocol</th><th scope="col">State</th><th scope="col">Route or detail</th></tr></thead>
         <tbody>
             @foreach (var protocol in _outcome?.Protocols ?? [])
             {

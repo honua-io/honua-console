@@ -45,9 +45,9 @@
         }
         @if (Realtime.IsConnected)
         {
-            <span class="approval-inbox-live is-live" data-live-state="live"
+            <span class="approval-inbox-live is-live" role="status" aria-live="polite" data-live-state="live"
                   data-fallback-engaged="@Realtime.IsFallbackEngaged">
-                @(_managerOnlyUpdates ? "Manager live — refresh for serving updates" : "Live")
+                @(_managerOnlyUpdates ? "Serving live — refresh for manager updates" : "Live")
                 @if (V4Enabled && _lastSuccessfulRefreshUtc is not null)
                 {
                     <span class="console-muted" data-inbox-updated> · updated @ConsoleFreshness.LastRefreshedShort(_lastSuccessfulRefreshUtc)</span>
@@ -56,7 +56,7 @@
         }
         else
         {
-            <span class="approval-inbox-live approval-inbox-paused" data-live-state="paused"
+            <span class="approval-inbox-live approval-inbox-paused" role="status" aria-live="polite" data-live-state="paused"
                   data-fallback-engaged="@Realtime.IsFallbackEngaged">
                 Updates paused — last refreshed
                 <span data-inbox-paused-since>@ConsoleFreshness.LastRefreshedShort(_lastSuccessfulRefreshUtc)</span>
@@ -80,7 +80,7 @@
            the failing source, keeps the last good refresh time, and offers a working Retry. *@
         <div class="console-panel approval-inbox-error" role="alert" data-inbox-error>
             <p class="console-kicker">Approval inbox</p>
-            <h3 data-inbox-error-title>Couldn't read the approval queue from @ServerName</h3>
+            <h2 data-inbox-error-title>Couldn't read the approval queue from @ServerName</h2>
             @if (!string.IsNullOrWhiteSpace(_result.Message))
             {
                 <p class="console-muted approval-inbox-error-detail" data-inbox-error-detail>@_result.Message</p>
@@ -288,6 +288,8 @@
                detail poll. Selecting a proposal moves focus to the review instead, and Close review
                returns it to the proposal's row; action results announce through the panel's own
                role="status" message. *@
+            @if (_selectedProposalId is { Length: > 0 } || VisibleItems.Count > 0)
+            {
             <div class="approval-inbox-detail" data-approval-review>
                 @if (V4Enabled)
                 {
@@ -315,6 +317,7 @@
                         EmptyMessage="Choose a proposal from the queue to review its plan, diff, dry-run, and risk before you authorize it." />
                 }
             </div>
+            }
 
             @if (linkedMode)
             {

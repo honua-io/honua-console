@@ -134,7 +134,10 @@ public sealed class HonuaServerConsoleCatalogClient : IConsoleCatalogClient
         var typeCounts = summaries
             .GroupBy(static item => item.Type, StringComparer.Ordinal)
             .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
-        return new CatalogSearchResult(summaries, typeCounts, request);
+        return new CatalogSearchResult(summaries, typeCounts, request)
+        {
+            HasMoreItems = !string.IsNullOrEmpty(cursor)
+        };
     }
 
     public async Task<MapReadResult> GetMapAsync(

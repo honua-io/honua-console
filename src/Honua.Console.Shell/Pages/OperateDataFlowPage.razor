@@ -1,9 +1,15 @@
 @page "/operate/data/new"
 @using Honua.Console.Shell.Components.Operate
 
-<DataToPublishFlow InitialSource="@Source" />
+<DataToPublishFlow InitialSource="@Source" InitialResource="@Resource" InitialStep="@Step" />
 
 @code {
     [SupplyParameterFromQuery(Name = "source")]
     public string? Source { get; set; }
+
+    [SupplyParameterFromQuery(Name = "resource")]
+    public string? Resource { get; set; }
+
+    [SupplyParameterFromQuery(Name = "step")]
+    public string? Step { get; set; }
 }

@@ -159,35 +159,48 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
     const suffix = randomBytes(5).toString('hex');
     const fixture = new URL('../fixtures/', import.meta.url);
     const fields = { name: 'esriFieldTypeString', population: 'esriFieldTypeBigInteger', rating: 'esriFieldTypeDouble' };
-    const seen: Array<{ dataset: string; format: string; layerId: number; geometryType: string }> = [];
+    const seen: Array<{ dataset: string; connectionId: string; storageLayerId: number; geometryType: string }> = [];
     await exerciseAgentPublication({
       serverUrl, proposerKey: serverProposer, verifierKey: serverApprover, expectedActor: serverActor, approve,
+      catalogConnectionName: connectionName,
       datasets: [
         { format: 'geojson', name: `agent_regions_${suffix}`, data: readFileSync(new URL('customer-regions.geojson', fixture), 'utf8'), geometryType: 'Polygon', fields },
-        { format: 'csv', name: `agent_sites_${suffix}`, data: readFileSync(new URL('customer-sites.csv', fixture), 'utf8'), geometryType: 'Point', fields },
+        { format: 'geojson', name: `agent_sites_${suffix}`, data: readFileSync(new URL('customer-sites.geojson', fixture), 'utf8'), geometryType: 'Point', fields },
       ],
       observe: async (_stage: string, record: any) => { seen.push(record); },
     });
     expect(seen, 'both actual agent publications must be observed').toHaveLength(2);
-    expect(seen.map(record => record.format).sort()).toEqual(['csv', 'geojson']);
+    expect(seen.map(({ dataset, geometryType }) => ({ dataset, geometryType }))).toEqual([
+      { dataset: `agent_regions_${suffix}`, geometryType: 'esriGeometryPolygon' },
+      { dataset: `agent_sites_${suffix}`, geometryType: 'esriGeometryPoint' },
+    ]);
     await check('agent-published-services', async () => {
       for (const record of seen) {
         await go('/operate/services');
         await expect(page.locator('body')).toContainText(record.dataset, { timeout: 30_000 });
         await go('/operate/layers');
-        const row = page.locator(`tr[data-service-id="${record.dataset}"][data-layer-id="${record.layerId}"]`);
-        await expect(row).toContainText(record.dataset, { timeout: 30_000 });
-        await expect(row).toContainText(record.format === 'csv' ? /\bPoint\b/i : /\b(?:Multi)?Polygon\b/i);
-        if (record.format === 'csv') await expect(row).not.toContainText(/multipoint/i);
+        // The Layers page uses a connection-scoped canonical resource ID in the detail URL.
+        const resourceId = `${record.connectionId.toLowerCase()}-layer-${record.storageLayerId}`;
+        const detailLink = page.locator(`a[href$="/operate/layers/${resourceId}"]:not([aria-label])`);
+        const row = page.getByRole('region', { name: 'Published service layers', exact: true })
+          .locator(`tr[data-service-id="${record.dataset}"][data-layer-id="${record.storageLayerId}"]`)
+          .filter({ has: detailLink, visible: true });
+        const link = row.locator(detailLink);
+        await expect(link).toBeVisible({ timeout: 30_000 });
+        await expect(row).toContainText(record.dataset);
+        const isPoint = record.geometryType === 'esriGeometryPoint';
+        const geometry = isPoint ? 'point' : 'polygon';
+        await expect(row).toContainText(isPoint ? /\bPoint\b/i : /\b(?:Multi)?Polygon\b/i);
+        if (isPoint) await expect(row).not.toContainText(/multipoint/i);
         await scrollForMilestone(row);
-        await captureMilestone(page, info, `07-published-${record.format}-layers-geometry`);
-        const detailPath = await row.locator('a').first().getAttribute('href');
+        await captureMilestone(page, info, `07-published-${geometry}-layers-geometry`);
+        const detailPath = await link.getAttribute('href');
         expect(detailPath, 'the published layer must link to its detail').toBeTruthy();
         await go(detailPath!);
         for (const [name, type] of Object.entries({ name: 'String', population: 'BigInteger', rating: 'Double' }))
           await expect(page.locator(`[data-field-row][data-field-name="${name}"]`).getByRole('cell', { name: type, exact: true })).toBeVisible({ timeout: 30_000 });
         await scrollForMilestone(page.locator('[data-field-row][data-field-name="rating"]'));
-        await captureMilestone(page, info, `08-published-${record.format}-field-types`);
+        await captureMilestone(page, info, `08-published-${geometry}-field-types`);
       }
       await go('/operate/connections');
       await expect(page.locator('body')).toContainText(connectionName, { timeout: 30_000 });

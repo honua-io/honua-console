@@ -427,6 +427,28 @@ public sealed class HonuaServerConsoleCatalogClientTests
         Assert.All(handler.Requests, request => Assert.False(request.Headers.Contains("X-API-Key")));
     }
 
+    [Fact]
+    public async Task ListOpenDataItems_ReportsRemainingItemsAtPageLimit()
+    {
+        var page = 0;
+        var handler = new RecordingHandler(_ =>
+        {
+            page++;
+            return Envelope(new HonuaOpenDataDatasetList
+            {
+                Items = [Entry($"svc-{page}", "service")],
+                NextCursor = $"page-{page + 1}"
+            });
+        });
+
+        var result = await CreateCatalog(handler).ListOpenDataItemsAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.HasMoreItems);
+        Assert.Equal(4, result.Items.Count);
+        Assert.Equal(4, handler.Requests.Count);
+    }
+
     private static HonuaOpenDataDatasetEntry Entry(string id, string itemType) =>
         new() { ItemType = itemType, Page = new HonuaOpenDataPage { ItemId = id, Title = id } };
 

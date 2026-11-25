@@ -60,7 +60,7 @@
     <section id="all-operations" class="operate-section" aria-labelledby="all-operations-heading">
         <div class="operate-section-heading">
             <div>
-                <p class="console-kicker">Deploy cockpit</p>
+                @if (!V4Enabled) { <p class="console-kicker">Deploy cockpit</p> }
                 <h2 id="all-operations-heading">All deploy operations</h2>
                 <p class="console-muted">
                     Every durable deploy-control operation the connected server reports, newest-first, with live

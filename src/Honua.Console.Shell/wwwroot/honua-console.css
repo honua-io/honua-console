@@ -515,12 +515,12 @@ p {
 }
 
 .studio-report-outline-row:hover {
-    background: #eef8f5;
+    background: var(--c-selected, #eef8f5);
 }
 
 .studio-report-outline-row.is-selected {
     border-color: var(--honua-accent);
-    background: #eef8f5;
+    background: var(--c-selected, #eef8f5);
     font-weight: 700;
 }
 
@@ -587,7 +587,7 @@ p {
 
 .studio-report-embed.is-selected {
     border-color: var(--honua-accent-strong);
-    background: #eef8f5;
+    background: var(--c-selected, #eef8f5);
 }
 
 .studio-report-embed-head {
@@ -674,8 +674,8 @@ p {
     border: 1px solid var(--honua-border);
     border-left: 3px solid var(--honua-accent);
     border-radius: 6px;
-    background: #f3f7ff;
-    color: var(--honua-text);
+    background: var(--c-info-soft, #f3f7ff);
+    color: var(--c-info-ink, var(--honua-text));
     font-size: 0.82rem;
 }
 
@@ -748,10 +748,10 @@ p {
 .console-filter-bar select {
     min-width: 0;
     min-height: 38px;
-    border: 1px solid var(--honua-border);
+    border: 1px solid var(--c-border-strong, var(--honua-border));
     border-radius: 6px;
     padding: 0 10px;
-    background: #ffffff;
+    background: var(--honua-surface);
     color: var(--honua-text);
     font: inherit;
     font-weight: 500;
@@ -1474,7 +1474,7 @@ p {
     height: 34px;
     border: 1px solid var(--honua-border);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     color: var(--honua-text);
     font: inherit;
     font-weight: 900;
@@ -2241,7 +2241,7 @@ p {
 }
 
 .operate-table th {
-    background: #f0f5f3;
+    background: var(--honua-surface-strong);
     color: var(--honua-muted);
     font-size: 0.8rem;
     text-transform: uppercase;
@@ -2285,7 +2285,7 @@ p {
     min-height: 38px;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     color: var(--honua-text);
     font: inherit;
     padding: 0 10px;
@@ -2465,7 +2465,7 @@ p {
     min-width: 0;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     color: var(--honua-text);
     font: inherit;
 }
@@ -2879,7 +2879,7 @@ p {
     padding: 10px 12px;
     border: 1.5px solid var(--honua-text);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     text-align: center;
     font-size: 0.85rem;
 }
@@ -2932,7 +2932,7 @@ p {
     padding: 10px 12px;
     border: 1.5px solid var(--honua-text);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
     text-align: center;
     font-size: 0.85rem;
 }
@@ -4114,7 +4114,7 @@ p {
     padding: 10px;
     border: 1px solid var(--honua-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
 }
 
 .workflow-edge-failure {
@@ -4995,7 +4995,7 @@ p {
     border: 1px solid var(--honua-border);
     border-left-width: 4px;
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--honua-surface, #ffffff);
 }
 
 .workflow-run-row {
@@ -5887,7 +5887,7 @@ p {
     place-items: center;
     border: 1px solid var(--honua-text);
     border-radius: 4px;
-    background: #fff;
+    background: var(--honua-surface, #ffffff);
     font-weight: 700;
     cursor: pointer;
 }
@@ -5984,7 +5984,7 @@ p {
     width: 220px;
     border: 1.2px solid var(--honua-text);
     border-radius: 6px;
-    background: #fff;
+    background: var(--honua-surface, #ffffff);
     box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
     font-size: 0.7rem;
 }
@@ -7447,7 +7447,7 @@ p {
 /* Discovered values read as overridable: a dashed editable affordance. */
 .console-field-state--discovered .console-input {
     border-style: dashed;
-    background: #f6fbf7;
+    background: var(--c-ok-soft, #f6fbf7);
 }
 
 /* Calculated / system / admin are not directly editable — mono / muted / italic display. */
@@ -7506,15 +7506,15 @@ p {
 }
 
 .console-field-state__pill--discover {
-    color: var(--honua-accent-strong);
-    border-color: #8fcfa6;
-    background: #ecf7f0;
+    color: var(--c-ok-ink, var(--honua-accent-strong));
+    border-color: var(--c-ok, #8fcfa6);
+    background: var(--c-ok-soft, #ecf7f0);
 }
 
 .console-field-state__pill--calc {
-    color: #1f3f87;
-    border-color: #aac1e8;
-    background: #eaf0fb;
+    color: var(--c-info-ink, #1f3f87);
+    border-color: var(--c-info, #aac1e8);
+    background: var(--c-info-soft, #eaf0fb);
 }
 
 .console-field-state__pill--system {
@@ -7524,9 +7524,17 @@ p {
 }
 
 .console-field-state__pill--admin {
-    color: #8a5a04;
-    border-color: #e7c97a;
-    background: #fcf3df;
+    color: var(--c-warn-ink, #8a5a04);
+    border-color: var(--c-warn, #e7c97a);
+    background: var(--c-warn-soft, #fcf3df);
+}
+
+.console-field-state__actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding-top: 4px;
 }
 
 /* override / revert affordances on discovered rows */
@@ -9508,7 +9516,7 @@ button.console-chip:focus-visible {
 }
 
 .ops-summary-tile strong.is-actionable {
-    color: #7a5300;
+    color: var(--c-warn-ink, #7a5300);
 }
 
 .ops-summary-liveness {

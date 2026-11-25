@@ -49,7 +49,8 @@ builder.Services.AddSingleton<IConsoleOperatorBearerProvider>(new BrowserOperato
 builder.Services.AddHonuaConsoleShell(new HonuaConsoleShellOptions
 {
     ServerBaseUrl = apiBaseUri.AbsoluteUri,
-    V4Enabled = configuration.V4Enabled
+    V4Enabled = configuration.V4Enabled,
+    ConversationEnabled = false
 });
 builder.Services.AddAuthorizationCore();
 builder.Services.AddSingleton<BrowserAuthenticationStateProvider>(services => new BrowserAuthenticationStateProvider(

@@ -17,18 +17,25 @@ public sealed class SharePublicItemV4Tests
         using var context = Context(new ConsoleV4Options { Enabled = enabled }, new InMemoryConsoleCatalogClient());
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
         Assert.Equal("Coastal Flood Service", page.Find("h1").TextContent);
-        Assert.Equal(enabled ? 1 : 0, page.FindAll(".console-page-heading-v4").Count);
-        Assert.Equal(enabled ? ["GeoServices feature service", "OGC API Features"] : ["GeoServices:FeatureService", "OGC:API:Features"], page.FindAll(".share-opendata-download-name").Select(node => node.TextContent));
-        Assert.Equal("/share/public/items/coastal-flood-service", page.Find("[data-share-opendata-routes] code").TextContent);
-        Assert.Contains("resilience-team", page.Find("[data-share-opendata-footer]").TextContent);
-        Assert.Empty(page.FindAll("button,input,select,textarea"));
+        const string route = "/share/public/items/coastal-flood-service";
+        Assert.Equal(enabled ? "http://localhost" + route : route, page.Find("[data-share-opendata-routes] code").TextContent);
         Assert.Empty(page.FindAll(".console-panel .console-panel"));
         if (enabled)
         {
-            Assert.Equal("Open data · Services", page.Find(".console-page-heading-v4 p").TextContent);
-            Assert.Equal(["#flood", "#open-data", "#coastal"], page.FindAll(".console-chip-row span").Select(node => node.TextContent));
-            Assert.Equal(["Download", "Routes"], page.FindAll("h2").Select(node => node.TextContent));
+            var downloads = page.Find("[data-share-opendata-downloads]");
+            Assert.Contains("No download links are published", downloads.TextContent);
+            Assert.Empty(downloads.QuerySelectorAll("a"));
+            Assert.Contains("resilience-team", page.Find(".public-item-meta").TextContent);
+            Assert.Equal(["#flood", "#open-data", "#coastal"], page.FindAll(".public-item-tags li").Select(node => node.TextContent));
+            Assert.Equal(["Download", "Public routes", "Usage", "Details"], page.FindAll("h2").Select(node => node.TextContent));
             Assert.Equal("/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
+            Assert.Single(page.FindAll("button[data-console-copy]"));
+        }
+        else
+        {
+            Assert.Equal(["GeoServices:FeatureService", "OGC:API:Features"], page.FindAll(".share-opendata-download-name").Select(node => node.TextContent));
+            Assert.Contains("resilience-team", page.Find("[data-share-opendata-footer]").TextContent);
+            Assert.Empty(page.FindAll("button,input,select,textarea"));
         }
         CatalogAdminPreview.Capture($"share-public-{(enabled ? "v4" : "legacy")}", $"<div class=\"console-shell\" data-console-v4=\"{enabled.ToString().ToLowerInvariant()}\">{page.Markup}</div>");
     }
@@ -42,10 +49,22 @@ public sealed class SharePublicItemV4Tests
     {
         var catalog = new InMemoryConsoleCatalogClient();
         var item = await catalog.GetOpenDataItemAsync("coastal-flood-service");
-        item.Item!.Summary.Formats[0] = format;
+        const string downloadUrl = "https://data.example.org/coastal-flood";
+        var detail = item.Item!;
+        detail.Summary.Formats[0] = format;
+        detail.Publications[0] = detail.Publications[0] with { Route = downloadUrl, Format = format };
         using var context = Context(new ConsoleV4Options { Enabled = enabled }, catalog);
         var page = context.Render<SharePublicItemPage>(parameters => parameters.Add(p => p.IdOrSlug, "coastal-flood-service"));
-        Assert.Equal(expected, page.Find(".share-opendata-download-name").TextContent);
+        if (enabled)
+        {
+            var download = page.Find("[data-share-opendata-downloads] a");
+            Assert.Equal(expected, download.TextContent);
+            Assert.Equal(downloadUrl, download.GetAttribute("href"));
+        }
+        else
+        {
+            Assert.Equal(expected, page.Find(".share-opendata-download-name").TextContent);
+        }
     }
 
     [Fact]

@@ -32,5 +32,7 @@ public sealed record HonuaConsoleShellOptions
 
     public bool CatalogAdminEnabled { get; init; }
 
+    public bool ConversationEnabled { get; init; } = true;
+
     public string? ConsoleMode { get; init; }
 }

@@ -19,6 +19,7 @@ public static class HonuaConsoleShellServiceCollectionExtensions
         services.TryAddScoped<ConsoleAgentContextRegistry>();
         services.TryAddSingleton(new Models.ConsoleV4Options { Enabled = options.V4Enabled });
         services.TryAddSingleton(new Models.CatalogAdminOptions { Enabled = options.CatalogAdminEnabled });
+        services.TryAddSingleton(new Models.ConsoleConversationOptions { Enabled = options.ConversationEnabled });
         services.TryAddScoped<ICatalogAdminSource>(_ => new UnsupportedCatalogAdminSource(server.BaseUri is not null));
         services.TryAddScoped<IMetadataPreviewSource>(_ => new UnsupportedMetadataPreviewSource(server.BaseUri));
         AddShellCore(services, options);

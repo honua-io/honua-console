@@ -37,15 +37,28 @@ public sealed class BrowserOidcAuthenticationTests
 
     [Theory]
     [InlineData("/", "/console/")]
-    [InlineData("/operate/services", "/console/")]
-    [InlineData("/operate/connections?sort=name", "/console/")]
-    [InlineData("/operate/connections#details", "/console/")]
-    public async Task UnallowlistedReturnDestinationsFallBackToHome(string returnTo, string expected)
+    [InlineData("/operate/settings", "/console/operate/settings")]
+    [InlineData("/operate/services", "/console/operate/services")]
+    [InlineData("/operate/connections?sort=name", "/console/operate/connections?sort=name")]
+    [InlineData("/operate/connections#details", "/console/operate/connections#details")]
+    public async Task BrokerReceivesMountedReturnDestination(string returnTo, string expected)
     {
         using var fixture = new BrokerFixture();
         await fixture.Authentication.BeginAsync("entra", returnTo);
         Assert.Equal(expected, fixture.Handler.ReturnTo);
         Assert.Equal(1, fixture.Handler.Authorizations);
+    }
+
+    [Fact]
+    public async Task OlderBrokerRejectingSettingsReceivesHomeOnRetry()
+    {
+        using var fixture = new BrokerFixture();
+        fixture.Handler.RejectSettingsReturn = true;
+
+        var destination = await fixture.Authentication.BeginAsync("entra", "/operate/settings");
+
+        Assert.Equal("https://identity.example/authorize?state=issued-state", destination.AbsoluteUri);
+        Assert.Equal(new[] { "/console/operate/settings", "/console/" }, fixture.Handler.ReturnDestinations);
     }
 
     [Fact]
@@ -119,8 +132,10 @@ public sealed class BrowserOidcAuthenticationTests
 
     private sealed class BrokerHandler : HttpMessageHandler
     {
-        public int Authorizations { get; private set; }
-        public string? ReturnTo { get; private set; }
+        public List<string?> ReturnDestinations { get; } = [];
+        public int Authorizations => ReturnDestinations.Count;
+        public string? ReturnTo => ReturnDestinations.LastOrDefault();
+        public bool RejectSettingsReturn { get; set; }
         public bool CallbackCompleted { get; set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -131,9 +146,13 @@ public sealed class BrowserOidcAuthenticationTests
                 Assert.EndsWith("/providers/entra/authorize-url", path);
                 Assert.Equal("anonymous-csrf", Assert.Single(request.Headers.GetValues("X-Honua-CSRF")));
                 using var body = await request.Content!.ReadFromJsonAsync<JsonDocument>(cancellationToken);
-                ReturnTo = body!.RootElement.GetProperty("returnTo").GetString();
+                var returnTo = body!.RootElement.GetProperty("returnTo").GetString();
                 Assert.Single(body.RootElement.EnumerateObject());
-                Authorizations++;
+                ReturnDestinations.Add(returnTo);
+                if (RejectSettingsReturn && returnTo == "/console/operate/settings")
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                }
                 return Json(new { authorizeUrl = "https://identity.example/authorize?state=issued-state" });
             }
             if (path.EndsWith("/csrf", StringComparison.Ordinal))

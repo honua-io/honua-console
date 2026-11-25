@@ -96,13 +96,35 @@ export async function exerciseAgentRecovery({ managerUrl, proposerKey, approverK
 
 /** Why an import is not publishable, without echoing dataset content. */
 export function importSummary(imported) {
-  const missing = ['connectionId', 'table', 'geometryColumn', 'primaryKey'].filter(name => !imported?.[name]);
+  const missing = ['connectionId', 'schema', 'table', 'geometryColumn', 'primaryKey'].filter(name => !imported?.[name]);
   return JSON.stringify({ success: imported?.success ?? null, errorCode: imported?.errorCode ?? null,
     errorMessage: imported?.errorMessage ?? null, missing, warnings: imported?.warnings ?? [] });
 }
 
+async function resolveRegisteredConnection(serverUrl, verifierKey, connectionRef) {
+  const connections = await api(serverUrl, verifierKey, '/api/v1/admin/connections/');
+  const registered = connections.data?.filter(connection =>
+    connection.name === connectionRef || connection.connectionId === connectionRef) ?? [];
+  const connectionId = registered[0]?.connectionId;
+  if (registered.length !== 1 || !connectionId)
+    throw new Error(`Connection ${connectionRef} does not resolve to one registered connection`);
+  return connectionId;
+}
+
+async function resolveConsoleLayer(serverUrl, verifierKey, { imported, serviceName, connectionId }) {
+  const layerQuery = new URLSearchParams({ serviceName });
+  const layersPath = `/api/v1/admin/connections/${encodeURIComponent(connectionId)}/layers/`;
+  const inventory = await api(serverUrl, verifierKey, `${layersPath}?${layerQuery}`);
+  const matches = inventory.data?.items?.filter(item =>
+    item.serviceName === serviceName && item.schema === imported.schema && item.table === imported.table) ?? [];
+  const storageLayerId = matches[0]?.storageLayerId ?? matches[0]?.layerId;
+  if (matches.length !== 1 || !Number.isInteger(storageLayerId))
+    throw new Error(`Published ${serviceName} does not resolve to one stored layer for its imported table`);
+  return storageLayerId;
+}
+
 /** Ingest and publish through MCP, then validate the resulting server metadata. */
-export async function exerciseAgentPublication({ serverUrl, proposerKey, verifierKey, expectedActor, datasets, observe, approve }) {
+export async function exerciseAgentPublication({ serverUrl, proposerKey, verifierKey, expectedActor, catalogConnectionName, datasets, observe, approve }) {
   if (!expectedActor) throw new Error('The server MCP actor identity is required');
   if (typeof approve !== 'function') throw new Error('A Console approval is required');
   const mcp = new AgentMcpClient(serverUrl, proposerKey);
@@ -110,10 +132,12 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
   const output = [];
   for (const dataset of datasets) {
     const imported = await mcp.call('honua_ingest_dataset', { format: dataset.format, data: dataset.data, datasetName: dataset.name });
-    if (!imported.success || !imported.connectionId || !imported.table || !imported.geometryColumn || !imported.primaryKey)
+    const connectionRef = imported.connectionId || catalogConnectionName;
+    if (!imported.success || !connectionRef || !imported.schema || !imported.table || !imported.geometryColumn || !imported.primaryKey)
       throw new Error(`MCP ${dataset.format} import did not return a publishable table: ${importSummary(imported)}`);
+    const connectionId = await resolveRegisteredConnection(serverUrl, verifierKey, connectionRef);
     const result = await mcp.call('honua_publish_service', {
-      connectionId: imported.connectionId, schema: imported.schema, table: imported.table,
+      connectionId, schema: imported.schema, table: imported.table,
       layerName: dataset.name, serviceName: dataset.name, geometryColumn: imported.geometryColumn,
       geometryType: dataset.geometryType, primaryKey: imported.primaryKey, srid: 4326,
     });
@@ -137,13 +161,18 @@ export async function exerciseAgentPublication({ serverUrl, proposerKey, verifie
     if (layer.geometryType !== `esriGeometry${dataset.geometryType}`) throw new Error(`Published ${dataset.format} has the wrong geometry type`);
     for (const [field, type] of Object.entries(dataset.fields))
       if (!layer.fields?.some(item => item.name === field && item.type === type)) throw new Error(`Published ${dataset.format} is missing typed field ${field}`);
+    const storageLayerId = await resolveConsoleLayer(serverUrl, verifierKey, { imported, serviceName: dataset.name, connectionId });
     if (!result.operationInstanceId) throw new Error('Publication did not report its operation identity');
     const auditQuery = new URLSearchParams({ resourceType: 'operation_instance', resourceId: result.operationInstanceId, pageSize: '100' });
     const audit = await poll(() => api(serverUrl, verifierKey, `/api/v1/admin/observability/audit?${auditQuery}`),
       value => value.items?.some(item => item.action === 'operation.completed'));
     if (!audit.items.some(item => item.action === 'operation.completed' && item.actor === expectedActor))
       throw new Error('Published operation audit does not identify the MCP actor');
-    const record = { dataset: dataset.name, format: dataset.format, layerId: id, geometryType: layer.geometryType, fields: layer.fields, actorOperationId: result.operationInstanceId, actor: expectedActor };
+    const record = {
+      dataset: dataset.name, format: dataset.format, connectionId,
+      layerId: id, storageLayerId, geometryType: layer.geometryType, fields: layer.fields,
+      actorOperationId: result.operationInstanceId, actor: expectedActor,
+    };
     await observe('published', record);
     output.push(record);
   }

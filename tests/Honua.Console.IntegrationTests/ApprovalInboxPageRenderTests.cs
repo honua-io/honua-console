@@ -350,7 +350,7 @@ public sealed partial class ApprovalInboxPageRenderTests
         });
 
         var page = ctx.Render<ApprovalInboxPage>();
-        page.WaitForAssertion(() => Assert.Contains("Manager live — refresh for serving updates",
+        page.WaitForAssertion(() => Assert.Contains("Serving live — refresh for manager updates",
             page.Find("[data-live-state]").TextContent, StringComparison.Ordinal), TimeSpan.FromSeconds(5));
     }
 

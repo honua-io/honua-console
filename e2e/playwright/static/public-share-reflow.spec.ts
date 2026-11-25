@@ -35,10 +35,10 @@ for (const width of [320, 390, 1280]) {
       await expect(page.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
       await expect(page.locator('.share-opendata-intro')).toHaveText(item.description);
       await expect(page.locator('.share-opendata-intro')).toHaveCSS('font-size', `${14 * fontSize / 16}px`);
-      await expect(page.locator('.share-opendata-v4 .console-chip-row span')).toHaveText(`#${item.tags[0]}`);
-      await expect(page.locator('[data-share-opendata-footer]')).toContainText(item.publisherName);
+      await expect(page.locator('.share-opendata-v4 .public-item-tags li')).toHaveText(`#${item.tags[0]}`);
+      await expect(page.locator('.public-item-meta')).toContainText(item.publisherName);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      const back = page.getByRole('link', { name: 'Back to open data', exact: true });
+      const back = page.getByRole('link', { name: 'Open-data catalog', exact: true });
       await back.focus();
       await expect(back).toBeFocused();
       await expect(back).toHaveAttribute('href', '/console/share/public');

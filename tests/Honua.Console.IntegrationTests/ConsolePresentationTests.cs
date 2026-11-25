@@ -49,7 +49,7 @@ public sealed class ConsolePresentationTests
             new ConfiguredConsoleProductMode(ConsoleProductModeParser.Parse(mode)));
         context.Services.AddSingleton<IConsoleCapabilityManifest>(ConsoleCapabilityManifest.FromConfigurationList(null));
         context.AddAuthorization().SetAuthorized("synthetic-operator");
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/settings");
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/operate/scenes");
         var page = context.Render<ConsoleLayout>();
         Assert.Equal(mode, page.Find("[data-console-mode]").GetAttribute("data-console-mode"));
         Assert.NotEmpty(page.FindAll("a[href='/inbox']"));
@@ -64,7 +64,8 @@ public sealed class ConsolePresentationTests
     [InlineData("/studio/map", false)]
     [InlineData("/operate/folders/transport", true)]
     [InlineData("/operate/scenes", false)]
-    [InlineData("/operate/settings", false)]
+    [InlineData("/operate/settings", true)]
+    [InlineData("/operate/settings/api-keys", true)]
     [InlineData("/operate/services-unrelated", false)]
     public void FocusedPresentationUsesRouteBoundaries(string path, bool expected) =>
         Assert.Equal(expected, ConsolePresentation.IsFocusedRoute(path));
