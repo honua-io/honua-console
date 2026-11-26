@@ -85,28 +85,34 @@ public sealed class BrowserOidcAuthenticationTests
     }
 
     [Theory]
-    [InlineData("/console/", true)]
-    [InlineData("/console/operate/settings", true)]
-    [InlineData("/console/publish", true)]
-    [InlineData("/console/operate/health", true)]
-    [InlineData(null, false)]
-    [InlineData("", false)]
-    [InlineData("/admin/", false)]
-    [InlineData("https://evil.example/console/", false)]
-    [InlineData("//evil.example/console/", false)]
-    [InlineData("/console/../outside", false)]
-    [InlineData("/console/%2e%2e/admin", false)]
-    [InlineData("/console/auth", false)]
-    [InlineData("/console/auth/signin", false)]
-    [InlineData("/console//operate/settings", false)]
-    [InlineData("/console/operate/settings/", false)]
-    [InlineData("/console/operate/connections?next=https://evil.example", false)]
-    [InlineData("/console/operate/connections#details", false)]
-    [InlineData("/console/publish\n", false)]
-    [InlineData("/console/publish\\other", false)]
-    public void IsAllowedReturnPathMatchesServerContract(string? path, bool expected)
+    [InlineData("/console/")]
+    [InlineData("/console/operate/settings")]
+    [InlineData("/console/publish")]
+    [InlineData("/console/operate/health")]
+    public void IsAllowedReturnPathAcceptsSanitizedConsoleRoutes(string path)
     {
-        Assert.Equal(expected, BrowserOidcAuthentication.IsAllowedReturnPath(path));
+        Assert.True(BrowserOidcAuthentication.IsAllowedReturnPath(path));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("/admin/")]
+    [InlineData("https://evil.example/console/")]
+    [InlineData("//evil.example/console/")]
+    [InlineData("/console/../outside")]
+    [InlineData("/console/%2e%2e/admin")]
+    [InlineData("/console/auth")]
+    [InlineData("/console/auth/signin")]
+    [InlineData("/console//operate/settings")]
+    [InlineData("/console/operate/settings/")]
+    [InlineData("/console/operate/connections?next=https://evil.example")]
+    [InlineData("/console/operate/connections#details")]
+    [InlineData("/console/publish\n")]
+    [InlineData("/console/publish\\other")]
+    public void IsAllowedReturnPathRejectsDisallowedOrHostilePaths(string? path)
+    {
+        Assert.False(BrowserOidcAuthentication.IsAllowedReturnPath(path));
     }
 
     [Fact]
