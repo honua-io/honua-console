@@ -138,17 +138,15 @@ function defaultOpsHealth(overrides?: Record<string, unknown>) {
   };
 }
 
-export async function mockPopulatedConsoleApis(
+async function mockAdminCatalogRoutes(
   page: Page,
   origin: string,
-  overrides: PopulatedConsoleApiOverrides = {},
+  overrides: PopulatedConsoleApiOverrides,
 ) {
   const service = defaultService(overrides.service);
   const connection = defaultConnection(overrides.connection);
   const layer = defaultLayer(String(service.serviceName), overrides.layer);
   const catalogRegistry = defaultCatalogRegistry(overrides.catalogRegistry);
-  const proposal = defaultProposal(overrides.proposal);
-  const opsHealth = defaultOpsHealth(overrides.opsHealth);
 
   await page.route(url => url.origin === origin && /^\/api\/v1\/admin\/connections\/?$/.test(url.pathname), route => route.fulfill({
     json: { success: true, data: [connection] },
@@ -162,6 +160,17 @@ export async function mockPopulatedConsoleApis(
   await page.route(`${origin}/api/v1/admin/services**`, route => route.fulfill({
     json: { success: true, data: { items: [service], page: 1, pageSize: 100, total: 1, layerTotal: service.layerCount } },
   }));
+}
+
+export async function mockPopulatedConsoleApis(
+  page: Page,
+  origin: string,
+  overrides: PopulatedConsoleApiOverrides = {},
+) {
+  const proposal = defaultProposal(overrides.proposal);
+  const opsHealth = defaultOpsHealth(overrides.opsHealth);
+
+  await mockAdminCatalogRoutes(page, origin, overrides);
   await page.route(`${origin}/api/v1/admin/proposals**`, route => route.fulfill({
     json: { proposals: [proposal] },
   }));

@@ -102,12 +102,16 @@ public sealed class HonuaServerRbacAccessDataSource : IRbacAccessDataSource
 
     private static string IssueMessage(HonuaAdminEndpointIssue issue) => $"{issue.State}: {issue.Detail}";
 
-    private static RbacCapabilityState ToCapabilityState(HonuaAdminEndpointIssue issue) =>
-        new(
-            Surface,
-            issue.State,
-            issue.Contract,
-            issue.StatusCode is null
-                ? issue.Detail
-                : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.");
+    private static RbacCapabilityState ToCapabilityState(HonuaAdminEndpointIssue issue)
+    {
+        var state = issue.StatusCode == 429 ? "Throttled" : issue.State;
+        var detail = issue.StatusCode switch
+        {
+            429 => "Too many requests. Wait a moment and try again.",
+            503 => "The Honua server is temporarily unavailable. Try again in a moment.",
+            null => issue.Detail,
+            _ => $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}."
+        };
+        return new(Surface, state, issue.Contract, detail);
+    }
 }

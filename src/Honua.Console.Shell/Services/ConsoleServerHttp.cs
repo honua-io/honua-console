@@ -22,11 +22,11 @@ internal static class ConsoleServerHttp
 
     internal readonly record struct AuthenticationResult(bool IsAuthenticated, string Message);
 
-    internal readonly record struct ProblemResponse(
-        string Message,
-        string Detail,
-        bool Retryable = false,
-        double? RetryAfterSeconds = null);
+    internal readonly record struct ProblemResponse(string Message, string Detail)
+    {
+        public bool Retryable { get; init; }
+        public double? RetryAfterSeconds { get; init; }
+    }
 
     // A configured admin key is attached to a read only when no real operator bearer exists.
     public static async Task AttachAuthenticationAsync(
@@ -157,9 +157,11 @@ internal static class ConsoleServerHttp
         var message = ResolveProblemMessage(serverMessage, fallbackMessage, receipt);
         return new ProblemResponse(
             message.ReplaceLineEndings(" "),
-            string.Join("; ", details.Distinct(StringComparer.OrdinalIgnoreCase)),
-            receipt.Retryable,
-            receipt.RetryAfterSeconds);
+            string.Join("; ", details.Distinct(StringComparer.OrdinalIgnoreCase)))
+        {
+            Retryable = receipt.Retryable,
+            RetryAfterSeconds = receipt.RetryAfterSeconds
+        };
     }
 
     private static string ResolveProblemMessage(

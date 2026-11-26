@@ -83,22 +83,29 @@ public sealed class TerminalFailureReceiptTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.ServiceUnavailable, "false", false)]
-    [InlineData(HttpStatusCode.BadRequest, "true", true)]
-    [InlineData(HttpStatusCode.ServiceUnavailable, "true", true)]
-    public void Parse_honors_HonuaRetryable_header_when_body_omits_retryable(
-        HttpStatusCode status,
-        string headerValue,
-        bool expectedRetryable)
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public void Parse_honors_HonuaRetryable_true_header_when_body_omits_retryable(HttpStatusCode status)
     {
         using var response = new HttpResponseMessage(status);
-        response.Headers.TryAddWithoutValidation("Honua-Retryable", headerValue);
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "true");
         response.Headers.TryAddWithoutValidation("Retry-After", "45");
 
         var receipt = ConsoleFailureReceiptParser.Parse(response, "{}");
 
-        Assert.Equal(expectedRetryable, receipt.Retryable);
+        Assert.True(receipt.Retryable);
         Assert.Equal(45, receipt.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public void Parse_honors_HonuaRetryable_false_header_on_503_when_body_omits_retryable()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "false");
+
+        var receipt = ConsoleFailureReceiptParser.Parse(response, "{}");
+
+        Assert.False(receipt.Retryable);
     }
 
     private static string State(FailureClass failure) => failure.Kind switch

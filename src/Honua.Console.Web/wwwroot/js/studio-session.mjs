@@ -5,6 +5,8 @@ import { captureConsoleSession } from './console-browser-transport.mjs';
 export class StudioSignInRequired extends Error {}
 export class StudioPermissionDenied extends Error {}
 
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
 const nativeAuthorities = new WeakMap();
 const ENVIRONMENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 // The native body carries no lease expiry. Callers re-read within this window; a failed
@@ -28,8 +30,8 @@ export async function readStudioSession({ capture = captureConsoleSession, now =
         throw new StudioSignInRequired('Sign in to Honua to open Studio.');
     }
     const response = await transport.fetch('api/v1/studio/session', { headers: { Accept: 'application/json' } });
-    if (response.status === 401) throw new StudioSignInRequired('Sign in to Honua to open Studio.');
-    if (response.status === 403) throw new StudioPermissionDenied('You do not have permission to open Studio.');
+    if (response.status === HTTP_UNAUTHORIZED) throw new StudioSignInRequired('Sign in to Honua to open Studio.');
+    if (response.status === HTTP_FORBIDDEN) throw new StudioPermissionDenied('You do not have permission to open Studio.');
     if (!response.ok) throw new Error(`The Studio session request failed with ${response.status}.`);
     const data = (await response.json())?.data;
     if (data?.authenticated !== true || typeof data.principalId !== 'string' || !data.principalId
@@ -77,8 +79,8 @@ async function readLegacyStudioSession({request,now}) {
     const response=await request('/api/agent-workspace/session',{
         credentials:'same-origin',redirect:'error',headers:{Accept:'application/json'},
     });
-    if(response.status===401) throw new StudioSignInRequired('Sign in to Honua to open Studio.');
-    if(response.status===403) throw new StudioPermissionDenied('You do not have permission to open Studio.');
+    if(response.status===HTTP_UNAUTHORIZED) throw new StudioSignInRequired('Sign in to Honua to open Studio.');
+    if(response.status===HTTP_FORBIDDEN) throw new StudioPermissionDenied('You do not have permission to open Studio.');
     if(!response.ok) throw new Error(`The Studio session request failed with ${response.status}.`);
     const data=await response.json();
     if(data?.authenticated!==true || typeof data.principalId!=='string' || !data.principalId

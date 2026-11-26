@@ -1,4 +1,6 @@
 let browserTransport;
+const HTTP_UNAUTHORIZED = 401;
+const SESSION_CHANGED_ERROR = 'The Console session changed. Reopen this view before continuing.';
 
 export function initialize(sessionBridge, configuration) {
     browserTransport = createConsoleBrowserTransport({
@@ -154,7 +156,7 @@ async function captureResourceAuthorization(state) {
     else if (published === seen && state.current.authenticated && !captured.authenticated) state.note(captured);
     const authorize = (url) => {
         if (!authorize.current()) {
-            throw new Error('The Console session changed. Reopen this view before continuing.');
+            throw new Error(SESSION_CHANGED_ERROR);
         }
         return resourceDecision(url, captured, state);
     };
@@ -180,7 +182,7 @@ async function openCapture(state, request) {
     const getCurrentSession = async () => {
         const current = requireSession(await state.getSession());
         if (current.revision !== binding.revision || current.principalId !== binding.principalId) {
-            throw new Error('The Console session changed. Reopen this view before continuing.');
+            throw new Error(SESSION_CHANGED_ERROR);
         }
         return current;
     };
@@ -195,10 +197,10 @@ async function openCapture(state, request) {
             init.signal?.throwIfAborted();
             const response = await request(url, requestOptions(init, session, state.sameOrigin));
             init.signal?.throwIfAborted();
-            if (response.status === 401) {
+            if (response.status === HTTP_UNAUTHORIZED) {
                 const current = await state.getSession();
                 if (current?.revision !== binding.revision || current?.principalId !== binding.principalId) {
-                    throw new Error('The Console session changed. Reopen this view before continuing.');
+                    throw new Error(SESSION_CHANGED_ERROR);
                 }
                 await notifyUnauthorized(state, binding.revision);
                 return response;

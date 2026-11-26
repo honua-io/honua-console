@@ -218,7 +218,6 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
     {
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Missing permission",
         HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
-        HttpStatusCode.TooManyRequests => "Throttled",
         _ => "Unavailable"
     };
 
@@ -229,8 +228,6 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
             HttpStatusCode.Unauthorized => "The Honua server rejected the request because admin authentication is missing.",
             HttpStatusCode.Forbidden => "The current principal lacks permission to read access (manage-roles).",
             HttpStatusCode.NotFound => "The Honua server does not expose the Console Access (RBAC) contract.",
-            HttpStatusCode.TooManyRequests => "Too many requests. Wait a moment and try again.",
-            HttpStatusCode.ServiceUnavailable => "The Honua server is temporarily unavailable. Try again in a moment.",
             _ => $"The Honua server returned HTTP {(int)status} ({status})."
         };
         return new HonuaAdminEndpointIssue(ReadState(status), contract, detail, (int)status);
@@ -245,8 +242,6 @@ public sealed class HonuaConsoleRbacHttpClient : IHonuaConsoleRbacClient, IDispo
             HttpStatusCode.Forbidden => "The current principal lacks permission to manage roles.",
             HttpStatusCode.BadRequest => "The Honua server rejected the role change (e.g. blank name, or a built-in role cannot be edited or deleted).",
             HttpStatusCode.NotFound => "The role was not found, or the Console Access contract is not exposed.",
-            HttpStatusCode.TooManyRequests => "Too many requests. Wait a moment and try again.",
-            HttpStatusCode.ServiceUnavailable => "The Honua server is temporarily unavailable. Try again in a moment.",
             _ => $"The Honua server returned HTTP {(int)status} ({status})."
         };
         return new HonuaAdminEndpointIssue(state, contract, detail, (int)status);

@@ -35,13 +35,18 @@ public sealed class BrowserSessionInvalidationTests
         if (!remainsAuthenticated) Assert.Null(session.AccessToken);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SameOriginManagerUnauthorizedClearsServingSession(bool explicitSameOriginManagement)
+    [Fact]
+    public Task DefaultOriginManagerUnauthorizedClearsServingSession() =>
+        AssertServingOriginManagerUnauthorizedClearsSession(managementOrigin: null);
+
+    [Fact]
+    public Task ExplicitSameOriginManagerUnauthorizedClearsServingSession() =>
+        AssertServingOriginManagerUnauthorizedClearsSession(managementOrigin: Api);
+
+    private static async Task AssertServingOriginManagerUnauthorizedClearsSession(Uri? managementOrigin)
     {
         var session = SignedInSession();
-        var origins = new BrowserApiOrigins(Api, App, explicitSameOriginManagement ? Api : null);
+        var origins = new BrowserApiOrigins(Api, App, managementOrigin);
         using var client = new HttpClient(new BrowserApiHandler(origins, session, BrowserApiAccess.Manager)
         {
             InnerHandler = new ResponseHandler(HttpStatusCode.Unauthorized)
