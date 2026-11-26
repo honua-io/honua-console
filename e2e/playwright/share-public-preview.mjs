@@ -21,9 +21,10 @@ await runV4PagePresentation({
       const downloads = page.locator("[data-share-opendata-downloads]");
       assert.match(await downloads.textContent(), /No download links are published/);
       assert.equal(await downloads.locator("a").count(), 0);
-      assert.deepEqual(await page.locator("h2").allTextContents(), ["Download", "Public routes", "Usage", "Details"]);
+      assert.deepEqual(await page.locator("h2").allTextContents(), ["Connect from your software", "Download data", "Apps using this", "Details"]);
       assert.equal(await page.locator(".share-opendata-back").getAttribute("href"), "/share/public");
       assert.match(await page.locator(".public-item-meta").textContent(), /resilience-team/);
+      assert.match(await page.locator(".public-item-kv").textContent(), /resilience-team/);
       assert.deepEqual(await page.locator(".public-item-tags li").allTextContents(), ["#flood", "#open-data", "#coastal"]);
       assert.equal(await page.locator("button[data-console-copy]").count(), 1);
       const intro = page.locator(".share-opendata-intro");

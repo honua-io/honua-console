@@ -1,4 +1,5 @@
 using Bunit;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Pages;
 using Honua.Console.Shell.Services;
@@ -26,8 +27,9 @@ public sealed class SharePublicItemV4Tests
             Assert.Contains("No download links are published", downloads.TextContent);
             Assert.Empty(downloads.QuerySelectorAll("a"));
             Assert.Contains("resilience-team", page.Find(".public-item-meta").TextContent);
+            Assert.Contains("resilience-team", page.Find(".public-item-kv").TextContent);
             Assert.Equal(["#flood", "#open-data", "#coastal"], page.FindAll(".public-item-tags li").Select(node => node.TextContent));
-            Assert.Equal(["Download", "Public routes", "Usage", "Details"], page.FindAll("h2").Select(node => node.TextContent));
+            Assert.Equal(["Connect from your software", "Download data", "Apps using this", "Details"], page.FindAll("h2").Select(node => node.TextContent));
             Assert.Equal("/share/public", page.Find(".share-opendata-back").GetAttribute("href"));
             Assert.Single(page.FindAll("button[data-console-copy]"));
         }
@@ -99,6 +101,28 @@ public sealed class SharePublicItemV4Tests
         Assert.Contains("Open data is not bound to honua-server", page.Markup);
         Assert.DoesNotContain("Public item not found", page.Markup);
         Assert.Empty(page.FindAll("[data-share-opendata-landing]"));
+    }
+
+    [Fact]
+    public void PublicCatalogViewRendersMockup15HeaderThumbnailsFacetsAndDeveloperNotice()
+    {
+        using var context = new BunitContext();
+        var modified = new DateTimeOffset(2026, 10, 21, 0, 0, 0, TimeSpan.Zero);
+        ConsoleContentSummary[] items =
+        [
+            new() { Id = "flood-service", Type = "service", Title = "Flood zones", Summary = "County flood hazard areas.", Owner = "Emergency GIS", Tags = ["flood"], Formats = ["OGC:API:Features"], Modified = modified },
+            new() { Id = "shelters-layer", Type = "layer", Title = "Emergency shelters", Summary = "Designated shelter locations.", Owner = "Emergency GIS", Tags = ["shelters"], Formats = ["CSV"], Modified = modified.AddDays(1) },
+        ];
+
+        var view = context.Render<Honua.Console.Shell.Components.PublicCatalogView>(parameters => parameters.Add(p => p.Items, items));
+
+        Assert.Equal("Open data catalog", view.Find(".public-catalog-brand strong").TextContent);
+        Assert.False(string.IsNullOrWhiteSpace(view.Find(".public-catalog-brand small").TextContent));
+        Assert.Equal(2, view.FindAll(".public-catalog-card .public-catalog-thumb").Count);
+        Assert.Contains("For developers and data portals:", view.Find(".public-catalog-notice").TextContent);
+        Assert.Contains("Served by this Honua server", view.Find(".public-catalog-footer").TextContent);
+        view.Find("button.public-catalog-facet-btn").Click();
+        Assert.Single(view.FindAll(".public-catalog-applied-chip"));
     }
 
     private static BunitContext Context(ConsoleV4Options options, IConsoleCatalogClient catalog)

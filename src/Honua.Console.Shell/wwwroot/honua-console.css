@@ -19,6 +19,7 @@
 @import url("css/folder-v4.css");
 @import url("css/service-v4.css");
 @import url("css/v4-share-public.css");
+@import url("css/v4-public-catalog.css");
 @import url("css/studio-styles-v4.css");
 @import url("css/viewer-v4.css");
 
@@ -9235,6 +9236,12 @@ button.console-chip:focus-visible {
 
 .approval-inbox-page:not(.approval-inbox-v4) .approval-inbox-detail .console-panel-heading {
     flex-wrap: wrap;
+}
+
+.approval-inbox-page:not(.approval-inbox-v4) .proposal-approval-reason {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .approval-inbox-select {

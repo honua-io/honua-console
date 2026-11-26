@@ -95,9 +95,15 @@ async function mockPublications(page: Page) {
 }
 
 async function checkPublicItem(page: Page) {
+  await expect(page.getByRole('heading', { name: 'Connect from your software', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Download data', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Apps using this', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Details', exact: true })).toBeVisible();
+  await expect(page.locator('[data-share-opendata-routes] .public-item-proto')).toHaveText('OGC API Features');
   await expect(page.locator('[data-share-opendata-routes] code')).toHaveText(item.distributions[0].accessUrl);
   await expect(page.getByRole('button', { name: /^Copy:/ })).toBeVisible();
   await expect(page.locator('[data-share-opendata-downloads] a')).toHaveAttribute('href', item.distributions[0].accessUrl);
+  await expect(page.locator('.public-item-kv')).toContainText(item.publisherName);
   await expect(page.getByText(item.license, { exact: true })).toBeVisible();
   const copy = page.getByRole('button', { name: /^Copy:/ });
   await copy.press('Enter');
@@ -107,6 +113,11 @@ async function checkPublicItem(page: Page) {
 }
 
 async function checkCatalogSearchAndNavigation(page: Page) {
+  await expect(page.locator('.public-catalog-brand strong')).toHaveText('Open data catalog');
+  await expect(page.locator('.public-catalog-brand small')).toBeVisible();
+  await expect(page.locator('.public-catalog-card .public-catalog-thumb')).toHaveCount(2);
+  await expect(page.locator('.public-catalog-notice')).toContainText('For developers and data portals:');
+  await expect(page.locator('.public-catalog-footer')).toContainText('Served by this Honua server');
   const search = page.getByRole('searchbox', { name: 'Search open data' });
   const resultLinks = page.locator('.public-catalog-card h3 a');
   await expect(resultLinks).toHaveText([newerItem.title, item.title]);
