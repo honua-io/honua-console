@@ -17,7 +17,7 @@ async function fixture({native=true,current=true,workspace}={}) {
  const context=vm.createContext({assets:Promise.resolve({registerAllStudioElements(){},ServerProcessWorkspace:Workspace,LocalProcessWorkspace:Workspace}),
   document:{querySelector:()=>host,createElement:()=>({addEventListener(){}})},window:{honuaAgentWorkspace:workspace},
   readStudioSession:async()=>session,studioElement:async()=>({}),capturedProcessFetch:()=>()=>{},
-  connectStudioHost,processView:undefined,StudioSignInRequired:Error});
+  connectStudioHost,processView:undefined,StudioSignInRequired:Error,StudioPermissionDenied:class extends Error {}});
  // The resolved asset promise avoids the production dynamic import in this isolated DOM.
  await vm.runInContext(mount+';mountProcesses()',context);
  return {slots,status};

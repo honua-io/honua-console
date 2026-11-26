@@ -1,9 +1,12 @@
 let browserTransport;
+const HTTP_UNAUTHORIZED = 401;
+const SESSION_CHANGED_ERROR = 'The Console session changed. Reopen this view before continuing.';
 
 export function initialize(sessionBridge, configuration) {
     browserTransport = createConsoleBrowserTransport({
         ...configuration,
         getSession: () => sessionBridge.invokeMethodAsync('GetSnapshot'),
+        onUnauthorized: (revision) => sessionBridge.invokeMethodAsync('InvalidateSession', revision),
     });
     globalThis.honuaConsoleApiBase = browserTransport.apiBase;
     globalThis.honuaConsoleCaptureResourceAuthorization = () => browserTransport.captureResourceAuthorization();
@@ -153,7 +156,7 @@ async function captureResourceAuthorization(state) {
     else if (published === seen && state.current.authenticated && !captured.authenticated) state.note(captured);
     const authorize = (url) => {
         if (!authorize.current()) {
-            throw new Error('The Console session changed. Reopen this view before continuing.');
+            throw new Error(SESSION_CHANGED_ERROR);
         }
         return resourceDecision(url, captured, state);
     };
@@ -161,12 +164,25 @@ async function captureResourceAuthorization(state) {
     return authorize;
 }
 
+async function notifyUnauthorized(state, revision) {
+    if (state.current && state.current.revision === revision && state.current.authenticated) {
+        state.note({ ...state.current, authenticated: false, principalId: '', accessToken: null });
+    }
+    if (typeof state.onUnauthorized === 'function') {
+        try {
+            await state.onUnauthorized(revision);
+        } catch {
+            // Bridge detachment must not mask the 401 response from the caller.
+        }
+    }
+}
+
 async function openCapture(state, request) {
     const binding = requireSession(await state.getSession());
     const getCurrentSession = async () => {
         const current = requireSession(await state.getSession());
         if (current.revision !== binding.revision || current.principalId !== binding.principalId) {
-            throw new Error('The Console session changed. Reopen this view before continuing.');
+            throw new Error(SESSION_CHANGED_ERROR);
         }
         return current;
     };
@@ -181,13 +197,23 @@ async function openCapture(state, request) {
             init.signal?.throwIfAborted();
             const response = await request(url, requestOptions(init, session, state.sameOrigin));
             init.signal?.throwIfAborted();
+            if (response.status === HTTP_UNAUTHORIZED) {
+                const current = await state.getSession();
+                if (current?.revision !== binding.revision || current?.principalId !== binding.principalId) {
+                    throw new Error(SESSION_CHANGED_ERROR);
+                }
+                await notifyUnauthorized(state, binding.revision);
+                return response;
+            }
             await getCurrentSession();
             return response;
         },
     });
 }
 
-export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, getSession, request = fetch }) {
+export function createConsoleBrowserTransport({
+    apiBaseUrl, applicationBaseUrl, getSession, request = fetch, onUnauthorized = null,
+}) {
     const api = configuredApi(apiBaseUrl);
     const application = new URL(applicationBaseUrl);
     const state = {
@@ -195,6 +221,7 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
         application,
         sameOrigin: api.origin === application.origin,
         getSession,
+        onUnauthorized,
         current: null,
         note: null,
         arm: null,

@@ -81,6 +81,13 @@ public sealed class ConsoleBrowserSession
 
     public void Clear() => Set(new ClaimsPrincipal(new ClaimsIdentity()));
 
+    public bool ClearIfRevision(long expectedRevision)
+    {
+        if (Revision != expectedRevision) return false;
+        Clear();
+        return true;
+    }
+
     internal void RememberManagementBearer(string token, DateTimeOffset? expiresAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(token);

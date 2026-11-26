@@ -9,6 +9,7 @@ public sealed record OperateLayerExposure(OperateServiceDetail Service, OperateS
 public static class OperateLayerLookup
 {
     public const string UnavailableState = "Unavailable";
+    public const string ThrottledState = "Throttled";
     public const string MissingPermissionState = "Missing permission";
     public const string TemporaryFailureMessage =
         "honua-server did not answer in time or could not be reached. This is usually temporary; retry in a moment.";
@@ -20,7 +21,7 @@ public static class OperateLayerLookup
 
     // The same rule for any item read: services, connections and datasets as well as layers.
     public static OperateCapabilityState? ReadFailure(this IReadOnlyList<OperateCapabilityState> states) =>
-        states.FirstOrDefault(state => state.State == UnavailableState)
+        states.FirstOrDefault(state => state.State is UnavailableState or ThrottledState)
         ?? states.FirstOrDefault(state => state.State == MissingPermissionState);
 
     // A transport failure (no HTTP status) carries a raw client error, so it is reworded; an HTTP failure or an

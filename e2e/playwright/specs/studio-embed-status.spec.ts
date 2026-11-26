@@ -13,15 +13,22 @@ async function openStudioEmbed(page: import('@playwright/test').Page) {
     });
 }
 
-for (const status of [401, 403]) {
-    test(`a ${status} workspace session asks the operator to sign in`, async ({ page }) => {
-        await page.route('**/api/agent-workspace/session', route => route.fulfill({ status, body: '' }));
+test('a 401 workspace session asks the operator to sign in', async ({ page }) => {
+    await page.route('**/api/agent-workspace/session', route => route.fulfill({ status: 401, body: '' }));
 
-        await openStudioEmbed(page);
+    await openStudioEmbed(page);
 
-        await expect(page.locator('[data-studio-status]')).toHaveText('Sign in to Honua to open Studio.');
-    });
-}
+    await expect(page.locator('[data-studio-status]')).toHaveText('Sign in to Honua to open Studio.');
+});
+
+test('a 403 workspace session reports permission denied without looping to sign-in', async ({ page }) => {
+    await page.route('**/api/agent-workspace/session', route => route.fulfill({ status: 403, body: '' }));
+
+    await openStudioEmbed(page);
+
+    await expect(page.locator('[data-studio-status]')).toHaveText(
+        'You do not have permission to open Studio. Contact your administrator to request access.');
+});
 
 for (const status of [429, 500, 503]) {
     test(`a ${status} workspace session reads as a load failure, not a sign-in prompt`, async ({ page }) => {

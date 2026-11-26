@@ -46,7 +46,7 @@ internal sealed class BrowserApiHandler(
             request.SetBrowserResponseStreamingEnabled(true);
         var response = await base.SendAsync(request, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized
-            && access == BrowserApiAccess.Authenticated && session.Revision == sessionRevision)
+            && UsesServingSession() && session.Revision == sessionRevision)
         {
             session.Clear();
             return response;
@@ -110,10 +110,7 @@ internal sealed class BrowserApiHandler(
         request.Headers.Remove("X-Honua-CSRF");
         request.Headers.Authorization = null;
         var sameOrigin = ConsoleRuntimeConfiguration.SameOrigin(target, origins.Application);
-        var managerOnServingOrigin = origins.Management is { } management
-            && ConsoleRuntimeConfiguration.SameOrigin(management, origins.Application)
-            && ConsoleRuntimeConfiguration.SameOrigin(origins.Api, origins.Application);
-        var managementCall = access == BrowserApiAccess.Manager && origins.Management is not null && !managerOnServingOrigin;
+        var managementCall = access == BrowserApiAccess.Manager && IsSeparateManagementOrigin();
         var bearer = managementCall ? session.ManagementAccessToken ?? session.AccessToken : session.AccessToken;
         var bearerExpiry = managementCall && session.ManagementAccessToken is not null
             ? session.ManagementExpiresAt
@@ -148,6 +145,17 @@ internal sealed class BrowserApiHandler(
 
         request.SetBrowserRequestCredentials(bearerCall || omitCredentials ? BrowserRequestCredentials.Omit : BrowserRequestCredentials.SameOrigin);
         request.SetBrowserRequestOption("redirect", "error");
+    }
+
+    private bool UsesServingSession() => access == BrowserApiAccess.Authenticated
+        || (access == BrowserApiAccess.Manager && !IsSeparateManagementOrigin());
+
+    private bool IsSeparateManagementOrigin()
+    {
+        if (origins.Management is not { } management) return false;
+        var managerOnServingOrigin = ConsoleRuntimeConfiguration.SameOrigin(management, origins.Application)
+            && ConsoleRuntimeConfiguration.SameOrigin(origins.Api, origins.Application);
+        return !managerOnServingOrigin;
     }
 }
 

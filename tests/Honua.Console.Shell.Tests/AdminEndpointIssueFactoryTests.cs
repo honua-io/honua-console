@@ -17,10 +17,39 @@ public sealed class AdminEndpointIssueFactoryTests
     [InlineData(HttpStatusCode.NotFound, "Unsupported")]
     [InlineData(HttpStatusCode.MethodNotAllowed, "Unsupported")]
     [InlineData(HttpStatusCode.NotImplemented, "Unsupported")]
+    [InlineData(HttpStatusCode.TooManyRequests, "Throttled")]
     [InlineData(HttpStatusCode.ServiceUnavailable, "Unavailable")]
     [InlineData(HttpStatusCode.InternalServerError, "Unavailable")]
     public void MapState_MapsEachStatusToItsCanonicalState(HttpStatusCode statusCode, string expectedState) =>
         Assert.Equal(expectedState, AdminEndpointIssueFactory.MapState(statusCode));
+
+    [Fact]
+    public async Task CreateIssueAsync_429WithRetryAfter_MapsToThrottledWithWaitHint()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        response.Headers.TryAddWithoutValidation("Retry-After", "30");
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "true");
+
+        var issue = await AdminEndpointIssueFactory.CreateIssueAsync("test/contract", response);
+
+        Assert.Equal("Throttled", issue.State);
+        Assert.True(issue.Receipt?.Retryable);
+        Assert.Equal(30, issue.Receipt?.RetryAfterSeconds);
+        Assert.Contains("Wait 30 seconds", issue.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateIssueAsync_503WithHonuaRetryable_ProducesTemporaryUnavailableCopy()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "true");
+
+        var issue = await AdminEndpointIssueFactory.CreateIssueAsync("test/contract", response);
+
+        Assert.Equal("Unavailable", issue.State);
+        Assert.True(issue.Receipt?.Retryable);
+        Assert.Contains("temporarily unavailable", issue.Detail, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public void CreateIssue_409_IsConflict_NotUnavailable()

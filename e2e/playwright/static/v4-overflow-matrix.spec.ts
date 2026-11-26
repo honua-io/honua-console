@@ -26,22 +26,28 @@ const overflowFixtures = {
     database: { hasConnectionPoolData: true, connectionPoolUtilization: 0.42, cacheHitRatio: 0.98, errorRate: 0, activeConnections: 12, connectionAcquisitionTimeouts: 0, connectionAcquisitionFailures: 0 },
   },
   exports: [{
-    exportId: 'exp-parcels-2026',
-    name: 'Countywide Parcels GeoParquet Export',
-    sourceName: 'parcels',
-    currentVersion: 3,
-    access: 'authenticated',
+    id: 'exp-parcels-2026',
+    title: 'Countywide Parcels GeoParquet Export',
+    source: {
+      kind: 'layer',
+      serviceId: 'regional-transport-infrastructure-roads-v2',
+      layerId: 1,
+      name: 'Parcels',
+    },
+    status: 'ready',
+    currentVersion: 'v3',
+    collectionUrl: 'https://cdn.example.org/exports/exp-parcels-2026/collection.json',
     publicUrl: 'https://cdn.example.org/exports/countywide-parcels-2026.parquet',
     updatedAt: '2026-11-24T00:30:00Z',
   }],
 };
 
 const routes = [
-  '/inbox',
-  '/operate/services',
-  '/operate/layers',
-  '/operate/health',
-  '/operate/exports',
+  { path: '/inbox', readyText: 'Rebalance vector tile cache and promote regional parcel serving service' },
+  { path: '/operate/services', readyText: 'regional-transport-infrastructure-roads-v2' },
+  { path: '/operate/layers', readyText: 'Road Centerlines' },
+  { path: '/operate/health', readyText: 'postgres' },
+  { path: '/operate/exports', readyText: 'Countywide Parcels GeoParquet Export' },
 ];
 
 test('populated primary v4 routes have zero horizontal overflow across 390–1440px viewports', async ({ page }, testInfo) => {
@@ -51,15 +57,17 @@ test('populated primary v4 routes have zero horizontal overflow across 390–144
   await page.waitForURL(url => url.pathname === '/console/inbox');
 
   for (const route of routes) {
-    await page.goto(`${origin}/console${route}`);
+    await page.goto(`${origin}/console${route.path}`);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.locator('main').getByText(route.readyText).first()).toBeVisible();
+    await expect(page.locator('main').getByText(/Temporarily unavailable/i)).toHaveCount(0);
     for (const width of widths) {
       await page.setViewportSize({ width, height: 900 });
       const metrics = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         innerWidth: window.innerWidth,
       }));
-      expect(metrics.scrollWidth, `overflow on ${route} at ${width}px`).toBeLessThanOrEqual(metrics.innerWidth + 1);
+      expect(metrics.scrollWidth, `overflow on ${route.path} at ${width}px`).toBeLessThanOrEqual(metrics.innerWidth + 1);
     }
   }
 });

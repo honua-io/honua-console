@@ -80,6 +80,43 @@ public sealed class BrowserSignInPageTests
     }
 
     [Fact]
+    public async Task RateLimitedSignInShowsWaitHintInsteadOfConnectionError()
+    {
+        await using var context = CreateContext();
+        var authentication = new PendingAuthentication();
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(authentication);
+        var page = context.Render<AuthSignInPage>();
+        page.Find("input[type=password]").Change("operator-password");
+        var submission = page.Find("form").SubmitAsync();
+        var rateLimited = new HttpRequestException("429", null, System.Net.HttpStatusCode.TooManyRequests);
+        rateLimited.Data[Honua.Console.Contracts.ConsoleFailureReceiptParser.RetryAfterSecondsDataKey] = 45d;
+        authentication.Completion.SetException(rateLimited);
+        await submission;
+        var alert = page.Find("[role=alert]").TextContent;
+        Assert.Contains("Too many sign-in attempts", alert);
+        Assert.Contains("Wait 45 seconds and try again.", alert);
+        Assert.DoesNotContain("Check the server connection", alert);
+    }
+
+    [Fact]
+    public async Task ServiceUnavailableSignInShowsTemporaryUnavailableNotice()
+    {
+        await using var context = CreateContext();
+        var authentication = new PendingAuthentication();
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(authentication);
+        var page = context.Render<AuthSignInPage>();
+        page.Find("input[type=password]").Change("operator-password");
+        var submission = page.Find("form").SubmitAsync();
+        var unavailable = new HttpRequestException("503", null, System.Net.HttpStatusCode.ServiceUnavailable);
+        unavailable.Data[Honua.Console.Contracts.ConsoleFailureReceiptParser.RetryableDataKey] = true;
+        authentication.Completion.SetException(unavailable);
+        await submission;
+        var alert = page.Find("[role=alert]").TextContent;
+        Assert.Contains("Service temporarily unavailable", alert);
+        Assert.DoesNotContain("Check the server connection", alert);
+    }
+
+    [Fact]
     public async Task UnsupportedIdentityProviderDoesNotSendPasswordOrUseTheLegacyHostBridge()
     {
         await using var context = CreateContext();

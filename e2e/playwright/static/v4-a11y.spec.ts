@@ -33,16 +33,17 @@ const a11yFixtures = {
 };
 
 const primaryRoutes = [
-  { name: 'Home', path: '/' },
-  { name: 'Services', path: '/operate/services' },
-  { name: 'Connections', path: '/operate/connections' },
-  { name: 'Approvals', path: '/inbox' },
-  { name: 'Health', path: '/operate/health' },
-  { name: 'API keys', path: '/operate/settings/api-keys' },
-  { name: 'Discovery endpoints', path: '/operate/catalogs' },
+  { name: 'Home', path: '/', readyText: '1 in the queue' },
+  { name: 'Services', path: '/operate/services', readyText: 'transport-roads' },
+  { name: 'Connections', path: '/operate/connections', readyText: 'Primary PostGIS' },
+  { name: 'Approvals', path: '/inbox', readyText: 'Promote vector tile cache settings for roads' },
+  { name: 'Health', path: '/operate/health', readyText: 'postgres' },
+  { name: 'API keys', path: '/operate/settings/api-keys', readyText: 'Field Collector' },
+  { name: 'Discovery endpoints', path: '/operate/catalogs', readyText: 'OGC API Records' },
 ];
 
 test('shipping WASM primary v4 routes have zero critical or serious axe violations in light and dark themes', async ({ page }) => {
+  test.slow();
   await mockPopulatedConsoleApis(page, origin, a11yFixtures);
   await signInWithFixturePassword(page, origin, '/');
   await page.waitForURL(url => url.pathname === '/console/');
@@ -55,6 +56,8 @@ test('shipping WASM primary v4 routes have zero critical or serious axe violatio
     for (const route of primaryRoutes) {
       await page.goto(`${origin}/console${route.path}`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.locator('main').getByText(route.readyText).first()).toBeVisible();
+      await expect(page.locator('main').getByText(/Temporarily unavailable|are not bound/i)).toHaveCount(0);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
         .analyze();

@@ -1,6 +1,9 @@
+using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 
@@ -19,7 +22,11 @@ internal static class ConsoleServerHttp
 
     internal readonly record struct AuthenticationResult(bool IsAuthenticated, string Message);
 
-    internal readonly record struct ProblemResponse(string Message, string Detail);
+    internal readonly record struct ProblemResponse(string Message, string Detail)
+    {
+        public bool Retryable { get; init; }
+        public double? RetryAfterSeconds { get; init; }
+    }
 
     // A configured admin key is attached to a read only when no real operator bearer exists.
     public static async Task AttachAuthenticationAsync(
@@ -111,13 +118,14 @@ internal static class ConsoleServerHttp
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        var message = fallbackMessage;
+        string? serverMessage = null;
         var details = new List<string>
         {
-            $"HTTP {((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)} {response.ReasonPhrase}".TrimEnd()
+            $"HTTP {((int)response.StatusCode).ToString(CultureInfo.InvariantCulture)} {response.ReasonPhrase}".TrimEnd()
         };
 
         var body = await ReadBoundedBodyAsync(response, cancellationToken).ConfigureAwait(false);
+        var receipt = ConsoleFailureReceiptParser.Parse(response, body);
         if (!string.IsNullOrWhiteSpace(body))
         {
             try
@@ -126,28 +134,8 @@ internal static class ConsoleServerHttp
                 if (document.RootElement.ValueKind == JsonValueKind.Object)
                 {
                     var root = document.RootElement;
-                    message = FirstString(root, "detail", "title") ?? message;
-                    AddProblemField(details, root, "code");
-                    AddProblemField(details, root, "correlationId");
-                    AddProblemField(details, root, "requestId");
-                    AddProblemField(details, root, "operationId");
-                    AddProblemField(details, root, "proposalId");
-                    AddProblemField(details, root, "traceId");
-                    AddProblemField(details, root, "auditId");
-                    AddProblemField(details, root, "handleId");
-                    AddProblemField(details, root, "instance");
-
-                    if (root.TryGetProperty("extensions", out var extensions)
-                        && extensions.ValueKind == JsonValueKind.Object)
-                    {
-                        AddProblemField(details, extensions, "correlationId");
-                        AddProblemField(details, extensions, "requestId");
-                        AddProblemField(details, extensions, "operationId");
-                        AddProblemField(details, extensions, "proposalId");
-                        AddProblemField(details, extensions, "traceId");
-                        AddProblemField(details, extensions, "auditId");
-                        AddProblemField(details, extensions, "handleId");
-                    }
+                    serverMessage = FirstString(root, "detail", "title");
+                    AddProblemFields(details, root);
                 }
             }
             catch (JsonException)
@@ -160,10 +148,76 @@ internal static class ConsoleServerHttp
         AddHeader(details, response, "X-Correlation-ID", "correlationId");
         AddHeader(details, response, "X-Request-ID", "requestId");
         AddHeader(details, response, "traceparent", "traceparent");
+        AddHeader(details, response, "Honua-Retryable", "retryable");
+        if (receipt.RetryAfterSeconds is { } retryAfter)
+        {
+            details.Add($"retryAfterSeconds={Math.Ceiling(retryAfter).ToString(CultureInfo.InvariantCulture)}");
+        }
 
+        var message = ResolveProblemMessage(serverMessage, fallbackMessage, receipt);
         return new ProblemResponse(
             message.ReplaceLineEndings(" "),
-            string.Join("; ", details.Distinct(StringComparer.OrdinalIgnoreCase)));
+            string.Join("; ", details.Distinct(StringComparer.OrdinalIgnoreCase)))
+        {
+            Retryable = receipt.Retryable,
+            RetryAfterSeconds = receipt.RetryAfterSeconds
+        };
+    }
+
+    private static string ResolveProblemMessage(
+        string? serverMessage,
+        string fallbackMessage,
+        TerminalFailureReceipt receipt)
+    {
+        var status = receipt.TransportStatus;
+        if (!string.IsNullOrWhiteSpace(serverMessage))
+        {
+            return status == (int)HttpStatusCode.TooManyRequests && receipt.RetryAfterSeconds is > 0
+                && !serverMessage.Contains("second", StringComparison.OrdinalIgnoreCase)
+                && !serverMessage.Contains("minute", StringComparison.OrdinalIgnoreCase)
+                ? $"{serverMessage.TrimEnd('.')} {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}"
+                : serverMessage;
+        }
+
+        if (status == (int)HttpStatusCode.TooManyRequests)
+        {
+            return $"Too many requests. {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}";
+        }
+
+        if (status == (int)HttpStatusCode.ServiceUnavailable || receipt.Retryable)
+        {
+            return receipt.RetryAfterSeconds is > 0
+                ? $"The Honua server is temporarily unavailable. {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}"
+                : "The Honua server is temporarily unavailable. Try again in a moment.";
+        }
+
+        return fallbackMessage;
+    }
+
+    private static void AddProblemFields(List<string> details, JsonElement root)
+    {
+        AddProblemField(details, root, "code");
+        AddProblemField(details, root, "correlationId");
+        AddProblemField(details, root, "requestId");
+        AddProblemField(details, root, "operationId");
+        AddProblemField(details, root, "proposalId");
+        AddProblemField(details, root, "traceId");
+        AddProblemField(details, root, "auditId");
+        AddProblemField(details, root, "handleId");
+        AddProblemField(details, root, "instance");
+
+        if (!root.TryGetProperty("extensions", out var extensions) || extensions.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        AddProblemField(details, extensions, "correlationId");
+        AddProblemField(details, extensions, "requestId");
+        AddProblemField(details, extensions, "operationId");
+        AddProblemField(details, extensions, "proposalId");
+        AddProblemField(details, extensions, "traceId");
+        AddProblemField(details, extensions, "auditId");
+        AddProblemField(details, extensions, "handleId");
     }
 
     private static async Task<string> ReadBoundedBodyAsync(

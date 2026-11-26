@@ -217,9 +217,7 @@
             // failed send doesn't pollute the conversation sent on the next attempt (honua-console#214).
             _turns.Remove(userTurn);
             _assistantInput = userTurn.Content;
-            _assistantError = string.IsNullOrWhiteSpace(ex.Message)
-                ? "The assistant is unavailable right now."
-                : ex.Message;
+            _assistantError = ConsoleGuardedRunner.SummarizeFailure(ex);
         }
         finally
         {

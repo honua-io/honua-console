@@ -41,6 +41,9 @@ public sealed record TerminalFailureReceipt(
 
 public static class ConsoleFailureReceiptParser
 {
+    public const string RetryAfterSecondsDataKey = "Honua.RetryAfterSeconds";
+    public const string RetryableDataKey = "Honua.Retryable";
+
     private static readonly HashSet<string> SensitiveHeaders =
         new(StringComparer.OrdinalIgnoreCase) { "Authorization", "Cookie", "Set-Cookie", "X-API-Key" };
 
@@ -57,7 +60,9 @@ public static class ConsoleFailureReceiptParser
         var status = (int)response.StatusCode;
         var kind = ParseKind(GetString(source, "kind")) ?? Classify(status);
         var code = GetString(source, "machineCode") ?? GetString(source, "code") ?? DefaultCode(kind);
-        var retryable = GetBoolean(source, "retryable") ?? status is 408 or 429 or 500 or 502 or 503 or 504;
+        var retryable = GetBoolean(source, "retryable")
+            ?? ParseBooleanHeader(response, "Honua-Retryable")
+            ?? status is 408 or 429 or 500 or 502 or 503 or 504;
         var retryAfter = GetNumber(source, "retryAfterSeconds") ?? ParseRetryAfter(response);
         var correlationId = GetString(source, "correlationId") ?? GetString(root, "correlationId") ??
             Header(response, "X-Correlation-ID", "Honua-Request-Id", "X-Request-Id");
@@ -72,6 +77,25 @@ public static class ConsoleFailureReceiptParser
             correlationId,
             ParseErrors(source, root),
             new TerminalProtocolMetadata(CopyHeaders(response), new Dictionary<string, IReadOnlyList<string>>()));
+    }
+
+    public static string FormatRetryWaitHint(double? retryAfterSeconds)
+    {
+        if (retryAfterSeconds is not { } seconds || !double.IsFinite(seconds) || seconds <= 0)
+        {
+            return "Wait a moment and try again.";
+        }
+
+        var roundedSeconds = Math.Max(1, (int)Math.Ceiling(seconds));
+        if (roundedSeconds < 90)
+        {
+            var unit = roundedSeconds == 1 ? "second" : "seconds";
+            return $"Wait {roundedSeconds.ToString(CultureInfo.InvariantCulture)} {unit} and try again.";
+        }
+
+        var minutes = (int)Math.Ceiling(roundedSeconds / 60.0);
+        var minuteUnit = minutes == 1 ? "minute" : "minutes";
+        return $"Wait about {minutes.ToString(CultureInfo.InvariantCulture)} {minuteUnit} and try again.";
     }
 
     public static TerminalFailureReceipt FromStatus(HttpStatusCode statusCode) =>
@@ -159,6 +183,19 @@ public static class ConsoleFailureReceiptParser
         var value = response.Headers.RetryAfter;
         if (value?.Delta is { } delta) return Math.Max(0, delta.TotalSeconds);
         if (value?.Date is { } date) return Math.Max(0, (date - DateTimeOffset.UtcNow).TotalSeconds);
+        var raw = Header(response, "Retry-After")?.Trim();
+        if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && double.IsFinite(seconds))
+        {
+            return Math.Max(0, seconds);
+        }
+        return null;
+    }
+
+    private static bool? ParseBooleanHeader(HttpResponseMessage response, string name)
+    {
+        var raw = Header(response, name)?.Trim();
+        if (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase)) return false;
         return null;
     }
 

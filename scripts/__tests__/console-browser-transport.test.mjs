@@ -204,3 +204,33 @@ test('public session assertions do not expose credentials', async () => {
     assert.deepEqual(Object.keys(captured).sort(), ['assertCurrent', 'fetch', 'principalId', 'revision']);
     assert.equal(await captured.assertCurrent(), undefined);
 });
+
+test('401 notifies session invalidation for matching revision and ignores stale replacement', async () => {
+    const invalidated = [];
+    const { transport } = fixture({
+        options: {
+            request: async () => new Response('', { status: 401 }),
+            onUnauthorized: async (revision) => { invalidated.push(revision); },
+        },
+    });
+    const captured = await transport.capture();
+    const response = await captured.fetch('api/v1/studio/session');
+    assert.equal(response.status, 401);
+    assert.deepEqual(invalidated, [1]);
+
+    let resolveLate;
+    const staleInvalidated = [];
+    const late = fixture({
+        options: {
+            request: () => new Promise(done => { resolveLate = done; }),
+            onUnauthorized: async (revision) => { staleInvalidated.push(revision); },
+        },
+    });
+    const binding = await late.transport.capture();
+    const pending = binding.fetch('api/v1/studio/session');
+    while (!resolveLate) await Promise.resolve();
+    late.setSession({ revision: 2, principalId: 'operator', authenticated: true, csrfToken: 'csrf', expiresAt: null });
+    resolveLate(new Response('', { status: 401 }));
+    await assert.rejects(() => pending, /session changed/i);
+    assert.deepEqual(staleInvalidated, []);
+});

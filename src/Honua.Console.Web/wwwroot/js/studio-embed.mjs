@@ -11,7 +11,7 @@ import { mountStudioStyleControls } from './studio-style-controls.mjs';
 import { mountStudioLayerPicker } from './studio-layer-picker.mjs';
 import { hasPendingStudioLeaseTurn, trackStudioLeaseTurns } from './studio-lease-turns.mjs';
 import { captureStudioDesignFocus } from './studio-design-focus.mjs';
-import { readStudioSession, StudioSignInRequired } from './studio-session.mjs';
+import { readStudioSession, StudioPermissionDenied, StudioSignInRequired } from './studio-session.mjs';
 let assets;
 let element;
 const elementsByEnvironment = new Map();
@@ -157,7 +157,9 @@ async function mount() {
     } catch (error) {
         status.textContent = error instanceof StudioSignInRequired
             ? 'Sign in to Honua to open Studio.'
-            : 'Studio could not load. Reload the page; if it keeps failing, ask your administrator to check the Studio assets.';
+            : error instanceof StudioPermissionDenied
+                ? 'You do not have permission to open Studio. Contact your administrator to request access.'
+                : 'Studio could not load. Reload the page; if it keeps failing, ask your administrator to check the Studio assets.';
         host.dataset.mounted = 'failed';
     }
 }
@@ -173,7 +175,9 @@ async function mountProcesses() {
         assets ||= loadStudioBundle();
         const module = await assets; module.registerAllStudioElements();
         const session = await readStudioSession().catch(error => {
-            throw error instanceof StudioSignInRequired ? new Error('Sign in to Honua to open Processes.') : error;
+            if (error instanceof StudioSignInRequired) throw new Error('Sign in to Honua to open Processes.');
+            if (error instanceof StudioPermissionDenied) throw new Error('You do not have permission to open Processes. Contact your administrator to request access.');
+            throw error;
         });
         let view;
         const options = { environmentId: session.environmentId, csrfToken: session.csrfToken, principalId:session.principalId,

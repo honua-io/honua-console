@@ -182,6 +182,24 @@ public sealed class OperateLayerStyleOverrideServerTests
     }
 
     [Fact]
+    public async Task GetOverrides_WhenThrottled_SurfacesTemporaryUnavailableStateAndOffersRetry()
+    {
+        var source = new ServerOperateLayerStyleOverrideDataSource(
+            new FakeLayersSource(1, ResourceId, "e2e_src_fs", "E2E Source"),
+            CreateClient(_ =>
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                response.Headers.TryAddWithoutValidation("Retry-After", "30");
+                return response;
+            }));
+
+        var view = await source.GetOverridesAsync(ResourceId);
+
+        Assert.Equal(OperateLayerStyleBindingState.Unavailable, view.BindingState!.State);
+        Assert.Contains("Wait 30 seconds", view.BindingState.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetOverrides_WhenLayerProjectionTimesOut_SurfacesTemporaryUnavailableStateInsteadOfMissingBinding()
     {
         var client = CreateClient(_ => throw new TaskCanceledException("net_http_request_timedout, 30"));

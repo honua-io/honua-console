@@ -26,6 +26,59 @@ public sealed class OperateAccessPageRenderTests
             () => Assert.Contains("Access (RBAC) API is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-rbac-matrix", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Missing permission", "Permission required")]
+    [InlineData("Unsupported", "Access (RBAC) API is not available")]
+    public void RolesAndMembers_NonRetryableFailures_RenderAccurateTitleWithoutRetry(
+        string state,
+        string expectedTitle)
+    {
+        var issue = new RbacCapabilityState("Access (RBAC)", state, "GET /api/v1/console/access/current/roles", "Operator-friendly detail.");
+        var data = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(null, [issue]),
+            MembershipLoad = new TeamMembershipLoad(null, [issue])
+        };
+
+        var roles = RenderRoles(data);
+        roles.WaitForAssertion(() => Assert.Contains(expectedTitle, roles.Find("h2").TextContent, StringComparison.Ordinal));
+        Assert.DoesNotContain("Access (RBAC) API is not bound", roles.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", roles.Markup, StringComparison.Ordinal);
+        Assert.Empty(roles.FindAll("[data-rbac-retry]"));
+
+        var members = RenderMembers(data);
+        members.WaitForAssertion(() => Assert.Contains(expectedTitle, members.Find("h2").TextContent, StringComparison.Ordinal));
+        Assert.DoesNotContain("Access (RBAC) API is not bound", members.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", members.Markup, StringComparison.Ordinal);
+        Assert.Empty(members.FindAll("[data-rbac-retry]"));
+    }
+
+    [Theory]
+    [InlineData("Unavailable")]
+    [InlineData("Throttled")]
+    public void RolesAndMembers_TransientFailures_RenderTemporaryUnavailableWithRetry(string state)
+    {
+        var issue = new RbacCapabilityState("Access (RBAC)", state, "GET /api/v1/console/access/current/roles", "Operator-friendly detail.");
+        var data = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(null, [issue]),
+            MembershipLoad = new TeamMembershipLoad(null, [issue])
+        };
+
+        var roles = RenderRoles(data);
+        roles.WaitForAssertion(() => Assert.Contains("Temporarily unavailable", roles.Find("h2").TextContent, StringComparison.Ordinal));
+        Assert.DoesNotContain("Access (RBAC) API is not bound", roles.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", roles.Markup, StringComparison.Ordinal);
+        Assert.Single(roles.FindAll("[data-rbac-retry]"));
+
+        var members = RenderMembers(data);
+        members.WaitForAssertion(() => Assert.Contains("Temporarily unavailable", members.Find("h2").TextContent, StringComparison.Ordinal));
+        Assert.DoesNotContain("Access (RBAC) API is not bound", members.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", members.Markup, StringComparison.Ordinal);
+        Assert.Single(members.FindAll("[data-rbac-retry]"));
     }
 
     [Fact]
