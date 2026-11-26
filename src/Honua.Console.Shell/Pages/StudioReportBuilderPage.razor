@@ -227,14 +227,14 @@
                                     </figcaption>
                                     @if (panel.Kind == StudioReportPanelKinds.Table)
                                     {
-                                        <div class="console-table-wrap">
+                                        <ConsoleTableRegion Class="console-table-wrap" Label="@($"{PanelLabel(panel)} table")">
                                             <table class="console-table">
                                                 <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
                                                 <tbody>
                                                     <tr><td>binding</td><td>@(string.IsNullOrWhiteSpace(panel.BindingAlias) ? "—" : panel.BindingAlias)</td></tr>
                                                 </tbody>
                                             </table>
-                                        </div>
+                                        </ConsoleTableRegion>
                                     }
                                     else if (panel.IsChart)
                                     {
@@ -457,7 +457,7 @@
                     }
                     else
                     {
-                        <div class="console-table-wrap">
+                        <ConsoleTableRegion Class="console-table-wrap" Label="Immutable versions">
                             <table class="console-table">
                                 <thead>
                                     <tr>
@@ -496,7 +496,7 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                        </ConsoleTableRegion>
                     }
                 </article>
             </section>

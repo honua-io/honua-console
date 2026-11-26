@@ -9,7 +9,7 @@
     @if (Listing.Memberships.Count == 0) { <p>Catalog membership is not reported.</p> }
     else
     {
-        <div class="catalog-admin-table catalog-memberships" role="region" aria-label="Item catalog membership" tabindex="0">
+        <ConsoleTableRegion Class="catalog-admin-table catalog-memberships" Label="Item catalog membership">
             <table>
                 <thead><tr><th scope="col">Catalog</th><th scope="col">Audience</th><th scope="col">Why it is here</th><th scope="col">Visibility</th><th scope="col">Category</th><th scope="col">Featured</th><th scope="col">Hidden here</th></tr></thead>
                 <tbody>
@@ -20,7 +20,7 @@
                     }
                 </tbody>
             </table>
-        </div>
+        </ConsoleTableRegion>
     }
     <h3>Description</h3>
     <dl class="catalog-settings-fields">

@@ -44,6 +44,7 @@ public sealed class OperateServerUpgradeCardTests
         IOpsHealthDataSource? healthDataSource = null)
     {
         var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(versionClient);
         ctx.Services.AddSingleton(approvalClient ?? new InMemoryConsoleDeployApprovalClient());
         // console#290: both are resolved OPTIONALLY (GetService) by the card, so most existing

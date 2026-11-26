@@ -208,7 +208,12 @@ else
                enforces this; the UI never weakens it. *@
             @if (_confirmingRollback)
             {
-                <div class="console-usage-callout operate-deploy-confirm" role="alertdialog" aria-label="Confirm rollback">
+                <ConsoleOverlayFocusTrap CanDismiss="!_busy"
+                                         OnDismiss="CancelRollback"
+                                         class="console-usage-callout operate-deploy-confirm"
+                                         role="alertdialog"
+                                         aria-modal="true"
+                                         aria-label="Confirm rollback">
                     @if (proposal.RollbackPlan?.RequiresConfirmation == true)
                     {
                         <p>
@@ -230,12 +235,13 @@ else
                         </button>
                         <button type="button"
                                 class="console-button console-button-secondary"
+                                autofocus
                                 disabled="@_busy"
                                 @onclick="CancelRollback">
                             Cancel
                         </button>
                     </div>
-                </div>
+                </ConsoleOverlayFocusTrap>
             }
 
             @if (!string.IsNullOrWhiteSpace(_actionMessage))

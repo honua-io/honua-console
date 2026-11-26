@@ -17,7 +17,7 @@
         @if (Matches.Count == 0) { <p role="status">No matching templates. Change the search.</p> }
         else
         {
-            <div class="catalog-admin-table" role="region" aria-label="Catalog templates" tabindex="0">
+            <ConsoleTableRegion Class="catalog-admin-table" Label="Catalog templates">
                 <table>
                     <thead><tr><th scope="col">Template</th><th scope="col">Page kind</th><th scope="col">Draft</th><th scope="col">Released</th><th scope="col">State</th></tr></thead>
                     <tbody>
@@ -35,7 +35,7 @@
                         }
                     </tbody>
                 </table>
-            </div>
+            </ConsoleTableRegion>
         }
     }
     <h3>Template safety</h3>

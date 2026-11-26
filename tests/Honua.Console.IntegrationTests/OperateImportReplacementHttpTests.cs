@@ -174,6 +174,7 @@ public sealed class OperateImportReplacementHttpTests
 
         public ImportFixture(HttpStatusCode status = HttpStatusCode.Accepted, string detail = "", bool transportFailure = false, string? jobFailure = null)
         {
+            _context.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
             var address = new Uri("https://server.example/");
             _http = new HttpClient(new ImportHandler(Requests, status, detail, transportFailure, jobFailure)) { BaseAddress = address };
             _client = new HonuaAdminOperateHttpClient(_http, new HonuaAdminOperateClientOptions(address, "test-key"));

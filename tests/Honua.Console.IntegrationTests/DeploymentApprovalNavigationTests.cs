@@ -218,6 +218,7 @@ public sealed class DeploymentApprovalNavigationTests
 
     private static IRenderedComponent<OperateDeploymentApprovalPanel> Render(BunitContext ctx, DelayedApprovalClient client)
     {
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
         return ctx.Render<OperateDeploymentApprovalPanel>(p => p.Add(x => x.OperationId, "first")
             .Add(x => x.PollInterval, (TimeSpan?)null));

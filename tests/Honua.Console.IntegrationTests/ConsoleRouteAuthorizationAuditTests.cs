@@ -57,10 +57,16 @@ public sealed class ConsoleRouteAuthorizationAuditTests
     [Fact]
     public void DevelopmentOnlyManualRoutesRemainAuthenticated()
     {
-        var demoPage = RoutableComponents().Single(component =>
-            component.Templates.Contains("/studio/_dev/unsaved-changes-demo", StringComparer.Ordinal));
+        var demoPages = RoutableComponents()
+            .Where(component => component.Templates.Contains("/studio/_dev/unsaved-changes-demo", StringComparer.Ordinal))
+            .ToArray();
 
+#if DEBUG
+        var demoPage = Assert.Single(demoPages);
         Assert.False(demoPage.AllowsAnonymous);
+#else
+        Assert.Empty(demoPages);
+#endif
     }
 
     [Fact]

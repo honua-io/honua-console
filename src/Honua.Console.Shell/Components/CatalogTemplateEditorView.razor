@@ -17,7 +17,7 @@
     </div>
     <h3>Component reference</h3>
     <p>Draft search and card attributes only. Inserting adds source text; no component bundle is loaded or published by this editor.</p>
-    <div class="catalog-admin-table" role="region" aria-label="Draft component reference" tabindex="0">
+    <ConsoleTableRegion Class="catalog-admin-table" Label="Draft component reference">
         <table>
             <thead><tr><th scope="col">Component</th><th scope="col">Attributes</th><th scope="col">Insert</th></tr></thead>
             <tbody>
@@ -30,7 +30,7 @@
                 }
             </tbody>
         </table>
-    </div>
+    </ConsoleTableRegion>
     <div class="console-action-row">
         <p role="status" class="catalog-template-status">@(IsDirty ? "Unsaved local changes · nothing saved or released" : "Source unchanged")</p>
         <button type="button" class="console-button console-button-secondary" data-template-discard disabled="@(!IsDirty)" @onclick="RequestDiscard">Discard local edits</button>

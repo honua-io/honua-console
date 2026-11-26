@@ -48,6 +48,12 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Content Remove="Pages\UnsavedChangesGuardDemoPage.razor" />
+    <RazorComponent Remove="Pages\UnsavedChangesGuardDemoPage.razor" />
+    <None Include="Pages\UnsavedChangesGuardDemoPage.razor" />
+  </ItemGroup>
+
   <!-- Fetch before Razor inventories static assets, including on the first build
        of a clean checkout. Files created after project evaluation must also be
        added to Content explicitly; a Web BeforeTargets=Build hook runs too late. -->

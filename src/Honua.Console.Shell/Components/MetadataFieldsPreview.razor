@@ -7,7 +7,7 @@
     else
     {
         <UnsavedChangesGuard IsDirty="IsDirty" />
-        <div class="console-table-wrap" role="region" aria-label="Metadata field schemas" tabindex="0">
+        <ConsoleTableRegion Class="console-table-wrap" Label="Metadata field schemas">
             <table class="console-table">
                 <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Required</th><th scope="col">Kinds</th><th scope="col">Inheritance</th><th scope="col">Coverage and output</th><th scope="col">State</th></tr></thead>
                 <tbody>
@@ -30,7 +30,7 @@
                     }
                 </tbody>
             </table>
-        </div>
+        </ConsoleTableRegion>
         @if (Schemas.Count == 0 && _added.Count == 0) { <p>No custom field schemas reported.</p> }
         <section class="console-panel metadata-panel">
             <h2>Try a local field draft</h2>

@@ -63,6 +63,7 @@ public sealed class OperateImportReplacementConsentTests
     {
         var operation = new RecordingImportOperation(blockFirstRequest: true);
         using var ctx = new BunitContext().AddConsoleNotifications();
+        ctx.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleServiceImportOperation>(operation);
         var page = ctx.Render<OperateImportServicePage>();
 
@@ -139,6 +140,7 @@ public sealed class OperateImportReplacementConsentTests
     {
         var operation = new RecordingImportOperation(blockFirstRequest: true);
         using var ctx = new BunitContext().AddConsoleNotifications();
+        ctx.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleServiceImportOperation>(operation);
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = true });
         var page = ctx.Render<OperateImportServicePage>();
@@ -177,6 +179,7 @@ public sealed class OperateImportReplacementConsentTests
     {
         var operation = new RecordingImportOperation(blockFirstRequest: true);
         using var ctx = new BunitContext().AddConsoleNotifications();
+        ctx.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleServiceImportOperation>(operation);
         var page = ctx.Render<OperateImportServicePage>();
         page.Find("input[placeholder^='https://']").Input("https://source.example/FeatureServer");

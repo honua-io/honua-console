@@ -83,6 +83,8 @@ public static class AdminEndpointIssueFactory
             "The Honua server rejected the admin request; resolve the reported issues before retrying.",
         HttpStatusCode.TooManyRequests =>
             $"Too many requests (HTTP 429). {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}",
+        HttpStatusCode.ServiceUnavailable when !receipt.Retryable =>
+            "The Honua server is unavailable (HTTP 503) and marked this failure as not retryable.",
         HttpStatusCode.ServiceUnavailable =>
             receipt.RetryAfterSeconds is > 0
                 ? $"The Honua server is temporarily unavailable (HTTP 503). {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}"

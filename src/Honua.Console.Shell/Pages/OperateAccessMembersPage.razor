@@ -167,7 +167,12 @@
 
             @if (_inviteOpen)
             {
-                <aside class="rbac-invite-drawer" data-rbac-invite-drawer aria-label="Scoped invitation">
+                <ConsoleOverlayFocusTrap TagName="aside"
+                                         OnDismiss="CloseInvite"
+                                         class="rbac-invite-drawer"
+                                         role="dialog"
+                                         data-rbac-invite-drawer
+                                         aria-label="Scoped invitation">
                     <header class="rbac-invite-head">
                         <strong>Invite to @membership.DisplayEnvironment</strong>
                         <p class="console-muted">scoped per-env or per-content if you want</p>
@@ -275,7 +280,7 @@
                         <button class="console-button" type="button" data-rbac-invite-send disabled
                                 title="Sending invitations is managed on honua-server; not available from this read-only view.">Send invite</button>
                     </footer>
-                </aside>
+                </ConsoleOverlayFocusTrap>
             }
         </div>
     }

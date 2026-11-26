@@ -435,6 +435,7 @@ public sealed class OperateAccessPageRenderTests
     private static IRenderedComponent<OperateAccessMembersPage> RenderMembers(FakeRbacDataSource data, ConsoleV4Options? options = null)
     {
         var ctx = new Bunit.BunitContext();
+        ctx.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath).Mode = Bunit.JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(options ?? new ConsoleV4Options());
         ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
         return ctx.Render<OperateAccessMembersPage>();

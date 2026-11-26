@@ -16,6 +16,7 @@ public sealed class OperateDeployPageRenderTests
         ConsolePresentationMode presentation = ConsolePresentationMode.Legacy)
     {
         var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(new ConsoleV4Options { Enabled = presentation == ConsolePresentationMode.V4 });
         ctx.Services.AddSingleton(approvalClient);
         ctx.Services.AddSingleton(versionClient

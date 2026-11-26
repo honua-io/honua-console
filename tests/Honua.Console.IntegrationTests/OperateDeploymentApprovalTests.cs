@@ -49,6 +49,7 @@ public sealed class OperateDeploymentApprovalTests
         var client = new InMemoryConsoleDeployApprovalClient([Awaiting("op-approve")]);
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -79,6 +80,7 @@ public sealed class OperateDeploymentApprovalTests
         var client = new InMemoryConsoleDeployApprovalClient([Submitted("op-rollback", dataAffecting: true)]);
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -118,6 +120,7 @@ public sealed class OperateDeploymentApprovalTests
         var client = new InMemoryConsoleDeployApprovalClient([Awaiting("op-no-reject")]);
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -142,6 +145,7 @@ public sealed class OperateDeploymentApprovalTests
         var client = new InMemoryConsoleDeployApprovalClient([ManualIntervention("op-mir")]);
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
@@ -169,6 +173,7 @@ public sealed class OperateDeploymentApprovalTests
         var findingsClient = new StubOpsFindingsClient("op-mir-recoverable");
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
         ctx.Services.AddSingleton<IConsoleOpsFindingsClient>(findingsClient);
 
@@ -197,6 +202,7 @@ public sealed class OperateDeploymentApprovalTests
         var client = new InMemoryConsoleDeployApprovalClient([ManualIntervention("op-mir-no-recovery")]);
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
         ctx.Services.AddSingleton<IConsoleOpsFindingsClient>(new StubOpsFindingsClient(null));
 
@@ -220,6 +226,7 @@ public sealed class OperateDeploymentApprovalTests
         var client = new InMemoryConsoleDeployApprovalClient();
 
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath).Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton<IConsoleDeployApprovalClient>(client);
 
         var panel = ctx.Render<OperateDeploymentApprovalPanel>(p => p
