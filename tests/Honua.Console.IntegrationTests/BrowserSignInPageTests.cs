@@ -89,18 +89,22 @@ public sealed class BrowserSignInPageTests
         Assert.Contains("not available", page.Find("[role=status]").TextContent);
     }
 
-    [Fact]
-    public async Task ProviderSelectionUsesTheServerLabelAndPreservesReturnRoute()
+    [Theory]
+    [InlineData("/operate/connections")]
+    [InlineData("/operate/settings")]
+    [InlineData("/publish")]
+    public async Task ProviderSelectionUsesTheServerLabelAndPreservesReturnRoute(string returnTo)
     {
         await using var context = CreateContext();
         var oidc = new StubOidc();
         context.Services.AddSingleton<IConsoleBrowserAuthentication>(new PendingAuthentication { SupportsPasswordSignIn = false });
         context.Services.AddSingleton<IConsoleOidcAuthentication>(oidc);
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/console/auth/signin?returnTo=" + Uri.EscapeDataString(returnTo));
         var page = context.Render<AuthSignInPage>();
         Assert.Empty(page.FindAll("input"));
         await page.Find("button").ClickAsync(new());
         Assert.Equal("entra", oidc.Provider);
-        Assert.Equal("/operate/connections", oidc.ReturnTo);
+        Assert.Equal(returnTo, oidc.ReturnTo);
         Assert.Equal("https://identity.example/authorize", ((MountedNavigation)context.Services.GetRequiredService<NavigationManager>()).ExternalDestination);
     }
 
@@ -152,9 +156,13 @@ public sealed class BrowserSignInPageTests
     }
 
     [Theory]
+    [InlineData("https://evil.example/console/")]
+    [InlineData("//evil.example/console/")]
     [InlineData("/../outside")]
     [InlineData("/%2e%2e/outside")]
     [InlineData("/operate/../../outside")]
+    [InlineData("/operate\\outside")]
+    [InlineData("/operate/settings\n")]
     public async Task InvalidReturnPathFallsBackBeforePasswordRenderingAndOidcSubmission(string returnTo)
     {
         await using var context = CreateContext();
