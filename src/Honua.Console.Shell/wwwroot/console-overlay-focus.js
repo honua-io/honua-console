@@ -14,8 +14,7 @@ let listening = false;
 export function activate(container, key, dotNetRef) {
     if (!container?.isConnected) return;
     removeEntry(key);
-    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    activeOverlays.push({ key, container, trigger, dotNetRef });
+    activeOverlays.push({ key, container, trigger: captureTrigger(), dotNetRef });
     ensureKeyListener();
     moveInitialFocus(container);
 }
@@ -25,6 +24,41 @@ export function deactivate(key) {
     if (!entry) return;
     if (activeOverlays.length === 0) removeKeyListener();
     restoreTriggerFocus(entry.trigger);
+}
+
+export function captureTrigger() {
+    return document.activeElement instanceof HTMLElement ? document.activeElement : null;
+}
+
+export function restoreTriggerFocus(trigger) {
+    if (!trigger?.isConnected || trigger.hasAttribute('disabled')) return;
+    if (trigger.getAttribute('aria-disabled') === 'true') return;
+    trigger.focus();
+}
+
+export function trapTabKey(event, container) {
+    if (event.key !== 'Tab') return;
+    const targets = getFocusableTargets(container);
+    if (targets.length === 0) {
+        event.preventDefault();
+        container.focus();
+        return;
+    }
+    const first = targets[0];
+    const last = targets.at(-1);
+    const active = document.activeElement;
+    if (!container.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+    }
+    if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+    }
 }
 
 function removeEntry(key) {
@@ -42,12 +76,6 @@ function moveInitialFocus(container) {
     }
     const first = getFocusableTargets(container)[0] ?? container;
     first.focus();
-}
-
-function restoreTriggerFocus(trigger) {
-    if (!trigger?.isConnected || trigger.hasAttribute('disabled')) return;
-    if (trigger.getAttribute('aria-disabled') === 'true') return;
-    trigger.focus();
 }
 
 function getFocusableTargets(container) {
@@ -81,37 +109,11 @@ function handleKeyDown(event) {
         handleEscape(event, top);
         return;
     }
-    if (event.key === 'Tab') {
-        trapTabKey(event, top.container);
-    }
+    trapTabKey(event, top.container);
 }
 
 function handleEscape(event, top) {
     if (event.defaultPrevented || top.container.contains(event.target)) return;
     event.preventDefault();
     top.dotNetRef?.invokeMethodAsync('NotifyEscapeAsync').catch(() => {});
-}
-
-function trapTabKey(event, container) {
-    const targets = getFocusableTargets(container);
-    if (targets.length === 0) {
-        event.preventDefault();
-        container.focus();
-        return;
-    }
-    const first = targets[0];
-    const last = targets.at(-1);
-    const active = document.activeElement;
-    if (!container.contains(active)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-        return;
-    }
-    if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-    } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-    }
 }
