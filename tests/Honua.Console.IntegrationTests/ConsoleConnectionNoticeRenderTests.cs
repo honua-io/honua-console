@@ -68,7 +68,12 @@ public sealed class ConsoleConnectionNoticeRenderTests
             }));
         Assert.Equal("Service temporarily unavailable", unavailable.Find("h2").TextContent);
         Assert.Contains("Wait 20 seconds and try again.", unavailable.Markup);
+    }
 
+    [Fact]
+    public void NonRetryable503StateRendersUnavailableWithoutRetryButton()
+    {
+        using var context = new BunitContext();
         var nonRetryable = context.Render<ConsoleConnectionNotice>(parameters => parameters
             .Add(value => value.States, new[]
             {

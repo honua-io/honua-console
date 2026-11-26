@@ -91,88 +91,79 @@ test('layer field mask (hidden + alias) persists across save and page reload', a
   await expect(reloadedRow.locator('[data-field-hidden]')).toBeChecked();
 });
 
-interface AlertRuleState {
-  rule: Record<string, unknown> | null;
-}
+class AlertRuleFixtureApi {
+  private readonly fallback: (request: IncomingMessage, response: ServerResponse) => Promise<void>;
+  private rule: Record<string, unknown> | null = null;
 
-async function handleAlertRuleCollection(
-  request: IncomingMessage,
-  response: ServerResponse,
-  state: AlertRuleState,
-) {
-  const path = new URL(request.url!, 'http://localhost').pathname.replace(/\/$/, '');
-  if (path === '/api/v1/admin/services') {
-    writeJson(response, { success: true, data: { items: [{ serviceName: 'roads', enabledProtocols: ['OgcFeatures'], layerCount: 1 }], page: 1, pageSize: 100, total: 1, layerTotal: 1 } });
-    return true;
+  constructor(allowedOrigin: string) {
+    this.fallback = createContractApi({ allowedOrigin, capabilities: [alertingCapability] });
   }
-  if (path === '/api/v1/admin/alerts/zones') {
-    writeJson(response, { success: true, data: [] });
-    return true;
-  }
-  if (path === '/api/v1/admin/alerts/rules' && request.method === 'GET') {
-    writeJson(response, { success: true, data: state.rule ? [state.rule] : [] });
-    return true;
-  }
-  if (path === '/api/v1/admin/alerts/rules' && request.method === 'POST') {
-    const body = await readJsonBody(request);
-    state.rule = { ...body, ruleId: 101, isActive: false };
-    writeJson(response, { success: true, data: state.rule }, 201);
-    return true;
-  }
-  if (path === '/api/v1/admin/alerts/rules/test' && request.method === 'POST') {
-    writeJson(response, { success: true, data: { isValid: true, errors: [], warnings: [], deliveryChannels: [], evaluatedAt: '2026-11-24T01:00:00Z' } });
-    return true;
-  }
-  return false;
-}
 
-async function handleAlertRuleDetail(
-  request: IncomingMessage,
-  response: ServerResponse,
-  state: AlertRuleState,
-) {
-  const path = new URL(request.url!, 'http://localhost').pathname.replace(/\/$/, '');
-  if (path === '/api/v1/admin/alerts/rules/101' && request.method === 'GET') {
-    writeJson(response, { success: true, data: state.rule });
-    return true;
-  }
-  if (path === '/api/v1/admin/alerts/rules/101' && request.method === 'PUT') {
-    state.rule = { ...state.rule, ...(await readJsonBody(request)), ruleId: 101 };
-    writeJson(response, { success: true, data: state.rule });
-    return true;
-  }
-  if (path === '/api/v1/admin/alerts/rules/101/health') {
-    writeJson(response, { success: true, data: { ruleId: 101, activeIncidentCount: 0, deliveryFailureCount: 0, deliveryChannels: [], recentTriggers: [] } });
-    return true;
-  }
-  if (path === '/api/v1/admin/alerts/rules/101/enabled' && request.method === 'PUT') {
-    state.rule = { ...state.rule, isActive: Boolean((await readJsonBody(request)).enabled) };
-    writeJson(response, { success: true, data: state.rule });
-    return true;
-  }
-  return false;
-}
-
-function createAlertRuleFixtureHandler(allowedOrigin: string) {
-  const fallback = createContractApi({ allowedOrigin, capabilities: [alertingCapability] });
-  const state: AlertRuleState = { rule: null };
-  return async (request: IncomingMessage, response: ServerResponse) => {
-    if (await handleAlertRuleCollection(request, response, state)) return;
-    if (await handleAlertRuleDetail(request, response, state)) return;
-    await fallback(request, response);
+  readonly handle = async (request: IncomingMessage, response: ServerResponse) => {
+    const path = new URL(request.url!, 'http://localhost').pathname.replace(/\/$/, '');
+    if (await this.handleCollection(request, response, path)) return;
+    if (await this.handleDetail(request, response, path)) return;
+    await this.fallback(request, response);
   };
+
+  private async handleCollection(request: IncomingMessage, response: ServerResponse, path: string) {
+    if (path === '/api/v1/admin/services') {
+      writeJson(response, { success: true, data: { items: [{ serviceName: 'roads', enabledProtocols: ['OgcFeatures'], layerCount: 1 }], page: 1, pageSize: 100, total: 1, layerTotal: 1 } });
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/zones') {
+      writeJson(response, { success: true, data: [] });
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/rules' && request.method === 'GET') {
+      writeJson(response, { success: true, data: this.rule ? [this.rule] : [] });
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/rules' && request.method === 'POST') {
+      this.rule = { ...(await readJsonBody(request)), ruleId: 101, isActive: false };
+      writeJson(response, { success: true, data: this.rule }, 201);
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/rules/test' && request.method === 'POST') {
+      writeJson(response, { success: true, data: { isValid: true, errors: [], warnings: [], deliveryChannels: [], evaluatedAt: '2026-11-24T01:00:00Z' } });
+      return true;
+    }
+    return false;
+  }
+
+  private async handleDetail(request: IncomingMessage, response: ServerResponse, path: string) {
+    if (path === '/api/v1/admin/alerts/rules/101' && request.method === 'GET') {
+      writeJson(response, { success: true, data: this.rule });
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/rules/101' && request.method === 'PUT') {
+      this.rule = { ...this.rule, ...(await readJsonBody(request)), ruleId: 101 };
+      writeJson(response, { success: true, data: this.rule });
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/rules/101/health') {
+      writeJson(response, { success: true, data: { ruleId: 101, activeIncidentCount: 0, deliveryFailureCount: 0, deliveryChannels: [], recentTriggers: [] } });
+      return true;
+    }
+    if (path === '/api/v1/admin/alerts/rules/101/enabled' && request.method === 'PUT') {
+      this.rule = { ...this.rule, isActive: Boolean((await readJsonBody(request)).enabled) };
+      writeJson(response, { success: true, data: this.rule });
+      return true;
+    }
+    return false;
+  }
 }
 
 test('alert rule create navigates to detail, validates test before enabling, and enables delivery', async ({ page }) => {
-  let handler: (request: IncomingMessage, response: ServerResponse) => Promise<void> = async () => {};
+  let api: AlertRuleFixtureApi | null = null;
   const server = await startStaticBundleServer(bundleDirectory, 0, {
     configuration: { apiBaseUrl: '/', auth: { mode: 'builtin' }, v4Enabled: true },
-    handleApi: (request, response) => handler(request, response),
+    handleApi: (request, response) => api!.handle(request, response),
   });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Fixture did not bind TCP');
   const origin = `http://127.0.0.1:${address.port}`;
-  handler = createAlertRuleFixtureHandler(origin);
+  api = new AlertRuleFixtureApi(origin);
 
   try {
     await signInWithFixturePassword(page, origin, '/operate/alerts/rules/new');
@@ -200,31 +191,33 @@ test('alert rule create navigates to detail, validates test before enabling, and
   }
 });
 
-test('exports list opens detail with versions and unpublishes cleanly from detail view', async ({ page }) => {
-  let exportStatus = 'ready';
-  const buildExport = () => ({
+function buildExportFixture(status: string) {
+  return {
     id: 'roads-public-2026',
     title: 'Regional Roads Export',
-    status: exportStatus,
+    status,
     currentVersion: 'v2',
     source: { kind: 'layer', serviceId: 'transport-roads', layerId: 1, name: 'Road Centerlines' },
     updatedAt: '2026-11-24T01:00:00Z',
     collectionUrl: 'https://gis.example.org/api/v1/exports/roads-public-2026/collection.json',
-    publicUrl: exportStatus === 'unpublished' ? null : 'https://gis.example.org/public/roads-public-2026/collection.json',
+    publicUrl: status === 'unpublished' ? null : 'https://gis.example.org/public/roads-public-2026/collection.json',
     versions: [{
       version: 'v2',
       createdAt: '2026-11-24T01:00:00Z',
       featureCount: 4200,
       artifacts: [{ kind: 'geoparquet', href: 'https://gis.example.org/public/roads-public-2026/v2/roads.parquet', bytes: 2097152 }],
     }],
-  });
+  };
+}
 
+test('exports list opens detail with versions and unpublishes cleanly from detail view', async ({ page }) => {
+  let exportStatus = 'ready';
   await mockPopulatedConsoleApis(page, staticOrigin);
   await page.route(`${staticOrigin}/api/v1/admin/exports`, route =>
-    route.fulfill({ json: { success: true, data: { items: [buildExport()] } } }));
+    route.fulfill({ json: { success: true, data: { items: [buildExportFixture(exportStatus)] } } }));
   await page.route(`${staticOrigin}/api/v1/admin/exports/roads-public-2026`, route => {
     if (route.request().method() === 'DELETE') exportStatus = 'unpublished';
-    return route.fulfill({ json: { success: true, data: buildExport() } });
+    return route.fulfill({ json: { success: true, data: buildExportFixture(exportStatus) } });
   });
 
   await signInWithFixturePassword(page, staticOrigin, '/operate/exports');

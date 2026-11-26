@@ -69,29 +69,6 @@ public sealed class OverlayFocusAndEmbedA11yTests
     }
 
     [Fact]
-    public void RbacInviteDrawer_ActivatesFocusTrapAndDismissesOnEscape()
-    {
-        using var ctx = new BunitContext();
-        var overlayModule = ctx.JSInterop.SetupModule(ConsoleOverlayFocusTrap.ModulePath);
-        overlayModule.SetupVoid("activate", _ => true);
-        overlayModule.SetupVoid("deactivate", _ => true);
-        ctx.Services.AddSingleton<IRbacAccessDataSource>(new SingleMemberRbacDataSource());
-
-        var page = ctx.Render<OperateAccessMembersPage>();
-        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-invite-open]")));
-        page.Find("[data-rbac-invite-open]").Click();
-
-        var drawer = page.Find("[data-rbac-invite-drawer]");
-        Assert.Equal("dialog", drawer.GetAttribute("role"));
-        Assert.Single(overlayModule.Invocations, i => i.Identifier == "activate");
-
-        drawer.KeyDown(new KeyboardEventArgs { Key = "Escape" });
-
-        Assert.Empty(page.FindAll("[data-rbac-invite-drawer]"));
-        Assert.Single(overlayModule.Invocations, i => i.Identifier == "deactivate");
-    }
-
-    [Fact]
     public void EmbedMapPage_ZoomButtonsHaveAccessibleLabels()
     {
         using var ctx = new BunitContext();
@@ -166,44 +143,5 @@ public sealed class OverlayFocusAndEmbedA11yTests
         public Task<ConsoleServiceImportJob> GetImportJobAsync(
             string jobId, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("No job was queued.");
-    }
-
-    private sealed class SingleMemberRbacDataSource : IRbacAccessDataSource
-    {
-        public Task<RbacOverviewLoad> LoadOverviewAsync(string environmentId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RbacOverviewLoad(
-                RbacAccessMapper.ToView(new HonuaConsoleRbacOverview
-                {
-                    EnvironmentId = environmentId,
-                    EnvironmentName = "Staging",
-                    Permissions = [new HonuaConsoleRbacPermission { Key = "view", Label = "View" }],
-                    Roles = [new HonuaConsoleRbacRole { Id = "editor", Name = "Editor", Grants = [new HonuaConsoleRbacGrant { Permission = "view", Grant = HonuaConsolePermissionGrants.Granted }] }],
-                    BuiltInRoleCount = 1,
-                    MembersAffected = 1,
-                }),
-                []));
-
-        public Task<TeamMembershipLoad> LoadMembershipAsync(string environmentId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new TeamMembershipLoad(
-                RbacAccessMapper.ToView(new HonuaConsoleTeamMembership
-                {
-                    EnvironmentId = environmentId,
-                    EnvironmentName = "Staging",
-                    Members = [new HonuaConsoleTeamMember { Id = "op-1", DisplayName = "Operator", RoleName = "Editor" }],
-                    ActiveCount = 1,
-                    CanInvite = true,
-                }),
-                []));
-
-        public Task<RbacRoleMutationResult> CreateRoleAsync(
-            string environmentId, string name, string? description, IReadOnlyList<string> grantedPermissionKeys, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RbacRoleMutationResult(true, null));
-
-        public Task<RbacRoleMutationResult> DeleteRoleAsync(
-            string environmentId, string roleId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RbacRoleMutationResult(true, null));
-
-        public Task<RbacAuditLoad> LoadAuditAsync(string environmentId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RbacAuditLoad([], []));
     }
 }

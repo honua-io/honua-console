@@ -258,6 +258,35 @@ public sealed class OperateAccessPageRenderTests
     }
 
     [Fact]
+    public void Members_OpenInvite_ActivatesFocusTrapAndDismissesOnEscape()
+    {
+        var data = new FakeRbacDataSource
+        {
+            MembershipLoad = new TeamMembershipLoad(SampleMembership(), []),
+            OverviewLoad = new RbacOverviewLoad(SampleOverview(), [])
+        };
+        using var ctx = new Bunit.BunitContext();
+        var overlayModule = ctx.JSInterop.SetupModule(Honua.Console.Shell.Components.ConsoleOverlayFocusTrap.ModulePath);
+        overlayModule.SetupVoid("activate", _ => true);
+        overlayModule.SetupVoid("deactivate", _ => true);
+        ctx.Services.AddSingleton(new ConsoleV4Options());
+        ctx.Services.AddSingleton<IRbacAccessDataSource>(data);
+
+        var page = ctx.Render<OperateAccessMembersPage>();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find("[data-rbac-invite-open]")), TimeSpan.FromSeconds(5));
+        page.Find("[data-rbac-invite-open]").Click();
+
+        var drawer = page.Find("[data-rbac-invite-drawer]");
+        Assert.Equal("dialog", drawer.GetAttribute("role"));
+        Assert.Single(overlayModule.Invocations, invocation => invocation.Identifier == "activate");
+
+        drawer.KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Empty(page.FindAll("[data-rbac-invite-drawer]"));
+        Assert.Single(overlayModule.Invocations, invocation => invocation.Identifier == "deactivate");
+    }
+
+    [Fact]
     public void Members_OpenInvite_SendIsHonestlyDisabled_ButClientValidationStillSurfaces()
     {
         var data = new FakeRbacDataSource

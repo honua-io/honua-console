@@ -7,7 +7,7 @@ using Microsoft.JSInterop;
 
 namespace Honua.Console.Shell.Components;
 
-public sealed class ConsoleOverlayFocusTrap : ComponentBase, IAsyncDisposable
+public sealed class ConsoleOverlayFocusTrap : ComponentBase, IHandleAfterRender, IAsyncDisposable
 {
     public const string ModulePath = "./_content/Honua.Console.Shell/console-overlay-focus.js";
 
@@ -39,7 +39,7 @@ public sealed class ConsoleOverlayFocusTrap : ComponentBase, IAsyncDisposable
         builder.CloseElement();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    async Task IHandleAfterRender.OnAfterRenderAsync()
     {
         if (_activated || _importing) return;
         if (Services.GetService<IJSRuntime>() is not { } runtime) return;
