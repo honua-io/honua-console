@@ -22,7 +22,6 @@ public sealed class ConsoleOverlayFocusTrap : ComponentBase, IHandleAfterRender,
 
     [Inject] private IServiceProvider Services { get; set; } = default!;
 
-    [Parameter] public string TagName { get; set; } = "div";
     [Parameter] public bool CanDismiss { get; set; } = true;
     [Parameter] public EventCallback OnDismiss { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
@@ -30,7 +29,7 @@ public sealed class ConsoleOverlayFocusTrap : ComponentBase, IHandleAfterRender,
 
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
-        builder.OpenElement(0, string.IsNullOrWhiteSpace(TagName) ? "div" : TagName);
+        builder.OpenElement(0, "div");
         builder.AddMultipleAttributes(1, AdditionalAttributes);
         builder.AddAttribute(2, "tabindex", -1);
         builder.AddAttribute(3, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(this, HandleKeyDownAsync));
