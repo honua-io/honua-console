@@ -11,9 +11,9 @@
 <CatalogAvailabilityGate>
 @if (V4Enabled && !OperatorView)
 {
-    @if (!_missingBinding && _failureMessage is null && _items is not null)
+    @if (!HasPendingOrErrorState)
     {
-        <PublicCatalogView Items="_items" HasMoreItems="_hasMoreItems" />
+        <PublicCatalogView Items="_items!" HasMoreItems="_hasMoreItems" />
     }
     else
     {
@@ -23,29 +23,7 @@
                 <small>Public maps, layers, services, and documents</small>
             </header>
             <div class="public-catalog-state">
-                @if (_missingBinding)
-                {
-                    <ConsoleStateView HeadingLevel="1" Kind="error"
-                                      Kicker="Missing binding"
-                                      Title="Share is not bound to honua-server"
-                                      Message="@MissingBindingMessage" />
-                }
-                else if (_items is null)
-                {
-                    <ConsoleStateView HeadingLevel="1" Kind="loading"
-                                      Kicker="Loading"
-                                      Title="Loading public items"
-                                      Message="Open-data catalog items are loading." />
-                }
-                else if (_failureMessage is not null)
-                {
-                    <ConsoleStateView HeadingLevel="1" Kind="error"
-                                      Kicker="Share unavailable"
-                                      Title="Public items could not load"
-                                      Message="@_failureMessage"
-                                      ActionHref="@ConsoleNavigation.Uri"
-                                      ActionLabel="Retry" />
-                }
+                @RenderCatalogState(1)
             </div>
             <footer class="public-catalog-footer">
                 <span>Open data catalog</span>
@@ -78,22 +56,11 @@ else
         <p>The server has more public items than this page can show.</p>
     }
 
-    @if (_missingBinding)
+    @if (HasPendingOrErrorState)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="error"
-                          Kicker="Missing binding"
-                          Title="Share is not bound to honua-server"
-                          Message="@MissingBindingMessage" />
+        @RenderCatalogState(2)
     }
-    else if (_items is null)
-    {
-        <ConsoleStateView HeadingLevel="2" Kind="loading" Kicker="Loading" Title="Loading public items" Message="Open-data catalog items are loading." />
-    }
-    else if (_failureMessage is not null)
-    {
-        <ConsoleStateView HeadingLevel="2" Kind="error" Kicker="Share unavailable" Title="Public items could not load" Message="@_failureMessage" ActionHref="@ConsoleNavigation.Uri" ActionLabel="Retry" />
-    }
-    else if (_items.Count == 0)
+    else if (_items!.Count == 0)
     {
         <ConsoleStateView HeadingLevel="2" Kind="empty" Kicker="Open data" Title="No public open-data items" Message="Publish a service, layer, or document as public open data to expose it here." ActionHref="@(OperatorView ? "/operate/publishing" : null)" ActionLabel="@(OperatorView ? "Open Publishing" : null)" />
     }
@@ -196,6 +163,33 @@ else
     [Parameter] public bool OperatorView { get; set; }
 
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
+    private bool HasPendingOrErrorState => _missingBinding || _items is null || _failureMessage is not null;
+
+    private RenderFragment RenderCatalogState(int headingLevel) => @<text>
+        @if (_missingBinding)
+        {
+            <ConsoleStateView HeadingLevel="headingLevel" Kind="error"
+                              Kicker="Missing binding"
+                              Title="Share is not bound to honua-server"
+                              Message="@MissingBindingMessage" />
+        }
+        else if (_items is null)
+        {
+            <ConsoleStateView HeadingLevel="headingLevel" Kind="loading"
+                              Kicker="Loading"
+                              Title="Loading public items"
+                              Message="Open-data catalog items are loading." />
+        }
+        else if (_failureMessage is not null)
+        {
+            <ConsoleStateView HeadingLevel="headingLevel" Kind="error"
+                              Kicker="Share unavailable"
+                              Title="Public items could not load"
+                              Message="@_failureMessage"
+                              ActionHref="@ConsoleNavigation.Uri"
+                              ActionLabel="Retry" />
+        }
+    </text>;
 
     private IReadOnlyList<ConsoleContentSummary>? _items;
     private bool _missingBinding;
