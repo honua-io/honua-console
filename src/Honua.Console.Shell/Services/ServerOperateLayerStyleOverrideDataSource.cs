@@ -189,7 +189,7 @@ public sealed class ServerOperateLayerStyleOverrideDataSource : IOperateLayerSty
 
     private static OperateLayerStyleBindingState ToBindingState(string contract, HonuaAdminEndpointIssue issue)
     {
-        if (issue.State == "Unavailable")
+        if (issue.State is "Unavailable" or "Throttled")
         {
             // A temporary failure, not a missing binding. Only a transport failure (no HTTP status) carries a raw
             // client error, so only that one is reworded; a server error keeps the server's own detail.
