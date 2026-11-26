@@ -252,6 +252,36 @@ public sealed class ConsoleServerHttpTests
         Assert.Equal(expected, result.AbsoluteUri);
     }
 
+    [Fact]
+    public async Task ReadProblemAsync_429WithRetryAfterAndHonuaRetryable_SurfacesRateLimitGuidance()
+    {
+        using var response = new HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests);
+        response.Headers.TryAddWithoutValidation("Retry-After", "45");
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "true");
+
+        var problem = await ConsoleServerHttp.ReadProblemAsync(response, "Fallback error", CancellationToken.None);
+
+        Assert.True(problem.Retryable);
+        Assert.Equal(45, problem.RetryAfterSeconds);
+        Assert.Contains("Too many requests", problem.Message, StringComparison.Ordinal);
+        Assert.Contains("Wait 45 seconds", problem.Message, StringComparison.Ordinal);
+        Assert.Contains("retryable=true", problem.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retryAfterSeconds=45", problem.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReadProblemAsync_503WithHonuaRetryable_SurfacesTemporaryUnavailableGuidance()
+    {
+        using var response = new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable);
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "true");
+
+        var problem = await ConsoleServerHttp.ReadProblemAsync(response, "Fallback error", CancellationToken.None);
+
+        Assert.True(problem.Retryable);
+        Assert.Contains("temporarily unavailable", problem.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retryable=true", problem.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static ConsoleEnvironmentProfile Profile(string id, ConsoleAccountAuthMode mode) =>
         new()
         {

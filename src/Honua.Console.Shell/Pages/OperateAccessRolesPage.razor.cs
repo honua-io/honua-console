@@ -65,6 +65,13 @@ public partial class OperateAccessRolesPage
         _retiredEnvironmentLink = false;
         if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
         _environmentId = EnvironmentId;
+        await LoadEnvironmentAsync();
+    }
+
+    private Task RetryAsync() => LoadEnvironmentAsync();
+
+    private async Task LoadEnvironmentAsync()
+    {
         var generation = ++_generation;
         _loading = true;
         _bindingState = null;

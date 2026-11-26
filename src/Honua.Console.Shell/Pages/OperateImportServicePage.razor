@@ -729,7 +729,7 @@
                     row.Terminal = true;
                     row.Succeeded = false;
                     row.Status = "Failed to queue";
-                    row.Detail = ex.Message;
+                    row.Detail = ConsoleGuardedRunner.SummarizeFailure(ex);
                     queueFailures++;
                 }
             }

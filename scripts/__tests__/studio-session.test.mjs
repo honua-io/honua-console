@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createConsoleBrowserTransport } from '../../src/Honua.Console.Web/wwwroot/js/console-browser-transport.mjs';
 import {
-    readStudioSession, StudioSignInRequired, STUDIO_SESSION_RECHECK_MS,
+    readStudioSession, StudioPermissionDenied, StudioSignInRequired, STUDIO_SESSION_RECHECK_MS,
 } from '../../src/Honua.Console.Web/wwwroot/js/studio-session.mjs';
 
 const body = (data) => JSON.stringify({ success: true, data });
@@ -41,12 +41,23 @@ test('signed-out Console asks for sign-in without calling the API', async () => 
     assert.equal(calls.length, 0);
 });
 
-for (const status of [401, 403]) {
-    test(`native ${status} asks for sign-in`, async () => {
-        const { capture } = fixture({ status, payload: '' });
-        await assert.rejects(readStudioSession({ capture }), StudioSignInRequired);
-    });
-}
+test('native 401 asks for sign-in', async () => {
+    const { capture } = fixture({ status: 401, payload: '' });
+    await assert.rejects(readStudioSession({ capture }), StudioSignInRequired);
+});
+
+test('native 403 reports permission denied without looping to sign-in', async () => {
+    const { capture } = fixture({ status: 403, payload: '' });
+    await assert.rejects(readStudioSession({ capture }), error =>
+        error instanceof StudioPermissionDenied && !(error instanceof StudioSignInRequired));
+});
+
+test('legacy 403 reports permission denied without looping to sign-in', async () => {
+    await assert.rejects(readStudioSession({
+        mode: 'legacy',
+        request: async () => new Response('', { status: 403 }),
+    }), error => error instanceof StudioPermissionDenied && !(error instanceof StudioSignInRequired));
+});
 
 test('server failure is not reported as a sign-in problem', async () => {
     const { capture } = fixture({ status: 503, payload: '{}' });

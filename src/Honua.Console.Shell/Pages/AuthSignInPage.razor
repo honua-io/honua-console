@@ -31,7 +31,7 @@
         @if (!string.IsNullOrWhiteSpace(_serverAuthMessage))
         {
             <article class="console-panel console-status-danger" role="alert">
-                <h2>Server sign-in required</h2>
+                <h2>@_serverAuthHeading</h2>
                 <p class="console-muted">@_serverAuthMessage</p>
             </article>
         }
@@ -110,6 +110,7 @@
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private ConsoleEnvironmentProfile? _profile;
     private string _returnTo = "/";
+    private string _serverAuthHeading = "Server sign-in required";
     private string? _serverAuthMessage;
     private IConsoleBrowserAuthentication? _browserAuth;
     private bool PasswordSignIn => _browserAuth?.SupportsPasswordSignIn == true;
@@ -201,6 +202,7 @@
             return;
         }
         _signingIn = true;
+        _serverAuthHeading = "Server sign-in required";
         _serverAuthMessage = null;
         try
         {
@@ -209,10 +211,15 @@
         }
         catch (HttpRequestException exception) when (exception.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
         {
+            _serverAuthHeading = "Sign-in rejected";
             _serverAuthMessage = "The password was not accepted. Try again.";
+        }
+        catch (HttpRequestException exception) when (TryApplyTransientFailure(exception))
+        {
         }
         catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or TaskCanceledException)
         {
+            _serverAuthHeading = "Server sign-in required";
             _serverAuthMessage = "Sign-in could not finish. Check the server connection and try again.";
         }
         finally
@@ -229,18 +236,54 @@
             return;
         }
         _signingIn = true;
+        _serverAuthHeading = "Server sign-in required";
         _serverAuthMessage = null;
         try
         {
             var destination = await _oidc.BeginAsync(providerKey, _returnTo);
             Navigation.NavigateTo(destination.AbsoluteUri, forceLoad: true);
         }
+        catch (HttpRequestException exception) when (TryApplyTransientFailure(exception))
+        {
+            _signingIn = false;
+        }
         catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or Microsoft.JSInterop.JSException or OperationCanceledException)
         {
+            _serverAuthHeading = "Server sign-in required";
             _serverAuthMessage = "Sign-in could not start. Check the server connection and try again.";
             _signingIn = false;
         }
     }
+
+    private bool TryApplyTransientFailure(HttpRequestException exception)
+    {
+        if (exception.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            _serverAuthHeading = "Too many sign-in attempts";
+            _serverAuthMessage = $"Too many sign-in attempts. {Honua.Console.Contracts.ConsoleFailureReceiptParser.FormatRetryWaitHint(ReadRetryAfterSeconds(exception))}";
+            return true;
+        }
+
+        if (exception.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable || IsRetryable(exception))
+        {
+            _serverAuthHeading = "Service temporarily unavailable";
+            var hint = ReadRetryAfterSeconds(exception) is { } seconds
+                ? Honua.Console.Contracts.ConsoleFailureReceiptParser.FormatRetryWaitHint(seconds)
+                : "Try again in a moment.";
+            _serverAuthMessage = $"The server is temporarily unavailable. {hint}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static double? ReadRetryAfterSeconds(HttpRequestException exception) =>
+        exception.Data[Honua.Console.Contracts.ConsoleFailureReceiptParser.RetryAfterSecondsDataKey] is double seconds
+            ? seconds
+            : null;
+
+    private static bool IsRetryable(HttpRequestException exception) =>
+        exception.Data[Honua.Console.Contracts.ConsoleFailureReceiptParser.RetryableDataKey] is true;
 
     private static string AuthModeLabel(ConsoleAccountAuthMode mode) => mode switch
     {

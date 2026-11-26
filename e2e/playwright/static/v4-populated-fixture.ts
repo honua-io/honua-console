@@ -2,6 +2,9 @@ import type { Page } from '@playwright/test';
 
 export interface PopulatedConsoleApiOverrides {
   service?: Record<string, unknown>;
+  connection?: Record<string, unknown>;
+  layer?: Record<string, unknown>;
+  catalogRegistry?: Record<string, unknown>;
   proposal?: Record<string, unknown>;
   opsHealth?: Record<string, unknown>;
   apiKeys?: Record<string, unknown>[];
@@ -16,6 +19,78 @@ function defaultService(overrides?: Record<string, unknown>) {
     enabledProtocols: ['FeatureServer', 'OgcFeatures'],
     layerCount: 2,
     allowAnonymous: false,
+    ...overrides,
+  };
+}
+
+function defaultConnection(overrides?: Record<string, unknown>) {
+  return {
+    connectionId: '11111111-1111-4111-8111-111111111111',
+    name: 'Primary PostGIS',
+    provider: 'PostgreSQL/PostGIS',
+    host: 'db.example.internal',
+    port: 5432,
+    databaseName: 'gis_prod',
+    username: 'honua_reader',
+    isActive: true,
+    healthStatus: 'Healthy',
+    ...overrides,
+  };
+}
+
+function defaultLayer(serviceName: string, overrides?: Record<string, unknown>) {
+  return {
+    storageLayerId: 1,
+    layerId: 1,
+    layerName: 'Road Centerlines',
+    schema: 'public',
+    table: 'road_centerlines',
+    description: 'Authoritative regional road centerlines',
+    geometryType: 'LineString',
+    srid: 4326,
+    primaryKey: 'id',
+    fieldCount: 6,
+    enabled: true,
+    serviceName,
+    ...overrides,
+  };
+}
+
+function defaultCatalogRegistry(overrides?: Record<string, unknown>) {
+  return {
+    environmentId: 'current',
+    environmentName: 'Production',
+    publicHost: 'https://gis.example.org',
+    autoDefaultCount: 1,
+    optInCount: 1,
+    endpoints: [
+      {
+        key: 'ogc-records',
+        title: 'OGC API Records',
+        description: 'Standards-based discovery catalog',
+        dialect: 'ogc',
+        enabled: true,
+        autoDefault: true,
+        url: 'https://gis.example.org/ogc/records',
+        entries: 12,
+        fedBy: 'Published services',
+        feeders: [{ kind: 'services', label: 'Published services' }],
+        issueCount: 0,
+      },
+      {
+        key: 'stac',
+        title: 'STAC Catalog',
+        description: 'SpatioTemporal Asset Catalog',
+        dialect: 'stac',
+        enabled: false,
+        autoDefault: false,
+        url: 'https://gis.example.org/stac',
+        entries: 0,
+        fedBy: 'Exports',
+        feeders: [{ kind: 'exports', label: 'Exports' }],
+        issueCount: 0,
+      },
+    ],
     ...overrides,
   };
 }
@@ -69,9 +144,21 @@ export async function mockPopulatedConsoleApis(
   overrides: PopulatedConsoleApiOverrides = {},
 ) {
   const service = defaultService(overrides.service);
+  const connection = defaultConnection(overrides.connection);
+  const layer = defaultLayer(String(service.serviceName), overrides.layer);
+  const catalogRegistry = defaultCatalogRegistry(overrides.catalogRegistry);
   const proposal = defaultProposal(overrides.proposal);
   const opsHealth = defaultOpsHealth(overrides.opsHealth);
 
+  await page.route(url => url.origin === origin && /^\/api\/v1\/admin\/connections\/?$/.test(url.pathname), route => route.fulfill({
+    json: { success: true, data: [connection] },
+  }));
+  await page.route(url => url.origin === origin && /^\/api\/v1\/admin\/connections\/[^/]+\/layers\/?$/.test(url.pathname), route => route.fulfill({
+    json: { success: true, data: { items: [layer], page: 1, pageSize: 100, total: 1 } },
+  }));
+  await page.route(`${origin}/api/v1/console/catalog-endpoints/**`, route => route.fulfill({
+    json: { success: true, data: catalogRegistry },
+  }));
   await page.route(`${origin}/api/v1/admin/services**`, route => route.fulfill({
     json: { success: true, data: { items: [service], page: 1, pageSize: 100, total: 1, layerTotal: service.layerCount } },
   }));

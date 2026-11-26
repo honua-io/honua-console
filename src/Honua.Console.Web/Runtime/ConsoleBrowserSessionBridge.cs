@@ -6,6 +6,9 @@ public sealed class ConsoleBrowserSessionBridge(ConsoleBrowserSession session)
 {
     [JSInvokable]
     public ConsoleBrowserSessionSnapshot GetSnapshot() => session.Snapshot();
+
+    [JSInvokable]
+    public void InvalidateSession(long expectedRevision) => session.ClearIfRevision(expectedRevision);
 }
 
 public sealed record ConsoleBrowserSessionSnapshot(

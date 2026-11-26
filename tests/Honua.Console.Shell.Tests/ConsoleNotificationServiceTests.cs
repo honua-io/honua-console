@@ -151,4 +151,31 @@ public sealed class ConsoleGuardedRunnerTests
         Assert.True(ok);
         Assert.Empty(service.Notifications);
     }
+
+    [Fact]
+    public async Task RunGuardedAsync_sanitizes_transport_timeout_json_and_io_exceptions()
+    {
+        var service = new ConsoleNotificationService();
+
+        await service.RunGuardedAsync(
+            () => throw new HttpRequestException("TypeError: Failed to fetch at https://internal.invalid"),
+            failureMessage: "Couldn't save");
+        await service.RunGuardedAsync(
+            () => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"),
+            failureMessage: "Couldn't load");
+        await service.RunGuardedAsync(
+            () => throw new System.Text.Json.JsonException("'<' is an invalid start of a value. LineNumber: 0 | BytePositionInLine: 0."),
+            failureMessage: "Couldn't parse");
+        await service.RunGuardedAsync(
+            () => throw new IOException("ENOENT: /var/private/secret.shp"),
+            failureMessage: "Couldn't read");
+
+        Assert.Equal(4, service.Notifications.Count);
+        Assert.DoesNotContain("TypeError", service.Notifications[0].Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("internal.invalid", service.Notifications[0].Message, StringComparison.Ordinal);
+        Assert.Contains("timed out", service.Notifications[1].Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("HttpClient.Timeout", service.Notifications[1].Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("BytePositionInLine", service.Notifications[2].Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("/var/private/secret.shp", service.Notifications[3].Message, StringComparison.Ordinal);
+    }
 }

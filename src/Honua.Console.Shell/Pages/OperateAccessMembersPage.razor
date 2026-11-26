@@ -51,10 +51,16 @@
     }
     else if (_bindingState is not null)
     {
-        <ConsoleStateView HeadingLevel="2" Kind="error"
+        var presentation = _bindingState.ToPresentation();
+        <ConsoleStateView HeadingLevel="2" Kind="@presentation.Kind"
                           Kicker="@(V4Enabled ? string.Empty : _bindingState.State)"
-                          Title="Access (RBAC) API is not bound"
-                          Message="@($"{_bindingState.Detail} (contract: {_bindingState.Contract})")" />
+                          Title="@presentation.Title"
+                          Message="@_bindingState.Detail">
+            @if (presentation.CanRetry)
+            {
+                <button class="console-button" type="button" data-rbac-retry @onclick="RetryAsync">Retry</button>
+            }
+        </ConsoleStateView>
     }
     else if (_membership is { } membership)
     {

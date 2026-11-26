@@ -4,6 +4,7 @@ export function initialize(sessionBridge, configuration) {
     browserTransport = createConsoleBrowserTransport({
         ...configuration,
         getSession: () => sessionBridge.invokeMethodAsync('GetSnapshot'),
+        onUnauthorized: (revision) => sessionBridge.invokeMethodAsync('InvalidateSession', revision),
     });
     globalThis.honuaConsoleApiBase = browserTransport.apiBase;
     globalThis.honuaConsoleCaptureResourceAuthorization = () => browserTransport.captureResourceAuthorization();
@@ -161,6 +162,19 @@ async function captureResourceAuthorization(state) {
     return authorize;
 }
 
+async function notifyUnauthorized(state, revision) {
+    if (state.current && state.current.revision === revision && state.current.authenticated) {
+        state.note({ ...state.current, authenticated: false, principalId: '', accessToken: null });
+    }
+    if (typeof state.onUnauthorized === 'function') {
+        try {
+            await state.onUnauthorized(revision);
+        } catch {
+            // Bridge detachment must not mask the 401 response from the caller.
+        }
+    }
+}
+
 async function openCapture(state, request) {
     const binding = requireSession(await state.getSession());
     const getCurrentSession = async () => {
@@ -181,13 +195,23 @@ async function openCapture(state, request) {
             init.signal?.throwIfAborted();
             const response = await request(url, requestOptions(init, session, state.sameOrigin));
             init.signal?.throwIfAborted();
+            if (response.status === 401) {
+                const current = await state.getSession();
+                if (current?.revision !== binding.revision || current?.principalId !== binding.principalId) {
+                    throw new Error('The Console session changed. Reopen this view before continuing.');
+                }
+                await notifyUnauthorized(state, binding.revision);
+                return response;
+            }
             await getCurrentSession();
             return response;
         },
     });
 }
 
-export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, getSession, request = fetch }) {
+export function createConsoleBrowserTransport({
+    apiBaseUrl, applicationBaseUrl, getSession, request = fetch, onUnauthorized = null,
+}) {
     const api = configuredApi(apiBaseUrl);
     const application = new URL(applicationBaseUrl);
     const state = {
@@ -195,6 +219,7 @@ export function createConsoleBrowserTransport({ apiBaseUrl, applicationBaseUrl, 
         application,
         sameOrigin: api.origin === application.origin,
         getSession,
+        onUnauthorized,
         current: null,
         note: null,
         arm: null,

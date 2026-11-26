@@ -26,6 +26,37 @@ public sealed class OperateAccessPageRenderTests
             () => Assert.Contains("Access (RBAC) API is not bound", page.Markup, StringComparison.Ordinal),
             TimeSpan.FromSeconds(5));
         Assert.DoesNotContain("data-rbac-matrix", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Missing permission", "Permission required", false)]
+    [InlineData("Unavailable", "Temporarily unavailable", true)]
+    [InlineData("Throttled", "Temporarily unavailable", true)]
+    [InlineData("Unsupported", "Access (RBAC) API is not available", false)]
+    public void RolesAndMembers_NonBindingFailures_RenderAccurateTitleAndOptionalRetry(
+        string state,
+        string expectedTitle,
+        bool expectsRetry)
+    {
+        var issue = new RbacCapabilityState("Access (RBAC)", state, "GET /api/v1/console/access/current/roles", "Operator-friendly detail.");
+        var data = new FakeRbacDataSource
+        {
+            OverviewLoad = new RbacOverviewLoad(null, [issue]),
+            MembershipLoad = new TeamMembershipLoad(null, [issue])
+        };
+
+        var roles = RenderRoles(data);
+        roles.WaitForAssertion(() => Assert.Contains(expectedTitle, roles.Find("h2").TextContent, StringComparison.Ordinal));
+        Assert.DoesNotContain("Access (RBAC) API is not bound", roles.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", roles.Markup, StringComparison.Ordinal);
+        Assert.Equal(expectsRetry ? 1 : 0, roles.FindAll("[data-rbac-retry]").Count);
+
+        var members = RenderMembers(data);
+        members.WaitForAssertion(() => Assert.Contains(expectedTitle, members.Find("h2").TextContent, StringComparison.Ordinal));
+        Assert.DoesNotContain("Access (RBAC) API is not bound", members.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("(contract:", members.Markup, StringComparison.Ordinal);
+        Assert.Equal(expectsRetry ? 1 : 0, members.FindAll("[data-rbac-retry]").Count);
     }
 
     [Fact]

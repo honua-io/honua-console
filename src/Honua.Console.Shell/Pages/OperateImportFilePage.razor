@@ -286,7 +286,7 @@
         catch (Exception exception) when (exception is IOException or InvalidOperationException)
         {
             _fileBytes = null;
-            _clientError = $"The selected file could not be read: {exception.Message}";
+            _clientError = $"The selected file could not be read. {ConsoleGuardedRunner.SummarizeFailure(exception)}";
         }
         finally { _busy = false; }
         if (_disposed || _fileBytes is null) return;

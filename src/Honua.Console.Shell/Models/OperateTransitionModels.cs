@@ -40,6 +40,8 @@ public sealed record OperateCapabilityState(
     string Detail)
 {
     public int? StatusCode { get; init; }
+    public bool Retryable { get; init; }
+    public double? RetryAfterSeconds { get; init; }
 
     public static OperateCapabilityState FromIssue(string surface, HonuaAdminEndpointIssue issue)
     {
@@ -49,7 +51,11 @@ public sealed record OperateCapabilityState(
             issue.State,
             issue.Contract,
             issue.StatusCode is null ? issue.Detail : $"{issue.Detail} HTTP {issue.StatusCode.Value.ToString(CultureInfo.InvariantCulture)}.")
-        { StatusCode = issue.StatusCode };
+        {
+            StatusCode = issue.StatusCode,
+            Retryable = issue.Receipt?.Retryable ?? false,
+            RetryAfterSeconds = issue.Receipt?.RetryAfterSeconds
+        };
     }
 }
 

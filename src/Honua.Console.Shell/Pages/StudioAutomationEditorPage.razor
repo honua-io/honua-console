@@ -405,7 +405,7 @@
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            if (generation == _pageGeneration) _errorMessage = $"Save failed: {ex.Message}";
+            if (generation == _pageGeneration) _errorMessage = $"Save failed: {ConsoleGuardedRunner.SummarizeFailure(ex)}";
         }
         finally
         {

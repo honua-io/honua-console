@@ -131,7 +131,7 @@ test.describe('Trust & feedback · confirm dialog (live)', () => {
       // If a service has been loaded and versions are visible, test the confirm flow.
       const deleteButton = page.locator('[data-delete]').first();
       if ((await deleteButton.count()) === 0) {
-        // No versions loaded; the dialog wiring is verified at component level in bUnit.
+        test.skip(true, 'No versions loaded for delete confirmation; dialog wiring is covered in bUnit.');
         return;
       }
 

@@ -264,7 +264,7 @@
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            if (pageGeneration == _pageGeneration) _errorMessage = $"Could not read version: {ex.Message}";
+            if (pageGeneration == _pageGeneration) _errorMessage = $"Could not read version: {ConsoleGuardedRunner.SummarizeFailure(ex)}";
         }
         finally
         {
@@ -313,7 +313,7 @@
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            if (pageGeneration == _pageGeneration) _errorMessage = $"Restore failed: {ex.Message}";
+            if (pageGeneration == _pageGeneration) _errorMessage = $"Restore failed: {ConsoleGuardedRunner.SummarizeFailure(ex)}";
         }
         finally
         {

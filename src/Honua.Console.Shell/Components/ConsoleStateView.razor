@@ -1,5 +1,7 @@
 <HonuaState Treatment="@Treatment" Kind="@Kind" Kicker="@Kicker" Title="@Title" Message="@Message"
-            HeadingLevel="@HeadingLevel" ActionHref="@ActionHref" ActionLabel="@ActionLabel" />
+            HeadingLevel="@HeadingLevel" ActionHref="@ActionHref" ActionLabel="@ActionLabel">
+    @ChildContent
+</HonuaState>
 
 @code {
     [Parameter]
@@ -25,4 +27,7 @@
 
     [Parameter]
     public string ActionLabel { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
 }

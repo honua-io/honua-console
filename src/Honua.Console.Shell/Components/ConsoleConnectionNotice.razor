@@ -103,12 +103,28 @@
     }
 
     private string StateText => string.Join(" ", _states.Select(state => state.State)).ToLowerInvariant();
-    private bool Forbidden => !SignIn && (_states.Any(state => state.StatusCode == 403) || StateText.Contains("forbidden") || StateText.Contains("denied") || StateText.Contains("missing permission"));
     private bool SignIn => _states.Any(state => state.StatusCode == 401) || StateText.Contains("unauthorized") || StateText.Contains("unauthenticated");
+    private bool Forbidden => !SignIn && (_states.Any(state => state.StatusCode == 403) || StateText.Contains("forbidden") || StateText.Contains("denied") || StateText.Contains("missing permission"));
+    private bool Throttled => !SignIn && !Forbidden && (_states.Any(state => state.StatusCode == 429) || StateText.Contains("throttled") || StateText.Contains("rate limit"));
     private bool Missing => StateText.Contains("missing binding") || StateText.Contains("binding") || StateText.Contains("unconfigured");
     private bool Unsupported => StateText.Contains("unsupported") && !Missing;
-    private string StatusHeading => Forbidden ? "Access to these objects was denied" : SignIn ? "Sign in to read this environment" : Missing ? "Connect an environment to continue" : Unsupported ? "This feature is unavailable on this deployment" : Heading;
-    private string StatusMessage => Forbidden ? "Ask your deployment administrator for the required access, or select an environment you can use." : SignIn ? "Your sign-in is missing or expired. Sign in again before reading data." : Missing ? "Select or configure your deployment before reading its data." : Unsupported ? "Check the deployment capabilities or choose a supported environment." : "The request did not complete. Check the environment and try again. Your data has not been confirmed empty.";
+    private bool TemporaryUnavailable => !SignIn && !Forbidden && !Throttled && !Missing && !Unsupported
+        && _states.Any(state => state.StatusCode == 503 || state.Retryable);
+    private double? RetryAfterSeconds => _states.Select(state => state.RetryAfterSeconds).FirstOrDefault(seconds => seconds is > 0);
+    private string StatusHeading => Forbidden ? "Access to these objects was denied"
+        : SignIn ? "Sign in to read this environment"
+        : Throttled ? "Too many requests"
+        : TemporaryUnavailable ? "Service temporarily unavailable"
+        : Missing ? "Connect an environment to continue"
+        : Unsupported ? "This feature is unavailable on this deployment"
+        : Heading;
+    private string StatusMessage => Forbidden ? "Ask your deployment administrator for the required access, or select an environment you can use."
+        : SignIn ? "Your sign-in is missing or expired. Sign in again before reading data."
+        : Throttled ? $"The server is rate-limiting requests. {Honua.Console.Contracts.ConsoleFailureReceiptParser.FormatRetryWaitHint(RetryAfterSeconds)} Your data has not been confirmed empty."
+        : TemporaryUnavailable ? $"The server is temporarily unavailable. {(RetryAfterSeconds is > 0 ? Honua.Console.Contracts.ConsoleFailureReceiptParser.FormatRetryWaitHint(RetryAfterSeconds) : "Try again in a moment.")} Your data has not been confirmed empty."
+        : Missing ? "Select or configure your deployment before reading its data."
+        : Unsupported ? "Check the deployment capabilities or choose a supported environment."
+        : "The request did not complete. Check the environment and try again. Your data has not been confirmed empty.";
     private string ActionHref => Services.GetService<IConsoleBrowserAuthentication>() is null
         ? SignIn ? "/auth/login" : "/environments"
         : Navigation.ToConsoleHref(SignIn

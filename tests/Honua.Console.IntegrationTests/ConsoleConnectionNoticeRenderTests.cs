@@ -24,6 +24,7 @@ public sealed class ConsoleConnectionNoticeRenderTests
     [InlineData("Missing binding", "Connect an environment to continue", "Connect environment", "/environments")]
     [InlineData("Unauthorized", "Sign in to read this environment", "Sign in", "/auth/login")]
     [InlineData("Forbidden", "Access to these objects was denied", "Choose environment", "/environments")]
+    [InlineData("Throttled", "Too many requests", "Review environment", "/environments")]
     [InlineData("Unsupported", "This feature is unavailable on this deployment", "Review environment", "/environments")]
     [InlineData("Unavailable", "Could not read this environment", "Review environment", "/environments")]
     public void CapabilityFailure_HasRelevantPrimaryStatusAndAction(string state, string heading, string action, string href)
@@ -36,6 +37,37 @@ public sealed class ConsoleConnectionNoticeRenderTests
         Assert.Equal(href, component.Find("a").GetAttribute("href"));
         Assert.Null(component.Find("details").GetAttribute("open"));
         Assert.DoesNotContain("private-config-reference", component.Find("h2").TextContent);
+    }
+
+    [Fact]
+    public void ThrottledAndRetryable503StatesRenderClearGuidance()
+    {
+        using var context = new BunitContext();
+        var throttled = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.States, new[]
+            {
+                new OperateCapabilityState("Connections", "Throttled", "contract", "HTTP 429")
+                {
+                    StatusCode = 429,
+                    Retryable = true,
+                    RetryAfterSeconds = 30
+                }
+            }));
+        Assert.Equal("Too many requests", throttled.Find("h2").TextContent);
+        Assert.Contains("Wait 30 seconds and try again.", throttled.Markup);
+
+        var unavailable = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.States, new[]
+            {
+                new OperateCapabilityState("Connections", "Unavailable", "contract", "HTTP 503")
+                {
+                    StatusCode = 503,
+                    Retryable = true,
+                    RetryAfterSeconds = 20
+                }
+            }));
+        Assert.Equal("Service temporarily unavailable", unavailable.Find("h2").TextContent);
+        Assert.Contains("Wait 20 seconds and try again.", unavailable.Markup);
     }
 
     [Fact]

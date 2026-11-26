@@ -82,12 +82,32 @@ public sealed class TerminalFailureReceiptTests
         }
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "false", false)]
+    [InlineData(HttpStatusCode.BadRequest, "true", true)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "true", true)]
+    public void Parse_honors_HonuaRetryable_header_when_body_omits_retryable(
+        HttpStatusCode status,
+        string headerValue,
+        bool expectedRetryable)
+    {
+        using var response = new HttpResponseMessage(status);
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", headerValue);
+        response.Headers.TryAddWithoutValidation("Retry-After", "45");
+
+        var receipt = ConsoleFailureReceiptParser.Parse(response, "{}");
+
+        Assert.Equal(expectedRetryable, receipt.Retryable);
+        Assert.Equal(45, receipt.RetryAfterSeconds);
+    }
+
     private static string State(FailureClass failure) => failure.Kind switch
     {
         "authorization" => "Missing permission",
         "not-found" => "Unsupported",
         "validation" => "Rejected",
         "conflict" => "Conflict",
+        "throttled" => "Throttled",
         _ => "Unavailable"
     };
 

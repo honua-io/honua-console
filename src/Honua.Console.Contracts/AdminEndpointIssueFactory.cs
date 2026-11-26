@@ -11,6 +11,7 @@ public static class AdminEndpointIssueFactory
         HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented => "Unsupported",
         HttpStatusCode.Conflict or HttpStatusCode.PreconditionRequired or HttpStatusCode.PreconditionFailed => "Conflict",
         HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity => "Rejected",
+        HttpStatusCode.TooManyRequests => "Throttled",
         _ => "Unavailable"
     };
 
@@ -65,6 +66,16 @@ public static class AdminEndpointIssueFactory
                 "The Honua server reported a conflict for the admin request; reload before retrying.",
             HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity =>
                 "The Honua server rejected the admin request; resolve the reported issues before retrying.",
+            HttpStatusCode.TooManyRequests =>
+                $"Too many requests. {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}",
+            HttpStatusCode.ServiceUnavailable =>
+                receipt.RetryAfterSeconds is > 0
+                    ? $"The Honua server is temporarily unavailable. {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}"
+                    : "The Honua server is temporarily unavailable. Try again in a moment.",
+            _ when receipt.Retryable =>
+                receipt.RetryAfterSeconds is > 0
+                    ? $"The Honua server could not complete the request right now. {ConsoleFailureReceiptParser.FormatRetryWaitHint(receipt.RetryAfterSeconds)}"
+                    : "The Honua server could not complete the request right now. Try again in a moment.",
             _ => string.Format(
                 CultureInfo.InvariantCulture,
                 "The Honua server returned HTTP {0} ({1}).",

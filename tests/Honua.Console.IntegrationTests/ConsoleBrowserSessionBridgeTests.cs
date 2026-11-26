@@ -40,4 +40,21 @@ public sealed class ConsoleBrowserSessionBridgeTests
         Assert.Null(snapshot.AccessToken);
         Assert.Null(snapshot.CsrfToken);
     }
+
+    [Fact]
+    public void InvalidateSessionClearsMatchingRevisionAndIgnoresStaleRevision()
+    {
+        var session = new ConsoleBrowserSession();
+        var bridge = new ConsoleBrowserSessionBridge(session);
+        session.Set(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "operator")], "test")),
+            new ConsoleSessionCredentials("csrf", "bearer", DateTimeOffset.UtcNow.AddMinutes(5)));
+        var firstRevision = bridge.GetSnapshot().Revision;
+
+        bridge.InvalidateSession(firstRevision - 1);
+        Assert.True(bridge.GetSnapshot().Authenticated);
+
+        bridge.InvalidateSession(firstRevision);
+        Assert.False(bridge.GetSnapshot().Authenticated);
+        Assert.Null(bridge.GetSnapshot().AccessToken);
+    }
 }

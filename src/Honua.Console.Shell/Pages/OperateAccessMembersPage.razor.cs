@@ -74,8 +74,15 @@ public partial class OperateAccessMembersPage
         _retiredEnvironmentLink = false;
         if (string.Equals(_environmentId, EnvironmentId, StringComparison.Ordinal)) return;
         _environmentId = EnvironmentId;
+        await LoadEnvironmentAsync();
+    }
+
+    private Task RetryAsync() => LoadEnvironmentAsync();
+
+    private async Task LoadEnvironmentAsync()
+    {
         var generation = ++_generation;
-        var environment = _environmentId;
+        var environment = _environmentId ?? EnvironmentId;
         ResetEnvironment();
         var load = await RbacData.LoadMembershipAsync(environment);
         if (!IsCurrent(generation)) return;

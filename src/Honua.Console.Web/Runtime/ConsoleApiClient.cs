@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using Honua.Console.Contracts;
 using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
@@ -30,7 +31,7 @@ public sealed class ConsoleApiClient(HttpClient http)
         {
             return new ConsoleApiSession(new ClaimsPrincipal(new ClaimsIdentity()));
         }
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var root = document?.RootElement ?? throw new JsonException("Missing session response.");
         if (!root.TryGetProperty("isAuthenticated", out var authenticated) || !authenticated.GetBoolean())
@@ -48,7 +49,7 @@ public sealed class ConsoleApiClient(HttpClient http)
     public async Task<string> GetCsrfAsync(CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync("api/v1/admin/auth/csrf", cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         return document?.RootElement.GetProperty("requestToken").GetString()
             ?? throw new JsonException("Missing CSRF request token.");
@@ -57,13 +58,13 @@ public sealed class ConsoleApiClient(HttpClient http)
     public async Task SignInCookieAsync(string password, CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync("api/v1/admin/auth/session", new { password }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
     }
 
     public async Task<Uri?> SignOutCookieAsync(CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsync("api/v1/admin/auth/logout", null, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         return ProviderLogoutUrl(await response.Content.ReadAsStringAsync(cancellationToken));
     }
 
@@ -96,7 +97,7 @@ public sealed class ConsoleApiClient(HttpClient http)
         };
         request.Options.Set(BrowserCredentialRequestOptions.Omit, true);
         using var response = await http.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var root = document?.RootElement ?? throw new JsonException("Missing token response.");
         var token = root.GetProperty("accessToken").GetString();
@@ -110,7 +111,7 @@ public sealed class ConsoleApiClient(HttpClient http)
     public async Task<IReadOnlyList<ConsoleIdentityProvider>> GetIdentityProvidersAsync(CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync("api/v1/admin/auth/config", cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var root = document?.RootElement ?? throw new JsonException("Missing identity provider configuration.");
         if (!root.GetProperty("oidcEnabled").GetBoolean())
@@ -125,10 +126,26 @@ public sealed class ConsoleApiClient(HttpClient http)
     {
         using var response = await http.PostAsJsonAsync(
             $"api/v1/admin/auth/providers/{Uri.EscapeDataString(providerKey)}/authorize-url", new { returnTo }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         var value = document?.RootElement.GetProperty("authorizeUrl").GetString();
         return ProviderAddress(value) ?? throw new JsonException("Invalid identity provider authorization address.");
+    }
+
+    private static void EnsureSuccess(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        var receipt = ConsoleFailureReceiptParser.Parse(response);
+        var exception = new HttpRequestException(
+            $"The Honua API returned HTTP {(int)response.StatusCode}.",
+            null,
+            response.StatusCode);
+        if (receipt.RetryAfterSeconds is { } retryAfter)
+        {
+            exception.Data[ConsoleFailureReceiptParser.RetryAfterSecondsDataKey] = retryAfter;
+        }
+        exception.Data[ConsoleFailureReceiptParser.RetryableDataKey] = receipt.Retryable;
+        throw exception;
     }
 }
 

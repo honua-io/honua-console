@@ -12,7 +12,19 @@ public sealed record RbacCapabilityState(
     string Surface,
     string State,
     string Contract,
-    string Detail);
+    string Detail)
+{
+    public RbacBindingPresentation ToPresentation() => State switch
+    {
+        "Missing binding" => new("error", "Access (RBAC) API is not bound", false),
+        "Missing permission" => new("denied", "Permission required", false),
+        "Unavailable" or "Throttled" => new("error", "Temporarily unavailable", true),
+        "Unsupported" => new("missing", "Access (RBAC) API is not available", false),
+        _ => new("error", "Could not load access settings", true)
+    };
+}
+
+public sealed record RbacBindingPresentation(string Kind, string Title, bool CanRetry);
 
 public sealed record RbacScopeView(
     string Level,
