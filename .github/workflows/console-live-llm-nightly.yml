@@ -12,9 +12,8 @@ name: Console Live-LLM Smoke (nightly)
 #   - HONUA_LIVE_LLM_BEDROCK_ROLE_ARN variable   -> Bedrock via a LiteLLM sidecar,
 #     with short-lived credentials from GitHub OIDC (environment bedrock-live-llm;
 #     the role lives in honua-iac bootstrap/aws-ci-oidc-roles). No access key is stored.
-#   - neither                                    -> gated mode: every spec skips, job stays green.
-# The lane never fails for missing credentials — only when a resolved provider
-# does not produce an assistant answer.
+#   - neither                                    -> scheduled and default manual runs fail.
+# Explicit manual gating checks can skip the specs with require_live_provider=false.
 
 on:
   schedule:
@@ -26,6 +25,11 @@ on:
         description: "Force provider mode: openai | bedrock | none (blank = auto-resolve from secrets)."
         required: false
         type: string
+      require_live_provider:
+        description: "Fail closed instead of passing when no live LLM provider credentials resolve."
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -46,9 +50,11 @@ jobs:
       id-token: write
 
     env:
-      # Provider credentials — empty when the secret is unset; the orchestrator
-      # then resolves mode=none and the lane skips cleanly (non-blocking).
+      # Provider credentials — scheduled runs and default dispatches fail closed
+      # if no live provider resolves (pass require_live_provider=false only for
+      # explicit gating checks).
       HONUA_LIVE_LLM_MODE: ${{ github.event.inputs.mode }}
+      HONUA_LIVE_LLM_REQUIRE_PROVIDER: ${{ github.event_name == 'schedule' || inputs.require_live_provider != false }}
       HONUA_LIVE_LLM_OPENAI_API_KEY: ${{ secrets.HONUA_LIVE_LLM_OPENAI_API_KEY }}
       HONUA_LIVE_LLM_OPENAI_MODEL: ${{ vars.HONUA_LIVE_LLM_OPENAI_MODEL }}
       HONUA_LIVE_LLM_OPENAI_ENDPOINT: ${{ vars.HONUA_LIVE_LLM_OPENAI_ENDPOINT }}

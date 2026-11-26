@@ -3,9 +3,9 @@
 //
 // Resolves a REAL AI provider, starts the Console with its /support GIS assistant
 // wired to that provider, runs the live-LLM Playwright spec, then tears everything
-// down. NON-BLOCKING by design: with no resolvable provider the lane runs in gated
-// mode (the spec skips, exit 0). With a provider, a missing or failing assistant
-// is a real regression and fails the lane.
+// down. If a provider is required and none resolves, the lane exits 2.
+// Explicit gated runs skip the spec. With a provider, a missing or failing
+// assistant fails the lane.
 //
 // There is no honua-server in this lane: under ADR-0076 studio generation is
 // client-side inference, covered by the sdk-js mcp-eval-live lane.
@@ -15,7 +15,7 @@
 //             (HONUA_LIVE_LLM_OPENAI_API_KEY or OPENAI_API_KEY). No containers.
 //   bedrock — AWS credentials resolve from the ambient chain; a LiteLLM sidecar
 //             exposes an OpenAI-compatible endpoint backed by Bedrock.
-//   none    — nothing resolved; gated skip (proves clean gating).
+//   none    — nothing resolved; fail if required, otherwise run in gated mode.
 //
 // Usage: node e2e/run-live-llm.mjs
 //   (also: npm run e2e:live-llm)
@@ -28,7 +28,7 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync, readFileSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, '..');
@@ -177,7 +177,12 @@ function startConsole(consoleEnv) {
   return proc;
 }
 
-function writeSummary(mode) {
+function isProviderRequired(env = process.env) {
+  const raw = String(env.HONUA_LIVE_LLM_REQUIRE_PROVIDER ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+function writeSummary(mode, emptyNote) {
   const surfaces = [];
   if (existsSync(SURFACES_FILE)) {
     for (const line of readFileSync(SURFACES_FILE, 'utf8').split(/\r?\n/)) {
@@ -190,10 +195,7 @@ function writeSummary(mode) {
     '',
     `**Provider mode:** \`${mode}\``,
     '',
-    surfaces.length ? '| Surface | Result | Detail |\n| --- | --- | --- |\n' + rows
-      : (mode === 'none'
-        ? '_No provider resolved — lane ran in gated mode; all specs skipped (non-blocking)._'
-        : '_No surfaces recorded._'),
+    surfaces.length ? '| Surface | Result | Detail |\n| --- | --- | --- |\n' + rows : emptyNote,
     '',
   ].join('\n');
   log('\n' + md);
@@ -202,55 +204,78 @@ function writeSummary(mode) {
   }
 }
 
-// ── main ────────────────────────────────────────────────────────────────────
-const provider = resolveProvider();
-log(`resolved provider mode: ${provider.mode}`);
-
-// Fresh surface ledger for this run.
-try { rmSync(RESULTS_DIR, { recursive: true, force: true }); } catch {}
-mkdirSync(RESULTS_DIR, { recursive: true });
-writeFileSync(join(RESULTS_DIR, '.gitkeep'), '');
-
-const childEnvBase = { ...process.env, ...provider.composeEnv };
-const specEnv = {
-  HONUA_LIVE_LLM_ENABLED: provider.mode === 'none' ? '' : '1',
-  HONUA_LIVE_LLM_MODE: provider.mode,
-  HONUA_CONSOLE_E2E_LIVE_LLM_PORT: CONSOLE_PORT,
-};
-
-let consoleProc = null;
-let stackUp = false;
-let pwExit = 0;
-
-function runSpecs() {
-  const pw = spawnSync('npx', ['playwright', 'test', '--config', 'playwright.live-llm.config.ts'],
-    { cwd: PW_DIR, stdio: 'inherit', shell: false, env: { ...process.env, ...specEnv } });
-  return pw.status ?? 1;
+export function evaluateNoProviderExit(providerMode, env = process.env) {
+  if (providerMode !== 'none') return null;
+  if (!isProviderRequired(env)) return 0;
+  return 2;
 }
 
-async function runLane() {
-  if (provider.mode === 'none') {
-    log('no provider — running the lane in gated mode (specs skip; proves clean gating).');
+// ── main ────────────────────────────────────────────────────────────────────
+const entrypoint = process.argv[1];
+const isEntrypoint = entrypoint && existsSync(entrypoint)
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entrypoint);
+if (isEntrypoint) {
+  const provider = resolveProvider();
+  const gatedExit = evaluateNoProviderExit(provider.mode);
+  const providerRequired = isProviderRequired();
+  let emptyNote = '_No surfaces recorded._';
+  if (gatedExit === 2) {
+    emptyNote = '**NEEDS_CREDENTIAL_CONFIG:** no live LLM provider resolved while `HONUA_LIVE_LLM_REQUIRE_PROVIDER=true`; refusing silent green-by-skip.';
+  } else if (gatedExit === 0) {
+    emptyNote = '_No provider resolved — lane ran in explicit gated mode (`require_live_provider=false`); all specs skipped._';
+  }
+  log(`resolved provider mode: ${provider.mode} (require_live_provider=${providerRequired})`);
+
+  // Fresh surface ledger for this run.
+  try { rmSync(RESULTS_DIR, { recursive: true, force: true }); } catch {}
+  mkdirSync(RESULTS_DIR, { recursive: true });
+  writeFileSync(join(RESULTS_DIR, '.gitkeep'), '');
+
+  const childEnvBase = { ...process.env, ...provider.composeEnv };
+  const specEnv = {
+    HONUA_LIVE_LLM_ENABLED: provider.mode === 'none' ? '' : '1',
+    HONUA_LIVE_LLM_MODE: provider.mode,
+    HONUA_CONSOLE_E2E_LIVE_LLM_PORT: CONSOLE_PORT,
+  };
+
+  let consoleProc = null;
+  let stackUp = false;
+  let pwExit = 0;
+
+  function runSpecs() {
+    const pw = spawnSync('npx', ['playwright', 'test', '--config', 'playwright.live-llm.config.ts'],
+      { cwd: PW_DIR, stdio: 'inherit', shell: false, env: { ...process.env, ...specEnv } });
+    return pw.status ?? 1;
+  }
+
+  async function runLane() {
+    if (gatedExit === 2) {
+      log('NEEDS_CREDENTIAL_CONFIG: no live LLM provider resolved while HONUA_LIVE_LLM_REQUIRE_PROVIDER=true.');
+      return 2;
+    }
+    if (gatedExit === 0) {
+      log('no provider — running in explicit gated mode (require_live_provider=false; specs skip).');
+      return runSpecs();
+    }
+    // Set before starting, so teardown also runs after a failed start.
+    stackUp = provider.stack;
+    if (stackUp) startGateway(childEnvBase);
+    consoleProc = startConsole(provider.consoleEnv);
+    await waitForUrl(`${CONSOLE_BASE}/version.json`, 180_000);
+    log('Console ready.');
     return runSpecs();
   }
-  // Set before starting, so teardown also runs after a failed start.
-  stackUp = provider.stack;
-  if (stackUp) startGateway(childEnvBase);
-  consoleProc = startConsole(provider.consoleEnv);
-  await waitForUrl(`${CONSOLE_BASE}/version.json`, 180_000);
-  log('Console ready.');
-  return runSpecs();
-}
 
-try {
-  pwExit = await runLane();
-} catch (err) {
-  log(`error: ${err.message}`);
-  pwExit = pwExit || 1;
-} finally {
-  if (consoleProc) { log('stopping Console...'); killTree(consoleProc.pid); }
-  if (stackUp) { log('tearing down stack...'); run('docker', composeArgs('down', '-v'), { env: childEnvBase }); }
-  writeSummary(provider.mode);
-}
+  try {
+    pwExit = await runLane();
+  } catch (err) {
+    log(`error: ${err.message}`);
+    pwExit = pwExit || 1;
+  } finally {
+    if (consoleProc) { log('stopping Console...'); killTree(consoleProc.pid); }
+    if (stackUp) { log('tearing down stack...'); run('docker', composeArgs('down', '-v'), { env: childEnvBase }); }
+    writeSummary(provider.mode, emptyNote);
+  }
 
-process.exit(pwExit);
+  process.exit(pwExit);
+}
