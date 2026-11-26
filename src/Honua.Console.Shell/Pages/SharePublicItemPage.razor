@@ -33,49 +33,62 @@
             var summary = item.Summary;
             var viewer = ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: false)
                 .FirstOrDefault(action => action.Id == "viewer");
+            var downloads = PublishedDownloads(item);
             <article class="share-opendata-landing share-opendata-v4" data-share-opendata-landing>
                 <nav aria-label="Breadcrumb">
-                    <a class="share-opendata-back" href="@Navigation.ToConsoleHref("/share/public")">Open-data catalog</a>
-                    <span aria-hidden="true"> / </span>
-                    <span aria-current="page">@summary.Title</span>
+                    <ol class="public-item-crumbs">
+                        <li><a class="share-opendata-back" href="@Navigation.ToConsoleHref("/share/public")">Open-data catalog</a></li>
+                        <li aria-current="page">@summary.Title</li>
+                    </ol>
                 </nav>
-                @if (!string.IsNullOrWhiteSpace(summary.Type))
-                {
-                    <span class="console-status console-state-info">@CatalogContentTypes.LabelFor(summary.Type)</span>
-                }
-                <h1>@summary.Title</h1>
-                <div class="public-item-meta console-muted">
-                    @if (summary.Modified > DateTimeOffset.UnixEpoch)
+                <header class="public-item-head">
+                    @if (!string.IsNullOrWhiteSpace(summary.Type))
                     {
-                        <span>Updated <time datetime="@summary.Modified.ToString("O")">@summary.Modified.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</time></span>
+                        <span class="public-item-kind console-status console-state-info">@CatalogContentTypes.LabelFor(summary.Type)</span>
                     }
-                    @if (!string.IsNullOrWhiteSpace(summary.Owner))
+                    <h1>@summary.Title</h1>
+                    <div class="public-item-meta console-muted">
+                        @if (summary.Modified > DateTimeOffset.UnixEpoch)
+                        {
+                            <span>Updated <time datetime="@summary.Modified.ToString("O")">@FormatDate(summary.Modified)</time></span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(summary.Owner))
+                        {
+                            <span>Published by @summary.Owner</span>
+                        }
+                    </div>
+                    <p class="share-opendata-intro console-muted">@item.Description</p>
+                    @if (viewer is not null || item.Publications.Length > 0 || downloads.Length > 0)
                     {
-                        <span>Published by @summary.Owner</span>
+                        <div class="public-item-actions">
+                            @if (viewer is not null)
+                            {
+                                <a class="console-button console-button-primary" href="@Navigation.ToConsoleHref(viewer.Href)">@viewer.Label</a>
+                            }
+                            @if (item.Publications.Length > 0)
+                            {
+                                <a class="console-button console-button-secondary" href="#public-routes-heading">Connect</a>
+                            }
+                            @if (downloads.Length > 0)
+                            {
+                                <a class="console-button console-button-secondary" href="#public-download-heading">Download data</a>
+                            }
+                        </div>
                     }
-                </div>
-                <p class="share-opendata-intro console-muted">@item.Description</p>
-                @if (viewer is not null)
-                {
-                    <a class="console-button console-button-primary" href="@Navigation.ToConsoleHref(viewer.Href)">@viewer.Label</a>
-                }
+                </header>
 
                 <div class="public-item-grid">
-                    <div>
-                        <div data-share-opendata-downloads>
-                            <ConsolePanel Title="Download" HeadingId="public-download-heading">
-                                @PublicDownloads(item)
-                            </ConsolePanel>
-                        </div>
+                    <div class="public-item-main">
                         @if (item.Publications.Length > 0)
                         {
                             <div data-share-opendata-routes>
-                                <ConsolePanel Title="Public routes" HeadingId="public-routes-heading">
+                                <ConsolePanel Title="Connect from your software" HeadingId="public-routes-heading">
                                     <ul class="public-item-routes">
                                         @foreach (var publication in item.Publications)
                                         {
                                             var route = PublicRoute(publication.Route);
                                             <li>
+                                                <span class="public-item-proto">@RouteLabel(publication.Format)</span>
                                                 <code class="console-inline-code" title="@route">@route</code>
                                                 <ConsoleCopyButton Text="@route" />
                                             </li>
@@ -84,30 +97,23 @@
                                 </ConsolePanel>
                             </div>
                         }
+                        <div data-share-opendata-downloads>
+                            <ConsolePanel Title="Download data" HeadingId="public-download-heading">
+                                @PublicDownloads(downloads)
+                            </ConsolePanel>
+                        </div>
                     </div>
-                    <aside aria-label="Item information">
-                        <ConsolePanel Title="Usage" HeadingId="public-usage-heading">
-                            <p class="console-muted">@(string.IsNullOrWhiteSpace(item.License) ? "Notice of usage terms is unavailable for this item." : item.License)</p>
+                    <aside class="public-item-aside" aria-label="Details">
+                        <ConsolePanel Title="Apps using this" HeadingId="public-usage-heading">
+                            @PublicUsage(item)
                         </ConsolePanel>
                         <ConsolePanel Title="Details" HeadingId="public-details-heading">
-                            @if (summary.Tags.Length > 0)
-                            {
-                                <ul class="console-chip-row public-item-tags" aria-label="Tags">
-                                    @foreach (var tag in summary.Tags)
-                                    {
-                                        <li>#@tag</li>
-                                    }
-                                </ul>
-                            }
-                            else
-                            {
-                                <p class="console-muted">No tags published.</p>
-                            }
+                            @PublicDetails(item)
                         </ConsolePanel>
                     </aside>
                 </div>
                 <footer class="share-opendata-footer" data-share-opendata-footer>
-                    <p class="console-muted share-opendata-poweredby">Powered by Honua · public open data</p>
+                    <p class="console-muted share-opendata-poweredby">Served by this Honua server · public open data</p>
                 </footer>
             </article>
         }
@@ -159,8 +165,16 @@
     private CatalogItemReadResult? _result;
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
-    private static RenderFragment PublicDownloads(ConsoleContentDetail item) => @<text>
-        @{ var downloads = item.Publications.Where(publication => !string.IsNullOrWhiteSpace(publication.Format)).ToArray(); }
+    private static ConsoleContentPublication[] PublishedDownloads(ConsoleContentDetail item) =>
+        item.Publications.Where(publication => !string.IsNullOrWhiteSpace(publication.Format)).ToArray();
+
+    private static string RouteLabel(string? format) =>
+        string.IsNullOrWhiteSpace(format) ? "Endpoint" : ConsoleDownloadFormatLabels.Display(format);
+
+    private static string FormatDate(DateTimeOffset value) =>
+        value.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static RenderFragment PublicDownloads(ConsoleContentPublication[] downloads) => @<text>
         @if (downloads.Length == 0)
         {
             <p class="console-muted">No download links are published for this item.</p>
@@ -173,6 +187,64 @@
                     <li><a href="@download.Route">@ConsoleDownloadFormatLabels.Display(download.Format!)</a></li>
                 }
             </ul>
+        }
+    </text>;
+
+    private static RenderFragment PublicUsage(ConsoleContentDetail item) => @<text>
+        @if (item.Usage.Length == 0)
+        {
+            <p class="console-muted">No connected apps reported for this item.</p>
+        }
+        else
+        {
+            <ul class="public-item-usage">
+                @foreach (var consumer in item.Usage)
+                {
+                    <li>
+                        <strong>@consumer.ConsumerTitle</strong>
+                        <span class="console-muted">@CatalogContentTypes.LabelFor(consumer.ConsumerType)</span>
+                    </li>
+                }
+            </ul>
+        }
+    </text>;
+
+    private static RenderFragment PublicDetails(ConsoleContentDetail item) => @<text>
+        @{ var summary = item.Summary; }
+        <dl class="public-item-kv">
+            @if (!string.IsNullOrWhiteSpace(summary.Owner))
+            {
+                <dt>Owner</dt>
+                <dd>@summary.Owner</dd>
+            }
+            @if (summary.Modified > DateTimeOffset.UnixEpoch)
+            {
+                <dt>Updated</dt>
+                <dd><time datetime="@summary.Modified.ToString("O")">@FormatDate(summary.Modified)</time></dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(item.License))
+            {
+                <dt>License</dt>
+                <dd>@item.License</dd>
+            }
+            @if (summary.Formats.Length > 0)
+            {
+                <dt>Formats</dt>
+                <dd>@string.Join(", ", summary.Formats.Select(ConsoleDownloadFormatLabels.Display))</dd>
+            }
+        </dl>
+        @if (summary.Tags.Length > 0)
+        {
+            <ul class="console-chip-row public-item-tags" aria-label="Tags">
+                @foreach (var tag in summary.Tags)
+                {
+                    <li>#@tag</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="console-muted">No tags published.</p>
         }
     </text>;
 

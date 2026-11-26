@@ -9237,6 +9237,12 @@ button.console-chip:focus-visible {
     flex-wrap: wrap;
 }
 
+.approval-inbox-page:not(.approval-inbox-v4) .proposal-approval-reason {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
 .approval-inbox-select {
     display: flex;
     flex-direction: column;
