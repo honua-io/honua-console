@@ -182,7 +182,7 @@ function isProviderRequired(env = process.env) {
   return raw === '1' || raw === 'true' || raw === 'yes';
 }
 
-function writeSummary(mode, providerRequired) {
+function writeSummary(mode, emptyNote) {
   const surfaces = [];
   if (existsSync(SURFACES_FILE)) {
     for (const line of readFileSync(SURFACES_FILE, 'utf8').split(/\r?\n/)) {
@@ -190,11 +190,6 @@ function writeSummary(mode, providerRequired) {
     }
   }
   const rows = surfaces.map((s) => `| ${s.surface} | ${s.status} | ${s.detail || ''} |`).join('\n');
-  const emptyNote = mode === 'none'
-    ? (providerRequired
-      ? '**NEEDS_CREDENTIAL_CONFIG:** no live LLM provider resolved while `HONUA_LIVE_LLM_REQUIRE_PROVIDER=true`; refusing silent green-by-skip.'
-      : '_No provider resolved — lane ran in explicit gated mode (`require_live_provider=false`); all specs skipped._')
-    : '_No surfaces recorded._';
   const md = [
     '## Live-LLM smoke lane',
     '',
@@ -219,7 +214,14 @@ export function evaluateNoProviderExit(providerMode, env = process.env) {
 const isEntrypoint = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isEntrypoint) {
   const provider = resolveProvider();
+  const gatedExit = evaluateNoProviderExit(provider.mode);
   const providerRequired = isProviderRequired();
+  let emptyNote = '_No surfaces recorded._';
+  if (gatedExit === 2) {
+    emptyNote = '**NEEDS_CREDENTIAL_CONFIG:** no live LLM provider resolved while `HONUA_LIVE_LLM_REQUIRE_PROVIDER=true`; refusing silent green-by-skip.';
+  } else if (gatedExit === 0) {
+    emptyNote = '_No provider resolved — lane ran in explicit gated mode (`require_live_provider=false`); all specs skipped._';
+  }
   log(`resolved provider mode: ${provider.mode} (require_live_provider=${providerRequired})`);
 
   // Fresh surface ledger for this run.
@@ -245,7 +247,6 @@ if (isEntrypoint) {
   }
 
   async function runLane() {
-    const gatedExit = evaluateNoProviderExit(provider.mode);
     if (gatedExit === 2) {
       log('NEEDS_CREDENTIAL_CONFIG: no live LLM provider resolved while HONUA_LIVE_LLM_REQUIRE_PROVIDER=true.');
       return 2;
@@ -271,7 +272,7 @@ if (isEntrypoint) {
   } finally {
     if (consoleProc) { log('stopping Console...'); killTree(consoleProc.pid); }
     if (stackUp) { log('tearing down stack...'); run('docker', composeArgs('down', '-v'), { env: childEnvBase }); }
-    writeSummary(provider.mode, providerRequired);
+    writeSummary(provider.mode, emptyNote);
   }
 
   process.exit(pwExit);
