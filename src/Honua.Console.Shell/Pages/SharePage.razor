@@ -9,9 +9,51 @@
 @inject IServiceProvider Services
 
 <CatalogAvailabilityGate>
-@if (V4Enabled && !OperatorView && !_missingBinding && _failureMessage is null && _items is not null)
+@if (V4Enabled && !OperatorView)
 {
-    <PublicCatalogView Items="_items" HasMoreItems="_hasMoreItems" />
+    @if (!_missingBinding && _failureMessage is null && _items is not null)
+    {
+        <PublicCatalogView Items="_items" HasMoreItems="_hasMoreItems" />
+    }
+    else
+    {
+        <section class="public-catalog" aria-label="Open data catalog" data-public-catalog>
+            <header class="public-catalog-brand">
+                <strong>Open data catalog</strong>
+                <small>Public maps, layers, services, and documents</small>
+            </header>
+            <div class="public-catalog-state">
+                @if (_missingBinding)
+                {
+                    <ConsoleStateView HeadingLevel="1" Kind="error"
+                                      Kicker="Missing binding"
+                                      Title="Share is not bound to honua-server"
+                                      Message="@MissingBindingMessage" />
+                }
+                else if (_items is null)
+                {
+                    <ConsoleStateView HeadingLevel="1" Kind="loading"
+                                      Kicker="Loading"
+                                      Title="Loading public items"
+                                      Message="Open-data catalog items are loading." />
+                }
+                else if (_failureMessage is not null)
+                {
+                    <ConsoleStateView HeadingLevel="1" Kind="error"
+                                      Kicker="Share unavailable"
+                                      Title="Public items could not load"
+                                      Message="@_failureMessage"
+                                      ActionHref="@ConsoleNavigation.Uri"
+                                      ActionLabel="Retry" />
+                }
+            </div>
+            <footer class="public-catalog-footer">
+                <span>Open data catalog</span>
+                <span class="public-catalog-spacer"></span>
+                <span>Served by this Honua server</span>
+            </footer>
+        </section>
+    }
 }
 else
 {

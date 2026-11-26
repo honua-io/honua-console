@@ -31,6 +31,7 @@
         @if (V4Enabled)
         {
             var summary = item.Summary;
+            var description = ItemDescription(item);
             var viewer = ConsoleCatalogActionPolicy.Resolve(summary, isAuthenticated: false)
                 .FirstOrDefault(action => action.Id == "viewer");
             var downloads = PublishedDownloads(item);
@@ -47,31 +48,55 @@
                         <span class="public-item-kind console-status console-state-info">@CatalogContentTypes.LabelFor(summary.Type)</span>
                     }
                     <h1>@summary.Title</h1>
-                    <div class="public-item-meta console-muted">
-                        @if (summary.Modified > DateTimeOffset.UnixEpoch)
-                        {
-                            <span>Updated <time datetime="@summary.Modified.ToString("O")">@FormatDate(summary.Modified)</time></span>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(summary.Owner))
-                        {
-                            <span>Published by @summary.Owner</span>
-                        }
-                    </div>
-                    <p class="share-opendata-intro console-muted">@item.Description</p>
+                    @if (summary.Modified > DateTimeOffset.UnixEpoch || !string.IsNullOrWhiteSpace(summary.Owner))
+                    {
+                        <div class="public-item-meta console-muted">
+                            @if (summary.Modified > DateTimeOffset.UnixEpoch)
+                            {
+                                <span>Updated <time datetime="@summary.Modified.ToString("O")">@FormatDate(summary.Modified)</time></span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(summary.Owner))
+                            {
+                                <span>Published by @summary.Owner</span>
+                            }
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(description))
+                    {
+                        <p class="share-opendata-intro console-muted">@description</p>
+                    }
                     @if (viewer is not null || item.Publications.Length > 0 || downloads.Length > 0)
                     {
                         <div class="public-item-actions">
                             @if (viewer is not null)
                             {
-                                <a class="console-button console-button-primary" href="@Navigation.ToConsoleHref(viewer.Href)">@viewer.Label</a>
+                                <a class="console-button console-button-primary" href="@Navigation.ToConsoleHref(viewer.Href)">
+                                    <svg class="public-item-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z" />
+                                        <path d="M9 4v14M15 6v14" />
+                                    </svg>
+                                    <span>Open in map viewer</span>
+                                </a>
                             }
                             @if (item.Publications.Length > 0)
                             {
-                                <a class="console-button console-button-secondary" href="#public-routes-heading">Connect</a>
+                                <a class="console-button console-button-secondary" href="#public-routes-heading">
+                                    <svg class="public-item-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <rect x="9" y="9" width="11" height="11" rx="2" />
+                                        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                                    </svg>
+                                    <span>Connect</span>
+                                </a>
                             }
                             @if (downloads.Length > 0)
                             {
-                                <a class="console-button console-button-secondary" href="#public-download-heading">Download data</a>
+                                <a class="console-button console-button-secondary" href="#public-download-heading">
+                                    <svg class="public-item-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M14 4h6v6M20 4l-9 9" />
+                                        <path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+                                    </svg>
+                                    <span>Download data</span>
+                                </a>
                             }
                         </div>
                     }
@@ -83,23 +108,36 @@
                         {
                             <div data-share-opendata-routes>
                                 <ConsolePanel Title="Connect from your software" HeadingId="public-routes-heading">
-                                    <ul class="public-item-routes">
-                                        @foreach (var publication in item.Publications)
-                                        {
-                                            var route = PublicRoute(publication.Route);
-                                            <li>
-                                                <span class="public-item-proto">@RouteLabel(publication.Format)</span>
-                                                <code class="console-inline-code" title="@route">@route</code>
-                                                <ConsoleCopyButton Text="@route" />
-                                            </li>
-                                        }
-                                    </ul>
+                                    <Actions>
+                                        <span class="public-item-panel-count">@CountLabel(item.Publications.Length, "route", "routes")</span>
+                                    </Actions>
+                                    <ChildContent>
+                                        <ul class="public-item-routes">
+                                            @foreach (var publication in item.Publications)
+                                            {
+                                                var route = PublicRoute(publication.Route);
+                                                <li>
+                                                    <span class="public-item-proto">@RouteLabel(publication.Format)</span>
+                                                    <code class="console-inline-code" title="@route">@route</code>
+                                                    <ConsoleCopyButton Text="@route" />
+                                                </li>
+                                            }
+                                        </ul>
+                                    </ChildContent>
                                 </ConsolePanel>
                             </div>
                         }
                         <div data-share-opendata-downloads>
                             <ConsolePanel Title="Download data" HeadingId="public-download-heading">
-                                @PublicDownloads(downloads)
+                                <Actions>
+                                    @if (downloads.Length > 0)
+                                    {
+                                        <span class="public-item-panel-count">@CountLabel(downloads.Length, "format", "formats")</span>
+                                    }
+                                </Actions>
+                                <ChildContent>
+                                    @PublicDownloads(downloads)
+                                </ChildContent>
                             </ConsolePanel>
                         </div>
                     </div>
@@ -165,14 +203,26 @@
     private CatalogItemReadResult? _result;
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
 
+    private static string ItemDescription(ConsoleContentDetail item) =>
+        string.IsNullOrWhiteSpace(item.Description) ? item.Summary.Summary : item.Description;
+
     private static ConsoleContentPublication[] PublishedDownloads(ConsoleContentDetail item) =>
         item.Publications.Where(publication => !string.IsNullOrWhiteSpace(publication.Format)).ToArray();
 
     private static string RouteLabel(string? format) =>
         string.IsNullOrWhiteSpace(format) ? "Endpoint" : ConsoleDownloadFormatLabels.Display(format);
 
+    private static string CountLabel(int count, string singular, string plural) =>
+        $"{count} {(count == 1 ? singular : plural)}";
+
     private static string FormatDate(DateTimeOffset value) =>
         value.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static RenderFragment ConsumerIcon(string? type) => type switch
+    {
+        "map" => @<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z" /><path d="M9 4v14M15 6v14" /></svg>,
+        _ => @<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M7 6.5h.01M10 6.5h.01" /></svg>
+    };
 
     private static RenderFragment PublicDownloads(ConsoleContentPublication[] downloads) => @<text>
         @if (downloads.Length == 0)
@@ -201,8 +251,11 @@
                 @foreach (var consumer in item.Usage)
                 {
                     <li>
-                        <strong>@consumer.ConsumerTitle</strong>
-                        <span class="console-muted">@CatalogContentTypes.LabelFor(consumer.ConsumerType)</span>
+                        <span class="public-item-usage-ico" aria-hidden="true">@ConsumerIcon(consumer.ConsumerType)</span>
+                        <span class="public-item-usage-copy">
+                            <strong>@consumer.ConsumerTitle</strong>
+                            <span class="console-muted">@CatalogContentTypes.LabelFor(consumer.ConsumerType)</span>
+                        </span>
                     </li>
                 }
             </ul>
