@@ -12,9 +12,8 @@ name: Console Live-LLM Smoke (nightly)
 #   - HONUA_LIVE_LLM_BEDROCK_ROLE_ARN variable   -> Bedrock via a LiteLLM sidecar,
 #     with short-lived credentials from GitHub OIDC (environment bedrock-live-llm;
 #     the role lives in honua-iac bootstrap/aws-ci-oidc-roles). No access key is stored.
-#   - neither                                    -> gated mode: every spec skips, job stays green.
-# The lane never fails for missing credentials — only when a resolved provider
-# does not produce an assistant answer.
+#   - neither                                    -> scheduled and default manual runs fail.
+# Explicit manual gating checks can skip the specs with require_live_provider=false.
 
 on:
   schedule:

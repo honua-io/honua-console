@@ -3,9 +3,9 @@
 //
 // Resolves a REAL AI provider, starts the Console with its /support GIS assistant
 // wired to that provider, runs the live-LLM Playwright spec, then tears everything
-// down. NON-BLOCKING by design: with no resolvable provider the lane runs in gated
-// mode (the spec skips, exit 0). With a provider, a missing or failing assistant
-// is a real regression and fails the lane.
+// down. If a provider is required and none resolves, the lane exits 2.
+// Explicit gated runs skip the spec. With a provider, a missing or failing
+// assistant fails the lane.
 //
 // There is no honua-server in this lane: under ADR-0076 studio generation is
 // client-side inference, covered by the sdk-js mcp-eval-live lane.
@@ -15,7 +15,7 @@
 //             (HONUA_LIVE_LLM_OPENAI_API_KEY or OPENAI_API_KEY). No containers.
 //   bedrock — AWS credentials resolve from the ambient chain; a LiteLLM sidecar
 //             exposes an OpenAI-compatible endpoint backed by Bedrock.
-//   none    — nothing resolved; gated skip (proves clean gating).
+//   none    — nothing resolved; fail if required, otherwise run in gated mode.
 //
 // Usage: node e2e/run-live-llm.mjs
 //   (also: npm run e2e:live-llm)
@@ -28,7 +28,7 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync, readFileSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, '..');
@@ -211,7 +211,9 @@ export function evaluateNoProviderExit(providerMode, env = process.env) {
 }
 
 // ── main ────────────────────────────────────────────────────────────────────
-const isEntrypoint = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const entrypoint = process.argv[1];
+const isEntrypoint = entrypoint && existsSync(entrypoint)
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entrypoint);
 if (isEntrypoint) {
   const provider = resolveProvider();
   const gatedExit = evaluateNoProviderExit(provider.mode);
