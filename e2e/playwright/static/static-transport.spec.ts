@@ -110,3 +110,26 @@ test('same-origin OIDC broker redirects and returns beneath the Console mount', 
   expect(errors).toEqual([]);
   expect(await cspViolations()).toEqual([]);
 });
+
+test('same-origin OIDC broker preserves deep Console routes and blocks hostile return paths', async ({ page }) => {
+  const origin = 'http://127.0.0.1:5188';
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+
+  const deepCallback = page.waitForResponse(response => new URL(response.url()).pathname === '/admin/auth/callback');
+  await page.goto(`${origin}/console/auth/signin?returnTo=%2Foperate%2Fsettings`);
+  await page.getByRole('button', { name: 'Continue with Organization', exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/console/operate/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true, level: 1 })).toBeVisible();
+  expect((await deepCallback).headers().location).toBe('/console/operate/settings');
+
+  for (const blocked of ['https://evil.example/phish', '/auth/signin']) {
+    await page.context().clearCookies();
+    const callback = page.waitForResponse(response => new URL(response.url()).pathname === '/admin/auth/callback');
+    await page.goto(`${origin}/console/auth/signin?returnTo=${encodeURIComponent(blocked)}`);
+    await page.getByRole('button', { name: 'Continue with Organization', exact: true }).click();
+    await expect(page).toHaveURL(`${origin}/console/`);
+    expect((await callback).headers().location).toBe('/console/');
+  }
+  expect(errors).toEqual([]);
+});

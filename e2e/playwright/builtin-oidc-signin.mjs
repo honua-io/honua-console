@@ -10,6 +10,7 @@ const { chromium } = await import(process.env.HONUA_PLAYWRIGHT_MODULE ?? 'playwr
 const output = process.env.HONUA_BUILTIN_OIDC_OUTPUT ?? 'artifacts/builtin-oidc-signin';
 const settingsRoute = '/operate/settings';
 const homePath = '/console/';
+const legacyReturnPaths = [homePath, '/console/operate/connections'];
 await fs.mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.HONUA_CHROMIUM_PATH
   ? { executablePath: process.env.HONUA_CHROMIUM_PATH, args: ['--no-sandbox'] } : {}) });
@@ -60,7 +61,7 @@ async function startFixture(kind, v4) {
   api = createContractApi({
     allowedOrigin: origin,
     oidc: kind !== 'password',
-    oidcReturnPaths: kind === 'oidc' ? [homePath, `/console${settingsRoute}`] : undefined,
+    oidcReturnPaths: kind === 'oidc-legacy' ? legacyReturnPaths : undefined,
   });
   const close = async () => {
     server.closeAllConnections();

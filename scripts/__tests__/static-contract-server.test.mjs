@@ -100,18 +100,36 @@ for (const crossOrigin of [false, true]) {
   });
 }
 
+test("OIDC authorize-url enforces the server return-path allowlist contract", async t => {
+  const origin = await start(t, { allowedOrigin: "http://console.test", oidc: true });
+  const headers = { "Content-Type": "application/json", "X-Honua-CSRF": "anonymous-csrf" };
+  const postAuthorize = returnTo => fetch(`${origin}/api/v1/admin/auth/providers/entra/authorize-url`, {
+    method: "POST", headers, body: JSON.stringify({ returnTo }),
+  });
+  const disallowed = [
+    "/console/auth", "/console/auth/signin", "/console/AUTH/signin", "/console/../outside",
+    "/console/%2e%2e/admin", "/console//operate/settings", "/console/operate/settings/",
+    "/console/operate/connections?next=https://other.test/", "/console/operate/connections#details",
+    "/console/publish\n", "/console/publish\\other", "/admin/", "https://other.test/",
+    "//other.test/console/", `/console/${"a".repeat(248)}`,
+  ];
+  for (const returnTo of disallowed) {
+    assert.equal((await postAuthorize(returnTo)).status, 400, `Expected 400 for ${JSON.stringify(returnTo)}`);
+  }
+  const allowed = [
+    "/console/", "/console/operate/connections", "/console/operate/settings",
+    "/console/publish", "/console/operate/health", `/console/${"a".repeat(247)}`,
+  ];
+  for (const returnTo of allowed) {
+    assert.equal((await postAuthorize(returnTo)).status, 200, `Expected 200 for ${returnTo}`);
+  }
+});
+
 test("OIDC callback consumes server correlation and redirects only to the stored Console path", async t => {
   const origin = await start(t, { allowedOrigin: "http://console.test", oidc: true });
-  for (const returnTo of ["/console/unknown", "/console/../outside", "https://other.test/"]) {
-    const rejected = await fetch(`${origin}/api/v1/admin/auth/providers/entra/authorize-url`, {
-      method: "POST", headers: { "Content-Type": "application/json", "X-Honua-CSRF": "anonymous-csrf" },
-      body: JSON.stringify({ returnTo }),
-    });
-    assert.equal(rejected.status, 400);
-  }
   const authorize = await fetch(`${origin}/api/v1/admin/auth/providers/entra/authorize-url`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Honua-CSRF": "anonymous-csrf" },
-    body: JSON.stringify({ returnTo: "/console/operate/connections" }),
+    body: JSON.stringify({ returnTo: "/console/operate/settings" }),
   });
   assert.equal(authorize.status, 200);
   const state = new URL((await authorize.json()).authorizeUrl).searchParams.get("state");
@@ -119,7 +137,7 @@ test("OIDC callback consumes server correlation and redirects only to the stored
   const headers = { Cookie: `fixture-pending=${state}` };
   const response = await fetch(callback, { headers, redirect: "manual" });
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get("location"), "/console/operate/connections");
+  assert.equal(response.headers.get("location"), "/console/operate/settings");
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   assert.match(response.headers.get("set-cookie"), /console-fixture-session=issued/);
   assert.equal((await fetch(callback, { headers, redirect: "manual" })).status, 403);

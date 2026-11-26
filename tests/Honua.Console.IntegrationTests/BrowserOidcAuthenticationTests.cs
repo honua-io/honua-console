@@ -37,16 +37,82 @@ public sealed class BrowserOidcAuthenticationTests
 
     [Theory]
     [InlineData("/", "/console/")]
+    [InlineData("/operate/connections", "/console/operate/connections")]
     [InlineData("/operate/settings", "/console/operate/settings")]
     [InlineData("/operate/services", "/console/operate/services")]
-    [InlineData("/operate/connections?sort=name", "/console/operate/connections?sort=name")]
-    [InlineData("/operate/connections#details", "/console/operate/connections#details")]
+    [InlineData("/publish", "/console/publish")]
+    [InlineData("/operate/health", "/console/operate/health")]
+    [InlineData("/operate/connections/11111111-1111-1111-1111-111111111111", "/console/operate/connections/11111111-1111-1111-1111-111111111111")]
     public async Task BrokerReceivesMountedReturnDestination(string returnTo, string expected)
     {
         using var fixture = new BrokerFixture();
         await fixture.Authentication.BeginAsync("entra", returnTo);
         Assert.Equal(expected, fixture.Handler.ReturnTo);
         Assert.Equal(1, fixture.Handler.Authorizations);
+    }
+
+    [Theory]
+    [InlineData("/auth")]
+    [InlineData("/auth/signin")]
+    [InlineData("/AUTH/SIGNIN")]
+    [InlineData("/auth/callback")]
+    [InlineData("/operate/connections?sort=name")]
+    [InlineData("/operate/connections?next=https://unlisted.example.com")]
+    [InlineData("/operate/connections#details")]
+    [InlineData("/operate//settings")]
+    [InlineData("/operate/settings/")]
+    [InlineData("/operate/with.dot")]
+    [InlineData("/operate/with%20space")]
+    public async Task DisallowedServerReturnPathsFallBackToHomeBeforeRequest(string returnTo)
+    {
+        using var fixture = new BrokerFixture();
+        await fixture.Authentication.BeginAsync("entra", returnTo);
+        Assert.Equal("/console/", fixture.Handler.ReturnTo);
+        Assert.Equal(1, fixture.Handler.Authorizations);
+    }
+
+    [Fact]
+    public async Task ReturnPathLengthBoundaryMatchesServerContract()
+    {
+        using var fixture = new BrokerFixture();
+        var maxRoute = "/" + new string('a', 247);
+        var tooLongRoute = "/" + new string('a', 248);
+
+        await fixture.Authentication.BeginAsync("entra", maxRoute);
+        await fixture.Authentication.BeginAsync("entra", tooLongRoute);
+
+        Assert.Equal(new[] { "/console" + maxRoute, "/console/" }, fixture.Handler.ReturnDestinations);
+    }
+
+    [Theory]
+    [InlineData("/console/")]
+    [InlineData("/console/operate/settings")]
+    [InlineData("/console/publish")]
+    [InlineData("/console/operate/health")]
+    public void IsAllowedReturnPathAcceptsSanitizedConsoleRoutes(string path)
+    {
+        Assert.True(BrowserOidcAuthentication.IsAllowedReturnPath(path));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("/admin/")]
+    [InlineData("https://evil.example/console/")]
+    [InlineData("//evil.example/console/")]
+    [InlineData("/console/../outside")]
+    [InlineData("/console/%2e%2e/admin")]
+    [InlineData("/console/auth")]
+    [InlineData("/console/auth/signin")]
+    [InlineData("/console//operate/settings")]
+    [InlineData("/console/operate/settings/")]
+    [InlineData("/console/operate/connections?next=https://evil.example")]
+    [InlineData("/console/operate/connections#details")]
+    [InlineData("/console/publish\n")]
+    [InlineData("/console/publish\\other")]
+    public void IsAllowedReturnPathRejectsDisallowedOrHostilePaths(string? path)
+    {
+        Assert.False(BrowserOidcAuthentication.IsAllowedReturnPath(path));
     }
 
     [Fact]
@@ -71,8 +137,14 @@ public sealed class BrowserOidcAuthenticationTests
 
     [Theory]
     [InlineData("//other.example/")]
+    [InlineData("https://other.example/console/")]
     [InlineData("/../outside")]
     [InlineData("/operate/../../outside")]
+    [InlineData("/%2e%2e/outside")]
+    [InlineData("/operate\\outside")]
+    [InlineData("/operate/settings\n")]
+    [InlineData("/operate/settings\r\n")]
+    [InlineData("/\t/evil.example")]
     public async Task InvalidReturnPathCannotStartAnAuthorizationRequest(string returnTo)
     {
         using var fixture = new BrokerFixture();

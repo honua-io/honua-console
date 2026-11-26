@@ -8,6 +8,21 @@ import { startStaticBundleServer } from "./static-bundle-server.mjs";
 // and OIDC remain separate integration gates; these credentials have no external authority.
 export const fixtureCookie = "console-fixture-session=issued";
 export const fixtureBearer = "console-fixture-bearer";
+const MAX_OIDC_RETURN_PATH_LENGTH = 256;
+const OIDC_AUTH_ROUTE = "/console/auth";
+const OIDC_AUTH_ROUTE_PREFIX = "/console/auth/";
+const ALLOWED_OIDC_RETURN_PATH = /^\/console\/(?:[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*)?$/;
+
+export function isAllowedOidcReturnPath(path) {
+  if (typeof path !== "string" || path.length > MAX_OIDC_RETURN_PATH_LENGTH) {
+    return false;
+  }
+  const lowered = path.toLowerCase();
+  if (lowered === OIDC_AUTH_ROUTE || lowered.startsWith(OIDC_AUTH_ROUTE_PREFIX)) {
+    return false;
+  }
+  return ALLOWED_OIDC_RETURN_PATH.test(path);
+}
 
 function acceptOrigin({ request, response, allowedOrigin }) {
   response.setHeader("Cache-Control", "no-store");
@@ -45,7 +60,10 @@ async function authorizeOidc({ request, response, allowedOrigin, pending, oidcRe
   for await (const chunk of request) body += chunk;
   let returnTo;
   try { returnTo = JSON.parse(body).returnTo ?? "/console/"; } catch { /* Deny invalid input. */ }
-  if (!oidcReturnPaths.includes(returnTo)) {
+  const allowed = oidcReturnPaths
+    ? oidcReturnPaths.includes(returnTo)
+    : isAllowedOidcReturnPath(returnTo);
+  if (!allowed) {
     response.writeHead(400).end();
     return;
   }
@@ -208,7 +226,7 @@ export const alertingCapability = {
 
 export function createContractApi({
   allowedOrigin, crossOrigin = false, oidc = false, capabilities = [],
-  oidcReturnPaths = ["/console/", "/console/operate/connections"],
+  oidcReturnPaths = null,
 }) {
   const pending = new Map();
   return async (request, response) => {
