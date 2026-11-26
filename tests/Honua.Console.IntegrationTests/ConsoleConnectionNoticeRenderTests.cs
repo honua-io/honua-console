@@ -71,6 +71,25 @@ public sealed class ConsoleConnectionNoticeRenderTests
     }
 
     [Fact]
+    public void NonRetryable503StateRendersUnavailableWithoutRetryButton()
+    {
+        using var context = new BunitContext();
+        var nonRetryable = context.Render<ConsoleConnectionNotice>(parameters => parameters
+            .Add(value => value.States, new[]
+            {
+                new OperateCapabilityState("Connections", "Unavailable", "contract", "HTTP 503")
+                {
+                    StatusCode = 503,
+                    Retryable = false
+                }
+            })
+            .Add(value => value.OnRetry, () => { }));
+        Assert.Equal("Service unavailable", nonRetryable.Find("h2").TextContent);
+        Assert.Contains("retrying will not resolve this request", nonRetryable.Markup);
+        Assert.Empty(nonRetryable.FindAll("button"));
+    }
+
+    [Fact]
     public void BusyRetryStaysFocusableAndIgnoresClicks()
     {
         using var context = new BunitContext();

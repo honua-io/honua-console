@@ -13,7 +13,7 @@
         @if (_categories.Count == 0) { <p>No categories reported.</p> }
         else
         {
-            <div class="catalog-admin-table catalog-category-order" role="region" aria-label="Categories in order" tabindex="0">
+            <ConsoleTableRegion Class="catalog-admin-table catalog-category-order" Label="Categories in order">
                 <table>
                     <thead><tr><th scope="col">Order</th><th scope="col">Category</th><th scope="col">Fills from</th><th scope="col">Items</th><th scope="col">On home page</th></tr></thead>
                     <tbody>
@@ -28,14 +28,14 @@
                         }
                     </tbody>
                 </table>
-            </div>
+            </ConsoleTableRegion>
         }
         <h3>Featured items</h3>
         <p>The first four local positions are home positions; the rest are in All featured. The server must still check each visitor's access and listing eligibility before showing an item.</p>
         @if (_featured.Count == 0) { <p>No featured items reported.</p> }
         else
         {
-            <div class="catalog-admin-table catalog-featured-order" role="region" aria-label="Featured items in order" tabindex="0">
+            <ConsoleTableRegion Class="catalog-admin-table catalog-featured-order" Label="Featured items in order">
                 <table>
                     <thead><tr><th scope="col">Order</th><th scope="col">Item</th><th scope="col">Kind</th><th scope="col">Health</th><th scope="col">Featured until</th><th scope="col">Added by</th><th scope="col">Local position</th></tr></thead>
                     <tbody>
@@ -51,7 +51,7 @@
                         }
                     </tbody>
                 </table>
-            </div>
+            </ConsoleTableRegion>
         }
         <div class="console-action-row">
             <p role="status" class="catalog-arrangement-status">@_moveAnnouncement @(IsDirty ? "Unsaved local changes · nothing saved or proposed" : "Order and choices unchanged")</p>

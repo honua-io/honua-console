@@ -52,6 +52,20 @@ public sealed class AdminEndpointIssueFactoryTests
     }
 
     [Fact]
+    public async Task CreateIssueAsync_503WithHonuaRetryableFalse_ProducesNonRetryableCopy()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        response.Headers.TryAddWithoutValidation("Honua-Retryable", "false");
+
+        var issue = await AdminEndpointIssueFactory.CreateIssueAsync("test/contract", response);
+
+        Assert.Equal("Unavailable", issue.State);
+        Assert.False(issue.Receipt?.Retryable);
+        Assert.Contains("not retryable", issue.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("temporarily unavailable", issue.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void CreateIssue_409_IsConflict_NotUnavailable()
     {
         var issue = AdminEndpointIssueFactory.CreateIssue("test/contract", HttpStatusCode.Conflict);

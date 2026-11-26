@@ -238,21 +238,23 @@
                                 }
                                 else
                                 {
-                                    <table class="console-content-table console-content-table-compact">
-                                        <thead>
-                                            <tr><th scope="col">Version</th><th scope="col">Author</th><th scope="col">Created</th></tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var version in item.Versions)
-                                            {
-                                                <tr>
-                                                    <th scope="row">@version.Label <small>@version.VersionId</small></th>
-                                                    <td>@version.CreatedBy</td>
-                                                    <td>@version.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                    </table>
+                                    <ConsoleTableRegion Label="Item versions">
+                                        <table class="console-content-table console-content-table-compact">
+                                            <thead>
+                                                <tr><th scope="col">Version</th><th scope="col">Author</th><th scope="col">Created</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var version in item.Versions)
+                                                {
+                                                    <tr>
+                                                        <th scope="row">@version.Label <small>@version.VersionId</small></th>
+                                                        <td>@version.CreatedBy</td>
+                                                        <td>@version.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </ConsoleTableRegion>
                                 }
                             </article>
 

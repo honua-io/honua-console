@@ -71,20 +71,22 @@
                 }
                 @if (converge.Targets.Count > 0)
                 {
-                    <table class="operate-table">
-                        <thead>
-                            <tr><th scope="col">Target</th><th scope="col">Outcome</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var target in converge.Targets)
-                            {
-                                <tr>
-                                    <td class="console-mono">@target.TargetId</td>
-                                    <td><OperateStatusPill Status="@target.Outcome" /></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <ConsoleTableRegion Class="operate-table-scroll" Label="Platform release convergence targets">
+                        <table class="operate-table">
+                            <thead>
+                                <tr><th scope="col">Target</th><th scope="col">Outcome</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var target in converge.Targets)
+                                {
+                                    <tr>
+                                        <td class="console-mono">@target.TargetId</td>
+                                        <td><OperateStatusPill Status="@target.Outcome" /></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </ConsoleTableRegion>
                 }
             }
         }

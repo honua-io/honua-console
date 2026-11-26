@@ -168,7 +168,13 @@
 
                 @if (_confirmReplacement)
                 {
-                    <div class="console-validation-summary" role="alertdialog" aria-labelledby="replace-confirm-title" data-replace-confirmation>
+                    <ConsoleOverlayFocusTrap CanDismiss="!_importing"
+                                             OnDismiss="CancelReplacement"
+                                             class="console-validation-summary"
+                                             role="alertdialog"
+                                             aria-modal="true"
+                                             aria-labelledby="replace-confirm-title"
+                                             data-replace-confirmation>
                         <h2 id="replace-confirm-title">Confirm destructive replacement</h2>
                         <p>Replace @_replaceTargets.Count of @_selected.Count selected layer target(s). Existing tables and their data will be replaced:</p>
                         <ul>
@@ -178,8 +184,8 @@
                             }
                         </ul>
                         <button class="console-button" type="button" @onclick="ConfirmReplacementAsync" data-confirm-replacement>Confirm and queue replacements</button>
-                        <button class="console-button-link" type="button" @onclick="CancelReplacement" data-cancel-replacement>Cancel</button>
-                    </div>
+                        <button class="console-button-link" type="button" autofocus @onclick="CancelReplacement" data-cancel-replacement>Cancel</button>
+                    </ConsoleOverlayFocusTrap>
                 }
 
                 @if (_importError is not null)

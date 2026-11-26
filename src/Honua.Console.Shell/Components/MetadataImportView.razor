@@ -13,7 +13,7 @@
         <h3>Mapped fields</h3>
         <label class="metadata-filter"><input type="checkbox" data-import-changes @ref="_filter" @bind="_changesOnly" />Only show changes</label>
         <p>Unchecked rows keep current values. Initial selections come from the supplied preview; selecting a row does not apply it.</p>
-        <div class="console-table-wrap" role="region" aria-label="Import mapped fields" tabindex="0">
+        <ConsoleTableRegion Class="console-table-wrap" Label="Import mapped fields">
             <table class="console-table">
                 <thead><tr><th scope="col">Select</th><th scope="col">Source path</th><th scope="col">Honua field</th><th scope="col">Current</th><th scope="col">From file</th></tr></thead>
                 <tbody>
@@ -26,7 +26,7 @@
                     }
                 </tbody>
             </table>
-        </div>
+        </ConsoleTableRegion>
         @if (!Import.Rows.Any(row => !_changesOnly || row.Changed)) { <p>No mapped fields match this filter.</p> }
         <section class="console-panel metadata-panel">
             <h3>Unmapped content</h3>

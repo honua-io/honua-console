@@ -9,7 +9,7 @@
         <p>@StatusMessage</p>
         <div class="console-action-row">
             <a class="console-button-link" href="@Navigation.ToConsoleLinkHref(ActionHref)">@ActionLabel</a>
-            @if (OnRetry.HasDelegate)
+            @if (OnRetry.HasDelegate && !NonRetryableUnavailable)
             {
                 @* aria-disabled, not disabled: a disabled button drops keyboard focus to the page body. *@
                 <button type="button" class="console-button console-button-secondary" @onclick="RetryAsync"
@@ -109,12 +109,15 @@
     private bool Missing => StateText.Contains("missing binding") || StateText.Contains("binding") || StateText.Contains("unconfigured");
     private bool Unsupported => StateText.Contains("unsupported") && !Missing;
     private bool TemporaryUnavailable => !SignIn && !Forbidden && !Throttled && !Missing && !Unsupported
-        && _states.Any(state => state.StatusCode == 503 || state.Retryable);
+        && _states.Any(state => state.Retryable);
+    private bool NonRetryableUnavailable => !SignIn && !Forbidden && !Throttled && !Missing && !Unsupported
+        && !TemporaryUnavailable && _states.Any(state => state.StatusCode == 503);
     private double? RetryAfterSeconds => _states.Select(state => state.RetryAfterSeconds).FirstOrDefault(seconds => seconds is > 0);
     private string StatusHeading => Forbidden ? "Access to these objects was denied"
         : SignIn ? "Sign in to read this environment"
         : Throttled ? "Too many requests"
         : TemporaryUnavailable ? "Service temporarily unavailable"
+        : NonRetryableUnavailable ? "Service unavailable"
         : Missing ? "Connect an environment to continue"
         : Unsupported ? "This feature is unavailable on this deployment"
         : Heading;
@@ -122,6 +125,7 @@
         : SignIn ? "Your sign-in is missing or expired. Sign in again before reading data."
         : Throttled ? $"The server is rate-limiting requests. {Honua.Console.Contracts.ConsoleFailureReceiptParser.FormatRetryWaitHint(RetryAfterSeconds)} Your data has not been confirmed empty."
         : TemporaryUnavailable ? $"The server is temporarily unavailable. {(RetryAfterSeconds is > 0 ? Honua.Console.Contracts.ConsoleFailureReceiptParser.FormatRetryWaitHint(RetryAfterSeconds) : "Try again in a moment.")} Your data has not been confirmed empty."
+        : NonRetryableUnavailable ? "The server is unavailable and reported that retrying will not resolve this request. Check the environment status or contact your administrator. Your data has not been confirmed empty."
         : Missing ? "Select or configure your deployment before reading its data."
         : Unsupported ? "Check the deployment capabilities or choose a supported environment."
         : "The request did not complete. Check the environment and try again. Your data has not been confirmed empty.";

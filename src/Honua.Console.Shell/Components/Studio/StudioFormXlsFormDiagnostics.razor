@@ -1,7 +1,7 @@
 @* Blocking workbook cells reported by honua-server for an XLSForm import or export. *@
 @if (Diagnostics.Count > 0)
 {
-    <div class="console-table-wrap" data-xlsform-diagnostics>
+    <ConsoleTableRegion Class="console-table-wrap" Label="XLSForm diagnostics" data-xlsform-diagnostics>
         <table class="console-table">
             <caption>@Caption</caption>
             <thead>
@@ -24,7 +24,7 @@
                 }
             </tbody>
         </table>
-    </div>
+    </ConsoleTableRegion>
 }
 
 @code {
