@@ -30,11 +30,21 @@ const proposals = [
   },
 ];
 
-async function mockProposals(page: Page, v4Enabled: boolean) {
+async function mockLegacyShellConfig(page: Page) {
   await page.route(`${origin}/console/config.json`, async route => {
     const response = await route.fetch();
-    await route.fulfill({ response, json: { ...await response.json(), v4Enabled } });
+    await route.fulfill({ response, json: { ...await response.json(), v4Enabled: false } });
   });
+}
+
+async function mockV4ShellConfig(page: Page) {
+  await page.route(`${origin}/console/config.json`, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), v4Enabled: true } });
+  });
+}
+
+async function mockProposals(page: Page) {
   await page.route(`${origin}/api/v1/admin/proposals**`, async route => {
     const pathname = new URL(route.request().url()).pathname;
     const matched = proposals.find(item => pathname.endsWith(`/${item.proposalId}`));
@@ -67,11 +77,17 @@ async function checkSelectionAndClose(page: Page, proposalId: string, context: s
   await expect(rowButton).toBeFocused();
 }
 
-for (const v4Enabled of [false, true]) {
+const shellModes: { name: string; configure: (page: Page) => Promise<void> }[] = [
+  { name: 'legacy', configure: mockLegacyShellConfig },
+  { name: 'v4', configure: mockV4ShellConfig },
+];
+
+for (const mode of shellModes) {
   for (const fontSize of [16, 32]) {
-    test(`approvals inbox fits viewport with v4=${v4Enabled} at ${fontSize}px text`, async ({ page }, testInfo) => {
+    test(`approvals inbox fits viewport in ${mode.name} mode at ${fontSize}px text`, async ({ page }, testInfo) => {
       const width = testInfo.project.name === 'mobile' ? 390 : 1280;
-      await mockProposals(page, v4Enabled);
+      await mode.configure(page);
+      await mockProposals(page);
       await page.setViewportSize({ width, height: 900 });
       await signInWithFixturePassword(page, origin, '/inbox');
       await page.waitForURL(url => url.pathname === '/console/inbox');
@@ -79,7 +95,7 @@ for (const v4Enabled of [false, true]) {
       if (fontSize !== 16) {
         await page.addStyleTag({ content: `html { font-size: ${fontSize}px !important; }` });
       }
-      const label = `v4=${v4Enabled} ${width}px ${fontSize}px`;
+      const label = `${mode.name} ${width}px ${fontSize}px`;
       await assertNoOverflow(page, `${label} queue`);
       await checkSelectionAndClose(page, firstId, label);
       await checkSelectionAndClose(page, lastId, label);
