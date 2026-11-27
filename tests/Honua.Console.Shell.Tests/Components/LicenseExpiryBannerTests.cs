@@ -96,6 +96,30 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
         Assert.True(handler.WasCancelled);
     }
 
+    [Fact]
+    public void UnexpectedClientException_DoesNotKillCircuitAndRecoversOnNextTick()
+    {
+        var clock = new ManualTimeProvider(TimeSpan.FromMinutes(1));
+        Services.AddSingleton<TimeProvider>(clock);
+        var handler = Register("Pro", 5);
+        handler.Failure = "unexpected";
+
+        var component = Render<LicenseExpiryBanner>();
+
+        component.WaitForAssertion(() => Assert.True(handler.Calls >= 1));
+        Assert.False(Renderer.UnhandledException.IsCompleted);
+        Assert.Empty(component.FindAll("[role=alert]"));
+
+        handler.Failure = null;
+        clock.Tick();
+
+        component.WaitForAssertion(() =>
+        {
+            Assert.Equal("7", component.Find("[role=alert]").GetAttribute("data-license-warning-days"));
+        });
+        Assert.False(Renderer.UnhandledException.IsCompleted);
+    }
+
     private ReplyHandler Register(string edition, int days)
     {
         var handler = new ReplyHandler(Response(edition, days));
@@ -123,9 +147,15 @@ public sealed class LicenseExpiryBannerTests : ConsoleComponentTestBase
     {
         public string Response { get; set; } = response;
         public string? Failure { get; set; }
+        public int Calls { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            Calls++;
+            if (Failure == "unexpected")
+            {
+                throw new InvalidOperationException("Synthetic unresolved operator context.");
+            }
             if (Failure == "unreachable")
             {
                 throw new HttpRequestException("Synthetic server outage.");

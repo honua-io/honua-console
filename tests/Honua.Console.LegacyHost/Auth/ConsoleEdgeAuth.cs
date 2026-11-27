@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using Honua.Console.Shell.Security;
 using Microsoft.Extensions.Options;
 
@@ -100,7 +102,7 @@ public sealed class ConsoleEdgeIdentityMiddleware
         if (!string.IsNullOrEmpty(_options.SharedSecret))
         {
             var presented = context.Request.Headers[ConsoleAuthConstants.EdgeTrustHeader];
-            if (presented.Count == 0 || !string.Equals(presented[0], _options.SharedSecret, StringComparison.Ordinal))
+            if (presented.Count != 1 || !SecretsEqual(presented[0], _options.SharedSecret))
             {
                 return null;
             }
@@ -147,5 +149,17 @@ public sealed class ConsoleEdgeIdentityMiddleware
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "EdgeForwarded"));
+    }
+
+    private static bool SecretsEqual(string? presented, string expected)
+    {
+        if (string.IsNullOrEmpty(presented))
+        {
+            return false;
+        }
+
+        var presentedHash = SHA256.HashData(Encoding.UTF8.GetBytes(presented));
+        var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(expected));
+        return CryptographicOperations.FixedTimeEquals(presentedHash, expectedHash);
     }
 }

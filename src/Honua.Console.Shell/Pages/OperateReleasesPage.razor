@@ -198,7 +198,7 @@
                     &middot; @changeCount semantic change@(changeCount == 1 ? "" : "s")
                 </span>
                 <div class="operate-release-actions">
-                    @if (operation?.PrUrl is { Length: > 0 } headPrUrl)
+                    @if (ConsoleSafeUrl.NormalizeHttpUrl(operation?.PrUrl) is { } headPrUrl)
                     {
                         <a class="console-button-link console-button-secondary" href="@headPrUrl" rel="noopener noreferrer" target="_blank">View on GitHub</a>
                     }
@@ -588,7 +588,7 @@
             {
 <p class="console-muted">Inline change summary &middot; what this PR would write to the config repository.</p>
 
-                        @if (operation?.PrUrl is { Length: > 0 } prHeadUrl)
+                        @if (ConsoleSafeUrl.NormalizeHttpUrl(operation?.PrUrl) is { } prHeadUrl)
                         {
                             <a class="console-link operate-pr-external" href="@prHeadUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
                         }
@@ -600,7 +600,7 @@
                             <h3 id="pr-preview-heading">Git PR preview</h3>
                             <p class="console-muted">Inline change summary &middot; what this PR would write to the config repository.</p>
                         </div>
-                        @if (operation?.PrUrl is { Length: > 0 } prHeadUrl)
+                        @if (ConsoleSafeUrl.NormalizeHttpUrl(operation?.PrUrl) is { } prHeadUrl)
                         {
                             <a class="console-link operate-pr-external" href="@prHeadUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
                         }
@@ -612,7 +612,14 @@
                             @if (operation.PrUrl is { Length: > 0 } prMetaUrl)
                             {
                                 <dt>Pull request</dt>
-                                <dd><a class="console-link" href="@prMetaUrl" rel="noopener noreferrer" target="_blank">@prMetaUrl</a></dd>
+                                @if (ConsoleSafeUrl.NormalizeHttpUrl(prMetaUrl) is { } safePrMetaUrl)
+                                {
+                                    <dd><a class="console-link" href="@safePrMetaUrl" rel="noopener noreferrer" target="_blank">@prMetaUrl</a></dd>
+                                }
+                                else
+                                {
+                                    <dd class="console-mono">@prMetaUrl</dd>
+                                }
                             }
                             @if (!string.IsNullOrWhiteSpace(operation.CommitSha))
                             {
@@ -874,7 +881,7 @@
                         </dd>
                     </dl>
                     <a class="console-link" href="#pr-preview">View Git PR preview</a>
-                    @if (operation?.PrUrl is { Length: > 0 } sidePrUrl)
+                    @if (ConsoleSafeUrl.NormalizeHttpUrl(operation?.PrUrl) is { } sidePrUrl)
                     {
                         <a class="console-link" href="@sidePrUrl" rel="noopener noreferrer" target="_blank">View on GitHub &rarr;</a>
                     }

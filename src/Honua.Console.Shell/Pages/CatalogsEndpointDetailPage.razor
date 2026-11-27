@@ -48,15 +48,15 @@
                 <button class="console-button console-button-secondary" type="button"
                         data-catalog-copy-url disabled="@(string.IsNullOrWhiteSpace(endpoint.Url))"
                         @onclick="CopyEndpointUrlAsync">@(_copied ? "✓ Copied" : "⧉ Copy")</button>
-                @if (!string.IsNullOrWhiteSpace(endpoint.Url))
+                @if (ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(endpoint.Url) is { } safeEndpointUrl)
                 {
                     <a class="console-button console-button-secondary" data-catalog-open-url
-                       href="@ConsoleNavigation.ToConsoleLinkHref(endpoint.Url)" target="_blank" rel="noopener noreferrer">Open ↗</a>
+                       href="@ConsoleNavigation.ToConsoleLinkHref(safeEndpointUrl)" target="_blank" rel="noopener noreferrer">Open ↗</a>
                 }
                 else
                 {
                     <button class="console-button console-button-secondary" type="button" disabled
-                            title="This endpoint has no URL to open.">Open ↗</button>
+                            title="This endpoint has no safe URL to open.">Open ↗</button>
                 }
                 <button class="console-button" type="button" disabled
                         title="Index rebuild is managed on honua-server; no rebuild action is exposed by the discovery-endpoints registry.">Rebuild index</button>
@@ -305,7 +305,7 @@
                 "import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
             _copied = await _clipboardModule.InvokeAsync<bool>("copyText", url);
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             _copied = false;
         }
@@ -319,7 +319,7 @@
             {
                 await _clipboardModule.DisposeAsync();
             }
-            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
                 // Circuit already gone; nothing to clean up browser-side.
             }

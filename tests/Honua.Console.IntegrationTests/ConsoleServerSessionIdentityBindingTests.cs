@@ -603,6 +603,8 @@ public sealed class ConsoleServerSessionIdentityBindingTests
     [InlineData("missing-user")]
     [InlineData("multiple-users")]
     [InlineData("missing-trust")]
+    [InlineData("duplicate-trust")]
+    [InlineData("wrong-trust-length")]
     public async Task HostedEdge_InvalidCurrentAssertion_DoesNotUseCookieOrEmailFallback(string failure)
     {
         var context = new DefaultHttpContext();
@@ -618,6 +620,14 @@ public sealed class ConsoleServerSessionIdentityBindingTests
         else if (failure == "multiple-users")
         {
             context.Request.Headers[ConsoleAuthConstants.DefaultUserHeader] = new StringValues(["operator-a", "operator-b"]);
+        }
+        else if (failure == "duplicate-trust")
+        {
+            context.Request.Headers[ConsoleAuthConstants.EdgeTrustHeader] = new StringValues(["proxy-secret", "extra-secret"]);
+        }
+        else if (failure == "wrong-trust-length")
+        {
+            context.Request.Headers[ConsoleAuthConstants.EdgeTrustHeader] = "short";
         }
         else
         {

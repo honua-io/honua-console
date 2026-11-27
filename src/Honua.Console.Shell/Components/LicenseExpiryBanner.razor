@@ -1,3 +1,4 @@
+@using Microsoft.Extensions.Logging
 @inject NavigationManager ConsoleNavigation
 @namespace Honua.Console.Shell.Components
 @implements IAsyncDisposable
@@ -48,28 +49,46 @@
         }
     }
 
-    private async Task PollAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
+    private async Task RefreshSafelyAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
     {
         try
         {
             await RefreshAsync(client, cancellationToken);
-            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Services.GetService<ILogger<LicenseExpiryBanner>>()
+                ?.LogWarning(exception, "License expiry poll failed; keeping the previous state until the next tick.");
+        }
+    }
+
+    private Task SafeStateHasChangedAsync() =>
+        _stopping.IsCancellationRequested
+            ? Task.CompletedTask
+            : ConsoleComponentDispatch.TryInvokeAsync(InvokeAsync, StateHasChanged);
+
+    private async Task PollAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RefreshSafelyAsync(client, cancellationToken);
+            await SafeStateHasChangedAsync();
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1), _clock);
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                await InvokeAsync(async () =>
-                {
-                    await RefreshAsync(client, cancellationToken);
-                    StateHasChanged();
-                });
+                await RefreshSafelyAsync(client, cancellationToken);
+                await SafeStateHasChangedAsync();
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch (Exception exception)
+        catch (ObjectDisposedException)
         {
-            await DispatchExceptionAsync(exception);
         }
     }
 

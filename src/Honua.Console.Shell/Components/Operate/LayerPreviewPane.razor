@@ -47,7 +47,14 @@
             </label>
         }
         <div class="console-action-row">
-            <a class="console-button" href="@sel.Route" target="_blank" data-preview-open-route>Open route</a>
+            @if (ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(sel.Route) is { } safeRoute)
+            {
+                <a class="console-button" href="@safeRoute" target="_blank" rel="noopener noreferrer" data-preview-open-route>Open route</a>
+            }
+            else
+            {
+                <span class="console-muted" data-preview-open-route-invalid>@sel.Route</span>
+            }
         </div>
     }
     else

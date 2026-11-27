@@ -78,7 +78,7 @@
             // A clean leave is the operator confirming the discard; staying is the default-safe outcome.
             return await JS.InvokeAsync<bool>("confirm", Message);
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             // No JS runtime (prerender / bUnit) or interop torn down mid-flight: fail safe by keeping
             // the operator on the page rather than silently discarding their work.
@@ -104,7 +104,7 @@
                 _beforeUnloadArmed = false;
             }
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             // JS interop unavailable (prerender / bUnit): the SPA location-changing handler still
             // guards internal navigation; the browser-level prompt simply does not arm. Never throw.
@@ -128,7 +128,7 @@
 
                 await _module.DisposeAsync();
             }
-            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
                 // Circuit already gone; nothing to clean up browser-side.
             }

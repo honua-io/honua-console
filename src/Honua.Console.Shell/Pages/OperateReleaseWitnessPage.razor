@@ -49,7 +49,15 @@
                 <dt>Proposal</dt><dd><CorrelationIdChip Value="@evidence.ProposalId" Kind="CorrelationIdKind.ProposalId" /></dd>
                 <dt>Audit correlation</dt><dd><CorrelationIdChip Value="@evidence.AuditCorrelationId" Kind="CorrelationIdKind.CorrelationId" /></dd>
                 <dt>Audit operation</dt><dd><CorrelationIdChip Value="@evidence.AuditExecutionOperationId" Kind="CorrelationIdKind.OperationId" /></dd>
-                <dt>Public route</dt><dd><a href="@evidence.PublicUrl" data-release-public-link>@evidence.PublicUrl</a></dd>
+                <dt>Public route</dt>
+                @if (ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(evidence.PublicUrl) is { } safePublicUrl)
+                {
+                    <dd><a href="@safePublicUrl" rel="noopener noreferrer" data-release-public-link>@evidence.PublicUrl</a></dd>
+                }
+                else
+                {
+                    <dd class="console-mono" data-release-public-text>@evidence.PublicUrl</dd>
+                }
             </dl>
         </article>
     }    else

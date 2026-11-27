@@ -34,6 +34,7 @@
 
 @code {
     private IReadOnlyList<ConsoleNotification> _toasts = [];
+    private bool _disposed;
 
     // Per-toast expiry timers keyed by id. Each toast with a finite lifetime gets one one-shot timer;
     // dismissing or expiring a toast disposes its timer so nothing leaks on the circuit.
@@ -45,10 +46,18 @@
         Sync();
     }
 
-    private void OnChanged() => InvokeAsync(Sync);
+    private void OnChanged() => _ = SafeInvokeAsync(Sync);
+
+    private Task SafeInvokeAsync(Action action) =>
+        _disposed ? Task.CompletedTask : ConsoleComponentDispatch.TryInvokeAsync(InvokeAsync, action);
 
     private void Sync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _toasts = Notifications.Notifications;
 
         var live = _toasts.Select(toast => toast.Id).ToHashSet();
@@ -69,7 +78,7 @@
 
             var timer = new System.Timers.Timer(Math.Max(1, lifetime.TotalMilliseconds)) { AutoReset = false };
             var toastId = toast.Id;
-            timer.Elapsed += (_, _) => InvokeAsync(() => Notifications.Dismiss(toastId));
+            timer.Elapsed += (_, _) => _ = SafeInvokeAsync(() => Notifications.Dismiss(toastId));
             _timers[toastId] = timer;
             timer.Start();
         }
@@ -104,6 +113,7 @@
 
     public void Dispose()
     {
+        _disposed = true;
         Notifications.Changed -= OnChanged;
         foreach (var timer in _timers.Values)
         {

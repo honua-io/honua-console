@@ -153,8 +153,11 @@ public sealed partial class HttpConsoleReleaseWitnessClient : IConsoleReleaseWit
                 return Denied("The active publication does not expose a public route.");
             }
             // An absolute route path would replace the server address; only a link on this server is offered.
-            var publicUri = ConsoleServerHttp.BuildUri(profile.ServerBaseUri, routePath.TrimStart('/'));
-            if (!IsOnServer(publicUri, profile.ServerBaseUri))
+            var normalizedBase = profile.ServerBaseUri.AbsoluteUri.EndsWith('/')
+                ? profile.ServerBaseUri
+                : new Uri(profile.ServerBaseUri.AbsoluteUri + "/", UriKind.Absolute);
+            if (!Uri.TryCreate(normalizedBase, routePath.TrimStart('/'), out var publicUri)
+                || !IsOnServer(publicUri, profile.ServerBaseUri))
             {
                 return Denied("The active publication's public route is not on this server.");
             }

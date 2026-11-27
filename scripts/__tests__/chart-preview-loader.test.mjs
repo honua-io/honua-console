@@ -65,3 +65,43 @@ test('the no-network loader rejects data, link, request and file loads', async (
         }
     });
 });
+
+test('nested composition and lookup URLs are stripped while inline data records stay intact', async () => {
+    await withChartModule('strip-urls', async ({ init, dispose }) => {
+        let embeddedSpec = null;
+        Object.assign(window, {
+            vega: {},
+            vegaLite: {},
+            vegaEmbed: async (_target, chart) => {
+                embeddedSpec = chart;
+                return { finalize() {} };
+            },
+        });
+        const target = container();
+        const spec = JSON.stringify({
+            data: { values: [{ data: { url: 'district-a' }, amount: 12 }] },
+            datasets: { rows: [{ data: { url: 'district-b' }, amount: 5 }] },
+            transform: [{ lookup: 'id', from: { data: { url: '/map-proxy/secret' }, key: 'id' } }],
+            layer: [{ data: { url: '/api/agent-workspace/session' }, mark: 'bar' }],
+            concat: [{ data: { url: 'https://evil.example/exfil' }, mark: 'point' }],
+            hconcat: [{ data: { url: '/api/hconcat' }, mark: 'line' }],
+            vconcat: [{ data: { url: '/api/vconcat' }, mark: 'area' }],
+            facet: { data: { url: '/api/facet' }, spec: { data: { url: '/api/facet-spec' }, mark: 'bar' } },
+            repeat: { spec: { data: { url: '/api/repeat' }, mark: 'bar' } },
+        });
+
+        assert.equal(await init(target, { spec }), true);
+        assert.ok(embeddedSpec);
+        assert.equal(embeddedSpec.data.values[0].data.url, 'district-a');
+        assert.equal(embeddedSpec.datasets.rows[0].data.url, 'district-b');
+        assert.equal(embeddedSpec.transform[0].from.data.url, undefined);
+        assert.equal(embeddedSpec.layer[0].data.url, undefined);
+        assert.equal(embeddedSpec.concat[0].data.url, undefined);
+        assert.equal(embeddedSpec.hconcat[0].data.url, undefined);
+        assert.equal(embeddedSpec.vconcat[0].data.url, undefined);
+        assert.equal(embeddedSpec.facet.data.url, undefined);
+        assert.equal(embeddedSpec.facet.spec.data.url, undefined);
+        assert.equal(embeddedSpec.repeat.spec.data.url, undefined);
+        dispose(target);
+    });
+});

@@ -280,7 +280,7 @@
             var copied = await _clipboardModule.InvokeAsync<bool>("copyText", Navigation.Uri);
             _copied = copied;
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             _copied = false;
         }
@@ -294,7 +294,7 @@
             {
                 await _clipboardModule.DisposeAsync();
             }
-            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
                 // Circuit already gone; nothing to clean up browser-side.
             }

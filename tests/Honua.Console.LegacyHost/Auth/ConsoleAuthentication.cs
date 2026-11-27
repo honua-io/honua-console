@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Components;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -200,35 +201,50 @@ public static class ConsoleAuthentication
             return SignInRequired(context.Request);
         }).AllowAnonymous();
 
-        app.MapPost("/auth/logout", async (
-            HttpContext context,
-            ConsoleServerSessionBffCoordinator serverSessionBff,
-            IConsoleEnvironmentProfileStore profileStore,
-            IConsoleAccountSessionStore sessionStore,
-            CancellationToken cancellationToken) =>
-        {
-            if (context.User.Identity?.IsAuthenticated == true)
-            {
-                await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
-
-                // Evict the departed operator's in-memory partitions so the profile/session stores do not
-                // accumulate one partition per operator for the life of the process (honua-console#279
-                // PA-237). Resolve the operator key from this request's still-authenticated principal
-                // before the cookie sign-out clears it. Only the browser host's operator-scoped stores
-                // carry per-operator partitions; the native single-operator Json stores are untouched.
-                var operatorKey = ConsoleOperatorContext.ResolveKey(context.User);
-                if (operatorKey is not null)
-                {
-                    (profileStore as OperatorScopedEnvironmentProfileStore)?.EvictOperator(operatorKey);
-                    (sessionStore as OperatorScopedAccountSessionStore)?.EvictOperator(operatorKey);
-                }
-            }
-
-            await context.SignOutAsync(ConsoleAuthConstants.CookieScheme).ConfigureAwait(false);
-            return Results.Redirect("/auth/login");
-        });
+        app.MapPost("/auth/logout", HandleLogoutAsync);
 
         return app;
+    }
+
+    private static async Task<IResult> HandleLogoutAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
+        try
+        {
+            await antiforgery.ValidateRequestAsync(context).ConfigureAwait(false);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            await EvictOperatorSessionAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+
+        await context.SignOutAsync(ConsoleAuthConstants.CookieScheme).ConfigureAwait(false);
+        return Results.Redirect("/auth/login");
+    }
+
+    private static async Task EvictOperatorSessionAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        var serverSessionBff = context.RequestServices.GetRequiredService<ConsoleServerSessionBffCoordinator>();
+        await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
+
+        // Evict the departed operator's in-memory partitions so the profile/session stores do not
+        // accumulate one partition per operator for the life of the process. Only the browser
+        // host's operator-scoped stores carry per-operator partitions.
+        var operatorKey = ConsoleOperatorContext.ResolveKey(context.User);
+        if (operatorKey is null)
+        {
+            return;
+        }
+
+        var profileStore = context.RequestServices.GetRequiredService<IConsoleEnvironmentProfileStore>();
+        var sessionStore = context.RequestServices.GetRequiredService<IConsoleAccountSessionStore>();
+        (profileStore as OperatorScopedEnvironmentProfileStore)?.EvictOperator(operatorKey);
+        (sessionStore as OperatorScopedAccountSessionStore)?.EvictOperator(operatorKey);
     }
 
     // Dev login is allowed in the Development environment, or when an operator has explicitly opted in
@@ -308,9 +324,11 @@ public static class ConsoleAuthentication
             StatusCode = StatusCodes.Status401Unauthorized,
         };
 
-    private static bool IsApiRequest(HttpRequest request)
+    internal static bool IsApiRequest(HttpRequest request)
     {
-        if (request.Path.StartsWithSegments("/map-proxy"))
+        if (request.Path.StartsWithSegments("/map-proxy")
+            || request.Path.StartsWithSegments("/scene-proxy")
+            || request.Path.StartsWithSegments("/api"))
         {
             return true;
         }
