@@ -12,7 +12,8 @@ internal static class ConsoleShellConfiguration
         ServerPublicationIds = Read(configuration, "Honua:Server:PublicationIds", "HONUA_SERVER_PUBLICATION_IDS"),
         ServerTemporalSources = Read(configuration, "Honua:Server:TemporalSources", "HONUA_SERVER_TEMPORAL_SOURCES"),
         ServerCredentialMode = Read(configuration, "Honua:Server:CredentialMode", "HONUA_SERVER_CREDENTIAL_MODE"),
-        SupportBaseUrl = Read(configuration, "Honua:Support:BaseUrl", "HONUA_SUPPORT_BASE_URL"),
+        SupportBaseUrl = Read(configuration, "HonuaSupport:BaseUrl", "Honua:Support:BaseUrl", "HONUA_SUPPORT_BASE_URL"),
+        SupportPortalBffBaseUrl = Read(configuration, "HonuaSupport:PortalBffBaseUrl", "HONUA_SUPPORT_PORTAL_BFF_BASE_URL"),
         SupportKbPath = Read(configuration, "Honua:Support:KbPath", "HONUA_SUPPORT_KB_PATH"),
         LlmBaseUrl = Read(configuration, "Honua:Llm:BaseUrl", "HONUA_LLM_BASE_URL"),
         LlmModel = Read(configuration, "Honua:Llm:Model", "HONUA_LLM_MODEL"),
@@ -30,6 +31,17 @@ internal static class ConsoleShellConfiguration
         ConsoleMode = Read(configuration, "Honua:Console:Mode", "HONUA_CONSOLE_MODE"),
     };
 
-    private static string? Read(IConfiguration configuration, string key, string environmentVariable) =>
-        configuration[key] ?? configuration[environmentVariable];
+    private static string? Read(IConfiguration configuration, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = configuration[key];
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
 }

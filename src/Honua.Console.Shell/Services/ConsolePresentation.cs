@@ -28,7 +28,7 @@ public sealed record ConsolePresentation
             "/operate/connections", "/operate/exports", "/operate/folders", "/operate/services", "/operate/layers", "/operate/data",
             "/operate/catalogs", "/operate/settings", "/operate/access", "/operate/copilot", "/operate/releases", "/operate/versions",
             "/operate/geoprocessing", "/operate/publishing", "/operate/deploy", "/operate/health",
-            "/operate/observability", "/operate/events", "/operate/metrics"];
+            "/operate/observability", "/operate/events", "/operate/metrics", "/operate/support"];
         return routes.Any(route => route.EndsWith('/')
             ? path.StartsWith(route, StringComparison.OrdinalIgnoreCase)
             : path.Equals(route, StringComparison.OrdinalIgnoreCase)
