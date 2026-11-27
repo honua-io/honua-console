@@ -15,6 +15,9 @@ public sealed record HonuaConsoleShellOptions
 
     public string? SupportBaseUrl { get; init; }
 
+    // Same-origin BFF base URL for /api/support/* when the host proxies honua-support with server-side credentials.
+    public string? SupportPortalBffBaseUrl { get; init; }
+
     public string? SupportKbPath { get; init; }
 
     public string? LlmBaseUrl { get; init; }

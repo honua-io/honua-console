@@ -29,6 +29,8 @@ internal static class LegacyConsoleStartup
             new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         builder.Services.AddHttpClient("honua-studio-audience").ConfigurePrimaryHttpMessageHandler(() =>
             new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        builder.Services.AddHttpClient(SupportPortalBff.HttpClientName).ConfigurePrimaryHttpMessageHandler(() =>
+            new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-Token");
 
         builder.Services.AddHonuaConsoleShell(ConsoleShellConfiguration.ReadOptions(builder.Configuration));

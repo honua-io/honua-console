@@ -9,6 +9,7 @@ internal static class SupportRegistrations
     public static void AddSupport(IServiceCollection services, HonuaConsoleShellOptions options)
     {
         AddTicketClient(services, options.SupportBaseUrl);
+        AddPortalClient(services, options.SupportPortalBffBaseUrl);
 
         // Validates every bundle against the pinned diagnostic-bundle.v1 schema before it can leave the Console.
         services.TryAddSingleton<Diagnostics.DiagnosticBundleExporter>();
@@ -21,6 +22,21 @@ internal static class SupportRegistrations
         AddAssistantClient(services, options);
         services.TryAddSingleton<IConsoleSupportKnowledgeBase>(_ => FileConsoleSupportKnowledgeBase.Load(options.SupportKbPath));
         services.TryAddSingleton<IConsoleSupportDeflectionLog, ConsoleSupportDeflectionLog>();
+    }
+
+    private static void AddPortalClient(IServiceCollection services, string? portalBffBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(portalBffBaseUrl)
+            || !Uri.TryCreate(portalBffBaseUrl.Trim(), UriKind.Absolute, out var portalBffUri))
+        {
+            services.TryAddSingleton<IConsoleSupportPortalClient, UnsupportedConsoleSupportPortalClient>();
+            return;
+        }
+
+        services.TryAddSingleton<IConsoleSupportPortalClient>(_ =>
+            new HttpConsoleSupportPortalClient(
+                ShellHttpClients.Standalone(ShellHttpClients.ReadTimeout),
+                portalBffUri));
     }
 
     private static void AddTicketClient(IServiceCollection services, string? supportBaseUrl)

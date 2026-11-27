@@ -46,7 +46,8 @@ app.Use(async (context, next) =>
 {
     if ((context.Request.Path.StartsWithSegments("/map-proxy") || context.Request.Path.StartsWithSegments("/scene-proxy")
         || context.Request.Path.StartsWithSegments("/api/studio/viewer")
-        || context.Request.Path.StartsWithSegments("/api/studio/catalog-mcp"))
+        || context.Request.Path.StartsWithSegments("/api/studio/catalog-mcp")
+        || context.Request.Path.StartsWithSegments("/api/support"))
         && context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages)
     {
         // Fetch clients must receive the original 401/403, never a rendered not-found page.
@@ -69,6 +70,7 @@ app.MapAgentSessionBff();
 app.MapLocalProcessBff();
 app.MapStudioReadBff();
 app.MapStudioAudienceBff();
+app.MapSupportPortalBff();
 
 // Static assets and the build-metadata probe are public (no operator identity required).
 app.MapStaticAssets().AllowAnonymous();

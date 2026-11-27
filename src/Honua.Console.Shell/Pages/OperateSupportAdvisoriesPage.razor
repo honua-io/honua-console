@@ -1,0 +1,217 @@
+@page "/operate/support"
+@implements IDisposable
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@inject IConsoleSupportPortalClient PortalClient
+@inject ConsoleSupportContextBuilder ContextBuilder
+@inject NavigationManager Navigation
+
+<section class="console-page console-operate-page operate-support-advisories" data-operate-support-page>
+    <ConsolePageHeading Title="Support &amp; Security Advisories">
+        <ChildContent>
+            <p class="console-muted">
+                Run pre-submit compatibility checks, manage support tickets and access grants, and track security advisories across your Honua fleet.
+            </p>
+        </ChildContent>
+        <Actions>
+            <button type="button"
+                    class="console-button console-button-secondary"
+                    disabled="@_loading"
+                    data-refresh-support-portal
+                    @onclick="RefreshAllAsync">
+                @(_loading ? "Refreshing..." : "Refresh")
+            </button>
+        </Actions>
+    </ConsolePageHeading>
+
+    @if (!_loaded)
+    {
+        <OperateSectionStatusPanel Heading="Support &amp; Security Advisories" Loading="true" />
+    }
+    else if (IsPortalUnconfigured)
+    {
+        <OperateSectionStatusPanel Heading="Support &amp; Security Advisories"
+                                   Status="OperateSectionStatus.Unsupported"
+                                   Message="@UnconfiguredMessage" />
+    }
+    else
+    {
+        <nav class="operate-section-nav" aria-label="Support and advisories sections">
+            <a href="#advisories">Security advisories (@_advisories.Count)</a>
+            <a href="#tickets">Tickets (@_tickets.Count)</a>
+            <a href="#preflight">Preflight &amp; intake</a>
+            <a href="#fleet">Fleet inventory (@_fleetInstances.Count)</a>
+        </nav>
+
+        @if (!string.IsNullOrWhiteSpace(_actionMessage))
+        {
+            <div class="console-panel operate-support-notice @_actionNoticeClass" role="status" data-support-action-status>
+                <p>@_actionMessage</p>
+            </div>
+        }
+
+        <SupportSecurityAdvisoriesSection Status="_advisoriesStatus"
+                                          Message="@_advisoriesMessage"
+                                          Advisories="_advisories" />
+
+        <section id="tickets" class="operate-section" aria-labelledby="support-tickets-heading">
+            <div class="operate-support-section-header">
+                <h2 id="support-tickets-heading">Support tickets &amp; access controls</h2>
+                <span class="operate-support-count" data-tickets-count>@_tickets.Count total</span>
+            </div>
+
+            @if (_ticketsStatus != OperateSectionStatus.Allowed)
+            {
+                <OperateSectionStatusPanel Heading="Support tickets" Status="_ticketsStatus" Message="@_ticketsMessage" />
+            }
+            else if (_tickets.Count == 0)
+            {
+                <article class="console-panel" data-tickets-empty>
+                    <p class="console-muted">No support tickets have been filed yet.</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-panel operate-table-panel">
+                    <ConsoleTableRegion Class="operate-table-scroll" Label="Support tickets">
+                        <table class="operate-table operate-support-table" data-tickets-table>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Ticket</th>
+                                    <th scope="col">Severity</th>
+                                    <th scope="col">Service</th>
+                                    <th scope="col">Phase</th>
+                                    <th scope="col">Access</th>
+                                    <th scope="col">Updated</th>
+                                    <th scope="col">Controls</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ticket in _tickets)
+                                {
+                                    var terminal = IsTerminalPhase(ticket.Phase);
+                                    var mutating = string.Equals(_mutatingTicketId, ticket.Id, StringComparison.Ordinal);
+                                    <tr>
+                                        <td>
+                                            <div class="operate-support-primary-cell">
+                                                <a class="console-mono" href="@Navigation.ToConsoleLinkHref($"/support/tickets/{Uri.EscapeDataString(ticket.Id)}")">
+                                                    @ticket.Id
+                                                </a>
+                                                <span class="operate-support-subtext">@ticket.RequestedAction</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="operate-support-badge @SeverityBadgeClass(ticket.Severity)">
+                                                @SupportTicketLabels.Display(ticket.Severity)
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="operate-support-primary-cell">
+                                                <span class="console-mono">@ticket.Service</span>
+                                                <span class="operate-support-subtext">@ticket.Environment</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="operate-support-badge operate-support-badge-neutral">
+                                                @SupportTicketLabels.Display(TicketDisplayStatus(ticket))
+                                            </span>
+                                        </td>
+                                        <td class="operate-support-tabular">
+                                            @SupportTicketLabels.Display(ticket.AllowedAccessMode) · @ticket.TtlMinutes min
+                                        </td>
+                                        <td class="operate-support-tabular">@ticket.UpdatedAt.ToString("u")</td>
+                                        <td>
+                                            @if (!terminal)
+                                            {
+                                                <div class="operate-support-row-actions">
+                                                    @if (ticket.Approval is null)
+                                                    {
+                                                        <button type="button"
+                                                                class="console-button console-button-secondary"
+                                                                disabled="@mutating"
+                                                                data-approve-ticket="@ticket.Id"
+                                                                @onclick="() => ApproveTicketAsync(ticket)">
+                                                            @(mutating ? "Working..." : "Approve access")
+                                                        </button>
+                                                    }
+                                                    <button type="button"
+                                                            class="console-button console-button-danger"
+                                                            disabled="@mutating"
+                                                            data-revoke-ticket-access="@ticket.Id"
+                                                            @onclick="() => RevokeTicketAccessAsync(ticket.Id)">
+                                                        @(mutating ? "Revoking..." : "Revoke access")
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="console-muted">Closed</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </ConsoleTableRegion>
+                </div>
+            }
+        </section>
+
+        <SupportIntakePreflightSection CapturedContext="_context" OnTicketCreated="HandleTicketCreated" />
+
+        <section id="fleet" class="operate-section" aria-labelledby="support-fleet-heading">
+            <div class="operate-support-section-header">
+                <h2 id="support-fleet-heading">Fleet inventory</h2>
+                <span class="operate-support-count" data-fleet-count>@_fleetInstances.Count instances</span>
+            </div>
+
+            @if (_fleetStatus != OperateSectionStatus.Allowed)
+            {
+                <OperateSectionStatusPanel Heading="Fleet inventory" Status="_fleetStatus" Message="@_fleetMessage" />
+            }
+            else if (_fleetInstances.Count == 0)
+            {
+                <article class="console-panel" data-fleet-empty>
+                    <p class="console-muted">No fleet instances have reported telemetry yet.</p>
+                </article>
+            }
+            else
+            {
+                <div class="console-panel operate-table-panel">
+                    <ConsoleTableRegion Class="operate-table-scroll" Label="Fleet inventory">
+                        <table class="operate-table operate-support-table" data-fleet-table>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Instance</th>
+                                    <th scope="col">Component</th>
+                                    <th scope="col">Version</th>
+                                    <th scope="col">Digest</th>
+                                    <th scope="col">Environment</th>
+                                    <th scope="col">Last seen</th>
+                                    <th scope="col">Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var instance in _fleetInstances)
+                                {
+                                    <tr>
+                                        <td class="console-mono">@instance.InstanceId</td>
+                                        <td class="console-mono">@instance.Component</td>
+                                        <td class="console-mono operate-support-tabular">@(instance.Version ?? "unknown")</td>
+                                        <td class="console-mono operate-support-tabular" title="@instance.ArtifactDigest">
+                                            @ShortDigest(instance.ArtifactDigest)
+                                        </td>
+                                        <td>@(instance.EnvKind ?? "unknown")</td>
+                                        <td class="operate-support-tabular">@instance.LastSeenAt.ToString("u")</td>
+                                        <td>@instance.LastSource</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </ConsoleTableRegion>
+                </div>
+            }
+        </section>
+    }
+</section>
