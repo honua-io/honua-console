@@ -160,10 +160,12 @@ export async function init(container, options) {
     const token = {};
     initializations.set(container, token);
     const isCurrent = () => initializations.get(container) === token;
-    const spec = parseSpec(options.spec);
-    if (!spec) {
+    const rawSpec = parseSpec(options.spec);
+    if (!rawSpec) {
         return false;
     }
+    // Defense in depth alongside NO_NETWORK_LOADER: strip any data/lookup URLs anywhere in the spec.
+    const spec = stripDataUrls(rawSpec);
 
     try {
         const capture = globalThis.honuaConsoleCaptureResourceAuthorization;
@@ -180,45 +182,48 @@ export async function init(container, options) {
     }
 }
 
-function stripDataBlock(data) {
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-        delete data.url;
-    }
+function sanitizeDataBlock(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data) || !('url' in data)) return data;
+    const copy = { ...data };
+    delete copy.url;
+    return copy;
 }
 
-function stripTransformDataUrls(transforms) {
-    if (!Array.isArray(transforms)) return;
-    for (const transform of transforms) {
-        stripDataBlock(transform?.from?.data);
-    }
+function sanitizeTransforms(transforms) {
+    if (!Array.isArray(transforms)) return transforms;
+    return transforms.map((transform) => (
+        transform?.from?.data
+            ? { ...transform, from: { ...transform.from, data: sanitizeDataBlock(transform.from.data) } }
+            : transform
+    ));
 }
 
 const SPEC_ARRAY_KEYS = ['layer', 'concat', 'hconcat', 'vconcat'];
 const SPEC_CHILD_KEYS = ['spec', 'facet', 'repeat'];
 
-function childSpecs(node) {
-    const children = [];
+function sanitizeSpecNode(node, clone) {
+    const copy = { ...node };
+    if ('data' in copy) copy.data = sanitizeDataBlock(copy.data);
+    if ('transform' in copy) copy.transform = sanitizeTransforms(copy.transform);
     for (const key of SPEC_CHILD_KEYS) {
-        if (node[key]) children.push(node[key]);
+        if (copy[key]) copy[key] = clone(copy[key]);
     }
     for (const key of SPEC_ARRAY_KEYS) {
-        if (Array.isArray(node[key])) children.push(...node[key]);
+        if (Array.isArray(copy[key])) copy[key] = copy[key].map(clone);
     }
-    return children;
+    return copy;
 }
 
 export function stripDataUrls(root) {
-    const seen = new WeakSet();
-    const stack = [root];
-    while (stack.length > 0) {
-        const node = stack.pop();
-        if (!node || typeof node !== 'object' || Array.isArray(node) || seen.has(node)) continue;
-        seen.add(node);
-        stripDataBlock(node.data);
-        stripTransformDataUrls(node.transform);
-        stack.push(...childSpecs(node));
-    }
-    return root;
+    const seen = new WeakMap();
+    const clone = (node) => {
+        if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
+        if (seen.has(node)) return seen.get(node);
+        const copy = {};
+        seen.set(node, copy);
+        return Object.assign(copy, sanitizeSpecNode(node, clone));
+    };
+    return clone(root);
 }
 
 function prepareSpec(spec, rows) {
@@ -226,8 +231,6 @@ function prepareSpec(spec, rows) {
     if (spec.usermeta && typeof spec.usermeta === 'object') {
         delete spec.usermeta.embedOptions;
     }
-    // Defense in depth alongside NO_NETWORK_LOADER: strip any data/lookup URLs anywhere in the spec.
-    stripDataUrls(spec);
     if (rows.length > 0) {
         spec.data = { values: rows };
     } else if (!spec.data || !Array.isArray(spec.data.values) || spec.data.values.length === 0) {

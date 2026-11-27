@@ -233,8 +233,8 @@ public static class ConsoleAuthentication
         await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
 
         // Evict the departed operator's in-memory partitions so the profile/session stores do not
-        // accumulate one partition per operator for the life of the process (honua-console#279
-        // PA-237). Only the browser host's operator-scoped stores carry per-operator partitions.
+        // accumulate one partition per operator for the life of the process. Only the browser
+        // host's operator-scoped stores carry per-operator partitions.
         var operatorKey = ConsoleOperatorContext.ResolveKey(context.User);
         if (operatorKey is null)
         {
