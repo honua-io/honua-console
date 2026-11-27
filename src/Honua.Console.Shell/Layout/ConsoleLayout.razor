@@ -214,18 +214,8 @@
 
     private void OnCapabilitiesChanged() => _ = SafeStateHasChangedAsync();
 
-    private async Task SafeStateHasChangedAsync()
-    {
-        if (_disposed) return;
-        try
-        {
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException or OperationCanceledException)
-        {
-            // Layout disposed while a background refresh or navigation event was completing.
-        }
-    }
+    private Task SafeStateHasChangedAsync() =>
+        _disposed ? Task.CompletedTask : ConsoleComponentDispatch.TryInvokeAsync(InvokeAsync, StateHasChanged);
 
     public void Dispose()
     {

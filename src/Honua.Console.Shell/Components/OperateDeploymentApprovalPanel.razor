@@ -92,7 +92,7 @@ else
                     {
                         <li>
                             <span class="console-chip">@evidence.Kind</span>
-                            @if (ConsoleSafeUrl.NormalizeHttpUrl(evidence.Uri, allowRelativePath: true) is { } safeUri)
+                            @if (ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(evidence.Uri) is { } safeUri)
                             {
                                 <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(safeUri)" rel="noopener noreferrer" target="_blank">@evidence.RefId</a>
                             }

@@ -39,9 +39,9 @@ public sealed class ConsoleSafeUrlTests
     [InlineData("/catalog")]
     [InlineData("/operate/releases/123?tab=diff")]
     [InlineData("https://example.test/maps/1")]
-    public void NormalizeHttpUrl_WhenRelativeAllowed_AcceptsSafeRootRelativeAndHttpUrls(string raw)
+    public void NormalizeHttpOrRelativeUrl_AcceptsSafeRootRelativeAndHttpUrls(string raw)
     {
-        Assert.Equal(raw, ConsoleSafeUrl.NormalizeHttpUrl(raw, allowRelativePath: true));
+        Assert.Equal(raw, ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(raw));
     }
 
     [Theory]
@@ -52,8 +52,8 @@ public sealed class ConsoleSafeUrlTests
     [InlineData("/\t/evil.example")]
     [InlineData("javascript:alert(1)")]
     [InlineData("data:text/html,boom")]
-    public void NormalizeHttpUrl_WhenRelativeAllowed_StillRejectsSchemeAndProtocolRelativeBypass(string raw)
+    public void NormalizeHttpOrRelativeUrl_RejectsSchemeAndProtocolRelativeBypass(string raw)
     {
-        Assert.Null(ConsoleSafeUrl.NormalizeHttpUrl(raw, allowRelativePath: true));
+        Assert.Null(ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(raw));
     }
 }

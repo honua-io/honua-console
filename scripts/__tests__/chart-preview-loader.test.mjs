@@ -66,7 +66,7 @@ test('the no-network loader rejects data, link, request and file loads', async (
     });
 });
 
-test('nested data, lookup, and dataset URLs are stripped before embedding', async () => {
+test('nested composition and lookup URLs are stripped while inline data records stay intact', async () => {
     await withChartModule('strip-urls', async ({ init, dispose }) => {
         let embeddedSpec = null;
         Object.assign(window, {
@@ -79,8 +79,8 @@ test('nested data, lookup, and dataset URLs are stripped before embedding', asyn
         });
         const target = container();
         const spec = JSON.stringify({
-            data: { values: [{ category: 'east', amount: 12 }] },
-            datasets: { secret: { url: '/api/agent-workspace/session' } },
+            data: { values: [{ data: { url: 'district-a' }, amount: 12 }] },
+            datasets: { rows: [{ data: { url: 'district-b' }, amount: 5 }] },
             transform: [{ lookup: 'id', from: { data: { url: '/map-proxy/secret' }, key: 'id' } }],
             layer: [{ data: { url: '/api/agent-workspace/session' }, mark: 'bar' }],
             concat: [{ data: { url: 'https://evil.example/exfil' }, mark: 'point' }],
@@ -92,7 +92,8 @@ test('nested data, lookup, and dataset URLs are stripped before embedding', asyn
 
         assert.equal(await init(target, { spec }), true);
         assert.ok(embeddedSpec);
-        assert.equal(embeddedSpec.datasets.secret.url, undefined);
+        assert.equal(embeddedSpec.data.values[0].data.url, 'district-a');
+        assert.equal(embeddedSpec.datasets.rows[0].data.url, 'district-b');
         assert.equal(embeddedSpec.transform[0].from.data.url, undefined);
         assert.equal(embeddedSpec.layer[0].data.url, undefined);
         assert.equal(embeddedSpec.concat[0].data.url, undefined);

@@ -180,34 +180,45 @@ export async function init(container, options) {
     }
 }
 
-function stripDatasetUrls(datasets, seen) {
-    if (!datasets || typeof datasets !== 'object') return;
-    for (const entry of Object.values(datasets)) {
-        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-            delete entry.url;
-        }
-        stripDataUrls(entry, seen);
+function stripDataBlock(data) {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+        delete data.url;
     }
 }
 
-export function stripDataUrls(node, seen = new WeakSet()) {
-    if (!node || typeof node !== 'object' || seen.has(node)) return node;
-    seen.add(node);
-    if (Array.isArray(node)) {
-        for (const item of node) stripDataUrls(item, seen);
-        return node;
+function stripTransformDataUrls(transforms) {
+    if (!Array.isArray(transforms)) return;
+    for (const transform of transforms) {
+        stripDataBlock(transform?.from?.data);
     }
-    if (node.data && typeof node.data === 'object' && !Array.isArray(node.data)) {
-        delete node.data.url;
+}
+
+const SPEC_ARRAY_KEYS = ['layer', 'concat', 'hconcat', 'vconcat'];
+const SPEC_CHILD_KEYS = ['spec', 'facet', 'repeat'];
+
+function childSpecs(node) {
+    const children = [];
+    for (const key of SPEC_CHILD_KEYS) {
+        if (node[key]) children.push(node[key]);
     }
-    if (node.from?.data && typeof node.from.data === 'object' && !Array.isArray(node.from.data)) {
-        delete node.from.data.url;
+    for (const key of SPEC_ARRAY_KEYS) {
+        if (Array.isArray(node[key])) children.push(...node[key]);
     }
-    stripDatasetUrls(node.datasets, seen);
-    for (const value of Object.values(node)) {
-        stripDataUrls(value, seen);
+    return children;
+}
+
+export function stripDataUrls(root) {
+    const seen = new WeakSet();
+    const stack = [root];
+    while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node || typeof node !== 'object' || Array.isArray(node) || seen.has(node)) continue;
+        seen.add(node);
+        stripDataBlock(node.data);
+        stripTransformDataUrls(node.transform);
+        stack.push(...childSpecs(node));
     }
-    return node;
+    return root;
 }
 
 function prepareSpec(spec, rows) {

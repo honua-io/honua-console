@@ -50,7 +50,7 @@
                 <dt>Audit correlation</dt><dd><CorrelationIdChip Value="@evidence.AuditCorrelationId" Kind="CorrelationIdKind.CorrelationId" /></dd>
                 <dt>Audit operation</dt><dd><CorrelationIdChip Value="@evidence.AuditExecutionOperationId" Kind="CorrelationIdKind.OperationId" /></dd>
                 <dt>Public route</dt>
-                @if (ConsoleSafeUrl.NormalizeHttpUrl(evidence.PublicUrl, allowRelativePath: true) is { } safePublicUrl)
+                @if (ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(evidence.PublicUrl) is { } safePublicUrl)
                 {
                     <dd><a href="@safePublicUrl" rel="noopener noreferrer" data-release-public-link>@evidence.PublicUrl</a></dd>
                 }

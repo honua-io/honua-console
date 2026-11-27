@@ -48,22 +48,8 @@
 
     private void OnChanged() => _ = SafeInvokeAsync(Sync);
 
-    private async Task SafeInvokeAsync(Action action)
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        try
-        {
-            await InvokeAsync(action);
-        }
-        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException or OperationCanceledException)
-        {
-            // Host disposed while a notification or timer callback was firing.
-        }
-    }
+    private Task SafeInvokeAsync(Action action) =>
+        _disposed ? Task.CompletedTask : ConsoleComponentDispatch.TryInvokeAsync(InvokeAsync, action);
 
     private void Sync()
     {

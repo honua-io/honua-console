@@ -66,22 +66,10 @@
         }
     }
 
-    private async Task SafeStateHasChangedAsync()
-    {
-        if (_stopping.IsCancellationRequested)
-        {
-            return;
-        }
-
-        try
-        {
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException or OperationCanceledException)
-        {
-            // Component or circuit disposed while the background poll was updating.
-        }
-    }
+    private Task SafeStateHasChangedAsync() =>
+        _stopping.IsCancellationRequested
+            ? Task.CompletedTask
+            : ConsoleComponentDispatch.TryInvokeAsync(InvokeAsync, StateHasChanged);
 
     private async Task PollAsync(IHonuaAdminOperateClient client, CancellationToken cancellationToken)
     {

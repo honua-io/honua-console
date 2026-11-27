@@ -48,7 +48,7 @@
                 <button class="console-button console-button-secondary" type="button"
                         data-catalog-copy-url disabled="@(string.IsNullOrWhiteSpace(endpoint.Url))"
                         @onclick="CopyEndpointUrlAsync">@(_copied ? "✓ Copied" : "⧉ Copy")</button>
-                @if (ConsoleSafeUrl.NormalizeHttpUrl(endpoint.Url, allowRelativePath: true) is { } safeEndpointUrl)
+                @if (ConsoleSafeUrl.NormalizeHttpOrRelativeUrl(endpoint.Url) is { } safeEndpointUrl)
                 {
                     <a class="console-button console-button-secondary" data-catalog-open-url
                        href="@ConsoleNavigation.ToConsoleLinkHref(safeEndpointUrl)" target="_blank" rel="noopener noreferrer">Open ↗</a>

@@ -927,11 +927,7 @@
 
     private async Task SafeInvokeAsync(Action action)
     {
-        try
-        {
-            await InvokeAsync(action);
-        }
-        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException or OperationCanceledException)
+        if (!await ConsoleComponentDispatch.TryInvokeAsync(InvokeAsync, action))
         {
             StopPolling();
         }

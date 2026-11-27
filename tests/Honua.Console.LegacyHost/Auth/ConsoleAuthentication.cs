@@ -201,45 +201,50 @@ public static class ConsoleAuthentication
             return SignInRequired(context.Request);
         }).AllowAnonymous();
 
-        app.MapPost("/auth/logout", async (
-            HttpContext context,
-            IAntiforgery antiforgery,
-            ConsoleServerSessionBffCoordinator serverSessionBff,
-            IConsoleEnvironmentProfileStore profileStore,
-            IConsoleAccountSessionStore sessionStore,
-            CancellationToken cancellationToken) =>
-        {
-            try
-            {
-                await antiforgery.ValidateRequestAsync(context).ConfigureAwait(false);
-            }
-            catch (AntiforgeryValidationException)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            }
-
-            if (context.User.Identity?.IsAuthenticated == true)
-            {
-                await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
-
-                // Evict the departed operator's in-memory partitions so the profile/session stores do not
-                // accumulate one partition per operator for the life of the process (honua-console#279
-                // PA-237). Resolve the operator key from this request's still-authenticated principal
-                // before the cookie sign-out clears it. Only the browser host's operator-scoped stores
-                // carry per-operator partitions; the native single-operator Json stores are untouched.
-                var operatorKey = ConsoleOperatorContext.ResolveKey(context.User);
-                if (operatorKey is not null)
-                {
-                    (profileStore as OperatorScopedEnvironmentProfileStore)?.EvictOperator(operatorKey);
-                    (sessionStore as OperatorScopedAccountSessionStore)?.EvictOperator(operatorKey);
-                }
-            }
-
-            await context.SignOutAsync(ConsoleAuthConstants.CookieScheme).ConfigureAwait(false);
-            return Results.Redirect("/auth/login");
-        });
+        app.MapPost("/auth/logout", HandleLogoutAsync);
 
         return app;
+    }
+
+    private static async Task<IResult> HandleLogoutAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
+        try
+        {
+            await antiforgery.ValidateRequestAsync(context).ConfigureAwait(false);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            await EvictOperatorSessionAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+
+        await context.SignOutAsync(ConsoleAuthConstants.CookieScheme).ConfigureAwait(false);
+        return Results.Redirect("/auth/login");
+    }
+
+    private static async Task EvictOperatorSessionAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        var serverSessionBff = context.RequestServices.GetRequiredService<ConsoleServerSessionBffCoordinator>();
+        await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
+
+        // Evict the departed operator's in-memory partitions so the profile/session stores do not
+        // accumulate one partition per operator for the life of the process (honua-console#279
+        // PA-237). Only the browser host's operator-scoped stores carry per-operator partitions.
+        var operatorKey = ConsoleOperatorContext.ResolveKey(context.User);
+        if (operatorKey is null)
+        {
+            return;
+        }
+
+        var profileStore = context.RequestServices.GetRequiredService<IConsoleEnvironmentProfileStore>();
+        var sessionStore = context.RequestServices.GetRequiredService<IConsoleAccountSessionStore>();
+        (profileStore as OperatorScopedEnvironmentProfileStore)?.EvictOperator(operatorKey);
+        (sessionStore as OperatorScopedAccountSessionStore)?.EvictOperator(operatorKey);
     }
 
     // Dev login is allowed in the Development environment, or when an operator has explicitly opted in
