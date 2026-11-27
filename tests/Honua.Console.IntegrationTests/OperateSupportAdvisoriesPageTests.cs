@@ -172,44 +172,44 @@ public sealed class OperateSupportAdvisoriesPageTests
             Task.FromResult(SupportPortalResult<SupportSecurityAdvisoriesResponse>.Allowed(new SupportSecurityAdvisoriesResponse
             {
                 Count = 2,
-                Advisories =
-                [
-                    new SupportSecurityAdvisoryItem
-                    {
-                        AdvisoryId = "HONUA-SA-2026-001",
-                        CveId = "CVE-2026-10001",
-                        Title = "Token audience validation hardening",
-                        Severity = "critical",
-                        CisaKev = true,
-                        Component = "honua-server",
-                        VexStatus = "affected",
-                        CustomerStatus = "affected",
-                        FixedVersion = "1.4.2",
-                        UpgradeCommand = "helm upgrade honua honua/honua-server --version 1.4.2",
-                        ReleaseNotesUrl = "https://honua.io/advisories/2026-001",
-                        Instances =
-                        [
-                            new SupportAdvisoryInstanceView
-                            {
-                                InstanceId = "prod-west-1",
-                                Status = "affected",
-                                ObservedVersion = "1.4.1"
-                            }
-                        ],
-                        UpdatedAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
-                    },
-                    new SupportSecurityAdvisoryItem
-                    {
-                        AdvisoryId = "HONUA-SA-2026-002",
-                        Title = "Unsafe link test",
-                        Severity = "low",
-                        Component = "honua-console",
-                        VexStatus = "not_affected",
-                        ReleaseNotesUrl = "javascript:alert(1)",
-                        UpdatedAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
-                    }
-                ]
+                Advisories = [PrimaryAdvisory(), UnsafeLinkAdvisory()]
             }));
+
+        private static SupportSecurityAdvisoryItem PrimaryAdvisory() => new()
+        {
+            AdvisoryId = "HONUA-SA-2026-001",
+            CveId = "CVE-2026-10001",
+            Title = "Token audience validation hardening",
+            Severity = "critical",
+            CisaKev = true,
+            Component = "honua-server",
+            VexStatus = "affected",
+            CustomerStatus = "affected",
+            FixedVersion = "1.4.2",
+            UpgradeCommand = "helm upgrade honua honua/honua-server --version 1.4.2",
+            ReleaseNotesUrl = "https://honua.io/advisories/2026-001",
+            Instances =
+            [
+                new SupportAdvisoryInstanceView
+                {
+                    InstanceId = "prod-west-1",
+                    Status = "affected",
+                    ObservedVersion = "1.4.1"
+                }
+            ],
+            UpdatedAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
+        };
+
+        private static SupportSecurityAdvisoryItem UnsafeLinkAdvisory() => new()
+        {
+            AdvisoryId = "HONUA-SA-2026-002",
+            Title = "Unsafe link test",
+            Severity = "low",
+            Component = "honua-console",
+            VexStatus = "not_affected",
+            ReleaseNotesUrl = "javascript:alert(1)",
+            UpdatedAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
+        };
 
         public Task<SupportPortalResult<SupportFleetInstancesResponse>> ListFleetInstancesAsync(
             CancellationToken cancellationToken = default) =>

@@ -1,18 +1,13 @@
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using Honua.Console.Contracts;
-using Honua.Console.Shell.Models;
-using Honua.Console.Shell.Services;
 using Honua.Console.Web.Auth;
 using Microsoft.AspNetCore.Antiforgery;
 
 namespace Honua.Console.Web;
 
 // Opt-in BFF proxy to honua-support. Injects the configured bearer key server-side only and never exposes it to browser JS.
-internal static partial class SupportPortalBff
+internal static class SupportPortalBff
 {
     internal const string HttpClientName = "honua-support-portal";
     internal const int MaximumRequestBytes = 256 * 1024;
@@ -21,12 +16,6 @@ internal static partial class SupportPortalBff
     internal const string UnconfiguredMessage =
         "In-product Support Portal is not configured. Set HonuaSupport:BaseUrl (or HONUA_SUPPORT_BASE_URL) " +
         "and HonuaSupport:ApiKey (or HONUA_SUPPORT_API_KEY) on the Console host to enable Support & Security Advisories.";
-
-    private static readonly HashSet<string> AllowedFleetQueryKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "component",
-        "version"
-    };
 
     public static void MapSupportPortalBff(this WebApplication app)
     {
@@ -60,7 +49,7 @@ internal static partial class SupportPortalBff
     internal static Task<IResult> HandleListFleetInstancesAsync(HttpContext context, CancellationToken token)
     {
         context.Response.Headers.CacheControl = "no-store";
-        var upstreamPath = BuildFleetUpstreamPath(context.Request.Query);
+        var upstreamPath = SupportPortalBindingResolver.BuildFleetUpstreamPath(context.Request.Query);
         if (upstreamPath is null)
         {
             return Task.FromResult<IResult>(Results.BadRequest());
@@ -70,56 +59,7 @@ internal static partial class SupportPortalBff
     }
 
     internal static bool IsSafeTicketId(string? id) =>
-        !string.IsNullOrWhiteSpace(id)
-        && id is not ("." or "..")
-        && !id.Contains("..", StringComparison.Ordinal)
-        && TicketIdPattern().IsMatch(id);
-
-    internal static string? BuildFleetUpstreamPath(IQueryCollection query)
-    {
-        if (query.Count == 0)
-        {
-            return SupportPortalRoutes.UpstreamFleetInstances;
-        }
-
-        var pairs = new List<string>();
-        foreach (var item in query)
-        {
-            if (!AllowedFleetQueryKeys.Contains(item.Key) || item.Value.Count != 1)
-            {
-                return null;
-            }
-
-            var value = item.Value[0]?.Trim();
-            if (string.IsNullOrWhiteSpace(value) || value.Length > 128 || value.Any(char.IsControl))
-            {
-                return null;
-            }
-
-            pairs.Add($"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(value)}");
-        }
-
-        return pairs.Count == 0
-            ? SupportPortalRoutes.UpstreamFleetInstances
-            : $"{SupportPortalRoutes.UpstreamFleetInstances}?{string.Join('&', pairs)}";
-    }
-
-    internal static SupportPortalBinding? TryResolveBinding(IConfiguration configuration)
-    {
-        var rawBase = ReadFirst(configuration, "HonuaSupport:BaseUrl", "Honua:Support:BaseUrl", "HONUA_SUPPORT_BASE_URL");
-        var apiKey = ReadFirst(configuration, "HonuaSupport:ApiKey", "Honua:Support:ApiKey", "HONUA_SUPPORT_API_KEY");
-        if (string.IsNullOrWhiteSpace(rawBase) || string.IsNullOrWhiteSpace(apiKey))
-        {
-            return null;
-        }
-
-        if (!TryParseSupportBaseUri(rawBase.Trim(), out var baseUri))
-        {
-            return null;
-        }
-
-        return new SupportPortalBinding(baseUri!, apiKey.Trim());
-    }
+        SupportPortalBindingResolver.IsSafeTicketId(id);
 
     private static async Task<IResult> ExecuteReadAsync(HttpContext context, string upstreamPath, CancellationToken token)
     {
@@ -137,7 +77,7 @@ internal static partial class SupportPortalBff
     private static Task<IResult> ExecuteTicketMutationAsync(HttpContext context, TicketMutation mutation, CancellationToken token)
     {
         context.Response.Headers.CacheControl = "no-store";
-        if (!IsSafeTicketId(mutation.TicketId))
+        if (!SupportPortalBindingResolver.IsSafeTicketId(mutation.TicketId))
         {
             return Task.FromResult<IResult>(Results.BadRequest());
         }
@@ -168,7 +108,7 @@ internal static partial class SupportPortalBff
 
         if (target.Kind == MutationKind.Preflight)
         {
-            (body, bodyError) = await AttachPreflightContextAsync(context, body!, token);
+            (body, bodyError) = await SupportPortalPreflightEnricher.AttachContextAsync(context, body!, token);
             if (bodyError is not null)
             {
                 return bodyError;
@@ -187,7 +127,7 @@ internal static partial class SupportPortalBff
         }
 
         var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
-        var binding = TryResolveBinding(configuration);
+        var binding = SupportPortalBindingResolver.TryResolve(configuration);
         if (binding is null)
         {
             return (null, Results.Json(
@@ -233,107 +173,6 @@ internal static partial class SupportPortalBff
         }
 
         return (buffer.ToArray(), null);
-    }
-
-    private static async Task<(byte[]? Body, IResult? Error)> AttachPreflightContextAsync(
-        HttpContext context,
-        byte[] rawBody,
-        CancellationToken token)
-    {
-        var root = ParsePreflightRoot(rawBody);
-        if (root is null)
-        {
-            return (null, Results.BadRequest());
-        }
-
-        var snapshot = await CaptureConnectedContextAsync(context, token);
-        ApplyPreflightDefaults(root, snapshot);
-        return (Encoding.UTF8.GetBytes(root.ToJsonString()), null);
-    }
-
-    private static JsonObject? ParsePreflightRoot(byte[] rawBody)
-    {
-        if (rawBody.Length == 0)
-        {
-            return new JsonObject();
-        }
-
-        try
-        {
-            return JsonNode.Parse(rawBody) as JsonObject;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static async Task<ConnectedServerSnapshot> CaptureConnectedContextAsync(HttpContext context, CancellationToken token)
-    {
-        var profiles = context.RequestServices.GetService<IConsoleEnvironmentProfileStore>();
-        var profile = profiles is null ? null : await profiles.GetActiveProfileAsync(token);
-        var serverVersion = await TryReadServerVersionAsync(context.RequestServices, token);
-        var build = ConsoleBuildMetadata.Create();
-        return new ConnectedServerSnapshot
-        {
-            Profile = profile,
-            ServerVersion = serverVersion,
-            ConsoleVersion = build.TryGetValue("version", out var version) ? version?.ToString() ?? "unknown" : "unknown",
-            ConsoleCommit = build.TryGetValue("commit", out var commit) ? commit?.ToString() ?? "unknown" : "unknown"
-        };
-    }
-
-    private static async Task<string?> TryReadServerVersionAsync(IServiceProvider services, CancellationToken token)
-    {
-        var client = services.GetService<IConsoleServerVersionClient>();
-        if (client is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            var result = await client.GetServerVersionAsync(token);
-            return result.IsAllowed && !string.IsNullOrWhiteSpace(result.Value?.ServerVersion)
-                ? result.Value.ServerVersion.Trim()
-                : null;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    private static void ApplyPreflightDefaults(JsonObject root, ConnectedServerSnapshot snapshot)
-    {
-        var envKind = NormalizeNonBlank(snapshot.Profile?.EnvironmentKind);
-        SetIfMissing(root, "environment", envKind);
-        SetIfMissing(root, "service", "honua-server");
-
-        var clientContext = GetOrCreateObject(root, "clientContext");
-        SetIfMissing(clientContext, "clientName", "honua-console");
-        SetIfMissing(clientContext, "clientVersion", NormalizeNonBlank(snapshot.ConsoleVersion));
-        SetIfMissing(clientContext, "serverVersion", NormalizeNonBlank(snapshot.ServerVersion));
-
-        var supportContext = GetOrCreateObject(root, "context");
-        SetIfMissing(supportContext, "schemaVersion", "1.0");
-        SetIfMissing(supportContext, "envKind", envKind);
-        SetIfMissing(supportContext, "instanceUrl", snapshot.Profile?.ServerBaseUri.AbsoluteUri);
-        SetIfMissing(supportContext, "appVersion", NormalizeNonBlank(snapshot.ServerVersion) ?? NormalizeNonBlank(snapshot.ConsoleVersion));
-        SetIfMissing(supportContext, "commit", NormalizeNonBlank(snapshot.ConsoleCommit));
-        ApplyTenantDefault(supportContext, snapshot.Profile?.TenantId);
-    }
-
-    private static void ApplyTenantDefault(JsonObject supportContext, string? tenantId)
-    {
-        var cleanTenant = NormalizeNonBlank(tenantId);
-        if (cleanTenant is null)
-        {
-            return;
-        }
-
-        var tenant = GetOrCreateObject(supportContext, "tenant");
-        SetIfMissing(tenant, "id", cleanTenant);
     }
 
     private static async Task<IResult> ForwardAsync(
@@ -416,77 +255,6 @@ internal static partial class SupportPortalBff
             ? "application/problem+json"
             : "application/json";
 
-    private static bool TryParseSupportBaseUri(string raw, out Uri? baseUri)
-    {
-        baseUri = null;
-        if (!Uri.TryCreate(raw, UriKind.Absolute, out var parsed)
-            || parsed.UserInfo.Length != 0 || parsed.Query.Length != 0 || parsed.Fragment.Length != 0)
-        {
-            return false;
-        }
-
-        var allowedScheme = string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            || (string.Equals(parsed.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && parsed.IsLoopback);
-        if (!allowedScheme)
-        {
-            return false;
-        }
-
-        baseUri = new Uri(parsed.AbsoluteUri.TrimEnd('/') + "/");
-        return true;
-    }
-
-    private static string? ReadFirst(IConfiguration configuration, params string[] keys)
-    {
-        foreach (var key in keys)
-        {
-            var value = configuration[key];
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-
-        return null;
-    }
-
-    private static JsonObject GetOrCreateObject(JsonObject parent, string key)
-    {
-        if (parent[key] is JsonObject existing)
-        {
-            return existing;
-        }
-
-        var created = new JsonObject();
-        parent[key] = created;
-        return created;
-    }
-
-    private static void SetIfMissing(JsonObject target, string key, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
-        if (target[key] is JsonValue existing
-            && existing.TryGetValue<string>(out var current)
-            && !string.IsNullOrWhiteSpace(current))
-        {
-            return;
-        }
-
-        target[key] = value;
-    }
-
-    private static string? NormalizeNonBlank(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    [GeneratedRegex("^[A-Za-z0-9._-]{1,128}$", RegexOptions.CultureInvariant)]
-    private static partial Regex TicketIdPattern();
-
-    internal sealed record SupportPortalBinding(Uri BaseUri, string ApiKey);
-
     private enum MutationKind
     {
         Standard,
@@ -506,16 +274,5 @@ internal static partial class SupportPortalBff
         public required string UpstreamPath { get; init; }
 
         public byte[]? Body { get; init; }
-    }
-
-    private sealed record ConnectedServerSnapshot
-    {
-        public ConsoleEnvironmentProfile? Profile { get; init; }
-
-        public string? ServerVersion { get; init; }
-
-        public string ConsoleVersion { get; init; } = string.Empty;
-
-        public string ConsoleCommit { get; init; } = string.Empty;
     }
 }

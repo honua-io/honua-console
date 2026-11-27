@@ -120,46 +120,10 @@ public sealed class ConsoleSupportPortalClientTests
         request.RequestUri!.AbsolutePath switch
         {
             "/api/support/security/advisories" => JsonResponse(
-                new SupportSecurityAdvisoriesResponse
-                {
-                    Count = 1,
-                    Advisories =
-                    [
-                        new SupportSecurityAdvisoryItem
-                        {
-                            AdvisoryId = "HONUA-SA-2026-001",
-                            CveId = "CVE-2026-10001",
-                            Title = "TLS token validation patch",
-                            Severity = "high",
-                            CisaKev = true,
-                            Component = "honua-server",
-                            VexStatus = "affected",
-                            CustomerStatus = "affected",
-                            FixedVersion = "1.4.2",
-                            UpdatedAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
-                        }
-                    ]
-                },
+                SampleAdvisoriesResponse(),
                 SupportPortalJsonContext.Default.SupportSecurityAdvisoriesResponse),
             "/api/support/fleet/instances" => JsonResponse(
-                new SupportFleetInstancesResponse
-                {
-                    Count = 1,
-                    Instances =
-                    [
-                        new SupportFleetInstanceItem
-                        {
-                            CustomerId = "cust-1",
-                            InstanceId = "prod-west-1",
-                            Component = "honua-server",
-                            Version = "1.4.1",
-                            EnvKind = "production",
-                            LastSource = "telemetry",
-                            FirstSeenAt = DateTimeOffset.Parse("2026-11-20T00:00:00Z"),
-                            LastSeenAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
-                        }
-                    ]
-                },
+                SampleFleetResponse(),
                 SupportPortalJsonContext.Default.SupportFleetInstancesResponse),
             "/api/support/tickets" => JsonResponse(
                 (IReadOnlyList<SupportTicketResponse>)[SampleTicket("ticket-7")],
@@ -168,16 +132,58 @@ public sealed class ConsoleSupportPortalClientTests
                 SampleTicket("ticket-7"),
                 SupportPortalJsonContext.Default.SupportTicketResponse),
             "/api/support/tickets/ticket-7/revoke-access" => JsonResponse(
-                new SupportRevokeAccessResponse
-                {
-                    TicketId = "ticket-7",
-                    ScopedCredentialRevoked = true,
-                    AwsGrantRevoked = false,
-                    Ticket = SampleTicket("ticket-7")
-                },
+                SampleRevokeResponse("ticket-7"),
                 SupportPortalJsonContext.Default.SupportRevokeAccessResponse),
             _ => new HttpResponseMessage(HttpStatusCode.NotFound)
         };
+
+    private static SupportSecurityAdvisoriesResponse SampleAdvisoriesResponse() => new()
+    {
+        Count = 1,
+        Advisories =
+        [
+            new SupportSecurityAdvisoryItem
+            {
+                AdvisoryId = "HONUA-SA-2026-001",
+                CveId = "CVE-2026-10001",
+                Title = "TLS token validation patch",
+                Severity = "high",
+                CisaKev = true,
+                Component = "honua-server",
+                VexStatus = "affected",
+                CustomerStatus = "affected",
+                FixedVersion = "1.4.2",
+                UpdatedAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
+            }
+        ]
+    };
+
+    private static SupportFleetInstancesResponse SampleFleetResponse() => new()
+    {
+        Count = 1,
+        Instances =
+        [
+            new SupportFleetInstanceItem
+            {
+                CustomerId = "cust-1",
+                InstanceId = "prod-west-1",
+                Component = "honua-server",
+                Version = "1.4.1",
+                EnvKind = "production",
+                LastSource = "telemetry",
+                FirstSeenAt = DateTimeOffset.Parse("2026-11-20T00:00:00Z"),
+                LastSeenAt = DateTimeOffset.Parse("2026-11-27T00:00:00Z")
+            }
+        ]
+    };
+
+    private static SupportRevokeAccessResponse SampleRevokeResponse(string ticketId) => new()
+    {
+        TicketId = ticketId,
+        ScopedCredentialRevoked = true,
+        AwsGrantRevoked = false,
+        Ticket = SampleTicket(ticketId)
+    };
 
     private static SupportTicketResponse SampleTicket(string id) => new()
     {

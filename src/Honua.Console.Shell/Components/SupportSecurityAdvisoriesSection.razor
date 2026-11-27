@@ -1,0 +1,149 @@
+@using Honua.Console.Contracts
+@using Honua.Console.Shell.Security
+@using Honua.Console.Shell.Services
+@inject NavigationManager Navigation
+
+<section id="advisories" class="operate-section" aria-labelledby="support-advisories-heading">
+    <div class="operate-support-section-header">
+        <h2 id="support-advisories-heading">Security advisories</h2>
+        <span class="operate-support-count" data-advisories-count>@Advisories.Count total</span>
+    </div>
+
+    @if (Status != OperateSectionStatus.Allowed)
+    {
+        <OperateSectionStatusPanel Heading="Security advisories" Status="Status" Message="@Message" />
+    }
+    else if (Advisories.Count == 0)
+    {
+        <article class="console-panel" data-advisories-empty>
+            <p class="console-muted">No active security advisories apply to your fleet.</p>
+        </article>
+    }
+    else
+    {
+        <div class="console-panel operate-table-panel">
+            <ConsoleTableRegion Class="operate-table-scroll" Label="Security advisories">
+                <table class="operate-table operate-support-table" data-advisories-table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Advisory</th>
+                            <th scope="col">Severity</th>
+                            <th scope="col">Component</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Remediation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var advisory in Advisories)
+                        {
+                            var safeNotesUrl = ConsoleSafeUrl.NormalizeHttpUrl(advisory.ReleaseNotesUrl);
+                            <tr>
+                                <td>
+                                    <div class="operate-support-primary-cell">
+                                        <strong>@advisory.Title</strong>
+                                        <span class="console-mono operate-support-subtext">
+                                            @advisory.AdvisoryId@(string.IsNullOrWhiteSpace(advisory.CveId) ? string.Empty : $" · {advisory.CveId}")
+                                        </span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="operate-support-badges">
+                                        <span class="operate-support-badge @SeverityBadgeClass(advisory.Severity)">
+                                            @FormatSeverity(advisory.Severity)
+                                        </span>
+                                        @if (advisory.CisaKev)
+                                        {
+                                            <span class="operate-support-badge operate-support-badge-danger" data-kev-badge>CISA KEV</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td><span class="console-mono">@advisory.Component</span></td>
+                                <td>
+                                    <div class="operate-support-primary-cell">
+                                        <span class="operate-support-badge @AdvisoryStatusBadgeClass(AdvisoryStatusLabel(advisory))">
+                                            @AdvisoryStatusLabel(advisory)
+                                        </span>
+                                        @if (advisory.Instances.Count > 0)
+                                        {
+                                            <span class="operate-support-subtext operate-support-tabular">
+                                                @AdvisoryInstanceSummary(advisory)
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="operate-support-primary-cell">
+                                        @if (!string.IsNullOrWhiteSpace(advisory.FixedVersion))
+                                        {
+                                            <span class="operate-support-tabular">Fixed in <code class="console-mono">@advisory.FixedVersion</code></span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(advisory.UpgradeCommand))
+                                        {
+                                            <code class="operate-support-command">@advisory.UpgradeCommand</code>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(advisory.ContainmentGuidance))
+                                        {
+                                            <span class="operate-support-subtext">@advisory.ContainmentGuidance</span>
+                                        }
+                                        <div class="operate-support-inline-links">
+                                            @if (safeNotesUrl is not null)
+                                            {
+                                                <a href="@safeNotesUrl" target="_blank" rel="noopener noreferrer" data-advisory-notes-link>Release notes</a>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(advisory.LinkedTicketId))
+                                            {
+                                                <a href="@Navigation.ToConsoleLinkHref($"/support/tickets/{Uri.EscapeDataString(advisory.LinkedTicketId)}")">
+                                                    Ticket @advisory.LinkedTicketId
+                                                </a>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </ConsoleTableRegion>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public OperateSectionStatus Status { get; set; } = OperateSectionStatus.Allowed;
+
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<SupportSecurityAdvisoryItem> Advisories { get; set; } = [];
+
+    private static string AdvisoryStatusLabel(SupportSecurityAdvisoryItem advisory) =>
+        string.IsNullOrWhiteSpace(advisory.CustomerStatus) ? advisory.VexStatus : advisory.CustomerStatus;
+
+    private static string AdvisoryInstanceSummary(SupportSecurityAdvisoryItem advisory)
+    {
+        var affected = advisory.Instances.Count(i => string.Equals(i.Status, "affected", StringComparison.OrdinalIgnoreCase));
+        var patched = advisory.Instances.Count(i => string.Equals(i.Status, "patched", StringComparison.OrdinalIgnoreCase));
+        return $"{affected} affected · {patched} patched";
+    }
+
+    private static string SeverityBadgeClass(string? severity) => severity?.ToLowerInvariant() switch
+    {
+        "critical" or "sev1" => "operate-support-badge-danger",
+        "high" or "sev2" => "operate-support-badge-warn",
+        "medium" or "moderate" => "operate-support-badge-info",
+        _ => "operate-support-badge-neutral"
+    };
+
+    private static string AdvisoryStatusBadgeClass(string? status) => status?.ToLowerInvariant() switch
+    {
+        "affected" => "operate-support-badge-danger",
+        "patched" or "fixed" or "not_affected" => "operate-support-badge-ok",
+        "under_investigation" => "operate-support-badge-warn",
+        _ => "operate-support-badge-neutral"
+    };
+
+    private static string FormatSeverity(string? severity) =>
+        string.IsNullOrWhiteSpace(severity) ? "unknown" : severity.ToUpperInvariant();
+}

@@ -10,21 +10,9 @@ public partial class OperateSupportAdvisoriesPage
     private bool _disposed;
     private bool _loaded;
     private bool _loading;
-    private bool _preflightBusy;
-    private bool _submitting;
     private string? _mutatingTicketId;
 
-    private string _severity = "sev3";
-    private string _service = "honua-server";
-    private string _requestedAction = string.Empty;
-    private string _allowedAccessMode = "read-only";
-    private int _ttlMinutes = 60;
-    private string _symptoms = string.Empty;
-    private bool _rollbackExpected;
-
     private ConsoleSupportContext? _context;
-    private SupportPreflightResponse? _preflightResult;
-    private string _formError = string.Empty;
     private string _actionMessage = string.Empty;
     private string _actionNoticeClass = string.Empty;
 
@@ -45,13 +33,8 @@ public partial class OperateSupportAdvisoriesPage
         && _ticketsStatus == OperateSectionStatus.Unsupported
         && _fleetStatus == OperateSectionStatus.Unsupported;
 
-    private string _unconfiguredMessage =>
+    private string UnconfiguredMessage =>
         FirstNonBlank(_advisoriesMessage, _ticketsMessage, _fleetMessage);
-
-    private bool CanRunPreflight => !string.IsNullOrWhiteSpace(_symptoms);
-
-    private bool CanSubmitTicket =>
-        !string.IsNullOrWhiteSpace(_symptoms) && !string.IsNullOrWhiteSpace(_requestedAction);
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,69 +93,12 @@ public partial class OperateSupportAdvisoriesPage
         }
     }
 
-    private async Task RunPreflightAsync()
+    private void HandleTicketCreated(SupportTicketResponse created)
     {
-        if (_disposed || _preflightBusy || !CanRunPreflight)
-        {
-            return;
-        }
-
-        _preflightBusy = true;
-        _formError = string.Empty;
-        try
-        {
-            var request = BuildPreflightRequest();
-            var result = await PortalClient.RunPreflightAsync(request, _lifetime.Token);
-            if (_disposed)
-            {
-                return;
-            }
-
-            if (result.IsAllowed)
-            {
-                _preflightResult = result.Value;
-            }
-            else
-            {
-                _formError = FallbackMessage(result.Status, result.Message);
-            }
-        }
-        catch (OperationCanceledException) when (_disposed)
-        {
-        }
-        finally
-        {
-            _preflightBusy = false;
-        }
-    }
-
-    private async Task SubmitTicketAsync()
-    {
-        if (_disposed || _submitting || !CanSubmitTicket)
-        {
-            return;
-        }
-
-        _submitting = true;
-        _formError = string.Empty;
-        try
-        {
-            var request = BuildCreateTicketRequest();
-            var result = await PortalClient.CreateTicketAsync(request, _lifetime.Token);
-            if (_disposed)
-            {
-                return;
-            }
-
-            ApplyTicketCreation(result);
-        }
-        catch (OperationCanceledException) when (_disposed)
-        {
-        }
-        finally
-        {
-            _submitting = false;
-        }
+        _tickets.Insert(0, created);
+        _ticketsStatus = OperateSectionStatus.Allowed;
+        _actionMessage = $"Created support ticket {created.Id}.";
+        _actionNoticeClass = "operate-support-notice-ok";
     }
 
     private async Task ApproveTicketAsync(SupportTicketResponse ticket)
@@ -231,30 +157,6 @@ public partial class OperateSupportAdvisoriesPage
         }
     }
 
-    private SupportPreflightRequest BuildPreflightRequest() => new()
-    {
-        Severity = _severity,
-        Environment = NormalizeOrDefault(_context?.EnvironmentKind, "production"),
-        Service = NormalizeOrDefault(_service, "honua-server"),
-        Symptoms = _symptoms.Trim(),
-        Context = _context?.ToContextRequest()
-    };
-
-    private CreateSupportTicketRequest BuildCreateTicketRequest() => new()
-    {
-        Severity = _severity,
-        Environment = NormalizeOrDefault(_context?.EnvironmentKind, "production"),
-        Service = NormalizeOrDefault(_service, "honua-server"),
-        Symptoms = _symptoms.Trim(),
-        RequestedAction = _requestedAction.Trim(),
-        AllowedAccessMode = _allowedAccessMode,
-        TtlMinutes = _ttlMinutes < 5 ? 5 : _ttlMinutes,
-        RollbackExpected = _rollbackExpected,
-        InstanceUrl = _context?.ServerUri,
-        CustomerId = string.IsNullOrWhiteSpace(_context?.TenantId) ? null : _context.TenantId,
-        Context = _context?.ToContextRequest()
-    };
-
     private void ApplyAdvisories(SupportPortalResult<SupportSecurityAdvisoriesResponse> result)
     {
         _advisoriesStatus = result.Status;
@@ -274,22 +176,6 @@ public partial class OperateSupportAdvisoriesPage
         _fleetStatus = result.Status;
         _fleetMessage = result.Message;
         _fleetInstances = result.IsAllowed ? result.Value!.Instances.ToList() : [];
-    }
-
-    private void ApplyTicketCreation(SupportPortalResult<SupportTicketResponse> result)
-    {
-        if (!result.IsAllowed)
-        {
-            _formError = FallbackMessage(result.Status, result.Message);
-            return;
-        }
-
-        _tickets.Insert(0, result.Value!);
-        _ticketsStatus = OperateSectionStatus.Allowed;
-        _requestedAction = string.Empty;
-        _symptoms = string.Empty;
-        _actionMessage = $"Created support ticket {result.Value!.Id}.";
-        _actionNoticeClass = "operate-support-notice-ok";
     }
 
     private void ApplyTicketMutation(SupportPortalResult<SupportTicketResponse> result, string successMessage)
@@ -339,16 +225,6 @@ public partial class OperateSupportAdvisoriesPage
     private static bool IsTerminalPhase(string? phase) =>
         phase is "resolved" or "cancelled" or "closed";
 
-    private static string AdvisoryStatusLabel(SupportSecurityAdvisoryItem advisory) =>
-        string.IsNullOrWhiteSpace(advisory.CustomerStatus) ? advisory.VexStatus : advisory.CustomerStatus;
-
-    private static string AdvisoryInstanceSummary(SupportSecurityAdvisoryItem advisory)
-    {
-        var affected = advisory.Instances.Count(i => string.Equals(i.Status, "affected", StringComparison.OrdinalIgnoreCase));
-        var patched = advisory.Instances.Count(i => string.Equals(i.Status, "patched", StringComparison.OrdinalIgnoreCase));
-        return $"{affected} affected · {patched} patched";
-    }
-
     private static string SeverityBadgeClass(string? severity) => severity?.ToLowerInvariant() switch
     {
         "critical" or "sev1" => "operate-support-badge-danger",
@@ -356,17 +232,6 @@ public partial class OperateSupportAdvisoriesPage
         "medium" or "moderate" => "operate-support-badge-info",
         _ => "operate-support-badge-neutral"
     };
-
-    private static string AdvisoryStatusBadgeClass(string? status) => status?.ToLowerInvariant() switch
-    {
-        "affected" => "operate-support-badge-danger",
-        "patched" or "fixed" or "not_affected" => "operate-support-badge-ok",
-        "under_investigation" => "operate-support-badge-warn",
-        _ => "operate-support-badge-neutral"
-    };
-
-    private static string FormatSeverity(string? severity) =>
-        string.IsNullOrWhiteSpace(severity) ? "unknown" : severity.ToUpperInvariant();
 
     private static string ShortDigest(string? digest)
     {
@@ -378,9 +243,6 @@ public partial class OperateSupportAdvisoriesPage
         var trimmed = digest.Trim();
         return trimmed.Length > 19 ? trimmed[..19] : trimmed;
     }
-
-    private static string NormalizeOrDefault(string? value, string fallback) =>
-        string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 
     private static string FallbackMessage(OperateSectionStatus status, string message) =>
         string.IsNullOrWhiteSpace(message) ? OperateSectionPresentation.FallbackMessage(status) : message;

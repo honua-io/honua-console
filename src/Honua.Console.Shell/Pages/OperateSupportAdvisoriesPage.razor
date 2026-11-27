@@ -2,7 +2,6 @@
 @implements IDisposable
 @using Honua.Console.Contracts
 @using Honua.Console.Shell.Models
-@using Honua.Console.Shell.Security
 @using Honua.Console.Shell.Services
 @inject IConsoleSupportPortalClient PortalClient
 @inject ConsoleSupportContextBuilder ContextBuilder
@@ -34,7 +33,7 @@
     {
         <OperateSectionStatusPanel Heading="Support &amp; Security Advisories"
                                    Status="OperateSectionStatus.Unsupported"
-                                   Message="@_unconfiguredMessage" />
+                                   Message="@UnconfiguredMessage" />
     }
     else
     {
@@ -52,110 +51,9 @@
             </div>
         }
 
-        <section id="advisories" class="operate-section" aria-labelledby="support-advisories-heading">
-            <div class="operate-support-section-header">
-                <h2 id="support-advisories-heading">Security advisories</h2>
-                <span class="operate-support-count" data-advisories-count>@_advisories.Count total</span>
-            </div>
-
-            @if (_advisoriesStatus != OperateSectionStatus.Allowed)
-            {
-                <OperateSectionStatusPanel Heading="Security advisories" Status="_advisoriesStatus" Message="@_advisoriesMessage" />
-            }
-            else if (_advisories.Count == 0)
-            {
-                <article class="console-panel" data-advisories-empty>
-                    <p class="console-muted">No active security advisories apply to your fleet.</p>
-                </article>
-            }
-            else
-            {
-                <div class="console-panel operate-table-panel">
-                    <ConsoleTableRegion Class="operate-table-scroll" Label="Security advisories">
-                        <table class="operate-table operate-support-table" data-advisories-table>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Advisory</th>
-                                    <th scope="col">Severity</th>
-                                    <th scope="col">Component</th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Remediation</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var advisory in _advisories)
-                                {
-                                    var safeNotesUrl = ConsoleSafeUrl.NormalizeHttpUrl(advisory.ReleaseNotesUrl);
-                                    <tr>
-                                        <td>
-                                            <div class="operate-support-primary-cell">
-                                                <strong>@advisory.Title</strong>
-                                                <span class="console-mono operate-support-subtext">
-                                                    @advisory.AdvisoryId@(string.IsNullOrWhiteSpace(advisory.CveId) ? string.Empty : $" · {advisory.CveId}")
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="operate-support-badges">
-                                                <span class="operate-support-badge @SeverityBadgeClass(advisory.Severity)">
-                                                    @FormatSeverity(advisory.Severity)
-                                                </span>
-                                                @if (advisory.CisaKev)
-                                                {
-                                                    <span class="operate-support-badge operate-support-badge-danger" data-kev-badge>CISA KEV</span>
-                                                }
-                                            </div>
-                                        </td>
-                                        <td><span class="console-mono">@advisory.Component</span></td>
-                                        <td>
-                                            <div class="operate-support-primary-cell">
-                                                <span class="operate-support-badge @AdvisoryStatusBadgeClass(AdvisoryStatusLabel(advisory))">
-                                                    @AdvisoryStatusLabel(advisory)
-                                                </span>
-                                                @if (advisory.Instances.Count > 0)
-                                                {
-                                                    <span class="operate-support-subtext operate-support-tabular">
-                                                        @AdvisoryInstanceSummary(advisory)
-                                                    </span>
-                                                }
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="operate-support-primary-cell">
-                                                @if (!string.IsNullOrWhiteSpace(advisory.FixedVersion))
-                                                {
-                                                    <span class="operate-support-tabular">Fixed in <code class="console-mono">@advisory.FixedVersion</code></span>
-                                                }
-                                                @if (!string.IsNullOrWhiteSpace(advisory.UpgradeCommand))
-                                                {
-                                                    <code class="operate-support-command">@advisory.UpgradeCommand</code>
-                                                }
-                                                else if (!string.IsNullOrWhiteSpace(advisory.ContainmentGuidance))
-                                                {
-                                                    <span class="operate-support-subtext">@advisory.ContainmentGuidance</span>
-                                                }
-                                                <div class="operate-support-inline-links">
-                                                    @if (safeNotesUrl is not null)
-                                                    {
-                                                        <a href="@safeNotesUrl" target="_blank" rel="noopener noreferrer" data-advisory-notes-link>Release notes</a>
-                                                    }
-                                                    @if (!string.IsNullOrWhiteSpace(advisory.LinkedTicketId))
-                                                    {
-                                                        <a href="@Navigation.ToConsoleLinkHref($"/support/tickets/{Uri.EscapeDataString(advisory.LinkedTicketId)}")">
-                                                            Ticket @advisory.LinkedTicketId
-                                                        </a>
-                                                    }
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </ConsoleTableRegion>
-                </div>
-            }
-        </section>
+        <SupportSecurityAdvisoriesSection Status="_advisoriesStatus"
+                                          Message="@_advisoriesMessage"
+                                          Advisories="_advisories" />
 
         <section id="tickets" class="operate-section" aria-labelledby="support-tickets-heading">
             <div class="operate-support-section-header">
@@ -260,185 +158,7 @@
             }
         </section>
 
-        <section id="preflight" class="operate-section" aria-labelledby="support-preflight-heading">
-            <div class="operate-support-section-header">
-                <h2 id="support-preflight-heading">Preflight check &amp; new ticket</h2>
-            </div>
-
-            <div class="operate-support-intake-grid">
-                <article class="console-panel" aria-labelledby="support-intake-form-heading">
-                    <div class="console-panel-heading">
-                        <h3 id="support-intake-form-heading">Describe the issue</h3>
-                    </div>
-
-                    <div class="studio-field-grid">
-                        <label>
-                            <span>Severity</span>
-                            <select class="console-input" disabled="@_submitting" @bind="_severity">
-                                <option value="sev1">@SupportTicketLabels.Display("sev1")</option>
-                                <option value="sev2">@SupportTicketLabels.Display("sev2")</option>
-                                <option value="sev3">@SupportTicketLabels.Display("sev3")</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>Service</span>
-                            <input class="console-input" disabled="@_submitting" @bind="_service" placeholder="honua-server" />
-                        </label>
-                        <label>
-                            <span>Requested action</span>
-                            <input class="console-input" disabled="@_submitting" @bind="_requestedAction" placeholder="Diagnose elevated 500s on FeatureServer" />
-                        </label>
-                        <label>
-                            <span>Access mode</span>
-                            <select class="console-input" disabled="@_submitting" @bind="_allowedAccessMode">
-                                <option value="read-only">@SupportTicketLabels.Display("read-only")</option>
-                                <option value="guided-fix">@SupportTicketLabels.Display("guided-fix")</option>
-                                <option value="operator-scoped">@SupportTicketLabels.Display("operator-scoped")</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>Access TTL (minutes)</span>
-                            <input class="console-input" disabled="@_submitting" type="number" min="5" @bind="_ttlMinutes" />
-                        </label>
-                    </div>
-
-                    <label class="support-symptoms-field">
-                        <span>Symptoms</span>
-                        <textarea class="console-input" disabled="@_submitting" rows="4" @bind="_symptoms"
-                                  placeholder="Steps, timing, affected layers or services."></textarea>
-                    </label>
-
-                    <div class="studio-check-row">
-                        <input id="operate-support-rollback" disabled="@_submitting" type="checkbox" @bind="_rollbackExpected" />
-                        <label for="operate-support-rollback"><span>A rollback may be expected as part of the fix</span></label>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(_formError))
-                    {
-                        <div class="console-validation-summary" role="alert" data-support-form-error>
-                            <p>@_formError</p>
-                        </div>
-                    }
-
-                    <div class="console-action-row">
-                        <button type="button"
-                                class="console-button console-button-secondary"
-                                disabled="@(_preflightBusy || _submitting || !CanRunPreflight)"
-                                data-run-preflight
-                                @onclick="RunPreflightAsync">
-                            @(_preflightBusy ? "Checking..." : "Run preflight check")
-                        </button>
-                        <button type="button"
-                                class="console-button"
-                                disabled="@(_submitting || !CanSubmitTicket)"
-                                data-submit-support-ticket
-                                @onclick="SubmitTicketAsync">
-                            @(_submitting ? "Submitting..." : "Submit ticket")
-                        </button>
-                    </div>
-                </article>
-
-                <aside class="console-panel operate-support-preflight-panel" aria-label="Preflight results and attached context">
-                    <div class="console-panel-heading">
-                        <h3>Preflight &amp; attached context</h3>
-                    </div>
-
-                    @if (_preflightResult is not null)
-                    {
-                        <div class="operate-support-preflight-output" data-preflight-result>
-                            <dl class="support-context-list">
-                                <ContextRow Label="Product area" Value="@_preflightResult.ProductArea" />
-                                <ContextRow Label="Issue kind" Value="@_preflightResult.IssueKind" />
-                                <ContextRow Label="Classification" Value="@_preflightResult.ClassificationProvenance" />
-                            </dl>
-
-                            @if (_preflightResult.Compatibility is { } compat)
-                            {
-                                <div class="operate-support-subpanel">
-                                    <h4>Compatibility check</h4>
-                                    <p>@compat.Summary</p>
-                                    @if (compat.GuidedCommands.Count > 0)
-                                    {
-                                        <ol class="support-command-list">
-                                            @foreach (var command in compat.GuidedCommands)
-                                            {
-                                                <li><code>@command</code></li>
-                                            }
-                                        </ol>
-                                    }
-                                </div>
-                            }
-
-                            @if (_preflightResult.KnownIssues.Count > 0)
-                            {
-                                <div class="operate-support-subpanel">
-                                    <h4>Known product issues</h4>
-                                    <ul class="operate-support-known-issues">
-                                        @foreach (var issue in _preflightResult.KnownIssues)
-                                        {
-                                            var issueNotes = ConsoleSafeUrl.NormalizeHttpUrl(issue.ReleaseNotesUrl);
-                                            <li>
-                                                <span class="console-mono">@issue.Component</span>
-                                                @if (!string.IsNullOrWhiteSpace(issue.FixedInServerVersion))
-                                                {
-                                                    <span> · fixed in @issue.FixedInServerVersion</span>
-                                                }
-                                                @if (!string.IsNullOrWhiteSpace(issue.PatchStage))
-                                                {
-                                                    <span> (@issue.PatchStage)</span>
-                                                }
-                                                @if (issueNotes is not null)
-                                                {
-                                                    <span> · <a href="@issueNotes" target="_blank" rel="noopener noreferrer">Notes</a></span>
-                                                }
-                                            </li>
-                                        }
-                                    </ul>
-                                </div>
-                            }
-
-                            @if (_preflightResult.RedactionPreview is { } redaction)
-                            {
-                                <div class="operate-support-subpanel">
-                                    <h4>Redaction preview</h4>
-                                    <dl class="support-context-list operate-support-tabular">
-                                        <ContextRow Label="Headers dropped" Value="@redaction.HeadersDropped.ToString()" />
-                                        <ContextRow Label="Bodies redacted" Value="@redaction.BodiesRedacted.ToString()" />
-                                        <ContextRow Label="Scoped key brokered" Value="@(redaction.ScopedKeyWillBeBrokered ? "Yes" : "No")" />
-                                    </dl>
-                                </div>
-                            }
-
-                            @if (!string.IsNullOrWhiteSpace(_preflightResult.RecommendedEvidenceCommand))
-                            {
-                                <div class="operate-support-subpanel">
-                                    <h4>Recommended evidence command</h4>
-                                    <code class="operate-support-command">@_preflightResult.RecommendedEvidenceCommand</code>
-                                </div>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="console-muted">
-                            Run a preflight check before filing a ticket to verify compatibility rules, known fixes, and exact payload redaction.
-                        </p>
-                    }
-
-                    @if (_context is not null)
-                    {
-                        <div class="operate-support-subpanel">
-                            <h4>Connected environment context</h4>
-                            <dl class="support-context-list">
-                                <ContextRow Label="Environment" Value="@(string.IsNullOrWhiteSpace(_context.EnvironmentName) ? _context.EnvironmentKind : $"{_context.EnvironmentName} ({_context.EnvironmentKind})")" />
-                                <ContextRow Label="Server" Value="@_context.ServerUri" />
-                                <ContextRow Label="Console version" Value="@_context.AppVersion" />
-                            </dl>
-                        </div>
-                    }
-                </aside>
-            </div>
-        </section>
+        <SupportIntakePreflightSection CapturedContext="_context" OnTicketCreated="HandleTicketCreated" />
 
         <section id="fleet" class="operate-section" aria-labelledby="support-fleet-heading">
             <div class="operate-support-section-header">
