@@ -593,7 +593,7 @@ else
                 "import", "./_content/Honua.Console.Shell/catalog-item-editor.js");
             _urlCopied = await _clipboardModule.InvokeAsync<bool>("copyText", url);
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             _urlCopied = false;
         }
@@ -607,7 +607,7 @@ else
             {
                 await _clipboardModule.DisposeAsync();
             }
-            catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
                 // Circuit already gone; nothing to clean up browser-side.
             }

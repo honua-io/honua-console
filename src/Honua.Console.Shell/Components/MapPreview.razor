@@ -396,17 +396,9 @@
         {
             await BindMapAsync(styleUrl, version);
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
-            // A failed preview leaves the schematic available.
-        }
-        catch (OperationCanceledException)
-        {
-            // A canceled import can be retried on the next render.
-        }
-        catch (InvalidOperationException)
-        {
-            // Interop is unavailable during prerender.
+            // A failed preview, disconnected circuit, or prerender leaves the schematic available.
         }
         finally
         {
@@ -488,13 +480,9 @@
         {
             await _module.InvokeVoidAsync("dispose", _canvas);
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
-            // A missing binding still returns to the schematic after teardown failure.
-        }
-        catch (InvalidOperationException)
-        {
-            // Interop may be unavailable during teardown.
+            // A missing binding still returns to the schematic after teardown or disconnect failure.
         }
     }
 
@@ -511,7 +499,7 @@
             {
                 await _module.InvokeAsync<bool>("setBasemap", _canvas, basemap.StyleUrl);
             }
-            catch (JSException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
                 // Style swap failed; the chip selection still updates.
             }
@@ -545,7 +533,7 @@
         {
             await _module.InvokeAsync<bool>("recenter", _canvas, Center, CameraZoom);
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             // Live camera move failed; keep the current view.
         }
@@ -562,7 +550,7 @@
         {
             await _module.InvokeAsync<bool>(fn, _canvas);
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
             // Live camera move failed; keep the current view.
         }
@@ -585,13 +573,9 @@
             {
                 await _module.DisposeAsync();
             }
-            catch (JSException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
-                // Ignore teardown failures.
-            }
-            catch (InvalidOperationException)
-            {
-                // Ignore teardown failures during prerender.
+                // Ignore teardown failures during disconnect or prerender.
             }
         }
     }

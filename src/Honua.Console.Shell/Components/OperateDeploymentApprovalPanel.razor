@@ -62,7 +62,14 @@ else
             @if (proposal.PrUrl is { Length: > 0 } prUrl)
             {
                 <dt>Pull request</dt>
-                <dd><a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(prUrl)" rel="noopener noreferrer" target="_blank">@prUrl</a></dd>
+                @if (ConsoleSafeUrl.NormalizeHttpUrl(prUrl) is { } safePrUrl)
+                {
+                    <dd><a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(safePrUrl)" rel="noopener noreferrer" target="_blank">@prUrl</a></dd>
+                }
+                else
+                {
+                    <dd class="console-mono">@prUrl</dd>
+                }
             }
             @if (!string.IsNullOrWhiteSpace(proposal.CommitSha))
             {
@@ -85,9 +92,9 @@ else
                     {
                         <li>
                             <span class="console-chip">@evidence.Kind</span>
-                            @if (evidence.Uri is { Length: > 0 } uri)
+                            @if (ConsoleSafeUrl.NormalizeHttpUrl(evidence.Uri, allowRelativePath: true) is { } safeUri)
                             {
-                                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(uri)" rel="noopener noreferrer" target="_blank">@evidence.RefId</a>
+                                <a class="console-link" href="@ConsoleNavigation.ToConsoleLinkHref(safeUri)" rel="noopener noreferrer" target="_blank">@evidence.RefId</a>
                             }
                             else
                             {

@@ -134,17 +134,9 @@
         {
             await BindChartAsync(binding, version);
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
-            // A failed preview leaves the schematic available.
-        }
-        catch (OperationCanceledException)
-        {
-            // A timed-out import can be retried when the binding changes.
-        }
-        catch (InvalidOperationException)
-        {
-            // Interop is unavailable during prerender.
+            // A failed preview, disconnected circuit, or prerender leaves the schematic available.
         }
         finally
         {
@@ -215,13 +207,9 @@
         {
             await _module.InvokeVoidAsync("dispose", _canvas);
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
-            // A removed binding still returns to the schematic after teardown failure.
-        }
-        catch (InvalidOperationException)
-        {
-            // Interop may be unavailable during teardown.
+            // A removed binding still returns to the schematic after teardown or disconnect failure.
         }
     }
 
@@ -241,13 +229,9 @@
             {
                 await _module.DisposeAsync();
             }
-            catch (JSException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
                 // The browser may have disconnected during teardown.
-            }
-            catch (InvalidOperationException)
-            {
-                // Interop may be unavailable during teardown.
             }
         }
     }

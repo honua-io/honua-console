@@ -341,9 +341,9 @@
         {
             return await JS.InvokeAsync<bool>("confirm", message);
         }
-        catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
-            // No JS runtime (prerender / bUnit): fail safe by not restoring.
+            // No JS runtime (prerender / bUnit) or disconnected circuit: fail safe by not restoring.
             return false;
         }
     }

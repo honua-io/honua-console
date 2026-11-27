@@ -3,6 +3,7 @@ using Honua.Console.Shell.Models;
 using Honua.Console.Shell.Security;
 using Honua.Console.Shell.Services;
 using Honua.Console.Web.Components;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -202,11 +203,21 @@ public static class ConsoleAuthentication
 
         app.MapPost("/auth/logout", async (
             HttpContext context,
+            IAntiforgery antiforgery,
             ConsoleServerSessionBffCoordinator serverSessionBff,
             IConsoleEnvironmentProfileStore profileStore,
             IConsoleAccountSessionStore sessionStore,
             CancellationToken cancellationToken) =>
         {
+            try
+            {
+                await antiforgery.ValidateRequestAsync(context).ConfigureAwait(false);
+            }
+            catch (AntiforgeryValidationException)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
             if (context.User.Identity?.IsAuthenticated == true)
             {
                 await serverSessionBff.SignOutAsync(cancellationToken).ConfigureAwait(false);
@@ -308,9 +319,11 @@ public static class ConsoleAuthentication
             StatusCode = StatusCodes.Status401Unauthorized,
         };
 
-    private static bool IsApiRequest(HttpRequest request)
+    internal static bool IsApiRequest(HttpRequest request)
     {
-        if (request.Path.StartsWithSegments("/map-proxy"))
+        if (request.Path.StartsWithSegments("/map-proxy")
+            || request.Path.StartsWithSegments("/scene-proxy")
+            || request.Path.StartsWithSegments("/api"))
         {
             return true;
         }

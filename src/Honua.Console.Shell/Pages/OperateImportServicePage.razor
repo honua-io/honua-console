@@ -812,6 +812,7 @@
 
     private void StartPolling()
     {
+        StopPolling();
         if (_jobs.All(j => j.Terminal))
         {
             return;
@@ -876,7 +877,7 @@
                     if (_pollFailureCount >= MaxConsecutivePollFailures)
                     {
                         StopPolling();
-                        await InvokeAsync(() =>
+                        await SafeInvokeAsync(() =>
                             Notifications.Warning("Stopped polling import status after repeated errors — reload to resume tracking."));
                         return;
                     }
@@ -898,7 +899,7 @@
                     StopPolling();
                     // The live poll gave up after sustained failures — tell the operator the status table is
                     // no longer updating (it previously stopped silently, looking like the jobs had stalled).
-                    await InvokeAsync(() =>
+                    await SafeInvokeAsync(() =>
                         Notifications.Warning("Stopped polling import status after repeated errors — reload to resume tracking."));
                 }
 
@@ -911,7 +912,7 @@
                 return;
             }
 
-            await InvokeAsync(StateHasChanged);
+            await SafeInvokeAsync(StateHasChanged);
 
             if (_jobs.All(j => j.Terminal))
             {
@@ -921,6 +922,18 @@
         finally
         {
             _polling = false;
+        }
+    }
+
+    private async Task SafeInvokeAsync(Action action)
+    {
+        try
+        {
+            await InvokeAsync(action);
+        }
+        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException or OperationCanceledException)
+        {
+            StopPolling();
         }
     }
 

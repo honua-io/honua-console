@@ -52,6 +52,21 @@ public sealed class OperateReleaseWitnessPageRenderTests
         Assert.Empty(registry.Current.Entities);
     }
 
+    [Fact]
+    public void UnsafePublicUrl_RendersPlainTextInsteadOfClickableLink()
+    {
+        using var context = CreateContext(new ConsoleV4Options { Enabled = false });
+        var unsafeEvidence = Evidence with { PublicUrl = "javascript:alert(1)" };
+        context.Services.AddSingleton<IConsoleReleaseWitnessClient>(
+            new WitnessClient(Task.FromResult(OperateSectionResult<ConsoleReleaseWitnessEvidence>.Allowed(unsafeEvidence))));
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(CompleteQuery);
+
+        var page = context.Render<OperateReleaseWitnessPage>();
+
+        Assert.Empty(page.FindAll("[data-release-public-link]"));
+        Assert.Equal("javascript:alert(1)", page.Find("[data-release-public-text]").TextContent);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -104,10 +104,28 @@ internal static class ConsoleServerHttp
     // A trailing slash is added when the base URI lacks one, because URI resolution would otherwise drop the last base-path segment.
     public static Uri BuildUri(Uri baseUri, string relativePath)
     {
+        ArgumentNullException.ThrowIfNull(baseUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
+
+        if (relativePath.StartsWith("//", StringComparison.Ordinal)
+            || relativePath.Contains('\\', StringComparison.Ordinal)
+            || (!relativePath.StartsWith('/') && Uri.TryCreate(relativePath, UriKind.Absolute, out _)))
+        {
+            throw new ArgumentException("Server request path must be a relative path.", nameof(relativePath));
+        }
+
         var normalizedBase = baseUri.AbsoluteUri.EndsWith('/')
             ? baseUri
             : new Uri(baseUri.AbsoluteUri + "/", UriKind.Absolute);
-        return new Uri(normalizedBase, relativePath);
+        var resolved = new Uri(normalizedBase, relativePath);
+        if (!string.Equals(resolved.Scheme, normalizedBase.Scheme, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(resolved.Authority, normalizedBase.Authority, StringComparison.OrdinalIgnoreCase)
+            || !normalizedBase.IsBaseOf(resolved))
+        {
+            throw new ArgumentException("Server request path must stay within the configured base URI.", nameof(relativePath));
+        }
+
+        return resolved;
     }
 
     // Only the operator-actionable message and safe correlation identifiers are kept; other response fields are not echoed.

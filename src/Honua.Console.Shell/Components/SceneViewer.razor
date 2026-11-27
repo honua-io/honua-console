@@ -134,7 +134,7 @@
                 {
                     await _module.InvokeVoidAsync("dispose", _canvas);
                 }
-                catch (JSException)
+                catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
                 {
                     // Ignore teardown failures; the re-init below replaces the canvas state.
                 }
@@ -151,14 +151,10 @@
                 StateHasChanged();
             }
         }
-        catch (JSException)
+        catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
         {
-            // No browser Cesium runtime (offline, blocked CDN, or non-interactive render):
+            // No browser Cesium runtime, disconnected circuit, or prerender:
             // keep the schematic placeholder. Never throw.
-        }
-        catch (InvalidOperationException)
-        {
-            // JS interop unavailable (prerender / bUnit without a JS runtime): keep the placeholder.
         }
     }
 
@@ -171,13 +167,9 @@
                 await _module.InvokeVoidAsync("dispose", _canvas);
                 await _module.DisposeAsync();
             }
-            catch (JSException)
+            catch (Exception ex) when (ConsoleJsInterop.IsBenignFailure(ex))
             {
-                // Ignore teardown failures.
-            }
-            catch (InvalidOperationException)
-            {
-                // Ignore teardown failures during prerender.
+                // Ignore teardown failures during disconnect or prerender.
             }
         }
     }

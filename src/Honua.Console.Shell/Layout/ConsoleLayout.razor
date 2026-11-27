@@ -53,9 +53,25 @@
         }
         @if (_signedIn)
         {
-        <LicenseExpiryBanner />
+        <ErrorBoundary @ref="_bannerErrorBoundary">
+            <ChildContent>
+                <LicenseExpiryBanner />
+            </ChildContent>
+            <ErrorContent />
+        </ErrorBoundary>
         }
-        @Body
+        <ErrorBoundary @ref="_errorBoundary">
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent>
+                <section class="console-panel" role="alert" data-console-error-boundary>
+                    <h2>Something went wrong</h2>
+                    <p class="console-muted">This view hit an unexpected error. Your session is still active.</p>
+                    <button type="button" class="console-button" data-console-error-recover @onclick="RecoverErrorBoundary">Recover</button>
+                </section>
+            </ErrorContent>
+        </ErrorBoundary>
     </main>
 
         </div>
@@ -73,6 +89,10 @@
 @code {
     private readonly ConsolePublicationLayerContext _layerContext = new();
     private IConsoleEnvironmentProfileStore? _profiles;
+    private ErrorBoundary? _errorBoundary;
+    private ErrorBoundary? _bannerErrorBoundary;
+
+    private void RecoverErrorBoundary() => _errorBoundary?.Recover();
 
     private void UpdatePublicationPath() =>
         _layerContext.SetPath(ConsoleNavigation.ContextForPath(Navigation.ToBaseRelativePath(Navigation.Uri), ConsoleNavigation.Groups).Path);
@@ -80,7 +100,9 @@
     private void PublicationLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
     {
         UpdatePublicationPath();
-        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+        _errorBoundary?.Recover();
+        _bannerErrorBoundary?.Recover();
+        _ = SafeStateHasChangedAsync();
     }
 
     private void PublicationAuthorityChanged()
@@ -88,7 +110,7 @@
         _layerContext.Invalidate();
         _publicationPath = [];
         StartCapabilityRefresh();
-        if (!_disposed) _ = InvokeAsync(StateHasChanged);
+        _ = SafeStateHasChangedAsync();
     }
 
     private IReadOnlyList<ConsoleNavigationGroup> VisibleNavigation => ConsoleNavigation.VisibleGroups(
@@ -135,7 +157,7 @@
 
         if (_disposed || revision != _authenticationRevision || signedIn == _signedIn) return;
         _signedIn = signedIn;
-        await InvokeAsync(StateHasChanged);
+        await SafeStateHasChangedAsync();
     }
 
     protected override Task OnInitializedAsync()
@@ -187,17 +209,21 @@
             return;
         }
 
-        if (!_disposed)
+        await SafeStateHasChangedAsync();
+    }
+
+    private void OnCapabilitiesChanged() => _ = SafeStateHasChangedAsync();
+
+    private async Task SafeStateHasChangedAsync()
+    {
+        if (_disposed) return;
+        try
         {
             await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private void OnCapabilitiesChanged()
-    {
-        if (!_disposed)
+        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException or OperationCanceledException)
         {
-            _ = InvokeAsync(StateHasChanged);
+            // Layout disposed while a background refresh or navigation event was completing.
         }
     }
 

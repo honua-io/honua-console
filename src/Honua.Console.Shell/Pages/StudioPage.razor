@@ -121,7 +121,7 @@ else
             context.CancellationToken.ThrowIfCancellationRequested();
             if (!allowed && !_disposed) context.PreventNavigation();
         }
-        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException)
+        catch (Exception exception) when (ConsoleJsInterop.IsBenignFailure(exception))
         {
             if ((import.IsFaulted || import.IsCanceled) && ReferenceEquals(import, _styleNavigationImport)) _styleNavigationImport = null;
             context.CancellationToken.ThrowIfCancellationRequested();
@@ -142,7 +142,7 @@ else
     private static async ValueTask ReleaseStyleNavigationAsync(IJSObjectReference module)
     {
         try { await module.DisposeAsync(); }
-        catch (Exception exception) when (exception is JSException or InvalidOperationException or OperationCanceledException) { }
+        catch (Exception exception) when (ConsoleJsInterop.IsBenignFailure(exception)) { }
     }
     public async ValueTask DisposeAsync()
     {

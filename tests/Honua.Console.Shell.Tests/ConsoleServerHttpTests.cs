@@ -252,6 +252,20 @@ public sealed class ConsoleServerHttpTests
         Assert.Equal(expected, result.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData("https://server.example", "https://evil.example/api/v1/version")]
+    [InlineData("https://server.example", "http://evil.example/api/v1/version")]
+    [InlineData("https://server.example", "//evil.example/api/v1/version")]
+    [InlineData("https://server.example", "javascript:alert(1)")]
+    [InlineData("https://server.example", "file:///etc/passwd")]
+    [InlineData("https://server.example/honua", "../escape")]
+    [InlineData("https://server.example/honua", "/api/v1/version")]
+    [InlineData("https://server.example", "api\\v1\\version")]
+    public void BuildUri_RejectsSchemeAuthorityOrBaseEscape(string baseUri, string relative)
+    {
+        Assert.Throws<ArgumentException>(() => ConsoleServerHttp.BuildUri(new Uri(baseUri), relative));
+    }
+
     [Fact]
     public async Task ReadProblemAsync_429WithRetryAfterAndHonuaRetryable_SurfacesRateLimitGuidance()
     {

@@ -180,11 +180,43 @@ export async function init(container, options) {
     }
 }
 
+function stripDatasetUrls(datasets, seen) {
+    if (!datasets || typeof datasets !== 'object') return;
+    for (const entry of Object.values(datasets)) {
+        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+            delete entry.url;
+        }
+        stripDataUrls(entry, seen);
+    }
+}
+
+export function stripDataUrls(node, seen = new WeakSet()) {
+    if (!node || typeof node !== 'object' || seen.has(node)) return node;
+    seen.add(node);
+    if (Array.isArray(node)) {
+        for (const item of node) stripDataUrls(item, seen);
+        return node;
+    }
+    if (node.data && typeof node.data === 'object' && !Array.isArray(node.data)) {
+        delete node.data.url;
+    }
+    if (node.from?.data && typeof node.from.data === 'object' && !Array.isArray(node.from.data)) {
+        delete node.from.data.url;
+    }
+    stripDatasetUrls(node.datasets, seen);
+    for (const value of Object.values(node)) {
+        stripDataUrls(value, seen);
+    }
+    return node;
+}
+
 function prepareSpec(spec, rows) {
     // Stored embed options override our options unless removed before embedding.
     if (spec.usermeta && typeof spec.usermeta === 'object') {
         delete spec.usermeta.embedOptions;
     }
+    // Defense in depth alongside NO_NETWORK_LOADER: strip any data/lookup URLs anywhere in the spec.
+    stripDataUrls(spec);
     if (rows.length > 0) {
         spec.data = { values: rows };
     } else if (!spec.data || !Array.isArray(spec.data.values) || spec.data.values.length === 0) {
