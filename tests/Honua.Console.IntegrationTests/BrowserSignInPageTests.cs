@@ -62,6 +62,24 @@ public sealed class BrowserSignInPageTests
     }
 
     [Fact]
+    public async Task PasswordSignInRendersPrefilledAdminUsernameAndBreakGlassGuidance()
+    {
+        await using var context = CreateContext();
+        context.Services.AddSingleton<IConsoleBrowserAuthentication>(new PendingAuthentication());
+        var page = context.Render<AuthSignInPage>();
+
+        var username = page.Find("[data-signin-username]");
+        Assert.Equal("username", username.GetAttribute("name"));
+        Assert.Equal("username", username.GetAttribute("autocomplete"));
+        Assert.Equal("admin", username.GetAttribute("value"));
+        Assert.True(username.HasAttribute("readonly"));
+
+        var password = page.Find("input[type=password]");
+        Assert.Equal("current-password", password.GetAttribute("autocomplete"));
+        Assert.Contains("Administrator break-glass sign-in", page.Find("[data-signin-breakglass]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DeniedPasswordClearsTheFieldAndAllowsRetryWithoutExposingServerDetails()
     {
         await using var context = CreateContext();
@@ -74,7 +92,8 @@ public sealed class BrowserSignInPageTests
         await submission;
         Assert.Contains("The password was not accepted", page.Find("[role=alert]").TextContent);
         Assert.DoesNotContain("private server details", page.Markup);
-        Assert.Equal(string.Empty, page.Find("input").GetAttribute("value") ?? string.Empty);
+        Assert.Equal(string.Empty, page.Find("input[type=password]").GetAttribute("value") ?? string.Empty);
+        Assert.Equal("admin", page.Find("[data-signin-username]").GetAttribute("value"));
         Assert.False(page.Find("button").HasAttribute("disabled"));
         Assert.EndsWith("/auth/signin?returnTo=%2Foperate%2Fconnections", context.Services.GetRequiredService<NavigationManager>().Uri);
     }

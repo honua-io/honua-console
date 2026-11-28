@@ -20,8 +20,9 @@
                 <a href="#fleet">Fleet</a>
                 <a href="#events">Events</a>
                 <a href="#logs">Logs</a>
-                <a href="#alerts">Alerts</a>
-                <a href="#rules">Rules</a>
+                @{ var alertsOptInOff = Capabilities.IsOptInDisabled(ConsoleCapabilityKeys.RealtimeAlerting); }
+                <a href="#alerts" class="@(alertsOptInOff ? "console-nav-optin-off" : null)" data-capability-state="@(alertsOptInOff ? "opt-in-off" : null)">Alerts@if (alertsOptInOff) { <small class="console-nav-badge-off">Preview · Off</small> }</a>
+                <a href="#rules" class="@(alertsOptInOff ? "console-nav-optin-off" : null)" data-capability-state="@(alertsOptInOff ? "opt-in-off" : null)">Rules@if (alertsOptInOff) { <small class="console-nav-badge-off">Preview · Off</small> }</a>
                 <a href="#jobs">Jobs</a>
                 @if (Capabilities.IsAdvertised(ConsoleCapabilityKeys.SiemInvestigations))
                 {
@@ -425,7 +426,8 @@
         }
         else if (!_alerts.IsAllowed)
         {
-            <OperateSectionStatusPanel Heading="Alerts" Status="_alerts.Status" Message="@_alerts.Message" />
+            <OperateSectionStatusPanel Heading="Alerts" Status="_alerts.Status" Message="@_alerts.Message"
+                                       TitleOverride="@(_alerts.Status == OperateSectionStatus.Unsupported && Capabilities.IsOptInDisabled(ConsoleCapabilityKeys.RealtimeAlerting) ? "Preview feature (off by default)" : null)" />
         }
         else if (AlertRows.Count == 0)
         {
@@ -531,7 +533,8 @@
         }
         else if (!_rules.IsAllowed)
         {
-            <OperateSectionStatusPanel Heading="Realtime rules" Status="_rules.Status" Message="@_rules.Message" />
+            <OperateSectionStatusPanel Heading="Realtime rules" Status="_rules.Status" Message="@_rules.Message"
+                                       TitleOverride="@(_rules.Status == OperateSectionStatus.Unsupported && Capabilities.IsOptInDisabled(ConsoleCapabilityKeys.RealtimeAlerting) ? "Preview feature (off by default)" : null)" />
         }
         else
         {

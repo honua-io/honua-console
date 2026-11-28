@@ -107,6 +107,23 @@ else
     private string EffectiveServiceName =>
         (_createNewService ? _newServiceName : _selectedServiceName ?? string.Empty).Trim();
 
+    [Parameter] public string? InitialFolderId { get; set; }
+
+    private string? _appliedInitialFolderId;
+
+    protected override void OnParametersSet()
+    {
+        var requested = string.IsNullOrWhiteSpace(InitialFolderId) ? null : InitialFolderId.Trim();
+        if (requested is null || string.Equals(requested, _appliedInitialFolderId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _appliedInitialFolderId = requested;
+        _createNewService = true;
+        _folderId = new OptionalString(requested);
+    }
+
     protected override Task OnInitializedAsync() => LoadWorkspaceAsync();
 
     private async Task LoadWorkspaceAsync()

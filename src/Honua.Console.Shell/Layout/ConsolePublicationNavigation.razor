@@ -54,6 +54,12 @@
                     <ConsolePublicationNavigationContent ReadState="ReadState" />
                 }
             </div>
+            @if (_menuNode is not null || _newFolderOpen)
+            {
+                <ConsolePublicationNodeMenu MenuNode="_menuNode" NewFolderOpen="_newFolderOpen"
+                                            OnClose="CloseMenu" OnOpenNewFolder="OpenNewFolder"
+                                            OnCloseNewFolder="CloseNewFolder" OnFolderCreated="HandleFolderCreatedAsync" />
+            }
             @if (V4Enabled)
             {
                 <ConsolePublicationTreeFooter Loading="_loading" Live="@(_servicesRead is { IsAllowed: true })" ServiceCount="_tree.ServiceCount"
@@ -114,12 +120,15 @@
         Tree = _tree, SelectedPath = SelectedPath,
         V4Enabled = V4Enabled,
         SearchPending = _inflight is { Apply: CatalogApply.Replace },
+        CanOpenActions = !_loading && Source is not UnsupportedConsolePublicationNavigationSource,
+        ActiveMenuNodeKey = _menuNode?.Key,
         Expand = EventCallback.Factory.Create<ConsolePublicationNode>(this, ExpandAsync),
         Collapse = EventCallback.Factory.Create<ConsolePublicationNode>(this, Collapse),
         Retry = EventCallback.Factory.Create<ConsolePublicationNode>(this, LoadChildrenAsync),
         ShowFirstPage = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowFirstPage),
         ShowMore = EventCallback.Factory.Create<ConsolePublicationNode>(this, ShowMore),
         ShowMoreSearch = EventCallback.Factory.Create(this, ShowMoreSearchAsync),
+        OpenMenu = EventCallback.Factory.Create<ConsolePublicationMenuRequest>(this, OpenMenu),
         LayerSearch = _layerSearch,
         OpenSearchResult = EventCallback.Factory.Create<ConsoleSearchTarget>(this, OpenSearchResultAsync)
     };
@@ -291,6 +300,8 @@
     private void ResetReadState()
     {
         _authorityRevision++;
+        _menuNode = null;
+        _newFolderOpen = false;
         _authorityLifetime.Cancel();
         _authorityLifetime.Dispose();
         _authorityLifetime = new();
@@ -471,6 +482,8 @@
     private void LocationChanged(object? sender, LocationChangedEventArgs args)
     {
         _locationRevision++;
+        _menuNode = null;
+        _newFolderOpen = false;
         _ = InvokeAsync(ReconcileLocationAsync);
     }
     private void CapabilitiesChanged() => _ = InvokeAsync(CheckAuthorityAsync);

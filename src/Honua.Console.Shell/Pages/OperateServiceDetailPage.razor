@@ -36,7 +36,14 @@
                 </div>
                 <ConsoleTabs Tabs="ServiceTabs" Label="Service settings" @bind-SelectedId="_selectedTab" />
                 <section id="service-layers-panel" role="tabpanel" aria-labelledby="service-layers-tab" hidden="@(_selectedTab != "service-layers-tab")" tabindex="0">
-                    <ServiceLayerTableV4 Service="_service" ServicePath="@ServicePath" />
+                    @if (_service.IsLayerService)
+                    {
+                        <ServiceLayerTableV4 Service="_service" ServicePath="@ServicePath" />
+                    }
+                    else
+                    {
+                        <ServiceOperationsPanelV4 Service="_service" />
+                    }
                     <ServiceWebServicesV4 Service="_service" ChangeProtocols="@(() => OpenTab("service-protocols-tab"))" />
                 </section>
                 <section id="service-protocols-panel" @ref="_protocolsPanel" role="tabpanel" aria-labelledby="service-protocols-tab" hidden="@(_selectedTab != "service-protocols-tab")" tabindex="0">
@@ -68,7 +75,14 @@
                 </div>
                 @Administration
                 @Configuration
-                @Layers
+                @if (_service.IsLayerService)
+                {
+                    @Layers
+                }
+                else
+                {
+                    <ServiceOperationsPanelV4 Service="_service" />
+                }
             }
         </fieldset>
     }
@@ -84,13 +98,16 @@
     private string _selectedTab = "service-layers-tab";
     private IReadOnlyList<ConsoleTab> ServiceTabs =>
     [
-        new("service-layers-tab", "Layers", "service-layers-panel") { Count = _service?.LayerCount },
+        new("service-layers-tab", _service is { IsLayerService: false } ? ConsoleServiceKind.TabLabel(_service.ServiceCategory) : "Layers", "service-layers-panel")
+        {
+            Count = _service is { IsLayerService: true } ? _service.LayerCount : null
+        },
         new("service-protocols-tab", "Protocols", "service-protocols-panel") { Count = ProtocolsReported ? ProtocolCount : null },
         new("service-access-tab", "Access", "service-access-panel"),
         new("service-limits-tab", "Limits and rendering", "service-limits-panel")
     ];
 
-    private RenderFragment ServiceSummary => @<text>Service <code>@ServicePath</code> · @ConsolePublicationTreeContext.FormatCount(_service!.LayerCount, "layer") · @ProtocolSummary@if (AccessSummary is { } access) { <span data-service-access-summary> · @access</span> }@foreach (var connection in Connections) { <span data-service-connection> · connection <a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connection.Id)}")">@connection.Name</a></span> }</text>;
+    private RenderFragment ServiceSummary => @<text>Service <code>@ServicePath</code> · @(_service!.IsLayerService ? ConsolePublicationTreeContext.FormatCount(_service!.LayerCount, "layer") : ConsoleServiceKind.SummaryLabel(_service!.ServiceCategory)) · @ProtocolSummary@if (AccessSummary is { } access) { <span data-service-access-summary> · @access</span> }@foreach (var connection in Connections) { <span data-service-connection> · connection <a href="@Navigation.ToConsoleHref($"/operate/connections/{Uri.EscapeDataString(connection.Id)}")">@connection.Name</a></span> }</text>;
 
 
 

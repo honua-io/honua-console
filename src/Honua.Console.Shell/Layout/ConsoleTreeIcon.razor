@@ -12,6 +12,12 @@
     case "service":
         <svg class="console-tree-icon" data-icon="service" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1.5" /><rect x="4" y="14" width="16" height="6" rx="1.5" /><path d="M8 7h.01M8 17h.01" /></svg>
         break;
+    case "process":
+        <svg class="console-tree-icon" data-icon="process" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3m0 14v3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M2 12h3m14 0h3M4.9 19.1 7 17m10-10 2.1-2.1" /></svg>
+        break;
+    case "plus":
+        <svg class="console-tree-icon" data-icon="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        break;
     case "point":
         <svg class="console-tree-icon" data-icon="point" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="12" cy="12" r="4" /></svg>
         break;
@@ -42,7 +48,7 @@
     {
         ConsolePublicationNodeKind.Environment => "globe",
         ConsolePublicationNodeKind.Folder => node.Expanded ? "folder-open" : "folder",
-        ConsolePublicationNodeKind.Service => "service",
+        ConsolePublicationNodeKind.Service => ConsoleServiceKind.TreeIconName(node.ServiceCategory),
         _ => ForGeometry(node.GeometryType)
     };
 

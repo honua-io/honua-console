@@ -25,12 +25,12 @@ public interface IConsoleFolderClient
     Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, MoveServiceRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class UnsupportedConsoleFolderClient : IConsoleFolderClient
+public class UnsupportedConsoleFolderClient : IConsoleFolderClient
 {
     private const string Missing = "Connect an environment to manage Folders.";
-    public Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
+    public virtual Task<OperateSectionResult<ConsoleFolderCatalog>> ReadAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(OperateSectionResult<ConsoleFolderCatalog>.Denied(OperateSectionStatus.Missing, Missing));
-    public Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => Refuse();
+    public virtual Task<ConsoleFolderMutationResult> CreateAsync(ConsoleFolderCatalog catalog, CreateFolderRequest request, CancellationToken cancellationToken = default) => Refuse();
     public Task<ConsoleFolderMutationResult> UpdateAsync(ConsoleFolderCatalog catalog, string folderId, UpdateFolderRequest request, CancellationToken cancellationToken = default) => Refuse();
     public Task<ConsoleFolderMutationResult> DeleteAsync(ConsoleFolderCatalog catalog, string folderId, CancellationToken cancellationToken = default) => Refuse();
     public Task<ConsoleFolderMutationResult> MoveAsync(ConsoleFolderCatalog catalog, string serviceName, MoveServiceRequest request, CancellationToken cancellationToken = default) => Refuse();

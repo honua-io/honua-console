@@ -1,10 +1,14 @@
 namespace Honua.Console.Shell.Models;
 
-public sealed record CapabilityDescriptor(
-    string Id,
-    bool Available,
-    bool Supported,
-    string? ReasonCode = null);
+public sealed record CapabilityDescriptor
+{
+    public required string Id { get; init; }
+    public bool Available { get; init; }
+    public bool Supported { get; init; }
+    public string? ReasonCode { get; init; }
+    public bool OptInRequired { get; init; }
+    public string? Lifecycle { get; init; }
+}
 
 public sealed record CapabilityRegistrySnapshot
 {

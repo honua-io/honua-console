@@ -94,7 +94,7 @@
                                     @service.ServiceType
                                 }
                             </td>
-                            <td>@if (_states.Count > 0) { <span>Unknown</span> } else { @service.LayerCount }</td>
+                            <td>@if (_states.Count > 0) { <span>Unknown</span> } else if (!service.IsLayerService) { <span class="console-muted" data-service-kind="@service.ServiceCategory.ToString().ToLowerInvariant()">@ConsoleServiceKind.InventoryLabel(service.ServiceCategory)</span> } else { @service.LayerCount }</td>
                             <td>@service.RuntimeStatus</td>
                         </tr>
                     }

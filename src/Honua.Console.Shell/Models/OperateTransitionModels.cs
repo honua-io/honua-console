@@ -174,6 +174,8 @@ public sealed record OperateServiceDetail(
     // ServiceType lists the enabled protocols, comma separated.
     public IReadOnlyList<string> Protocols =>
         ServiceType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    public ConsoleServiceCategory ServiceCategory => ConsoleServiceKind.Classify(Protocols);
+    public bool IsLayerService => ServiceCategory == ConsoleServiceCategory.Data;
     public bool Serves(string protocol) => Protocols.Contains(protocol, StringComparer.OrdinalIgnoreCase);
 }
 

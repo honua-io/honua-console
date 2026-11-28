@@ -8,15 +8,46 @@
 else
 {
     <ConsoleStateView Kind="unsupported" HeadingLevel="@HeadingLevel"
-                      Kicker="@Kicker"
-                      Title="@Title"
-                      Message="@Message"
-                      ActionHref="@ActionHref"
-                      ActionLabel="@ActionLabel" />
+                      Kicker="@ResolvedKicker"
+                      Title="@ResolvedTitle"
+                      Message="@ResolvedMessage"
+                      ActionHref="@ResolvedActionHref"
+                      ActionLabel="@ResolvedActionLabel" />
 }
 
 @code {
+    private const string DefaultKicker = "Not in this release";
     private bool _disposed;
+
+    private bool IsOptInDisabled => Capabilities.IsOptInDisabled(Capability);
+
+    private string ResolvedKicker =>
+        IsOptInDisabled && string.Equals(Kicker, DefaultKicker, StringComparison.Ordinal)
+            ? "Preview feature (off by default)"
+            : Kicker;
+
+    private string ResolvedTitle =>
+        IsOptInDisabled && !string.IsNullOrWhiteSpace(OptInTitle)
+            ? OptInTitle
+            : Title;
+
+    private string ResolvedMessage =>
+        IsOptInDisabled
+            ? (!string.IsNullOrWhiteSpace(OptInMessage) ? OptInMessage : DefaultOptInMessage())
+            : Message;
+
+    private string? ResolvedActionHref =>
+        !string.IsNullOrWhiteSpace(ActionHref) ? ActionHref : IsOptInDisabled ? "/operate" : null;
+
+    private string? ResolvedActionLabel =>
+        !string.IsNullOrWhiteSpace(ActionLabel) ? ActionLabel : IsOptInDisabled ? "Back to Operate" : null;
+
+    private string DefaultOptInMessage()
+    {
+        var serverKey = Honua.Console.Shell.Services.ConsoleCapabilityKeys.ServerKey(Capability);
+        var keyHint = string.IsNullOrWhiteSpace(serverKey) ? Capability : serverKey;
+        return $"This preview feature is turned off by default on the connected server. Ask an administrator to opt in to \"{keyHint}\" in the server configuration, then refresh to use it here.";
+    }
 
     protected override void OnInitialized() => Capabilities.Changed += OnCapabilitiesChanged;
 
@@ -42,10 +73,16 @@ else
     public RenderFragment? ChildContent { get; set; }
 
     [Parameter]
-    public string Kicker { get; set; } = "Not in this release";
+    public string Kicker { get; set; } = DefaultKicker;
 
     [Parameter]
     public string Title { get; set; } = "Capability not available in this release";
+
+    [Parameter]
+    public string? OptInTitle { get; set; }
+
+    [Parameter]
+    public string? OptInMessage { get; set; }
 
     [Parameter]
     public string? ActionHref { get; set; }

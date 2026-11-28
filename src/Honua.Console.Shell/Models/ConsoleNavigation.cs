@@ -7,6 +7,7 @@ public sealed record ConsoleNavigationDestination(string Path, string Label)
 {
     public bool FullModeOnly { get; init; }
     public string? RequiredArea { get; init; }
+    public string? RequiredCapability { get; init; }
 }
 
 public sealed record ConsoleNavigationGroup(string Name, IReadOnlyList<ConsoleNavigationDestination> Destinations);
@@ -41,7 +42,8 @@ public static class ConsoleNavigation
         new("Operate", [new("/operate", "Dashboard"), new("/inbox", "Approvals"), Health,
             new("/operate/copilot", "Findings") { FullModeOnly = true }, new("/operate/geoprocessing", "Geoprocessing"),
             new("/operate/observability", "Observability"), new("/operate/metrics", "Metrics"),
-            new("/operate/deploy", "Deploy"), new("/operate/releases", "Releases")]),
+            new("/operate/deploy", "Deploy"),
+            new("/operate/releases", "Releases") { RequiredCapability = ConsoleCapabilityKeys.CrossEnvironmentPromotion }]),
         new("Access", [new("/operate/access/members", "Users") { FullModeOnly = true },
             new("/operate/access", "Roles") { FullModeOnly = true }]),
         new("Settings", [new("/operate/settings", "Server settings") { FullModeOnly = true },

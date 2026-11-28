@@ -1,0 +1,207 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject IServiceProvider Services
+@using Honua.Console.Shell.Models
+@using Honua.Console.Shell.Services
+@using Honua.Sdk.Admin.Models
+
+@if (MenuNode is { } node)
+{
+    <div class="console-tree-menu-panel" role="menu" aria-label="@($"Actions for {node.Label}")"
+         data-tree-context-menu="@node.Key" @onkeydown="OnMenuKeyDown">
+        <div class="console-tree-menu-head">
+            <span class="console-tree-menu-title">@node.Label</span>
+            <button type="button" class="console-tree-menu-close" data-tree-menu-close
+                    aria-label="Close actions menu" @onclick="OnClose">×</button>
+        </div>
+        @if (node.Kind == ConsolePublicationNodeKind.Environment)
+        {
+            <button type="button" role="menuitem" class="console-tree-menu-item"
+                    data-tree-action="new-folder" @onclick="OnOpenNewFolder">New folder…</button>
+            <a role="menuitem" class="console-tree-menu-item" data-tree-action="publish-service"
+               href="@Navigation.ToConsoleHref("/operate/publishing")" @onclick="OnClose">New service / Publish layer</a>
+            <a role="menuitem" class="console-tree-menu-item" data-tree-action="import-data"
+               href="@Navigation.ToConsoleHref("/operate/data/new")" @onclick="OnClose">Import data</a>
+            <a role="menuitem" class="console-tree-menu-item" data-tree-action="manage-folders"
+               href="@Navigation.ToConsoleHref("/operate/services#folders")" @onclick="OnClose">Manage folders</a>
+        }
+        else if (node.Kind == ConsolePublicationNodeKind.Folder)
+        {
+            <a role="menuitem" class="console-tree-menu-item" data-tree-action="publish-in-folder"
+               href="@FolderPublishHref(node)" @onclick="OnClose">Publish service into folder</a>
+            <a role="menuitem" class="console-tree-menu-item" data-tree-action="manage-folder"
+               href="@Navigation.ToConsoleHref("/operate/services#folders")" @onclick="OnClose">Manage folder</a>
+        }
+    </div>
+}
+
+@if (NewFolderOpen)
+{
+    <div class="console-tree-new-folder" role="dialog" aria-labelledby="console-tree-new-folder-heading"
+         data-tree-new-folder @onkeydown="OnDialogKeyDown">
+        <div class="console-tree-menu-head">
+            <strong id="console-tree-new-folder-heading" class="console-tree-menu-title">New folder</strong>
+            <button type="button" class="console-tree-menu-close" data-tree-new-folder-cancel
+                    aria-label="Cancel new folder" @onclick="CancelNewFolderAsync">×</button>
+        </div>
+        <form @onsubmit="CreateFolderAsync" @onsubmit:preventDefault>
+            <label class="console-field">
+                <span>Folder path name</span>
+                <input class="console-input" type="text" maxlength="128" required
+                       placeholder="e.g. utilities" @bind="_folderName" @bind:event="oninput"
+                       disabled="@_creating" data-tree-new-folder-name />
+            </label>
+            <label class="console-field">
+                <span>Display title (optional)</span>
+                <input class="console-input" type="text" maxlength="512"
+                       placeholder="e.g. Utilities" @bind="_folderTitle" @bind:event="oninput"
+                       disabled="@_creating" data-tree-new-folder-title />
+            </label>
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <p class="console-tree-new-folder-error" role="alert" data-tree-new-folder-error>@_error</p>
+            }
+            <div class="console-tree-new-folder-actions">
+                <button type="submit" class="console-button" disabled="@(_creating || string.IsNullOrWhiteSpace(_folderName))"
+                        data-tree-new-folder-submit>@(_creating ? "Creating…" : "Create folder")</button>
+                <button type="button" class="console-button console-button-secondary" disabled="@_creating"
+                        @onclick="CancelNewFolderAsync">Cancel</button>
+            </div>
+            <p class="console-tree-new-folder-link">
+                <a href="@Navigation.ToConsoleHref("/operate/services#folders")" @onclick="CancelNewFolderAsync">Manage all folders</a>
+            </p>
+        </form>
+    </div>
+}
+
+@code {
+    [Parameter] public ConsolePublicationNode? MenuNode { get; set; }
+    [Parameter] public bool NewFolderOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnOpenNewFolder { get; set; }
+    [Parameter] public EventCallback OnCloseNewFolder { get; set; }
+    [Parameter] public EventCallback OnFolderCreated { get; set; }
+
+    private string _folderName = string.Empty;
+    private string _folderTitle = string.Empty;
+    private string? _error;
+    private bool _creating;
+    private bool _disposed;
+    private CancellationTokenSource? _submitCts;
+
+    private string FolderPublishHref(ConsolePublicationNode node)
+    {
+        var folderId = ConsolePublicationTreeContext.FolderId(node);
+        return string.IsNullOrWhiteSpace(folderId)
+            ? Navigation.ToConsoleHref("/operate/publishing")
+            : Navigation.ToConsoleHref("/operate/publishing?folder=" + Uri.EscapeDataString(folderId));
+    }
+
+    private Task OnMenuKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    private Task OnDialogKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Escape" ? CancelNewFolderAsync() : Task.CompletedTask;
+
+    private Task CancelNewFolderAsync()
+    {
+        CancelPendingSubmit();
+        ResetForm();
+        return OnCloseNewFolder.InvokeAsync();
+    }
+
+    private async Task CreateFolderAsync()
+    {
+        var name = _folderName.Trim();
+        if (_creating || _disposed || string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        CancelPendingSubmit();
+        var cts = new CancellationTokenSource();
+        _submitCts = cts;
+        _creating = true;
+        _error = null;
+        try
+        {
+            if (!await TrySubmitFolderAsync(name, cts.Token) || cts.IsCancellationRequested || _disposed)
+            {
+                return;
+            }
+
+            ResetForm();
+            Services.GetService<ConsoleFolderChanges>()?.Notify();
+            await OnFolderCreated.InvokeAsync();
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested || _disposed)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_submitCts, cts))
+            {
+                _submitCts = null;
+            }
+
+            cts.Dispose();
+            _creating = false;
+        }
+    }
+
+    private async Task<bool> TrySubmitFolderAsync(string name, CancellationToken cancellationToken)
+    {
+        var client = Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
+        var read = await ConsoleReadBudget.RunAsync(client.ReadAsync, ConsoleReadBudget.Default,
+            "Folders could not be read. Open Manage folders to retry.", cancellationToken);
+        if (cancellationToken.IsCancellationRequested || _disposed)
+        {
+            return false;
+        }
+
+        if (!read.IsAllowed || read.Value is not { } catalog || string.IsNullOrWhiteSpace(catalog.ETag))
+        {
+            _error = string.IsNullOrWhiteSpace(read.Message) ? "Folder catalog could not be loaded." : read.Message;
+            return false;
+        }
+
+        var title = string.IsNullOrWhiteSpace(_folderTitle) ? null : _folderTitle.Trim();
+        var created = await client.CreateAsync(catalog, new CreateFolderRequest { Name = name, Title = title }, cancellationToken);
+        if (cancellationToken.IsCancellationRequested || _disposed)
+        {
+            return false;
+        }
+
+        if (!created.Succeeded)
+        {
+            _error = string.IsNullOrWhiteSpace(created.Detail) ? created.State : created.Detail;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void CancelPendingSubmit()
+    {
+        if (_submitCts is not { } cts)
+        {
+            return;
+        }
+
+        _submitCts = null;
+        cts.Cancel();
+    }
+
+    private void ResetForm()
+    {
+        _folderName = string.Empty;
+        _folderTitle = string.Empty;
+        _error = null;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        CancelPendingSubmit();
+    }
+}

@@ -173,6 +173,12 @@
     }
     function handleEscape(event) {
         if (event.key !== 'Escape' || !event.target.closest(sidebarSelector)) return false;
+        const menuClose = sidebar?.querySelector('[data-tree-context-menu] [data-tree-menu-close], [data-tree-new-folder] [data-tree-new-folder-cancel]');
+        if (menuClose) {
+            event.preventDefault();
+            menuClose.click();
+            return true;
+        }
         event.preventDefault();
         const filter = sidebar.querySelector('[data-tree-filter]');
         if (filter?.value && (event.target === filter || event.target.closest('[data-publication-search]'))) {
@@ -219,19 +225,27 @@
         const owner = button.closest('[data-tree-owner]')?.dataset.treeOwner;
         focusRow(rows().find(row => key(row) === owner));
     }
-    document.addEventListener('click', event => {
-        if (event.target.closest('[data-tree-toggle]')) { if (isOpen()) closeOverlay(); else openOverlay(); return; }
-        if (event.target.closest('[data-tree-close], [data-tree-backdrop]')) { closeOverlay(); return; }
-        const more = event.target.closest('[data-tree-more]');
+    function handleOverlayClick(target) {
+        if (target.closest('[data-tree-toggle]')) { if (isOpen()) closeOverlay(); else openOverlay(); return true; }
+        if (target.closest('[data-tree-close], [data-tree-backdrop]')) { closeOverlay(); return true; }
+        return false;
+    }
+    function handleTreeClick(target) {
+        const more = target.closest('[data-tree-more]');
         if (more) pendingPage = {parentKey: more.dataset.treeMore, keys: new Set(rows().map(key))};
-        const retry = event.target.closest('[data-tree-retry]');
+        const retry = target.closest('[data-tree-retry]');
         if (retry) focusRetryOwner(retry);
-        const row = event.target.closest(rowSelector);
+        if (target.closest('[data-tree-action-trigger]')) return;
+        const row = target.closest(rowSelector);
         if (row?.closest(treeSelector)) {
             focusedKey = key(row);
             focusRow(row);
         }
-        if (event.target.closest('a[href]') && isOpen()) closeOverlay();
+        if (target.closest('a[href]') && isOpen()) closeOverlay();
+    }
+    document.addEventListener('click', event => {
+        if (handleOverlayClick(event.target)) return;
+        handleTreeClick(event.target);
     });
     document.addEventListener('pointerdown', () => { focusedElement = undefined; clearPendingFocus(); }, true);
     document.addEventListener('focusin', event => {

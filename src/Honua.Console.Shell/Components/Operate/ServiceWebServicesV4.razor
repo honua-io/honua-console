@@ -1,6 +1,6 @@
 <section class="console-service-web-services" aria-labelledby="service-web-services-heading" data-service-web-services>
     <h2 id="service-web-services-heading">Web services for this service</h2>
-    <p>Enabled on <code>@Service.Name</code>. Changing a protocol here affects all @ConsolePublicationTreeContext.FormatCount(Service.LayerCount, "layer"). <button type="button" class="console-link-button" @onclick="ChangeProtocols">Change protocols</button></p>
+    <p>Enabled on <code>@Service.Name</code>. @(Service.IsLayerService ? $"Changing a protocol here affects all {ConsolePublicationTreeContext.FormatCount(Service.LayerCount, "layer")}." : $"Protocol endpoints exposed by this {ConsoleServiceKind.SummaryLabel(Service.ServiceCategory).ToLowerInvariant()}.") <button type="button" class="console-link-button" @onclick="ChangeProtocols">Change protocols</button></p>
     @if (Service.Endpoints.Count == 0)
     {
         <p>No protocol endpoints were reported for this service.</p>

@@ -8,7 +8,9 @@
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.RealtimeAlerting"
                        Title="Realtime / geofence alerting is not available in this release"
-                       Message="Alert-rule authoring is not advertised by the connected environment.">
+                       Message="Alert-rule authoring is not advertised by the connected environment."
+                       OptInTitle="Create alert rule — preview feature (off by default)"
+                       OptInMessage="Alert-rule authoring is an opt-in preview feature currently turned off on this server. Ask an administrator to enable alerts.geofence in the server configuration, then refresh this page.">
 <section class="console-page operate-alert-rule @(V4Enabled ? "console-alert-rules-v4" : null)" data-alert-rule-create-page>
     @if (V4Enabled)
     {

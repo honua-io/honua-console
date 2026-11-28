@@ -81,9 +81,19 @@
                 }
                 @if (_browserAuth?.SupportsPasswordSignIn == true)
                 {
+                    <div class="console-signin-breakglass" data-signin-breakglass>
+                        <p class="console-kicker">Administrator break-glass sign-in</p>
+                        <p class="console-muted">Use the built-in administrator account for initial setup or when identity providers are unavailable.</p>
+                    </div>
+                    <label class="console-field">
+                        <span>Username</span>
+                        <input class="console-input" type="text" name="username" autocomplete="username" readonly
+                               @bind="_username" disabled="@_signingIn" data-signin-username />
+                        <small class="console-muted">Built-in administrator account.</small>
+                    </label>
                     <label class="console-field">
                         <span>Password</span>
-                        <input class="console-input" type="password" autocomplete="current-password" required
+                        <input class="console-input" type="password" name="password" autocomplete="current-password" required
                                @bind="_password" disabled="@_signingIn" />
                     </label>
                 }
@@ -114,6 +124,7 @@
     private string? _serverAuthMessage;
     private IConsoleBrowserAuthentication? _browserAuth;
     private bool PasswordSignIn => _browserAuth?.SupportsPasswordSignIn == true;
+    private string _username = "admin";
     private string _password = string.Empty;
     private bool _signingIn;
     private IConsoleOidcAuthentication? _oidc;

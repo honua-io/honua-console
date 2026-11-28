@@ -17,6 +17,7 @@ public sealed class ConsolePublicationNode
     public string? ServiceName { get; init; }
     public string? PublicName { get; init; }
     public string? GeometryType { get; init; }
+    public ConsoleServiceCategory ServiceCategory { get; init; } = ConsoleServiceCategory.Data;
     public int ReportedCount { get; init; }
     public List<ConsolePublicationNode> Children { get; set; } = [];
     public bool Expanded { get; set; }
@@ -30,12 +31,12 @@ public sealed class ConsolePublicationNode
     public int? ChildCount => Kind switch
     {
         ConsolePublicationNodeKind.Folder when ChildrenComplete && Children.Count > 0 => Children.Count,
-        ConsolePublicationNodeKind.Service => ReportedCount,
+        ConsolePublicationNodeKind.Service when ServiceCategory == ConsoleServiceCategory.Data => ReportedCount,
         _ => null
     };
-    public bool IsLoadedEmptyService => Kind == ConsolePublicationNodeKind.Service && ChildrenLoaded && Children.Count == 0 && ReadStatus is null;
+    public bool IsLoadedEmptyService => Kind == ConsolePublicationNodeKind.Service && ServiceCategory == ConsoleServiceCategory.Data && ChildrenLoaded && Children.Count == 0 && ReadStatus is null;
     public bool HasReadStatus => Loading || ReadStatus is not null || ReadMessage is not null || IsLoadedEmptyService;
-    public bool HasChildren => Children.Count > 0 || (Kind == ConsolePublicationNodeKind.Service && ReportedCount > 0);
+    public bool HasChildren => Children.Count > 0 || (Kind == ConsolePublicationNodeKind.Service && ServiceCategory == ConsoleServiceCategory.Data && ReportedCount > 0);
 }
 
 public sealed class ConsolePublicationTree
@@ -301,6 +302,7 @@ public sealed class ConsolePublicationTree
         Key = "service:" + Uri.EscapeDataString(service.ServiceName!),
         Label = DisplayName(service),
         Kind = ConsolePublicationNodeKind.Service,
+        ServiceCategory = ConsoleServiceKind.Classify(service.EnabledProtocols),
         ServiceName = service.ServiceName,
         PublicName = service.PublicName,
         ReportedCount = service.LayerCount,

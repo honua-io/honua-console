@@ -102,7 +102,7 @@ public sealed class NoopStudioIntentResolver : IStudioIntentResolver
         // path. The classifier is consulted only to annotate the lane, never to hide the phase.
         _ = _classifier.Classify(request.Prompt);
         var capabilityId = StudioCapabilityIds.ForPhase(request.Phase);
-        var descriptor = new CapabilityDescriptor(capabilityId, Available: true, Supported: true);
+        var descriptor = new CapabilityDescriptor { Id = capabilityId, Available = true, Supported = true };
         return Task.FromResult(
             StudioIntentResolution.Resolved(descriptor, request.PackageFamilyId, request.Phase));
     }

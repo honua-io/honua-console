@@ -26,9 +26,19 @@
                 <div class="console-navigation-items" role="group" aria-label="@group.Name">
                     @foreach (var entry in group.Destinations)
                     {
-                        <NavLink href="@Navigation.ToConsoleHref(entry.Path)" Match="NavLinkMatch.All">
+                        var optInOff = IsOptInDisabled(entry);
+                        <NavLink href="@Navigation.ToConsoleHref(entry.Path)" Match="NavLinkMatch.All"
+                                 class="@(optInOff ? "console-nav-optin-off" : null)"
+                                 data-capability-state="@(optInOff ? "opt-in-off" : null)">
                             @entry.Label
-                            @if (entry.Path is not ("/studio" or "/studio/processes") && !ConsolePresentation.IsFocusedRoute(entry.Path)) { <small>Preview</small> }
+                            @if (optInOff)
+                            {
+                                <small class="console-nav-badge-off">Preview · Off</small>
+                            }
+                            else if (entry.Path is not ("/studio" or "/studio/processes") && !ConsolePresentation.IsFocusedRoute(entry.Path))
+                            {
+                                <small>Preview</small>
+                            }
                         </NavLink>
                     }
                 </div>
@@ -81,17 +91,26 @@
 @code {
     private bool V4Enabled => Services.GetService<ConsoleV4Options>()?.Enabled == true;
     private bool ConversationEnabled => Services.GetService<ConsoleConversationOptions>()?.Enabled ?? true;
+    private IConsoleCapabilityManifest? Capabilities => Services.GetService<IConsoleCapabilityManifest>();
     private string? _environmentName;
     private IConsoleEnvironmentProfileStore? _profiles;
+    private IConsoleCapabilityManifest? _capabilities;
+
+    private bool IsOptInDisabled(ConsoleNavigationDestination entry) =>
+        entry.RequiredCapability is { } key && (_capabilities ?? Capabilities)?.IsOptInDisabled(key) == true;
 
     protected override Task OnInitializedAsync()
     {
+        _capabilities = Capabilities;
+        if (_capabilities is not null) _capabilities.Changed += CapabilitiesChanged;
         if (!V4Enabled) return Task.CompletedTask;
         _profiles = Services.GetService<IConsoleEnvironmentProfileStore>();
         if (_profiles is null) return Task.CompletedTask;
         _profiles.ActiveProfileChanged += ActiveProfileChanged;
         return ReadEnvironmentNameAsync();
     }
+
+    private void CapabilitiesChanged() => _ = InvokeAsync(StateHasChanged);
 
     private void ActiveProfileChanged() => _ = InvokeAsync(async () =>
     {
@@ -114,6 +133,7 @@
 
     public void Dispose()
     {
+        if (_capabilities is not null) _capabilities.Changed -= CapabilitiesChanged;
         if (_profiles is not null) _profiles.ActiveProfileChanged -= ActiveProfileChanged;
     }
 
