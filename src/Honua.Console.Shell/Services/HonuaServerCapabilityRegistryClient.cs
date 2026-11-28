@@ -48,19 +48,7 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
             return new CapabilityRegistrySnapshot { Bound = false, State = "Unavailable", Detail = "The server capability manifest is invalid or uses an unsupported schema." };
         }
 
-        var descriptors = new List<CapabilityDescriptor>(manifest.Capabilities.Count);
-        foreach (var entry in manifest.Capabilities)
-        {
-            descriptors.Add(new CapabilityDescriptor
-            {
-                Id = entry.Id,
-                Available = entry.Available,
-                Supported = entry.Supported,
-                ReasonCode = entry.ReasonCode,
-                OptInRequired = entry.OptInRequired,
-                Lifecycle = entry.Lifecycle
-            });
-        }
+        var descriptors = manifest.Capabilities.Select(ToDescriptor).ToList();
 
         var families = new List<string>();
         foreach (var family in manifest.Packages?.Families ?? [])
@@ -80,4 +68,14 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
             Detail = null,
         };
     }
+
+    private static CapabilityDescriptor ToDescriptor(CapabilityEntry entry) => new()
+    {
+        Id = entry.Id,
+        Available = entry.Available,
+        Supported = entry.Supported,
+        ReasonCode = entry.ReasonCode,
+        OptInRequired = entry.OptInRequired,
+        Lifecycle = entry.Lifecycle
+    };
 }
