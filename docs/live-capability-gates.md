@@ -25,6 +25,12 @@ including Preview opt-ins.
 `persistent-catalog` gates Catalog, Share, open-data and the catalog map viewer: until the server keeps
 that content across restarts, those routes point to Data & Layers and stay out of the navigation.
 
+Opt-in Preview features — such as Geofence Alerts (`alerts.geofence`) — are off
+by default in 2026.1-rc.2. When disabled on the server, Console displays a clear
+Preview / opt-in status rather than treating the surface as missing or broken.
+Geoprocessing services (`GPServer` and OGC API - Processes) are non-layer
+services that expose executable processes/tasks rather than feature layers.
+
 The deployed static Console always uses the full set above; the server decides
 what is available. For tests, `HonuaConsoleShellOptions.AdvertisedCapabilities`
 (read by `tests/Honua.Console.LegacyHost` from `Honua:Console:Capabilities` /
