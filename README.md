@@ -59,10 +59,13 @@ Console Docker container. Two production deployment models are supported:
    sharing the same origin for session cookies, CSRF protection, and
    server-brokered OIDC sign-in (with `AdminCredentialAccess=BreakGlass`
    supporting local `admin` break-glass password sign-in when needed).
-2. **Multi-Environment Hub (optional):** Teams managing multiple Honua Server
-   instances from one central Console disable the per-instance Console on spoke
-   stacks via `ConsoleBundleVersion=off` (installing the API only) and connect
-   those environments from the central Console.
+2. **API-only spoke / Multi-Environment Hub (optional):** Teams deploying
+   API-only stacks or planning a central Multi-Environment Console Hub can
+   disable the per-instance Console cleanly on spoke stacks via
+   `ConsoleBundleVersion=off`. Note that the current shipping static SPA binds
+   requests and credentials to one `apiBaseUrl` in `config.json`, so managing
+   multiple remote environments from a single static SPA instance awaits
+   multi-environment browser binding support.
 
 ## Quick start
 

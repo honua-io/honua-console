@@ -63,6 +63,13 @@ emergency sign-in with the local `admin` break-glass password on the Console
 sign-in page (as well as `X-API-Key` API access); rotate the secret and return
 to `AdminCredentialAccess=Sealed` after recovery.
 
+Console displays the password sign-in form only when `config.json` keeps
+`auth.mode` set to `"builtin"` (the AWS Launch Stack default, which also lists
+and brokers server-advertised OIDC providers). If a custom deployment sets
+`auth.mode` to `"oidc"`, switch `config.json` back to `"builtin"` and reload
+the page to use Console break-glass password sign-in, or send the break-glass
+credential directly to the API as `X-API-Key`.
+
 ## Separate-origin password sign-in
 
 Set `auth.mode` to `builtin` and `apiBaseUrl` to the HTTPS API origin. The browser

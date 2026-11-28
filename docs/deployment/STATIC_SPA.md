@@ -64,11 +64,16 @@ models are supported:
    Control and serves it at `/console/` on the same domain as the Honua Server
    API. Same-origin hosting keeps API session cookies, CSRF protection, and
    server-brokered OIDC sign-in on one origin without CORS.
-2. **Multi-Environment Hub (Model 2 — optional):** Organizations managing
-   multiple Honua Server instances from one central Console set
-   `ConsoleBundleVersion=off` on spoke stacks to install the API without a
-   per-instance Console bucket or `/console/*` routes, and configure
-   `AllowedBrowserOrigins` where cross-origin browser access is required.
+2. **API-only spoke / Multi-Environment Hub (Model 2 — optional):** Organizations
+   deploying API-only stacks or preparing to manage multiple Honua Server
+   instances from a separate central Console can disable the per-instance
+   Console cleanly on spoke stacks via `ConsoleBundleVersion=off` (omitting the
+   Console bucket and `/console/*` routes). Note that in the current shipping
+   static SPA build, browser authentication and transport are bound to the
+   single `apiBaseUrl` configured in `config.json` (`BrowserApiHandler` and
+   `BrowserOperatorBearerProvider` reject requests to other origins), so
+   switching across multiple remote environments from one static SPA instance
+   requires multi-environment browser binding support in a future release.
 
 For custom static hosting outside Launch Stack, use a private S3 origin with
 CloudFront Origin Access Control. Upload the extracted files under `console/`;
