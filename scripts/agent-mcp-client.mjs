@@ -26,9 +26,12 @@ export class AgentMcpClient {
     await this.#rpc('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'console-customer-journey', version: '1' } });
     if (!this.#session) throw new Error('MCP did not establish a session');
   }
-  async call(name, arguments_) {
+  async callTool(name, arguments_) {
     if (!this.#session) throw new Error('MCP session is not initialized');
-    const result = await this.#rpc('tools/call', { name, arguments: arguments_ });
+    return this.#rpc('tools/call', { name, arguments: arguments_ });
+  }
+  async call(name, arguments_) {
+    const result = await this.callTool(name, arguments_);
     if (result.isError || !result.structuredContent) throw new Error(`MCP tool ${name} failed or returned no structured output`);
     return result.structuredContent;
   }
