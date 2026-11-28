@@ -89,13 +89,7 @@ public static class ConsoleServiceKind
         _ => "Data service"
     };
 
-    public static string InventoryLabel(ConsoleServiceCategory category) => category switch
-    {
-        ConsoleServiceCategory.Geoprocessing => "Processes / Tasks",
-        ConsoleServiceCategory.Geocoding => "Locators",
-        ConsoleServiceCategory.Geometry => "Operations",
-        _ => "Layers"
-    };
+    public static string InventoryLabel(ConsoleServiceCategory category) => TabLabel(category);
 
     public static string TreeIconName(ConsoleServiceCategory category) => category switch
     {

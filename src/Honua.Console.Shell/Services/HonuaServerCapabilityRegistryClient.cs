@@ -51,13 +51,15 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
         var descriptors = new List<CapabilityDescriptor>(manifest.Capabilities.Count);
         foreach (var entry in manifest.Capabilities)
         {
-            descriptors.Add(new CapabilityDescriptor(
-                Id: entry.Id,
-                Available: entry.Available,
-                Supported: entry.Supported,
-                ReasonCode: entry.ReasonCode,
-                OptInRequired: entry.OptInRequired,
-                Lifecycle: entry.Lifecycle));
+            descriptors.Add(new CapabilityDescriptor
+            {
+                Id = entry.Id,
+                Available = entry.Available,
+                Supported = entry.Supported,
+                ReasonCode = entry.ReasonCode,
+                OptInRequired = entry.OptInRequired,
+                Lifecycle = entry.Lifecycle
+            });
         }
 
         var families = new List<string>();

@@ -1,3 +1,4 @@
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject IServiceProvider Services
 @using Honua.Console.Shell.Models
@@ -85,6 +86,8 @@
     private string _folderTitle = string.Empty;
     private string? _error;
     private bool _creating;
+    private bool _disposed;
+    private CancellationTokenSource? _submitCts;
 
     private string FolderPublishHref(ConsolePublicationNode node)
     {
@@ -102,6 +105,7 @@
 
     private Task CancelNewFolderAsync()
     {
+        CancelPendingSubmit();
         ResetForm();
         return OnCloseNewFolder.InvokeAsync();
     }
@@ -109,16 +113,19 @@
     private async Task CreateFolderAsync()
     {
         var name = _folderName.Trim();
-        if (_creating || string.IsNullOrWhiteSpace(name))
+        if (_creating || _disposed || string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
+        CancelPendingSubmit();
+        var cts = new CancellationTokenSource();
+        _submitCts = cts;
         _creating = true;
         _error = null;
         try
         {
-            if (!await TrySubmitFolderAsync(name))
+            if (!await TrySubmitFolderAsync(name, cts.Token) || cts.IsCancellationRequested || _disposed)
             {
                 return;
             }
@@ -127,17 +134,31 @@
             Services.GetService<ConsoleFolderChanges>()?.Notify();
             await OnFolderCreated.InvokeAsync();
         }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested || _disposed)
+        {
+        }
         finally
         {
+            if (ReferenceEquals(_submitCts, cts))
+            {
+                _submitCts = null;
+            }
+
+            cts.Dispose();
             _creating = false;
         }
     }
 
-    private async Task<bool> TrySubmitFolderAsync(string name)
+    private async Task<bool> TrySubmitFolderAsync(string name, CancellationToken cancellationToken)
     {
         var client = Services.GetService<IConsoleFolderClient>() ?? new UnsupportedConsoleFolderClient();
         var read = await ConsoleReadBudget.RunAsync(client.ReadAsync, ConsoleReadBudget.Default,
-            "Folders could not be read. Open Manage folders to retry.");
+            "Folders could not be read. Open Manage folders to retry.", cancellationToken);
+        if (cancellationToken.IsCancellationRequested || _disposed)
+        {
+            return false;
+        }
+
         if (!read.IsAllowed || read.Value is not { } catalog || string.IsNullOrWhiteSpace(catalog.ETag))
         {
             _error = string.IsNullOrWhiteSpace(read.Message) ? "Folder catalog could not be loaded." : read.Message;
@@ -145,7 +166,12 @@
         }
 
         var title = string.IsNullOrWhiteSpace(_folderTitle) ? null : _folderTitle.Trim();
-        var created = await client.CreateAsync(catalog, new CreateFolderRequest { Name = name, Title = title });
+        var created = await client.CreateAsync(catalog, new CreateFolderRequest { Name = name, Title = title }, cancellationToken);
+        if (cancellationToken.IsCancellationRequested || _disposed)
+        {
+            return false;
+        }
+
         if (!created.Succeeded)
         {
             _error = string.IsNullOrWhiteSpace(created.Detail) ? created.State : created.Detail;
@@ -155,10 +181,27 @@
         return true;
     }
 
+    private void CancelPendingSubmit()
+    {
+        if (_submitCts is not { } cts)
+        {
+            return;
+        }
+
+        _submitCts = null;
+        cts.Cancel();
+    }
+
     private void ResetForm()
     {
         _folderName = string.Empty;
         _folderTitle = string.Empty;
         _error = null;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        CancelPendingSubmit();
     }
 }

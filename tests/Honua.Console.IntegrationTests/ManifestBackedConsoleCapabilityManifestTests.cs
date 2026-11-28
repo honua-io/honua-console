@@ -21,7 +21,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         var subject = Create(consoleKey, new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor(serverId, Available: true, Supported: true, ReasonCode: null)],
+            Descriptors = [new CapabilityDescriptor { Id = serverId, Available = true, Supported = true }],
         });
 
         await subject.RefreshAsync();
@@ -36,7 +36,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         var subject = Create(consoleKey, new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor(serverId, Available: false, Supported: true, ReasonCode: "disabled-by-configuration")],
+            Descriptors = [new CapabilityDescriptor { Id = serverId, Available = false, Supported = true, ReasonCode = "disabled-by-configuration" }],
         });
 
         await subject.RefreshAsync();
@@ -51,7 +51,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         var subject = Create(consoleKey, new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor($"{serverId}.unmapped", true, true, null)],
+            Descriptors = [new CapabilityDescriptor { Id = $"{serverId}.unmapped", Available = true, Supported = true }],
         });
 
         await subject.RefreshAsync();
@@ -65,7 +65,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         var unavailable = Create(ConsoleCapabilityKeys.Temporal, new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor("temporal.filtering", false, true, "disabled-by-configuration")],
+            Descriptors = [new CapabilityDescriptor { Id = "temporal.filtering", Available = false, Supported = true, ReasonCode = "disabled-by-configuration" }],
         });
         await unavailable.RefreshAsync();
         Assert.False(unavailable.IsAdvertised(ConsoleCapabilityKeys.Temporal));
@@ -73,7 +73,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         var narrowed = Create(ConsoleCapabilityKeys.DisconnectedSync, new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor("temporal.filtering", true, true, null)],
+            Descriptors = [new CapabilityDescriptor { Id = "temporal.filtering", Available = true, Supported = true }],
         });
         await narrowed.RefreshAsync();
         Assert.False(narrowed.IsAdvertised(ConsoleCapabilityKeys.Temporal));
@@ -85,7 +85,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         var registry = new StubRegistry(new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor("temporal.filtering", true, true, null)],
+            Descriptors = [new CapabilityDescriptor { Id = "temporal.filtering", Available = true, Supported = true }],
         });
         var subject = new ManifestBackedConsoleCapabilityManifest(registry);
         await subject.RefreshAsync();
@@ -110,7 +110,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
         old.SetResult(new CapabilityRegistrySnapshot
         {
             Bound = true,
-            Descriptors = [new CapabilityDescriptor("temporal.filtering", true, true, null)],
+            Descriptors = [new CapabilityDescriptor { Id = "temporal.filtering", Available = true, Supported = true }],
         });
         await first;
         Assert.False(subject.IsAdvertised(ConsoleCapabilityKeys.Temporal));
@@ -123,7 +123,7 @@ public sealed class ManifestBackedConsoleCapabilityManifestTests
             Task.FromResult(new CapabilityRegistrySnapshot
             {
                 Bound = true,
-                Descriptors = [new CapabilityDescriptor("temporal.filtering", true, true, null)],
+                Descriptors = [new CapabilityDescriptor { Id = "temporal.filtering", Available = true, Supported = true }],
             }),
             new TaskCompletionSource<CapabilityRegistrySnapshot>().Task,
         ]));

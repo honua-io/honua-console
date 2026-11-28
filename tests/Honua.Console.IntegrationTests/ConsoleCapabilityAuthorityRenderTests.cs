@@ -142,7 +142,7 @@ public sealed class ConsoleCapabilityAuthorityRenderTests
             return Task.FromResult(new CapabilityRegistrySnapshot
             {
                 Bound = authentication.Authenticated,
-                Descriptors = [new CapabilityDescriptor("console.content.persistent", Available, true)]
+                Descriptors = [new CapabilityDescriptor { Id = "console.content.persistent", Available = Available, Supported = true }]
             });
         }
     }
