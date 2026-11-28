@@ -55,10 +55,12 @@ jobs:
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name console-static-release --dir scheduled-bundle
           receipt="$(ls scheduled-bundle/honua-console-*.zip.json | head -n 1)"
           bundle_sha="$(jq -r .sha256 "$receipt")"
-          manifest_json="$(gh api repos/honua-io/honua-release/contents/platform-manifest.yaml -H 'Accept: application/vnd.github.raw')"
-          python3 - "$manifest_json" "$run_id" "$bundle_sha" <<'PY' >> "$GITHUB_ENV"
+          manifest_path="scheduled-bundle/platform-manifest.yaml"
+          gh api repos/honua-io/honua-release/contents/platform-manifest.yaml -H 'Accept: application/vnd.github.raw' > "$manifest_path"
+          python3 - "$manifest_path" "$run_id" "$bundle_sha" <<'PY' >> "$GITHUB_ENV"
+          from pathlib import Path
           import re, sys
-          manifest, run_id, bundle_sha = sys.argv[1], sys.argv[2], sys.argv[3]
+          manifest, run_id, bundle_sha = Path(sys.argv[1]).read_text(encoding="utf-8"), sys.argv[2], sys.argv[3]
           server_block = manifest.split('  honua-server:', 1)[1].split('\n  honua-console:', 1)[0]
           sha_m = re.search(r'^\s+sha:\s*"([a-f0-9]{40})"', server_block, re.M)
           digest_m = re.search(r'^\s+digest:\s*"(sha256:[a-f0-9]{64})"', server_block, re.M)
