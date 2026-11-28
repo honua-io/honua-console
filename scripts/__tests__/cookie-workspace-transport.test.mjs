@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createConsoleBrowserTransport} from '../../src/Honua.Console.Web/wwwroot/js/console-browser-transport.mjs';
-import {capturedProcessFetch, nativeProcessRoute, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
+import {capturedProcessFetch, nativeProcessRoute, createStudioCookieSession, sameCookieAuthority, scheduleCookieSessionRenewal, canonicalizeStudioMapDraftRequest} from '../../src/Honua.Console.Web/wwwroot/js/cookie-workspace-transport.mjs';
 
 function leaseClock(t) {
  let now=Date.parse('2026-10-24T00:00:00Z'),next=0;
@@ -264,4 +264,39 @@ test('a tenant switch under the same principal is a different authority',()=>{
  assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,tenantId:'b'}),false);
  assert.equal(sameCookieAuthority(base,{...base,tenantId:'a'}),false);
  assert.equal(sameCookieAuthority({...base,tenantId:'a'},{...base,environmentId:'other',tenantId:'a'}),false);
+});
+
+test('native Studio canonicalizes legacy honua_map_package.v1 draft writes to honua_map.v1 and mapId',async()=>{
+ const sent=[];
+ const transport={assertCurrent:async()=>{},fetch:async(route,init)=>{sent.push({route,init});return new Response('{}');}};
+ const adapter=createStudioCookieSession({...lease(new Date(Date.now()+60000).toISOString()),transport});
+ const legacyBody={packageKey:'customer-map',envelope:{family:'map',schemaVersion:'1.0',format:'honua_map_package.v1',
+  body:{mapPackageId:'customer-map',format:'honua_map_package.v1',layers:[{id:'layer-1'}]}}};
+ await adapter.fetchRequest('api/v1/studio/package-drafts',{method:'POST',body:JSON.stringify(legacyBody)});
+ const draftId='12345678-1234-1234-1234-123456789abc';
+ const mixedUpdate={packageKey:'customer-map',generation:2,envelope:{family:'map',schemaVersion:'1.0',format:'honua_map.v1',
+  body:{mapPackageId:'customer-map',mapId:'customer-map',format:'honua_map.v1',layers:[{id:'layer-1'}]}}};
+ await adapter.fetchRequest(`api/v1/studio/package-drafts/${draftId}`,{method:'PUT',body:JSON.stringify(mixedUpdate)});
+ assert.equal(sent.length,2);
+ const created=JSON.parse(sent[0].init.body);
+ assert.equal(created.envelope.format,'honua_map.v1');
+ assert.equal(created.envelope.body.format,'honua_map.v1');
+ assert.equal(created.envelope.body.mapId,'customer-map');
+ assert.equal(Object.hasOwn(created.envelope.body,'mapPackageId'),false);
+ assert.deepEqual(created.envelope.body.layers,[{id:'layer-1'}]);
+ const updated=JSON.parse(sent[1].init.body);
+ assert.equal(updated.envelope.body.mapId,'customer-map');
+ assert.equal(Object.hasOwn(updated.envelope.body,'mapPackageId'),false);
+});
+
+test('canonicalizeStudioMapDraftRequest preserves conflicting IDs, non-map drafts and malformed JSON',()=>{
+ const conflictInit={method:'POST',body:JSON.stringify({envelope:{family:'map',format:'honua_map_package.v1',
+  body:{mapPackageId:'old',mapId:'different',format:'honua_map_package.v1'}}})};
+ assert.strictEqual(canonicalizeStudioMapDraftRequest('api/v1/studio/package-drafts',conflictInit),conflictInit);
+ const otherFamily={method:'POST',body:JSON.stringify({envelope:{family:'report',format:'honua_map_package.v1',body:{mapPackageId:'r1'}}})};
+ assert.strictEqual(canonicalizeStudioMapDraftRequest('api/v1/studio/package-drafts',otherFamily),otherFamily);
+ const invalidJson={method:'POST',body:'{not-json'};
+ assert.strictEqual(canonicalizeStudioMapDraftRequest('api/v1/studio/package-drafts',invalidJson),invalidJson);
+ const versionSave={method:'POST',body:conflictInit.body};
+ assert.strictEqual(canonicalizeStudioMapDraftRequest('api/v1/studio/package-drafts/12345678-1234-1234-1234-123456789abc/content-versions',versionSave),versionSave);
 });

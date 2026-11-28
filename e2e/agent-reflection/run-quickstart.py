@@ -114,6 +114,17 @@ def install_idp_certs(source, target):
         label='sudo install kc.key')
 
 
+def build_server_tls_environment(auth_env, tls_env):
+    """Wire the quickstart servers to the private local Keycloak and HTTPS listener."""
+    environment = dict(auth_env)
+    environment['PUBLIC_BASE_URL'] = 'http://127.0.0.1:15274'
+    environment['Oidc__Generic__Authority'] = environment['Oidc__Generic__Authority'].replace(':8443', ':18443')
+    # Private-network OIDC discovery and backchannel calls are permitted only in Development/Test.
+    environment['ASPNETCORE_ENVIRONMENT'] = 'Development'
+    environment.update(tls_env)
+    return environment
+
+
 def console_services(server_tls):
     """Server, management server and Console wiring. Both servers take the Console's CSRF and OIDC token
     exchange only over HTTPS, so each listens on :8445 with the test certificate (SANs honua, compose-manager)."""
@@ -159,12 +170,10 @@ def setup():
     keycloak['environment']['KC_HOSTNAME'] = keycloak['environment']['KC_HOSTNAME'].replace(':8443', ':18443')
     keycloak['volumes'] = ['./auth/certs:/opt/keycloak/certs:ro', './auth/realm:/opt/keycloak/data/import:ro']
     server_auth = source['honua-server']['environment']
-    server_auth['PUBLIC_BASE_URL'] = 'http://127.0.0.1:15274'
-    server_auth['Oidc__Generic__Authority'] = server_auth['Oidc__Generic__Authority'].replace(':8443', ':18443')
     # The Console's operator bearer exchange is accepted only over HTTPS with a CSRF token, so the
     # server also listens on :8445 with the test certificate (its SAN includes `honua`).
-    server_tls = {**server_auth, **yaml.safe_load((ROOT / 'e2e/docker-compose.server-tls.yml').read_text())
-                  ['services']['honua-server']['environment']}
+    tls_env = yaml.safe_load((ROOT / 'e2e/docker-compose.server-tls.yml').read_text())['services']['honua-server']['environment']
+    server_tls = build_server_tls_environment(server_auth, tls_env)
     override = {'services': {'keycloak': keycloak, **console_services(server_tls)}}
     (INSTALL / COMPOSE_FILES[-1]).write_text(json.dumps(override))
     os.chmod(INSTALL / COMPOSE_FILES[-1], 0o600)

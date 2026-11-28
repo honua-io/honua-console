@@ -241,6 +241,17 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(services['compose-manager']['environment'], tls)
         self.assertEqual(services['honua']['environment'], tls)
 
+    def test_server_tls_environment_enables_development_for_private_oidc_discovery(self):
+        harness = load_harness()
+        auth_env = {'Oidc__Generic__Authority': 'https://host.docker.internal:8443/realms/honua'}
+        tls_env = {'Kestrel__Endpoints__Https__Url': 'https://*:8445'}
+        merged = harness.build_server_tls_environment(auth_env, tls_env)
+        self.assertEqual(merged['ASPNETCORE_ENVIRONMENT'], 'Development')
+        self.assertEqual(merged['PUBLIC_BASE_URL'], 'http://127.0.0.1:15274')
+        self.assertEqual(merged['Oidc__Generic__Authority'], 'https://host.docker.internal:18443/realms/honua')
+        self.assertEqual(merged['Kestrel__Endpoints__Https__Url'], 'https://*:8445')
+        self.assertNotIn('ASPNETCORE_ENVIRONMENT', auth_env)
+
     def test_run_raises_command_failed_with_stderr(self):
         harness = load_harness()
         with self.assertRaises(CommandFailed) as caught:

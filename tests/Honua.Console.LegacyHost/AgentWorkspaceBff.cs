@@ -147,6 +147,7 @@ internal static partial class AgentWorkspaceBff
         }
         // Style editing saves the complete draft. The retired style subroutes are not forwarded.
         if (studio && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[^/]+/style(?:/|$)")) return Results.NotFound();
+        var isDraftCreate = studio && HttpMethods.IsPost(context.Request.Method) && path == "v1/studio/package-drafts";
         var isDraftPut = studio && HttpMethods.IsPut(context.Request.Method)
             && Regex.IsMatch(path, @"\Av1/studio/package-drafts/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\z");
         var bodyLimit = datasetRoute is not null
@@ -261,6 +262,7 @@ internal static partial class AgentWorkspaceBff
                 buffer.Write(bytes, 0, count);
             }
             var payload = buffer.ToArray();
+            if (isDraftCreate || isDraftPut) payload = StudioMapDraftPayloadCanonicalizer.Canonicalize(payload);
             if (datasetRoute is not null) datasetRequestBody = payload;
             request.Content = new ByteArrayContent(payload);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
