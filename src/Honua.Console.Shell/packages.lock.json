@@ -4,11 +4,11 @@
     "net11.0": {
       "Honua.Sdk.Studio": {
         "type": "Direct",
-        "requested": "[2.2.0, )",
-        "resolved": "2.2.0",
-        "contentHash": "nSk7QpbmBMWe8sUbnO1aHA/Lae/4GESiBJfGvtnKhyO9yG4cyfx57Bn1b9AvFi7qyrNq+1v8VIM/kr20TP9CQw==",
+        "requested": "[5.0.1, )",
+        "resolved": "5.0.1",
+        "contentHash": "4HiCYVsE8YGHDcyhaNBsY2ju1oSvq9kEJu52canJS6MMj0KBgJONww+9Qf5gaV/nAZuZr9vlotTNp+otIUqjfA==",
         "dependencies": {
-          "Honua.Sdk.Abstractions": "2.2.0",
+          "Honua.Sdk.Abstractions": "5.0.1",
           "Microsoft.Extensions.Http": "10.0.7",
           "Microsoft.Extensions.Http.Resilience": "10.5.0"
         }
@@ -37,8 +37,8 @@
       },
       "Honua.Sdk.Abstractions": {
         "type": "Transitive",
-        "resolved": "2.2.0",
-        "contentHash": "QC8C0CwgBsTkPiqtxhb2dZ72EQ9OVyK73RldRyLsKhyA6NKKXt9uBUktH73uxNN6PYum6zwcAGiQ589jbToOTg=="
+        "resolved": "5.0.1",
+        "contentHash": "QT13/pBiE/mAHkdc4YsbTvYaqbEVO48GgnWRzfpH5+8VK6E+7PXGODni9B3enjEYH4JKIJj38ryU5h2ME5+rEg=="
       },
       "Honua.Sdk.Admin": {
         "type": "Transitive",
