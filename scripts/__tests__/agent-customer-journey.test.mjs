@@ -178,3 +178,61 @@ test('publication resolves the configured catalog connection when ingest reports
     globalThis.fetch = original;
   }
 });
+
+function createApprovalGatedIngestFetch({ connectionId, publishReached, isApprovalRequired }) {
+  return async (url, init) => {
+    if (url.pathname === '/api/v1/admin/import/upload') {
+      assert.equal(init.method, 'POST');
+      return Response.json({ success: true, physicalTableName: 'imported_sites' });
+    }
+    if (url.pathname === '/api/v1/admin/connections/') {
+      return Response.json({ data: [{ name: 'catalog', connectionId }] });
+    }
+    if (url.pathname === `/api/v1/admin/connections/${connectionId}/tables`) {
+      return Response.json({ tables: [{
+        schema: 'honua_data', table: 'imported_sites', geometryColumn: 'geom',
+        columns: [{ name: 'id', isPrimaryKey: true }],
+      }] });
+    }
+    assert.equal(url.pathname, '/mcp');
+    const { id, method, params } = JSON.parse(init.body);
+    if (method === 'initialize') {
+      return Response.json({ id, result: {} }, { headers: { 'mcp-session-id': 'test-session' } });
+    }
+    if (params.name === 'honua_ingest_dataset') {
+      const content = isApprovalRequired()
+        ? { approvalRequired: true, policyRef: 'operator.agent.dataset-ingest' }
+        : { error: 'boom' };
+      return Response.json({ id, result: { isError: true, structuredContent: content } });
+    }
+    assert.equal(params.name, 'honua_publish_service');
+    assert.deepEqual(
+      [params.arguments.connectionId, params.arguments.schema, params.arguments.table, params.arguments.geometryColumn, params.arguments.primaryKey],
+      [connectionId, 'honua_data', 'imported_sites', 'geom', 'id'],
+    );
+    throw publishReached;
+  };
+}
+
+test('publication stages via admin upload when direct MCP ingest requires approval, and still fails other errors', async () => {
+  const original = globalThis.fetch;
+  const publishReached = new Error('publish reached');
+  let approvalRequired = true;
+  globalThis.fetch = createApprovalGatedIngestFetch({
+    connectionId: 'dcb1e5e7-489b-4363-97f0-16be8d93c4ff',
+    publishReached,
+    isApprovalRequired: () => approvalRequired,
+  });
+  try {
+    const journey = {
+      serverUrl: 'https://server.example', proposerKey: 'proposer', verifierKey: 'verifier',
+      expectedActor: 'actor', catalogConnectionName: 'catalog', approve: async () => {},
+      datasets: [{ format: 'geojson', name: 'sites', data: '{}', geometryType: 'Point' }],
+    };
+    await assert.rejects(exerciseAgentPublication(journey), publishReached);
+    approvalRequired = false;
+    await assert.rejects(exerciseAgentPublication(journey), /honua_ingest_dataset failed/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

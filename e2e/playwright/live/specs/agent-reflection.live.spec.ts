@@ -156,6 +156,14 @@ test('Console reflects agent changes in the customer quickstart', async ({ page 
       },
     });
     journal.outage = false;
+    // Wait for the serving server's readiness probe to clear any transient DB circuit-breaker
+    // state after the managed postgres recovery restart before starting agent publication.
+    await expect.poll(async () => {
+      try {
+        const probe = await fetch(new URL('/healthz/ready', serverUrl), { signal: AbortSignal.timeout(5_000) });
+        return probe.status;
+      } catch { return 0; }
+    }, { timeout: 60_000, intervals: [1_000, 2_000] }).toBe(200);
     const suffix = randomBytes(5).toString('hex');
     const fixture = new URL('../fixtures/', import.meta.url);
     const fields = { name: 'esriFieldTypeString', population: 'esriFieldTypeBigInteger', rating: 'esriFieldTypeDouble' };

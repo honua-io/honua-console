@@ -23,6 +23,65 @@ export function scheduleCookieSessionRenewal(current, renew) {
     return () => { stopped = true; if (timer !== undefined) clearTimeout(timer); };
 }
 
+const STUDIO_DRAFT_UPDATE_ROUTE = /^api\/v1\/studio\/package-drafts\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const LEGACY_MAP_FORMAT = 'honua_map_package.v1';
+const CANONICAL_MAP_FORMAT = 'honua_map.v1';
+
+function isPlainObject(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isStudioDraftWrite(route, init) {
+    if (typeof route !== 'string' || typeof init?.body !== 'string') return false;
+    const method = String(init.method ?? 'GET').toUpperCase();
+    return (method === 'POST' && route === 'api/v1/studio/package-drafts')
+        || (method === 'PUT' && STUDIO_DRAFT_UPDATE_ROUTE.test(route));
+}
+
+function canonicalizeMapBody(body) {
+    if (!isPlainObject(body)) return { body, changed: false, conflict: false };
+    const hasLegacyId = Object.hasOwn(body, 'mapPackageId');
+    const hasCanonicalId = Object.hasOwn(body, 'mapId');
+    if (hasLegacyId && hasCanonicalId && body.mapPackageId !== body.mapId) {
+        return { body, changed: false, conflict: true };
+    }
+    const formatChanged = body.format === LEGACY_MAP_FORMAT;
+    if (!hasLegacyId && !formatChanged) return { body, changed: false, conflict: false };
+    const { mapPackageId, ...rest } = body;
+    return {
+        body: {
+            ...rest,
+            ...(hasLegacyId && !hasCanonicalId ? { mapId: mapPackageId } : {}),
+            ...(formatChanged ? { format: CANONICAL_MAP_FORMAT } : {}),
+        },
+        changed: true,
+        conflict: false,
+    };
+}
+
+function parseMapDraftPayload(body) {
+    let payload;
+    try { payload = JSON.parse(body); } catch { return null; }
+    const envelope = payload?.envelope;
+    if (!isPlainObject(envelope) || String(envelope.family ?? '').toLowerCase() !== 'map') return null;
+    return { payload, envelope };
+}
+
+/** Projects legacy honua_map_package.v1 Studio draft writes onto canonical honua_map.v1 / mapId. */
+export function canonicalizeStudioMapDraftRequest(route, init) {
+    if (!isStudioDraftWrite(route, init)) return init;
+    const parsed = parseMapDraftPayload(init.body);
+    if (!parsed) return init;
+    const { payload, envelope } = parsed;
+    const bodyResult = canonicalizeMapBody(envelope.body);
+    const formatChanged = envelope.format === LEGACY_MAP_FORMAT;
+    if (bodyResult.conflict || (!formatChanged && !bodyResult.changed)) return init;
+    const nextEnvelope = { ...envelope };
+    if (formatChanged) nextEnvelope.format = CANONICAL_MAP_FORMAT;
+    if (bodyResult.changed) nextEnvelope.body = bodyResult.body;
+    return { ...init, body: JSON.stringify({ ...payload, envelope: nextEnvelope }) };
+}
+
 /** The Studio auth session disposes this subscription when its cookie lease is replaced. */
 export function createStudioCookieSession(session) {
     const expiresAt = session?.expiresAt;
@@ -30,7 +89,7 @@ export function createStudioCookieSession(session) {
     if (!Number.isFinite(deadline)) throw new Error('The Studio cookie lease expiry is invalid. Reconnect before opening Studio.');
     const transport = session.transport;
     const request = transport?.fetch.bind(transport);
-    const nativeTransport = transport ? { fetchRequest: (input,init)=>request(input,init)
+    const nativeTransport = transport ? { fetchRequest: (input,init)=>request(input,canonicalizeStudioMapDraftRequest(input,init))
         .then(response=>guardNativeResponse(response,()=>transport.assertCurrent())) } : {};
     const maximumDelay = 2147483647;
     return Object.freeze({
