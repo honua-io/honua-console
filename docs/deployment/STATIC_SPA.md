@@ -52,13 +52,31 @@ On a same-origin
 for the manager only; reload the page and sign in again after a refresh, because the bearer is
 not restored from the session cookie. Same-origin OIDC cannot call a separate manager.
 
-## S3 and CloudFront
+## S3 and CloudFront (AWS Launch Stack deployment models)
 
-Use a private S3 origin with CloudFront origin access control. Upload the extracted files under
-`console/`; route `/console/*` to that origin and API paths to the Honua Server origin. The
-same public domain keeps the API session cookie same-origin. Limit SPA fallback to Console
-navigation requests: return `/console/index.html` for extensionless Console routes, and keep
-missing API routes and missing assets as errors. Do not rewrite API errors to HTML.
+Console is packaged and deployed as a version-locked static SPA — there is no
+Console Docker container. On AWS CloudFormation Launch Stack, two deployment
+models are supported:
+
+1. **Per-instance Static SPA (Model 1 — default):** Leave
+   `ConsoleBundleVersion` empty. The stack deploys the template's version-locked
+   static Console bundle into a private S3 bucket with CloudFront Origin Access
+   Control and serves it at `/console/` on the same domain as the Honua Server
+   API. Same-origin hosting keeps API session cookies, CSRF protection, and
+   server-brokered OIDC sign-in on one origin without CORS.
+2. **Multi-Environment Hub (Model 2 — optional):** Organizations managing
+   multiple Honua Server instances from one central Console set
+   `ConsoleBundleVersion=off` on spoke stacks to install the API without a
+   per-instance Console bucket or `/console/*` routes, and configure
+   `AllowedBrowserOrigins` where cross-origin browser access is required.
+
+For custom static hosting outside Launch Stack, use a private S3 origin with
+CloudFront Origin Access Control. Upload the extracted files under `console/`;
+route `/console/*` to that origin and API paths to the Honua Server origin. The
+same public domain keeps the API session cookie same-origin. Limit SPA fallback
+to Console navigation requests: return `/console/index.html` for extensionless
+Console routes, and keep missing API routes and missing assets as errors. Do not
+rewrite API errors to HTML.
 
 Use `Cache-Control: no-store` for `config.json` and `index.html`. Cache fingerprinted assets
 with `public, max-age=31536000, immutable`; use revalidation for assets without fingerprints.
@@ -94,16 +112,16 @@ loopback `http:` and `ws:` on `localhost` and `127.0.0.1` for a local Compose ma
 A separate-origin API must use HTTPS. A plain-HTTP API works from the Console's own origin.
 Validate policy changes with the browser journeys before rollout.
 
-## Migration status
+## Release status
 
-The browser host is under integration. The API must provide browser sign-in, session/CSRF
-bootstrap, authorized resource endpoints and static fallback before this bundle replaces the
-server-rendered deployment. The old authentication and proxy code remains in a test-only
-host while its replacement endpoints are verified. It is excluded from release publication;
-the legacy customer regression explicitly packages it into a test container. A successful static build alone does
-not prove sign-in, Studio, map resources or mutation workflows.
+The static Blazor WebAssembly bundle is the shipping 2026.1-rc.2 Console
+artifact; Console container publication has been retired. Legacy server-side
+authentication and proxy code remains only in `tests/Honua.Console.LegacyHost`,
+a test-only fixture excluded from release publication. A successful static build
+alone does not substitute for live end-to-end verification of sign-in, Studio,
+map resources, and mutation workflows against the pinned Honua Server image.
 
-The static-bundle workflow replaces Console container publication. Its Playwright gate serves
+The static-bundle workflow builds, packages, and attests the release ZIP. Its Playwright gate serves
 the published files at 1280 and 390 pixels. One fixture checks unbound navigation and missing
 API responses. A password-contract fixture submits the sign-in form and checks same-origin
 cookie issuance with identity-bound CSRF refresh, cross-origin bearer issuance without cookies,

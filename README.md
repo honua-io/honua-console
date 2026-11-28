@@ -40,9 +40,29 @@ lands here. Honest signal on maturity:
   conversation. `honua-studio` is its active editor dependency, not a separate product to launch.
   Legacy standalone generated-package builder routes provide direct workspace guidance; capability flags
   cannot restore them. Real operations, automation and Processes authoring remain available.
-- **Realtime alerting is capability-gated preview.** Operate jobs and events
-  are first-release floor; alert/geofence rule surfaces light up only when the
-  bound server advertises the capability.
+- **Realtime alerting is an opt-in Preview feature.** Operate jobs and events
+  are first-release floor; geofence alerting (`alerts.geofence`) is off by
+  default in 2026.1-rc.2 and displays a Preview status until explicitly enabled
+  on the bound server.
+- **Geoprocessing services expose processes, not feature layers.** `GPServer`
+  and OGC API - Processes services display their executable tasks/processes
+  rather than feature-layer tables.
+
+### Deployment models
+
+Console ships as a version-locked static Blazor WebAssembly SPA — there is no
+Console Docker container. Two production deployment models are supported:
+
+1. **Per-instance Static SPA (default on AWS Launch Stack):** Deployed
+   automatically into a private S3 bucket behind CloudFront at `/console/`
+   alongside each Honua Server instance (`ConsoleBundleVersion` left empty),
+   sharing the same origin for session cookies, CSRF protection, and
+   server-brokered OIDC sign-in (with `AdminCredentialAccess=BreakGlass`
+   supporting local `admin` break-glass password sign-in when needed).
+2. **Multi-Environment Hub (optional):** Teams managing multiple Honua Server
+   instances from one central Console disable the per-instance Console on spoke
+   stacks via `ConsoleBundleVersion=off` (installing the API only) and connect
+   those environments from the central Console.
 
 ## Quick start
 
@@ -315,7 +335,7 @@ Report vulnerabilities to <security@honua.io>. See the organization
 The following host settings describe the retained test-only host and its preview
 fixtures, not public `config.json` settings or static deployment instructions.
 Live static-workspace qualification remains a release gate; see
-[Static SPA deployment](docs/deployment/STATIC_SPA.md#migration-status).
+[Static SPA deployment](docs/deployment/STATIC_SPA.md#release-status).
 
 The host keeps operator and agent credentials separate. Realtime embedding uses `Studio:EmbedJsStudio`.
 Native transport requires the host-only `HONUA_AGENT_API_KEY`, a matching pinned

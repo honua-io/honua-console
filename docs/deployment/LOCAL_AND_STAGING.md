@@ -46,7 +46,7 @@ Alternatively, set `apiBaseUrl` to the HTTPS Honua API origin and configure
 Honua Server CORS for the exact Console origin. This uses an operator bearer in
 browser memory. Same-origin sign-in uses the server cookie and CSRF protection.
 OIDC requires the same-origin server broker; configure it as described in
-[Static SPA deployment](STATIC_SPA.md#migration-status).
+[Static SPA deployment](STATIC_SPA.md#release-status).
 
 Keep credentials out of `config.json` and the static bundle. `HONUA_SERVER_BASE_URL`
 and `HONUA_ADMIN_API_KEY` belong to legacy test-host configurations; setting them
@@ -104,7 +104,7 @@ node scripts/console-csp.mjs --verify-origin https://your-console.example
 
 A successful build or fixture run does not establish installed browser usability.
 Record the live journey separately; the remaining qualification requirements are
-listed in [Static SPA deployment](STATIC_SPA.md#migration-status).
+listed in [Static SPA deployment](STATIC_SPA.md#release-status).
 
 ## Checks and legacy integration fixtures
 

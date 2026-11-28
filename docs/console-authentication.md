@@ -20,9 +20,15 @@ configuration or static files.
 
 ## Choose the authentication topology
 
+OIDC is the primary operator sign-in method for production deployments —
+Amazon Cognito by default on AWS Launch Stack, or an external OIDC provider
+such as Keycloak, Microsoft Entra ID, or Okta. Local `admin` password sign-in
+serves local development and emergency break-glass recovery (enabled on AWS
+Launch Stack only when updated with `AdminCredentialAccess=BreakGlass`).
+
 | Deployment | Browser credential | Sign-in |
 | --- | --- | --- |
-| API and Console share an origin | Server session cookie; `X-Honua-CSRF` on mutations | Builtin password or server-brokered OIDC |
+| API and Console share an origin | Server session cookie; `X-Honua-CSRF` on mutations | Server-brokered OIDC (primary) or builtin/break-glass password |
 | API and Console have separate origins | Short-lived operator bearer held in browser memory; cookies omitted | Builtin password |
 | Separate management API | Operator bearer held in browser memory; serving cookie and CSRF token omitted | See the management endpoint section below |
 
@@ -48,6 +54,14 @@ The browser does not read or copy the server cookie into configuration. Reloadin
 can restore an unexpired cookie session through the session endpoint; it obtains
 a fresh CSRF token before authenticated mutations. A CSRF token obtained before
 sign-in must not be reused for the newly authenticated identity.
+
+On AWS Launch Stack deployments, `AdminCredentialAccess=Sealed` (the default)
+restricts the generated administrator password credential to loopback inside the
+ECS task so operators sign in through OIDC. When the identity provider is
+unavailable, updating the stack to `AdminCredentialAccess=BreakGlass` allows
+emergency sign-in with the local `admin` break-glass password on the Console
+sign-in page (as well as `X-API-Key` API access); rotate the secret and return
+to `AdminCredentialAccess=Sealed` after recovery.
 
 ## Separate-origin password sign-in
 
