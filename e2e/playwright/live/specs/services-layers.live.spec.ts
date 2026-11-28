@@ -17,6 +17,7 @@ const stamp = Date.now().toString(36);
 // Overridable so the suite can publish out of whatever PostGIS the surrounding harness booted; the
 // default is the console testbed's seeded table. See live/source-db.ts.
 const SOURCE_TABLE = SOURCE_DB.table;
+const PUB_CONNECTION_NAME = `e2e-pub-conn-${stamp}`;
 const SERVICE_NAME = `e2e_src_fs_${stamp}`;
 const LAYER_NAME = 'E2E Source';
 
@@ -59,9 +60,7 @@ test.describe('Operate · Publish layer workflow (live)', () => {
       await page.waitForURL('**/operate/connections');
       await expect(page.getByText('Operate binding')).toHaveCount(0);
     }
-    const connName = `e2e-pub-conn-${stamp}`;
-    const conn = await admin.createConnection(sourceConnectionBody(connName));
-    admin.trackConnectionName(connName);
+    const conn = await admin.getOrCreateKeptConnection(sourceConnectionBody(PUB_CONNECTION_NAME));
     // Warm server-side table discovery AND confirm the just-created connection is resolvable + the source
     // table is discoverable before driving the UI (a freshly created connection's first cold scan can lag).
     await expect
@@ -198,11 +197,10 @@ test.describe('Operate · Publish layer workflow (live)', () => {
   });
 
   test('the layer renders through the map-preview proxy (credentials stay server-side)', async ({ page, admin }) => {
-    // Resolve the published layer's global id from the admin layer listing.
-    const connName = `e2e-preview-conn-${stamp}`;
-    const conn = await admin.createConnection(sourceConnectionBody(connName));
-    admin.trackConnectionName(connName);
-    const layers = await admin.listLayers(conn.connectionId, SERVICE_NAME);
+    // Resolve the published layer's global id from the publishing connection's layer listing.
+    const conn = await admin.findConnectionByName(PUB_CONNECTION_NAME);
+    expect(conn, `publishing connection ${PUB_CONNECTION_NAME} should exist`).toBeTruthy();
+    const layers = await admin.listLayers(conn!.connectionId, SERVICE_NAME);
     const layer = layers.find((l: any) => l.layerName === LAYER_NAME) ?? layers[0];
     expect(layer, 'the published layer should be listed').toBeTruthy();
 
@@ -228,10 +226,11 @@ test.describe('Operate · Publish layer workflow (live)', () => {
 
   test('author a coded-value domain on a field via the layer detail page', async ({ page, admin }) => {
     test.slow();
-    // A connection must exist for the layer to appear in the console's layers view.
-    const connName = `e2e-domains-conn-${stamp}`;
-    await admin.createConnection(sourceConnectionBody(connName));
-    admin.trackConnectionName(connName);
+    // The publishing connection owns the layer and remains active for the console's layers view.
+    expect(
+      await admin.findConnectionByName(PUB_CONNECTION_NAME),
+      `publishing connection ${PUB_CONNECTION_NAME} should exist`,
+    ).toBeTruthy();
 
     // Open the published layer's detail page from the layers list.
     await page.goto('/operate/layers');
