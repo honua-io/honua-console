@@ -13,7 +13,9 @@
 
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.Temporal"
                        Title="Temporal is not available in this release"
-                       Message="Temporal 'git over data' — as-of, diff, governed rollback, and feature history — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
+                       Message="Temporal 'git over data' — as-of, diff, governed rollback, and feature history — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account."
+                       OptInTitle="Temporal history — preview feature (off by default)"
+                       OptInMessage="Temporal history, as-of inspection, and governed rollback are opt-in preview features currently turned off on this server. Ask an administrator to enable temporal.filtering in the server configuration, then refresh this page.">
 <section class="console-page operate-temporal" data-temporal-viewer="capability-gate">
     @if (V4Enabled)
     {

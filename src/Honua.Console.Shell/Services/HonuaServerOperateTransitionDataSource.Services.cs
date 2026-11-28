@@ -73,7 +73,7 @@ public sealed partial class HonuaServerOperateTransitionDataSource
                 serviceName,
                 Coalesce(service.Title, service.PublicName, service.Description, serviceName),
                 protocols.Length == 0 ? "Geo service" : string.Join(", ", protocols),
-                service.LayerCount > 0 ? "Configured" : "No layers",
+                service.LayerCount > 0 || !ConsoleServiceKind.IsLayerService(protocols) ? "Configured" : "No layers",
                 "Canonical metadata is owned by honua-server Metadata v2 resources. Service settings control runtime protocols, access policy, and exposure.",
                 layers,
                 MapRuntimeSettings(service, settings, protocols),

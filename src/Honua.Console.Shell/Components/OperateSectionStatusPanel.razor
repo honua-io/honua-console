@@ -38,6 +38,9 @@
     [Parameter]
     public string EmptyMessage { get; set; } = "The connected server returned no records for this surface.";
 
+    [Parameter]
+    public string? TitleOverride { get; set; }
+
     private string StateKind => Loading ? "loading" : Empty ? "empty" : Status == OperateSectionStatus.Unsupported ? "missing" : "denied";
 
     private string StateClass => $"operate-status-{StateKind}";
@@ -46,7 +49,9 @@
         ? "Loading..."
         : Empty
             ? EmptyTitle
-            : OperateSectionPresentation.Title(Status);
+            : !string.IsNullOrWhiteSpace(TitleOverride)
+                ? TitleOverride
+                : OperateSectionPresentation.Title(Status);
 
     private string ResolvedMessage => Loading
         ? "Reading live data from the connected honua-server."

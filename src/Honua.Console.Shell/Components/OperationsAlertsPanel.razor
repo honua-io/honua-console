@@ -14,7 +14,8 @@
     }
     else if (!_result.IsAllowed)
     {
-        <OperateSectionStatusPanel Heading="Alerts" Status="_result.Status" Message="@_result.Message" />
+        <OperateSectionStatusPanel Heading="Alerts" Status="_result.Status" Message="@_result.Message"
+                                   TitleOverride="@AlertStatusTitleOverride" />
     }
     else if (_result.Value is { } snapshot)
     {
@@ -106,6 +107,11 @@
     });
 
     private bool IsAlertingAdvertised => Capabilities?.IsAdvertised(ConsoleCapabilityKeys.RealtimeAlerting) == true;
+
+    private string? AlertStatusTitleOverride =>
+        _result.Status == OperateSectionStatus.Unsupported && Capabilities?.IsOptInDisabled(ConsoleCapabilityKeys.RealtimeAlerting) == true
+            ? "Preview feature (off by default)"
+            : null;
 
     private void OnAuthorityChanged()
     {

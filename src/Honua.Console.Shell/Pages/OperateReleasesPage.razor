@@ -10,7 +10,9 @@
 <ConsoleAgentContext Context="@AgentContext" />
 <ConsoleCapabilityGate Capability="@ConsoleCapabilityKeys.CrossEnvironmentPromotion"
                        Title="Cross-environment releases are not available in this release"
-                       Message="Promoting and coordinating metadata / service + layer releases across a dev → staging → prod fleet — including cross-environment rollback readiness — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account.">
+                       Message="Promoting and coordinating metadata / service + layer releases across a dev → staging → prod fleet — including cross-environment rollback readiness — is a capability-gated depth feature. It is not advertised by the connected environment for this release and lights up here once enabled for your account."
+                       OptInTitle="Cross-environment releases — preview feature (off by default)"
+                       OptInMessage="Cross-environment metadata and service releases are an opt-in preview feature currently turned off on this server. Ask an administrator to enable gitops.release-manifest in the server configuration, then refresh this page.">
 <section class="console-page console-operate-page" data-releases-page>
     @if (V4Enabled)
     {

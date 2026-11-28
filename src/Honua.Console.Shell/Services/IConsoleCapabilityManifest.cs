@@ -1,3 +1,5 @@
+using Honua.Console.Shell.Models;
+
 namespace Honua.Console.Shell.Services;
 
 // A capability the deployment does not advertise stays unsupported even when the server exposes the endpoint, and a failed manifest read fails closed.
@@ -9,6 +11,13 @@ public interface IConsoleCapabilityManifest
 
     // Unknown keys are not advertised.
     bool IsAdvertised(string capabilityKey);
+
+    // Returns the server descriptor when known from the capability manifest.
+    CapabilityDescriptor? GetDescriptor(string capabilityKey) => null;
+
+    // True when the connected server reports the capability as opt-in and currently disabled.
+    bool IsOptInDisabled(string capabilityKey) =>
+        GetDescriptor(capabilityKey) is { Available: false, OptInRequired: true };
 }
 
 public static class ConsoleCapabilityKeys
@@ -24,6 +33,11 @@ public static class ConsoleCapabilityKeys
     public const string SiemInvestigations = "siem-investigations";
 
     public const string PersistentCatalog = "persistent-catalog";
+
+    public static string? ServerKey(string consoleKey) =>
+        ManifestBackedConsoleCapabilityManifest.Mappings.TryGetValue(consoleKey, out var serverId)
+            ? serverId
+            : null;
 }
 
 public sealed class ConsoleCapabilityManifest : IConsoleCapabilityManifest
@@ -73,6 +87,7 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
 
     private readonly HashSet<string> _localPolicy;
     private HashSet<string> _available = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, CapabilityDescriptor> _descriptors = new(StringComparer.OrdinalIgnoreCase);
 
     public event Action? Changed;
 
@@ -92,6 +107,22 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
         }
     }
 
+    public CapabilityDescriptor? GetDescriptor(string capabilityKey)
+    {
+        if (string.IsNullOrWhiteSpace(capabilityKey))
+        {
+            return null;
+        }
+
+        lock (_refreshLock)
+        {
+            return _descriptors.TryGetValue(capabilityKey, out var descriptor) ? descriptor : null;
+        }
+    }
+
+    public bool IsOptInDisabled(string capabilityKey) =>
+        GetDescriptor(capabilityKey) is { Available: false, OptInRequired: true };
+
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         long version;
@@ -99,33 +130,11 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
         {
             version = ++_refreshVersion;
             _available = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _descriptors = new Dictionary<string, CapabilityDescriptor>(StringComparer.OrdinalIgnoreCase);
         }
         Changed?.Invoke();
 
-        var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        try
-        {
-            var snapshot = await _registry.GetSnapshotAsync(timeout.Token).WaitAsync(timeout.Token).ConfigureAwait(false);
-            if (snapshot.Bound)
-            {
-                foreach (var mapping in ServerCapabilityByConsoleKey)
-                {
-                    var descriptors = snapshot.Descriptors.Where(item =>
-                        string.Equals(item.Id, mapping.Value, StringComparison.Ordinal)).ToArray();
-                    if (descriptors is [{ Supported: true, Available: true }]
-                        && (_localPolicy.Count == 0 || _localPolicy.Contains(mapping.Key)))
-                    {
-                        next.Add(mapping.Key);
-                    }
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // Failure, cancellation and timeout all revoke the previous server's availability.
-        }
+        var (nextAvailable, nextDescriptors) = await ReadManifestStateAsync(cancellationToken).ConfigureAwait(false);
 
         lock (_refreshLock)
         {
@@ -134,9 +143,56 @@ public sealed class ManifestBackedConsoleCapabilityManifest : IConsoleCapability
             {
                 return;
             }
-            _available = next;
+            _available = nextAvailable;
+            _descriptors = nextDescriptors;
         }
         Changed?.Invoke();
+    }
+
+    private async Task<(HashSet<string> Available, Dictionary<string, CapabilityDescriptor> Descriptors)> ReadManifestStateAsync(
+        CancellationToken cancellationToken)
+    {
+        var next = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var descriptors = new Dictionary<string, CapabilityDescriptor>(StringComparer.OrdinalIgnoreCase);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var snapshot = await _registry.GetSnapshotAsync(timeout.Token).WaitAsync(timeout.Token).ConfigureAwait(false);
+            if (snapshot.Bound)
+            {
+                CollectMappedCapabilities(snapshot, next, descriptors);
+            }
+        }
+        catch (Exception)
+        {
+            // Failure, cancellation and timeout all revoke the previous server's availability.
+        }
+
+        return (next, descriptors);
+    }
+
+    private void CollectMappedCapabilities(
+        CapabilityRegistrySnapshot snapshot,
+        HashSet<string> available,
+        Dictionary<string, CapabilityDescriptor> descriptors)
+    {
+        foreach (var mapping in ServerCapabilityByConsoleKey)
+        {
+            var matches = snapshot.Descriptors.Where(item =>
+                string.Equals(item.Id, mapping.Value, StringComparison.Ordinal)).ToArray();
+            if (matches is not [var descriptor])
+            {
+                continue;
+            }
+
+            descriptors[mapping.Key] = descriptor;
+            if (descriptor is { Supported: true, Available: true }
+                && (_localPolicy.Count == 0 || _localPolicy.Contains(mapping.Key)))
+            {
+                available.Add(mapping.Key);
+            }
+        }
     }
 
     internal static IReadOnlyDictionary<string, string> Mappings => ServerCapabilityByConsoleKey;

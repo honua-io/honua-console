@@ -10,6 +10,8 @@ public sealed class ConsolePublicationTreeContext
     public required string SelectedPath { get; init; }
     public bool V4Enabled { get; init; }
     public bool SearchPending { get; init; }
+    public bool CanOpenActions { get; init; }
+    public string? ActiveMenuNodeKey { get; init; }
 
     public string? Link(ConsolePublicationNode node) => node.Kind == ConsolePublicationNodeKind.Folder && !V4Enabled ? null : node.Href;
 
@@ -17,12 +19,17 @@ public sealed class ConsolePublicationTreeContext
 
     public int? Count(ConsolePublicationNode node) =>
         V4Enabled && node.Kind == ConsolePublicationNodeKind.Environment ? Tree.ServiceCount : node.ChildCount;
+
+    public bool IsMenuOpen(ConsolePublicationNode node) =>
+        string.Equals(ActiveMenuNodeKey, node.Key, StringComparison.Ordinal);
+
     public EventCallback<ConsolePublicationNode> Expand { get; init; }
     public EventCallback<ConsolePublicationNode> Collapse { get; init; }
     public EventCallback<ConsolePublicationNode> Retry { get; init; }
     public EventCallback<ConsolePublicationNode> ShowFirstPage { get; init; }
     public EventCallback<ConsolePublicationNode> ShowMore { get; init; }
     public EventCallback ShowMoreSearch { get; init; }
+    public EventCallback<ConsolePublicationMenuRequest> OpenMenu { get; init; }
     public OperateSectionResult<IReadOnlyList<ConsolePublicationLayerMatch>>? LayerSearch { get; init; }
     public EventCallback<ConsoleSearchTarget> OpenSearchResult { get; init; }
 
@@ -53,7 +60,14 @@ public sealed class ConsolePublicationTreeContext
 
     public static string GroupId(ConsolePublicationNode node) => "console-tree-group-" + node.Key;
     public static string StatusId(ConsolePublicationNode node) => "console-tree-status-" + node.Key;
+
+    public static string? FolderId(ConsolePublicationNode node) =>
+        node.Kind == ConsolePublicationNodeKind.Folder && node.Key.StartsWith("folder:", StringComparison.Ordinal)
+            ? Uri.UnescapeDataString(node.Key["folder:".Length..])
+            : null;
 }
+
+public sealed record ConsolePublicationMenuRequest(ConsolePublicationNode Node);
 
 public sealed record ConsoleSearchTarget(string Href, string? ServiceName);
 

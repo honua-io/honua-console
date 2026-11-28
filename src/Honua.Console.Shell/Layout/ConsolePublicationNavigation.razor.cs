@@ -138,4 +138,30 @@ public partial class ConsolePublicationNavigation
         _pageFailure = result;
         return true;
     }
+
+    private ConsolePublicationNode? _menuNode;
+    private bool _newFolderOpen;
+
+    private void OpenMenu(ConsolePublicationMenuRequest request)
+    {
+        _newFolderOpen = false;
+        _menuNode = string.Equals(_menuNode?.Key, request.Node.Key, StringComparison.Ordinal) ? null : request.Node;
+    }
+
+    private void CloseMenu() => _menuNode = null;
+
+    private void OpenNewFolder()
+    {
+        _menuNode = null;
+        _newFolderOpen = true;
+    }
+
+    private void CloseNewFolder() => _newFolderOpen = false;
+
+    private Task HandleFolderCreatedAsync()
+    {
+        _newFolderOpen = false;
+        _menuNode = null;
+        return _folderChanges is not null ? Task.CompletedTask : ReloadAuthorityAsync();
+    }
 }

@@ -1,0 +1,37 @@
+@inject NavigationManager Navigation
+@using Honua.Console.Shell.Models
+
+<article class="console-panel" data-service-operations="@Service.ServiceCategory.ToString().ToLowerInvariant()">
+    <h2>@Heading</h2>
+    <p class="console-muted">@Description</p>
+    @if (Service.ServiceCategory == ConsoleServiceCategory.Geoprocessing)
+    {
+        <div class="console-action-row">
+            <a class="console-button" href="@Navigation.ToConsoleHref("/operate/geoprocessing")" data-service-gp-jobs>Open Geoprocessing jobs</a>
+            <a class="console-button console-button-secondary" href="@Navigation.ToConsoleHref("/studio/processes")" data-service-gp-processes>Open Processes</a>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public OperateServiceDetail Service { get; set; } = default!;
+
+    private string Heading => Service.ServiceCategory switch
+    {
+        ConsoleServiceCategory.Geoprocessing => "Processes and tasks",
+        ConsoleServiceCategory.Geocoding => "Locators",
+        ConsoleServiceCategory.Geometry => "Geometry operations",
+        _ => "Operations"
+    };
+
+    private string Description => Service.ServiceCategory switch
+    {
+        ConsoleServiceCategory.Geoprocessing =>
+            "This geoprocessing service exposes executable tasks, processes, and durable jobs rather than map or feature layers. Inspect running jobs in Geoprocessing or author tasks in Processes.",
+        ConsoleServiceCategory.Geocoding =>
+            "This geocoding service exposes address locators and reverse-geocoding operations rather than map or feature layers.",
+        ConsoleServiceCategory.Geometry =>
+            "This geometry service exposes stateless spatial operations (projection, buffer, simplify, area, and length) rather than map or feature layers.",
+        _ => "This service exposes non-layer endpoints."
+    };
+}

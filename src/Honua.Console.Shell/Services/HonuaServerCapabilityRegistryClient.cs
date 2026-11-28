@@ -55,7 +55,9 @@ public sealed class HonuaServerCapabilityRegistryClient : ICapabilityRegistryCli
                 Id: entry.Id,
                 Available: entry.Available,
                 Supported: entry.Supported,
-                ReasonCode: entry.ReasonCode));
+                ReasonCode: entry.ReasonCode,
+                OptInRequired: entry.OptInRequired,
+                Lifecycle: entry.Lifecycle));
         }
 
         var families = new List<string>();

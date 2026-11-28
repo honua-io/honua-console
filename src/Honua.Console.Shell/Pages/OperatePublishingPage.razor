@@ -24,7 +24,7 @@
     </div>
     }
 
-    <PublishWizardWorkspace />
+    <PublishWizardWorkspace InitialFolderId="@FolderId" />
 
     @if (_workspace is null)
     {
@@ -299,6 +299,9 @@
 
     [SupplyParameterFromQuery(Name = "publicationId")]
     public string? PublicationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "folder")]
+    public string? FolderId { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {

@@ -173,6 +173,12 @@
     }
     function handleEscape(event) {
         if (event.key !== 'Escape' || !event.target.closest(sidebarSelector)) return false;
+        const menuClose = sidebar?.querySelector('[data-tree-context-menu] [data-tree-menu-close], [data-tree-new-folder] [data-tree-new-folder-cancel]');
+        if (menuClose) {
+            event.preventDefault();
+            menuClose.click();
+            return true;
+        }
         event.preventDefault();
         const filter = sidebar.querySelector('[data-tree-filter]');
         if (filter?.value && (event.target === filter || event.target.closest('[data-publication-search]'))) {
@@ -226,6 +232,7 @@
         if (more) pendingPage = {parentKey: more.dataset.treeMore, keys: new Set(rows().map(key))};
         const retry = event.target.closest('[data-tree-retry]');
         if (retry) focusRetryOwner(retry);
+        if (event.target.closest('[data-tree-action-trigger]')) return;
         const row = event.target.closest(rowSelector);
         if (row?.closest(treeSelector)) {
             focusedKey = key(row);

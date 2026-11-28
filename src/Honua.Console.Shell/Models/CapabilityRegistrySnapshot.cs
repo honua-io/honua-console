@@ -4,7 +4,9 @@ public sealed record CapabilityDescriptor(
     string Id,
     bool Available,
     bool Supported,
-    string? ReasonCode = null);
+    string? ReasonCode = null,
+    bool OptInRequired = false,
+    string? Lifecycle = null);
 
 public sealed record CapabilityRegistrySnapshot
 {
