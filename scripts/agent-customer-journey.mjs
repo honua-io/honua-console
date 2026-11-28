@@ -123,25 +123,32 @@ async function resolveConsoleLayer(serverUrl, verifierKey, { imported, serviceNa
   return storageLayerId;
 }
 
+const UPLOAD_TIMEOUT_MS = 60_000;
+
+async function discoverUploadedTable({ serverUrl, verifierKey, connectionId, datasetName, physicalName }) {
+  const discovered = await api(serverUrl, verifierKey, `/api/v1/admin/connections/${encodeURIComponent(connectionId)}/tables`);
+  const matches = (discovered.tables ?? []).filter(entry =>
+    entry.table === physicalName || entry.table === datasetName || entry.table === `imported_${datasetName}`);
+  const physical = matches[0];
+  if (matches.length !== 1 || !physical)
+    throw new Error(`Uploaded ${datasetName} did not resolve to one physical table`);
+  return physical;
+}
+
 async function uploadDatasetForAgent({ serverUrl, verifierKey, catalogConnectionName, dataset }) {
   const form = new FormData();
   const mime = dataset.format === 'geojson' ? 'application/geo+json' : 'text/plain';
   form.append('File', new Blob([dataset.data], { type: mime }), `${dataset.name}.${dataset.format}`);
   form.append('TableName', dataset.name);
   const response = await fetch(new URL('/api/v1/admin/import/upload', serverUrl), {
-    method: 'POST', headers: { 'X-API-Key': verifierKey }, body: form, signal: AbortSignal.timeout(60_000),
+    method: 'POST', headers: { 'X-API-Key': verifierKey }, body: form, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`Server HTTP ${response.status} on /api/v1/admin/import/upload`);
   const uploaded = await response.json();
   if (!uploaded.success) throw new Error(`Admin upload for ${dataset.format} failed: ${importSummary(uploaded)}`);
   const connectionId = await resolveRegisteredConnection(serverUrl, verifierKey, catalogConnectionName);
   const physicalName = uploaded.physicalTableName ?? uploaded.tableName ?? dataset.name;
-  const discovered = await api(serverUrl, verifierKey, `/api/v1/admin/connections/${encodeURIComponent(connectionId)}/tables`);
-  const matches = (discovered.tables ?? []).filter(entry =>
-    entry.table === physicalName || entry.table === dataset.name || entry.table === `imported_${dataset.name}`);
-  const physical = matches[0];
-  if (matches.length !== 1 || !physical)
-    throw new Error(`Uploaded ${dataset.name} did not resolve to one physical table`);
+  const physical = await discoverUploadedTable({ serverUrl, verifierKey, connectionId, datasetName: dataset.name, physicalName });
   const primaryKey = uploaded.primaryKey ?? physical.columns?.find(column => column.isPrimaryKey)?.name;
   return {
     success: true, connectionId, schema: physical.schema, table: physical.table,

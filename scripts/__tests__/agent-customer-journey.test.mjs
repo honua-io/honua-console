@@ -179,12 +179,8 @@ test('publication resolves the configured catalog connection when ingest reports
   }
 });
 
-test('publication stages via admin upload when direct MCP ingest requires approval, and still fails other errors', async () => {
-  const original = globalThis.fetch;
-  const publishReached = new Error('publish reached');
-  const connectionId = 'dcb1e5e7-489b-4363-97f0-16be8d93c4ff';
-  let approvalRequired = true;
-  globalThis.fetch = async (url, init) => {
+function createApprovalGatedIngestFetch({ connectionId, publishReached, isApprovalRequired }) {
+  return async (url, init) => {
     if (url.pathname === '/api/v1/admin/import/upload') {
       assert.equal(init.method, 'POST');
       return Response.json({ success: true, physicalTableName: 'imported_sites' });
@@ -204,19 +200,29 @@ test('publication stages via admin upload when direct MCP ingest requires approv
       return Response.json({ id, result: {} }, { headers: { 'mcp-session-id': 'test-session' } });
     }
     if (params.name === 'honua_ingest_dataset') {
-      return Response.json({ id, result: {
-        isError: true,
-        structuredContent: approvalRequired ? { approvalRequired: true, policyRef: 'operator.agent.dataset-ingest' } : { error: 'boom' },
-      } });
+      const content = isApprovalRequired()
+        ? { approvalRequired: true, policyRef: 'operator.agent.dataset-ingest' }
+        : { error: 'boom' };
+      return Response.json({ id, result: { isError: true, structuredContent: content } });
     }
     assert.equal(params.name, 'honua_publish_service');
-    assert.equal(params.arguments.connectionId, connectionId);
-    assert.equal(params.arguments.schema, 'honua_data');
-    assert.equal(params.arguments.table, 'imported_sites');
-    assert.equal(params.arguments.geometryColumn, 'geom');
-    assert.equal(params.arguments.primaryKey, 'id');
+    assert.deepEqual(
+      [params.arguments.connectionId, params.arguments.schema, params.arguments.table, params.arguments.geometryColumn, params.arguments.primaryKey],
+      [connectionId, 'honua_data', 'imported_sites', 'geom', 'id'],
+    );
     throw publishReached;
   };
+}
+
+test('publication stages via admin upload when direct MCP ingest requires approval, and still fails other errors', async () => {
+  const original = globalThis.fetch;
+  const publishReached = new Error('publish reached');
+  let approvalRequired = true;
+  globalThis.fetch = createApprovalGatedIngestFetch({
+    connectionId: 'dcb1e5e7-489b-4363-97f0-16be8d93c4ff',
+    publishReached,
+    isApprovalRequired: () => approvalRequired,
+  });
   try {
     const journey = {
       serverUrl: 'https://server.example', proposerKey: 'proposer', verifierKey: 'verifier',

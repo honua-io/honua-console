@@ -59,26 +59,27 @@ function canonicalizeMapBody(body) {
     };
 }
 
+function parseMapDraftPayload(body) {
+    let payload;
+    try { payload = JSON.parse(body); } catch { return null; }
+    const envelope = payload?.envelope;
+    if (!isPlainObject(envelope) || String(envelope.family ?? '').toLowerCase() !== 'map') return null;
+    return { payload, envelope };
+}
+
 /** Projects legacy honua_map_package.v1 Studio draft writes onto canonical honua_map.v1 / mapId. */
 export function canonicalizeStudioMapDraftRequest(route, init) {
     if (!isStudioDraftWrite(route, init)) return init;
-    let payload;
-    try { payload = JSON.parse(init.body); } catch { return init; }
-    const envelope = payload?.envelope;
-    if (!isPlainObject(envelope) || String(envelope.family ?? '').toLowerCase() !== 'map') return init;
+    const parsed = parseMapDraftPayload(init.body);
+    if (!parsed) return init;
+    const { payload, envelope } = parsed;
     const bodyResult = canonicalizeMapBody(envelope.body);
-    if (bodyResult.conflict) return init;
     const formatChanged = envelope.format === LEGACY_MAP_FORMAT;
-    if (!formatChanged && !bodyResult.changed) return init;
-    const canonical = {
-        ...payload,
-        envelope: {
-            ...envelope,
-            ...(formatChanged ? { format: CANONICAL_MAP_FORMAT } : {}),
-            ...(bodyResult.changed ? { body: bodyResult.body } : {}),
-        },
-    };
-    return { ...init, body: JSON.stringify(canonical) };
+    if (bodyResult.conflict || (!formatChanged && !bodyResult.changed)) return init;
+    const nextEnvelope = { ...envelope };
+    if (formatChanged) nextEnvelope.format = CANONICAL_MAP_FORMAT;
+    if (bodyResult.changed) nextEnvelope.body = bodyResult.body;
+    return { ...init, body: JSON.stringify({ ...payload, envelope: nextEnvelope }) };
 }
 
 /** The Studio auth session disposes this subscription when its cookie lease is replaced. */
